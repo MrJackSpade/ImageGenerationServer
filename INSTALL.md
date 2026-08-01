@@ -36,13 +36,9 @@ It opens your browser once it is listening; if it cannot, the address is printed
 asks for your ComfyUI's address, and then you create an account. `IMAGEGEN_OPEN_BROWSER=0` stops it opening one —
 only the launchers ask for a browser, so a container or a service never does.
 
-ffmpeg is not a prerequisite — it is linked into the application. The launcher selects SQLite and puts everything —
+The launcher selects SQLite and puts everything —
 accounts, history and the images themselves — in `imagegen.db` beside the executable. **That file is your data;
 back it up.**
-
-`start.bat` is a wrapper around `start.ps1`. Windows will not run a `.ps1` by double-click, and refuses to run one
-at all when it came out of a downloaded archive, so the `.bat` is the way in; the `.ps1` is there for running from
-a shell.
 
 The archive is the launchers, a README and the licences at the top, and the program in `bin/`. Your data stays at
 the top with them: `imagegen.db` and `logs/`.
