@@ -23,8 +23,7 @@ Also documented here: [Renderer patches](#renderer-patches) · [Configuration](#
 ## Release build
 
 **Needs:** a GPU and a ComfyUI started with `--enable-cors-header`. Nothing else — the archive carries its
-own .NET runtime. The app never uses the GPU directly; whatever ComfyUI runs on is what matters, so NVIDIA
-(CUDA), AMD (ROCm), Intel (XPU), and Apple Silicon all work.
+own .NET runtime. Any GPU ComfyUI supports works: NVIDIA (CUDA), AMD (ROCm), Intel (XPU), Apple Silicon.
 
 Download the archive for your platform from
 [**Releases**](https://github.com/MrJackSpade/ImageGenerationServer/releases), unpack it, and run the
@@ -39,21 +38,13 @@ start.bat                     Windows — double-click it, or run it from a prom
 
 It opens your browser once it is listening; if it cannot, the address is printed in the window. The first
 page asks for your ComfyUI's address, then you create an account. Set `IMAGEGEN_OPEN_BROWSER=0` to stop it
-opening a browser — only the launchers open one, so a container or a service never does.
+opening a browser.
 
 The launcher selects SQLite and puts everything — accounts, history, and the images themselves — in
 `imagegen.db` beside the executable. **That file is your data; back it up.**
 
-The archive holds the launchers, a README, and the licences at the top level, and the program in `bin/`.
-Your data sits alongside them: `imagegen.db` and `logs/`.
-
-The first start downloads the tag model (~900 MB) and verifies it against published checksums. The app
-does this itself; later starts skip anything already present. There is nothing to install.
-
-A release archive knows its own version, so it checks **once per start** whether a newer release has been
-published and shows a banner if so. Dismissing it lasts the browser session. It never updates itself: the
-banner links to the release, and installing it means unpacking the new archive over your own. Turn the
-check off under **Settings → This machine** to stop this machine contacting GitHub.
+The first start downloads the tag model (~900 MB) and verifies it against published checksums; later
+starts skip anything already present.
 
 To point at a ComfyUI elsewhere, use the address box on first run, or change it later under
 **Settings → This machine**.
@@ -106,8 +97,7 @@ docker compose --profile nvidia up    # NVIDIA — needs the NVIDIA container to
 docker compose --profile amd up       # AMD — needs ROCm-capable hardware
 ```
 
-There is no default profile on purpose: the two need different devices, and a default that started the
-wrong one would fail at the first render with an error about the GPU rather than about the profile.
+There is no default profile; pick the one that matches your card.
 
 > **The AMD image is untested on real hardware.** It is built in CI on every push, so it compiles,
 > resolves, and installs — but nobody here owns an AMD card, so it has never rendered an image.
@@ -117,14 +107,13 @@ wrong one would fail at the first render with an error about the GPU rather than
 
 Then open <http://localhost:8080> and create an account.
 
-The first `up` builds the image — installing CUDA, PyTorch, and ComfyUI — and downloads the tag model into
-a named volume, so it does a lot of work before it first serves. Later starts skip all of it.
+The first `up` builds the image (CUDA, PyTorch, ComfyUI) and downloads the tag model into a named volume;
+later starts skip all of it.
 
-The image carries ComfyUI so that a fresh install renders without a separate backend. To use your own
-instead, set `ComfyUI__BaseUrl` to point at it. ComfyUI is pinned to a release tag (`COMFYUI_REF`) so the
-image does not silently change backend between builds. The image is that pinned release **plus this
-project's patches**, applied during the build — see [Renderer patches](#renderer-patches). Changes made on
-that page live in the container's writable layer, so they last until the container is recreated.
+The image includes ComfyUI; to use your own instead, set `ComfyUI__BaseUrl` to point at it. ComfyUI is
+pinned to a release tag (`COMFYUI_REF`), and the image is that release **plus this project's patches**,
+applied during the build — see [Renderer patches](#renderer-patches). Changes made on that page live in the
+container's writable layer, so they last until the container is recreated.
 
 `up` builds the image the first time on its own. To build it deliberately — a code change, a different
 ComfyUI release (`COMFYUI_REF`), or a version-stamped release image (`IMAGEGEN_VERSION`) — see
@@ -158,16 +147,14 @@ reflects what is actually in the installation.
 For the page to change ComfyUI's files, it needs two values, both on **Settings → This machine**:
 
 - **Renderer folder** — the directory ComfyUI is installed in (the one containing `main.py` and `comfy/`).
-  The app detects this automatically when ComfyUI is on the same machine, by asking the renderer where it
-  lives, so usually you do not set it. Patching writes to that directory, so **ComfyUI must be on the same
-  machine as the app**. If it is on another machine, there is nothing here to patch, and the page says so.
+  The app detects this automatically when ComfyUI is on the same machine, so usually you do not set it.
+  Patching writes to that directory, so **ComfyUI must be on the same machine as the app**. If it is on
+  another machine, there is nothing here to patch, and the page says so.
 - **Renderer Python** — ComfyUI's interpreter. Used only to install a node pack's Python requirements when
   a patch fetches one. Set it if a pack needs dependencies installed; otherwise install them yourself.
 
-**A restart is required for a patch to take effect.** ComfyUI reads its custom nodes once, at startup, so a
-newly applied patch changes nothing until the renderer restarts. Docker supervises ComfyUI and offers a
-**Restart the renderer** button; a ComfyUI you started yourself the app will not touch — the page tells you
-a restart is needed and you do it.
+**A restart is required for a patch to take effect** — ComfyUI reads its custom nodes only at startup.
+Docker offers a **Restart the renderer** button; a ComfyUI you started yourself, you restart yourself.
 
 These change ComfyUI's own files on the machine, so they apply to everyone signed in there, not to a single
 account.
@@ -201,7 +188,7 @@ Set in the app, under **Settings → This machine**:
 | Renderer Python | empty | That ComfyUI's interpreter. Used only to install the requirements of a node pack a patch has just fetched. |
 | Registration code | empty | A shared code required to register. Empty means open sign-up. |
 | Free-memory floor | `500` MB | Refuse new work below this much free memory. |
-| Check for updates | on | Asks github.com **once per start** whether a newer release exists, and shows a dismissable banner if so. Turn it off to stop this machine contacting GitHub at all. A build with no version — anything not from a release archive — never checks. |
+| Check for updates | on | Asks github.com **once per start** whether a newer release exists and shows a dismissable banner; it never updates itself. Turn it off to stop this machine contacting GitHub at all. A build with no version — anything not from a release archive — never checks. |
 | Expose stack traces | on | Full exception in 500 bodies. |
 | Trust all proxies | on | Honour `X-Forwarded-*` from any caller. |
 | Run the reconciler | on | Reaps stale pending-job rows. |
