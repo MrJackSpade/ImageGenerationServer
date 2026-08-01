@@ -1,0 +1,92 @@
+{
+  "id": "wan-anime-test",
+  "workflow": "wan22-ti2v-5b",
+  "friendly_name": "Wan 2.2 (Anime LoRA)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "wan2-2-ti2v-5b",
+    "text_encoders": [
+      "umt5-xxl"
+    ],
+    "vae": "wan2-2-vae",
+    "extra": [
+      "wan-anime-test-lora"
+    ]
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "wan",
+    "dual": false,
+    "steps": 50,
+    "cfg": 5.0,
+    "shift": 5.0,
+    "sampler": "uni_pc",
+    "scheduler": "simple",
+    "width": 1280,
+    "height": 704,
+    "fps": 24,
+    "length": {
+      "value": 121,
+      "exposed": true,
+      "min": 5,
+      "max": 121,
+      "step": 4
+    },
+    "lora": "wan-anime-test-lora"
+  },
+  "card": {
+    "architecture": "Wan 2.2 TI2V-5B diffusion transformer (umT5 encoder) \u2014 IMAGE-TO-VIDEO",
+    "summary": "Animate a still into a short clip with an anime-style LoRA on WAN 2.2 TI2V-5B. Real video model; anime look via the LoRA.",
+    "use_cases": [
+      "anime image-to-video",
+      "add camera motion or subject movement to an anime still"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "check license",
+    "pick_when": "You want anime-styled image-to-video on the WAN base.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion you want (a camera move, the subject action). The source image is the first frame.",
+      "required_prefix": null,
+      "example": "the camera slowly pushes in as her hair drifts in a gentle breeze",
+      "overview": "The uploaded image is the first frame, so write a detailed natural-language prompt describing only how the visible subject and camera MOVE (motion + camera + speed + atmosphere), not what things look like.",
+      "instructions": "Wan 2.2 responds best to detailed, structured natural-language prompts (target ~80-120 words) built in layers: Subject/Scene, then Motion (what moves and how), then Camera movement (pan, tilt, dolly, orbit, crane, push-in/zoom), then Speed/Intensity (slow, gentle, brisk, whip-pan, slow-motion), then Atmosphere/Aesthetics (lighting, color grade, lens, mood). For i2v, skip or minimize subject description because the image defines appearance, and animate only elements actually visible in the frame, putting the most important motion early since Wan weights the start of the prompt more heavily. Always pair with a negative prompt, which Wan 2.2 enforces more reliably than 2.1.",
+      "do": [
+        "Lead with the primary motion using concrete verbs with explicit speed and direction ('slowly turns her head left')",
+        "Specify a distinct camera move (slow push-in, dolly out, pan left, clockwise orbit, crane up, static)",
+        "State speed/intensity explicitly (gentle, subtle, gradual, rapid, slow-motion)",
+        "Add atmosphere and aesthetic control: lighting, color grade, lens/shot type, weather, mood",
+        "Put the most important detail early; Wan 2.2 weights the beginning of the prompt",
+        "Keep it detailed but bounded, ~80-120 words, and always include a negative prompt",
+        "Describe only motion of elements visible in the source image"
+      ],
+      "dont": [
+        "Don't re-describe the subject's static appearance in i2v (the image already defines it)",
+        "Don't introduce objects, characters, or scenery not present in the source frame",
+        "Don't use vague generic action verbs without speed/direction ('it moves', 'things happen')",
+        "Don't overload with so many details that key motion gets ignored (avoid >120 words)",
+        "Don't omit the negative prompt or assume the model avoids artifacts on its own"
+      ],
+      "examples": [
+        "The woman slowly turns her head to the left while maintaining eye contact with the camera, her hair drifting gently in a light breeze. Slow push-in on her face, shallow depth of field. Soft window light shifts subtly across her skin, warm color grade, calm and intimate mood, gentle pacing throughout.",
+        "The mech's chest panels hiss open and steam vents to the sides as it raises one arm toward the camera. The camera slowly dollies out and tilts up to reveal its full height. Sparks fall in the foreground, harsh industrial overhead lighting, cool blue-grey color grade, deliberate and weighty motion."
+      ],
+      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: \u8272\u8c03\u8273\u4e3d\uff0c\u8fc7\u66dd\uff0c\u9759\u6001\uff0c\u7ec6\u8282\u6a21\u7cca\u4e0d\u6e05\uff0c\u5b57\u5e55\uff0c\u98ce\u683c\uff0c\u4f5c\u54c1\uff0c\u753b\u4f5c\uff0c\u753b\u9762\uff0c\u9759\u6b62\uff0c\u6574\u4f53\u53d1\u7070\uff0c\u6700\u5dee\u8d28\u91cf\uff0c\u4f4e\u8d28\u91cf\uff0cJPEG\u538b\u7f29\u6b8b\u7559\uff0c\u4e11\u964b\u7684\uff0c\u6b8b\u7f3a\u7684\uff0c\u591a\u4f59\u7684\u624b\u6307\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u624b\u90e8\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u8138\u90e8\uff0c\u7578\u5f62\u7684\uff0c\u6bc1\u5bb9\u7684\uff0c\u5f62\u6001\u7578\u5f62\u7684\u80a2\u4f53\uff0c\u624b\u6307\u878d\u5408\uff0c\u9759\u6b62\u4e0d\u52a8\u7684\u753b\u9762\uff0c\u6742\u4e71\u7684\u80cc\u666f\uff0c\u4e09\u6761\u817f\uff0c\u80cc\u666f\u4eba\u5f88\u591a\uff0c\u5012\u7740\u8d70 . For video, add terms like morphing, warping, distortion, flickering, jittering, face deformation, sudden changes.",
+      "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples ; https://www.veed.io/learn/wan-2-2-prompting-guide"
+    },
+    "ui_help": {
+      "note": "Animate the current picture in anime style: describe the motion you want. The picture is the first frame.",
+      "good_for": "anime image-to-video"
+    },
+    "edit_use_cases": [
+      "anime image-to-video: animate the current picture with an anime LoRA"
+    ]
+  },
+  "resolution": {
+    "min_w": 704,
+    "min_h": 704,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

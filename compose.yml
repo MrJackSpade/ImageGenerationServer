@@ -1,0 +1,89 @@
+# The app, its tag model and ComfyUI in one image — see Dockerfile for why, and for what "ComfyUI is
+# included, not managed" means.
+#
+#   cp .env.example .env              # then set COMFY_MODELS_DIR to where your image models live
+#   docker compose --profile nvidia up
+#
+# Pick the profile matching your GPU. There is no default on purpose: the two need different devices, and a default
+# that silently starts the wrong one fails at the first render with an error about the GPU rather than about the
+# profile.
+#
+#   --profile nvidia   NVIDIA, via the NVIDIA container toolkit.        Tested.
+#   --profile amd      AMD, via ROCm and /dev/kfd + /dev/dri.           Builds in CI, never run on real hardware.
+
+x-imagegen-common: &imagegen-common
+  # The container exits if ComfyUI dies (deliberately — an app whose backend is gone can only fail every render), so
+  # the restart policy is what decides whether that is recoverable. "unless-stopped" retries; drop it to see crashes.
+  restart: unless-stopped
+  ports:
+    - "${IMAGEGEN_PORT:-8080}:8080"
+  volumes:
+    # The SQLite database and the rolling log. Named, so it survives `docker compose down` — this holds every account
+    # and every generated image, and a bind mount to a host path you later tidy up would take them with it.
+    - imagegen-data:/data
+    # The tag model artifacts (~900 MB), fetched on first run. Named for the same reason: a re-pull per container is
+    # a slow first start for no benefit.
+    - imagegen-models:/app/tagmodel/artifacts
+    # YOUR image models, read-only. Hundreds of GB that belong to you and are never copied into the image.
+    - "${COMFY_MODELS_DIR:?set COMFY_MODELS_DIR in .env — the directory holding your checkpoints/LoRAs/VAEs}:/opt/ComfyUI/models"
+    # ComfyUI's outputs. It writes here as it renders; the app stores the images it keeps in its own database, so
+    # this is a working directory rather than the record.
+    - imagegen-comfy-output:/opt/ComfyUI/output
+
+x-imagegen-env: &imagegen-env
+  # Set a registration code to stop anyone who can reach the port from creating an account. Empty = open sign-up.
+  Auth__RegistrationCode: "${REGISTRATION_CODE:-}"
+  # Both default to the trusted-single-box behaviour the app has always had. Turn them off if people you do not
+  # trust can reach this: the first stops stack traces going to the browser, the second stops X-Forwarded-* from
+  # any caller being believed.
+  Diagnostics__ExposeStackTraces: "${EXPOSE_STACK_TRACES:-true}"
+  Security__TrustAllProxies: "${TRUST_ALL_PROXIES:-true}"
+  # Refuse new work below this much free memory, rather than accepting a job that cannot render. NOTE: on Linux
+  # this reads the HOST's available memory, not the container's limit — see LinuxSystemMemory.
+  Uploads__MinAvailableMemoryMB: "${MIN_AVAILABLE_MEMORY_MB:-500}"
+
+services:
+  imagegen:
+    <<: *imagegen-common
+    profiles: ["nvidia"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: imagegen:local
+    environment:
+      <<: *imagegen-env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  imagegen-amd:
+    <<: *imagegen-common
+    profiles: ["amd"]
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
+    image: imagegen:local-rocm
+    environment:
+      <<: *imagegen-env
+      # Only for cards ROCm does not officially support: 10.3.0 for RDNA2 (6700/6600), 11.0.0 for some RDNA3 (7600).
+      # Leave empty otherwise — a wrong value is worse than none.
+      HSA_OVERRIDE_GFX_VERSION: "${HSA_OVERRIDE_GFX_VERSION:-}"
+    # ROCm reaches the GPU through these two devices rather than a container runtime, and the container user must be
+    # in the host's video/render groups to open them.
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+
+volumes:
+  imagegen-data:
+  imagegen-models:
+  imagegen-comfy-output:

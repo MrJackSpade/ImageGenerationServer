@@ -1,0 +1,134 @@
+@model BookmarksViewModel
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Bookmarks";
+    var gateway = "/forge";
+}
+
+<div class="hist-head">
+    <h2>Bookmarks</h2>
+</div>
+
+@{
+    void ArtistCardHtml(ArtistCard a)
+    {
+        var pretty = "@" + a.Name.Replace('_', ' ');
+        <div class="gen artist-card @(a.Pinned ? "is-pinned" : "")" data-name="@a.Name" data-kind="artist">
+            <a class="imgcard" href="/artist/@Uri.EscapeDataString(a.Name)">
+                <div class="img">
+                    @if (a.DisplayImageId is not null)
+                    {
+                        <img data-src="@gateway/image/@Uri.EscapeDataString(a.DisplayImageId)?w=512" alt="@pretty" />
+                    }
+                    else
+                    {
+                        <div class="artcard-empty">no image yet</div>
+                    }
+                </div>
+                <div class="meta"><div class="p artist-name">@pretty</div></div>
+            </a>
+            <button type="button" class="card-pin" title="@(a.Pinned ? "Unpin" : "Pin to top")">📌</button>
+            <button type="button" class="card-x" title="Remove bookmark">×</button>
+        </div>
+    }
+
+    void ImageCardHtml(ImageBookmarkView b)
+    {
+        var id = Uri.EscapeDataString(b.GatewayImageId);
+        // The record the category long-press sends when (re)filing this image — same shape as the detail card's record.
+        var record = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            ts = b.Ts,
+            id = b.GatewayImageId,
+            prompt = b.Prompt,
+            model = b.ModelFriendly,
+            modelId = b.ModelId,
+            aspect = b.Aspect,
+            marks = b.Marks.Count == 0 ? null : b.Marks,
+        });
+        <a class="imgcard" href="/image/@id" data-image-record="@record">
+            <div class="img"><img data-src="@gateway/image/@id?w=512" alt="@b.Prompt" /></div>
+            <div class="meta">
+                <div class="p">@b.Prompt</div>
+                <div class="row"><span class="tag">@b.ModelFriendly</span></div>
+            </div>
+        </a>
+    }
+}
+
+@if (Model.Groups.Count == 0)
+{
+    <p class="bm-empty">No bookmarks yet. Open a saved image, then tap a highlighted tag or artist to bookmark it — or tap ☆ Bookmark to save the image. Press and hold any of those to file it under a category.</p>
+}
+else
+{
+    @foreach (var group in Model.Groups)
+    {
+        @* Fold keys are composite: the category, then the kind within it. A category's key is its TITLE (there is no
+           id behind a category — they're just strings on the bookmarks), so renaming one drops its saved state. *@
+        var key = group.IsGlobal ? "__global__" : group.Title;
+        <div class="bm-group" data-group-key="@key">
+            <h3 class="bm-toggle">@group.Title</h3>
+            <div class="bm-body">
+                @* Each KIND that has content gets its own fold, so a wall of image cards can be put away to reach the
+                   tags under it. A kind with nothing in it renders no header at all — a category holding only tags
+                   shouldn't show three. *@
+                @if (group.Artists.Count > 0)
+                {
+                    <div class="bm-kind" data-group-key="@(key + "/artists")">
+                        <h4 class="bm-toggle bm-kind-toggle">Artists <span class="bm-count">@group.Artists.Count</span></h4>
+                        <div class="bm-body">
+                            @* Pinned artists render as their own run so the grid shows where the pins end. The
+                               controller already orders pinned-first, so this only splits what was contiguous. *@
+                            @if (group.Artists.Any(a => a.Pinned))
+                            {
+                                <div class="cardgrid artist-run pinned-run">
+                                    @foreach (var a in group.Artists.Where(a => a.Pinned)) { ArtistCardHtml(a); }
+                                </div>
+                            }
+                            @if (group.Artists.Any(a => !a.Pinned))
+                            {
+                                <div class="cardgrid artist-run">
+                                    @foreach (var a in group.Artists.Where(a => !a.Pinned)) { ArtistCardHtml(a); }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (group.Tags.Count > 0)
+                {
+                    <div class="bm-kind" data-group-key="@(key + "/tags")">
+                        <h4 class="bm-toggle bm-kind-toggle">Tags <span class="bm-count">@group.Tags.Count</span></h4>
+                        <div class="bm-body">
+                            <div class="bm-chips">
+                                @foreach (var n in group.Tags)
+                                {
+                                    <span class="tagchip tag @(n.Category is not null ? "cat-" + n.Category : "")" data-name="@n.Name" data-kind="tag" data-category="@n.Category"><span class="tc-star">★</span><form class="tc-go" method="post" action="/bookmarks/tag">@Html.AntiForgeryToken()<input type="hidden" name="tag" value="@n.Name" /><button type="submit" class="tc-name">@n.Name.Replace('_', ' ')</button></form><button type="button" class="tc-x" title="Remove bookmark">×</button></span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (group.Images.Count > 0)
+                {
+                    <div class="bm-kind" data-group-key="@(key + "/images")">
+                        <h4 class="bm-toggle bm-kind-toggle">Images <span class="bm-count">@group.Images.Count</span></h4>
+                        <div class="bm-body">
+                            <div class="cardgrid">
+                                @foreach (var b in group.Images) { ImageCardHtml(b); }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarks.js" asp-append-version="true"></script>
+}

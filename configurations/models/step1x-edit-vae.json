@@ -1,0 +1,8 @@
+{
+  "id": "step1x-edit-vae",
+  "kind": "vae",
+  "label": "Step1X-Edit VAE",
+  "match": [
+    "step1x[-_. ]?edit[-_. ]?vae"
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "id": "autismmix",
+  "workflow": "autismmix",
+  "friendly_name": "AutismMix Confetti",
+  "default": false,
+  "requirements": {
+    "checkpoint": "autismmixsdxl-autismmixconfetti"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 2,
+    "steps": 28,
+    "cfg": 7,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    },
+    "required_prefix": "score_9, score_8_up, score_7_up, score_6_up, score_5_up, score_4_up, source_anime"
+  },
+  "card": {
+    "architecture": "SDXL finetune (Pony-based merge)",
+    "summary": "A high-quality, fast SDXL anime model (Pony-based merge) aimed especially at anime women/girls -- cleaner default style and better hands than raw Pony, and faster than Anima. Uses the same Pony score-tag workflow.",
+    "use_cases": [
+      "high-quality anime women/girls",
+      "clean anime illustration (SFW/NSFW)",
+      "fast anime art with a polished default style"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "limited (Pony lineage)",
+    "pick_when": "Best for anime women/girls when you want high quality but faster than Anima. Uses the Pony score prefix + clip skip 2.",
+    "prompt": {
+      "format": "hybrid",
+      "guidance": "The Pony score block + source_anime are prepended automatically -- do NOT include them. Write your booru tags / description (optionally lead with BREAK).",
+      "required_prefix": "score_9, score_8_up, score_7_up, score_6_up, score_5_up, score_4_up, source_anime",
+      "example": "1girl, solo, silver hair, blue eyes, detailed background, cherry blossoms, soft lighting",
+      "overview": "Pony-V6-based SDXL anime merge: the Pony score block + source_anime are prepended automatically; write your danbooru tags (optionally lead with BREAK); keep negatives minimal.",
+      "instructions": "The score block + source_anime (the required_prefix) are prepended AUTOMATICALLY -- do NOT type them. Optionally lead your part with `BREAK`, then your danbooru-style tags.\nThe creator advises AGAINST 'schizo' negatives and SDXL/Pony negative embeddings -- testing showed they make output worse. To push a more traditional anime look, add `3d` to the negatives.\nConfetti blends AnimeConfettiTune + AutismMix_pony with less style swing and better hands than the Pony base it is built on (this is relative to Pony, NOT best-in-class -- for the cleanest hands/anatomy on anime characters here, prefer Anima). Confetti is better for general use, the Pony variant is preferred when working with LoRAs. The source gives no specific numeric settings or example prompts for Confetti.",
+      "do": [
+        "Optionally lead with BREAK, then your danbooru tags",
+        "Keep negatives minimal",
+        "Add 3d to negatives for a more traditional anime look"
+      ],
+      "dont": [
+        "Type the score block or source_anime (they are auto-prepended)",
+        "Stack heavy negatives or SDXL/Pony negative embeds (they make it worse)",
+        "Assume 'masterpiece/best quality' words are needed"
+      ],
+      "examples": [
+        "BREAK, 1girl, solo, long hair, looking at viewer, simple background"
+      ],
+      "negative_guidance": "Avoid heavy 'schizo' negatives and SDXL/Pony negative embeddings (they make it worse); optionally add `3d` for a more traditional anime style.",
+      "source": "https://civitai.com/models/288584/autismmix-sdxl"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Not needed by default; heavy negatives make it WORSE. Optionally add '3d' to negatives for stronger 2D."
+    },
+    "speed": {
+      "class": "moderate",
+      "note": "Faster than Anima.",
+      "measured_seconds": 22.1,
+      "measured_note": "~22s for the first image at default settings (1024x1024, 28 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Aimed at anime women. Uses short comma tags (e.g. 1girl, silver hair, cherry blossoms). Quality and score tags are added for you.",
+      "link": {
+        "text": "Browse the tag list (Gelbooru)",
+        "url": "https://gelbooru.com/index.php?page=tags&s=list"
+      },
+      "good_for": "high-quality anime women (fast)"
+    },
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": false,
+      "underscores_to_spaces": false
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 8
+  }
+}

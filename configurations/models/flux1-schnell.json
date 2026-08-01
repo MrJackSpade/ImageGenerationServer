@@ -1,0 +1,8 @@
+{
+  "id": "flux1-schnell",
+  "kind": "unet",
+  "label": "FLUX.1-schnell",
+  "match": [
+    "flux1[-_. ]?schnell.*q4"
+  ]
+}

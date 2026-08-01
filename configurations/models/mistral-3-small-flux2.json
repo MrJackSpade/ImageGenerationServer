@@ -1,0 +1,5 @@
+{
+  "id": "mistral-3-small-flux2",
+  "kind": "text_encoder",
+  "label": "Mistral 3 Small (FLUX.2)"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "flux2-dev-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "FLUX.2-dev",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux2-dev",
+    "text_encoders": [
+      "mistral-3-small-flux2"
+    ],
+    "vae": "flux2-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux2",
+    "dual": false,
+    "steps": 20,
+    "cfg": 1,
+    "guidance": 4,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "FLUX.2 rectified-flow DiT (~32B, Mistral-Small-3.2-24B encoder), whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through FLUX.2-dev using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn with the family's best prompt understanding, typography and photorealism. The heaviest redraw here (~32B, Q4_K_M): encoder and model load sequentially so each fits 24 GB.",
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no (BFL non-commercial)",
+    "pick_when": "You want the highest-fidelity whole-image redraw available and can afford FLUX.2-dev's cost.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "LLM-style prose (Mistral encoder); front-load the key subject. Lower the redraw strength to stay close to the source composition; raise it to let FLUX.2 reinterpret more.",
+      "example": "A weathered lighthouse on a storm-lashed cliff at dusk, beam cutting through rain, huge crashing waves, dramatic volumetric light, photorealistic, 35mm",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-dev follows natural-language prose.\n20 steps, euler/simple, distilled guidance 4 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the model is guidance-distilled and runs at CFG 1."
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (cfg 1)."
+    },
+    "ui_help": {
+      "note": "Send an image + a description; the whole frame is redrawn through FLUX.2-dev. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "the highest-quality whole-image redraw, keeping composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image through FLUX.2-dev from a prompt, keeping composition (highest fidelity)"
+    ]
+  },
+  "resolution": {
+    "min_w": 64,
+    "min_h": 64,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

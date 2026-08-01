@@ -1,0 +1,97 @@
+{
+  "id": "ltx23-i2v",
+  "workflow": "ltx2-i2v",
+  "friendly_name": "LTX-2.3 22B",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ltx-2-3-22b-distilled-1-1",
+    "text_encoders": [
+      "gemma-3-12b-it",
+      "ltx-2-3-text-projection"
+    ],
+    "vae": "ltx-2-3-video-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "ltxv",
+    "dual": true,
+    "steps": 8,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "length": {
+      "value": 97,
+      "exposed": true,
+      "min": 9,
+      "max": 161,
+      "step": 8
+    },
+    "fps": 24
+  },
+  "card": {
+    "architecture": "LTX-2.3 22B distilled-1.1 (Gemma-3-12B) \u2014 IMAGE-TO-VIDEO",
+    "summary": "The newest LTX flagship (2.3, 22B) \u2014 distilled-1.1, image\u2192video, Q4_K_M GGUF on 24 GB. Single-stage path (no latent upscaler refine); newer/larger than LTX-2.",
+    "use_cases": [
+      "newest LTX image\u2192video",
+      "high-quality prompt-directed motion"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "You want the newest LTX (2.3) image\u2192video on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene; the prompt directs the motion.",
+      "example": "the camera tracks alongside as she walks through falling snow, cinematic",
+      "overview": "For LTX-2.3 image-to-video, write a single present-tense paragraph that directs motion, camera, and audio rather than re-describing the static image, which the model already reads from the input frame.",
+      "instructions": "Because the starting frame is supplied, do not restate static elements already visible; instead describe the transition from stillness to motion - how the subject moves, how the camera follows, and (for audio-capable endpoints) what sounds emerge. Structure it cinematically: lead with one main action, then layer precise chronological motion/gesture detail, then character/environment specifics, with explicit camera and lighting last; keep prompts under ~200 words with roughly one main action per 2-3 seconds of video. LTX-2.3's larger redesigned 'text connector' (Gemma-3-12B) makes it far more responsive to fine detail than LTX-2, so longer, granular prompts (facial beats, pacing, dialogue in short phrases with acting cues, richer audio) reliably outperform short ones - and short prompts on long clips cause the model to rush. Match prompt length to clip length; write present tense.",
+      "do": [
+        "Focus on motion/action and the transition from stillness to movement, since the image defines the look",
+        "Write a single flowing paragraph in present tense, in chronological order",
+        "Name camera moves explicitly - 'slow dolly in', 'tracking shot', 'jib up', 'static locked-off'",
+        "Express emotion through physical cues (weight shift, head turn, widening eyes), not abstract labels",
+        "Match prompt length and detail to clip length; ~one main action per 2-3 seconds",
+        "Describe audio (ambient, voice quality, dialogue in quotes) for audio-capable endpoints",
+        "Specify lighting concretely and describe how subjects look after a camera move"
+      ],
+      "dont": [
+        "Don't re-describe static elements already visible in the source image",
+        "Don't overload with many subjects or 4-5 distinct actions - the model compresses or skips them",
+        "Don't use vague/metaphorical language or numerical micro-specs ('pan 2 degrees/sec')",
+        "Don't give conflicting directions ('running quickly in slow motion', 'still lake with crashing waves')",
+        "Don't rely on readable on-screen text/logos or chaotic complex physics"
+      ],
+      "examples": [
+        "The camera holds steady on her, then begins a slow push-in. She lowers her gaze for a beat, then turns her head slowly toward the lens as a faint smile forms; a gust of wind lifts strands of her hair across her face. Shallow depth of field keeps the neon background a soft blur, the rim light tracing her profile. Faint ambient street hum and distant rain underscore the moment.",
+        "A slow dolly-in pushes toward the mountain peak as low clouds drift from left to right across the ridgeline. The light shifts gradually from dawn orange to clean midday white, and mist creeps up the slope while the foreground pines sway gently. The camera settles into a steady wide hold, ambient wind rising on the soundtrack."
+      ],
+      "negative_guidance": "A negative prompt is optional but a short one (e.g. 'blurry, distorted, extra limbs, warped face, flickering, watermark, text') can nudge the result closer to intent.",
+      "source": "https://ltx.io/blog/ltx-2-3-prompt-guide ; https://ltx.io/blog/how-to-improve-ltx-2-3-prompt-adherence ; https://huggingface.co/Lightricks/LTX-2.3/blob/main/README.md"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled / embedded guidance"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "24 GB video model; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Newest LTX (2.3) image\u2192video. Describe the motion.",
+      "good_for": "newest LTX image\u2192video (2.3)"
+    },
+    "edit_use_cases": [
+      "image-to-video: newest LTX-2.3 22B (distilled-1.1)"
+    ],
+    "reference": {
+      "max": 0,
+      "hint": "Animate the current picture: describe the motion you want."
+    }
+  },
+  "resolution": {
+    "min_w": 128,
+    "min_h": 128,
+    "max_w": 3840,
+    "max_h": 2160,
+    "step": 32
+  }
+}

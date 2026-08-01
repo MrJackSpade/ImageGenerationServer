@@ -1,0 +1,8 @@
+{
+  "id": "step1x-edit-i1258",
+  "kind": "unet",
+  "label": "Step1X-Edit i1258",
+  "match": [
+    "step1x[-_. ]?edit[-_. ]?i1258"
+  ]
+}

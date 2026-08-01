@@ -1,0 +1,93 @@
+{
+  "id": "flux1-kontext",
+  "workflow": "flux1-kontext",
+  "friendly_name": "FLUX.1-Kontext",
+  "default": true,
+  "requirements": {
+    "checkpoint": "flux1-dev-kontext",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 20,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "guidance": 2.5,
+    "reference_max": 3
+  },
+  "card": {
+    "architecture": "Rectified-flow DiT in-context editing (T5-XXL + CLIP)",
+    "summary": "Takes an INPUT IMAGE + a natural-language edit instruction and returns the edited image; preserves identity/style across sequential edits. Not pure text-to-image.",
+    "use_cases": [
+      "instruction image editing",
+      "add/remove/replace objects",
+      "style transfer",
+      "iterative edits without masks"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no",
+    "pick_when": "The task is EDITING an existing image via a text instruction, not generating from scratch.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction; distilled guidance ~2.5.",
+      "required_prefix": null,
+      "example": "(with input image) Add a red knitted hat to the cat and change the background to a snowy forest, keep the cat's pose and lighting unchanged",
+      "overview": "In-context instruction editor: phrase edits as concrete, explicit instructions naming exactly what to change AND what to keep; explicit preservation clauses protect identity, composition and style.",
+      "instructions": "Be specific, not vague -- name exact colors/elements and use direct action verbs; name the subject ('the woman with short black hair') instead of pronouns. Basic object modification (e.g. recolor) works well, but simple prompts can drift the overall style, so add constraints when you need fidelity (e.g. 'Change to daytime while maintaining the same style').\nPreserve identity explicitly: '...while maintaining the same facial features, hairstyle, and expression'. Preserve background/composition explicitly when changing scenes (keep position, scale, pose, camera angle, framing; only replace the environment).\nVerb choice matters: 'transform' alone signals a full overhaul / identity swap -- prefer scoped verbs ('Change the shirt to blue'), or pair 'transform' with preservation clauses.\nStyle: name the exact style ('Bauhaus', 'watercolor'), not 'make it artistic', and protect details.\nText editing: use `Replace '[original]' with '[new]'` with quotes; optionally 'while maintaining the same font style and color'; keep replacement length similar.\nMake dramatic changes step by step (consistency holds across successive edits). Max 512 tokens; recommended guidance_scale 2.5.",
+      "do": [
+        "Be explicit and specific; name exact colors/elements",
+        "Name the subject instead of pronouns",
+        "State what to preserve (face, hairstyle, pose, composition, style)",
+        "Use quoted Replace 'X' with 'Y' for text edits",
+        "Name the exact target style; make dramatic edits step by step"
+      ],
+      "dont": [
+        "Use vague references like 'her' / 'put him on a beach'",
+        "Rely on 'transform' alone when you want to keep the subject",
+        "Use ambiguous style terms like 'make it artistic'",
+        "Overload one edit with too many instructions"
+      ],
+      "examples": [
+        "Change the background to a beach while keeping the person in the exact same position, scale, and pose. Maintain identical subject placement, camera angle, framing, and perspective. Only replace the environment around them.",
+        "Convert to pencil sketch with natural graphite lines and visible paper texture while preserving all architectural details.",
+        "Replace 'joy' with 'BFL' while maintaining the same font style and color."
+      ],
+      "negative_guidance": "n/a -- control is via positive instruction phrasing and explicit preservation clauses, not negatives.",
+      "source": "https://docs.bfl.ml/guides/prompting_guide_kontext_i2i"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "",
+      "measured_note": "Not measured — image-editing model (needs an input image, not text-to-image)."
+    },
+    "ui_help": {
+      "note": "This model edits an existing image from an instruction; it isn’t used from this page.",
+      "good_for": "editing an existing image"
+    },
+    "edit_use_cases": [
+      "instruction image editing: add/remove/replace objects, change clothing/colour, swap or relight the background, style transfer; preserves identity across sequential edits"
+    ],
+    "reference": {
+      "max": 3,
+      "hint": "Your photo and the reference are placed side-by-side — your subject on the left, the reference on the right. Phrase it as 'dress the [subject] on the left in the [item] on the right'. Example: 'dress the woman on the left in the dress on the right; keep her face and hair.'"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

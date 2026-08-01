@@ -1,0 +1,8 @@
+{
+  "id": "flux1-dev-kontext",
+  "kind": "unet",
+  "label": "FLUX.1 Kontext",
+  "match": [
+    "flux1[-_. ]?dev[-_. ]?kontext"
+  ]
+}

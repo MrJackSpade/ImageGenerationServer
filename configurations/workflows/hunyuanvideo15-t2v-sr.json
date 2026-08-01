@@ -1,0 +1,102 @@
+{
+  "id": "hunyuanvideo15-t2v-sr",
+  "workflow": "hunyuanvideo15-t2v",
+  "friendly_name": "HunyuanVideo 1.5 (1080p SR T2V)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hunyuanvideo15-480p-t2v-cfg-distilled",
+    "text_encoders": [
+      "qwen-2-5-vl-7b",
+      "byt5-small-glyphxl"
+    ],
+    "vae": "hunyuanvideo15-vae",
+    "extra": [
+      "hunyuanvideo15-1080p-sr-distilled",
+      "hunyuanvideo15-latent-upsampler-1080p"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "hunyuan_video_15",
+    "dual": true,
+    "steps": 20,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 7.0,
+    "width": 832,
+    "height": 480,
+    "fps": 24,
+    "length": {
+      "value": 49,
+      "exposed": true,
+      "min": 5,
+      "max": 121,
+      "step": 4
+    },
+    "sr": true,
+    "sr_model": "hunyuanvideo15-1080p-sr-distilled",
+    "sr_upsampler": "hunyuanvideo15-latent-upsampler-1080p",
+    "sr_width": 1920,
+    "sr_height": 1080,
+    "sr_steps": 8,
+    "sr_denoise": 0.7,
+    "sr_cfg": 1.0,
+    "sr_shift": 2.0
+  },
+  "card": {
+    "architecture": "HunyuanVideo 1.5 t2v (480p cfg-distilled fp8) + 1080p super-resolution second pass \u2014 TEXT-TO-VIDEO",
+    "summary": "The two-stage HunyuanVideo 1.5 text\u2192video pipeline: generate at 480p, then latent upsampler + 1080p SR distilled model refine to 1080p. Two UNets resident \u2014 24 GB (spills).",
+    "use_cases": [
+      "1080p uncensored text\u2192video",
+      "upscaled anime text\u2192video"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "check license",
+    "pick_when": "You want 1080p HunyuanVideo 1.5 text\u2192video and have a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the scene and motion; output is upscaled to 1080p.",
+      "required_prefix": null,
+      "example": "a fox trots across a snowy clearing at golden hour, slow camera pan",
+      "overview": "Describe the whole scene from scratch following the official formula: Subject + Motion + Scene + [Shot Type] + [Camera Movement] + [Lighting] + [Style] + [Atmosphere].",
+      "instructions": "HunyuanVideo 1.5 (Qwen2.5-VL + ByT5 encoders) is built around the official T2V formula 'Subject + Motion + Scene + [Shot] + [Camera] + [Lighting] + [Style] + [Atmosphere]', using concise, direct vocabulary (bracketed layers are optional). Tencent says longer, detailed prompts measurably improve output; sequence actions in temporal order with connectives ('first... then... meanwhile... finally...') and use concrete actions and spatial references instead of abstract emotion words. Wrap any in-frame text in quotation marks (ByT5 glyph encoder). Built-in prompt rewriting auto-expands short prompts, but the formula works directly.",
+      "do": [
+        "Follow the T2V formula: Subject + Motion + Scene + optional Shot/Camera/Lighting/Style/Atmosphere",
+        "Sequence actions temporally with connectives: 'first... then... meanwhile... finally...'",
+        "Use concrete observable actions and spatial references (left/right frame, foreground/background)",
+        "Use standard camera-move terms: dolly, pan, tilt, orbit, tracking, crane, fixed/static",
+        "Layer lighting/style/atmosphere ('cinematic lighting', 'golden hour', 'photorealism', 'ink wash')",
+        "Wrap on-screen text in quotation marks for accurate text rendering",
+        "Use a single clear shot intent and a coherent action sequence"
+      ],
+      "dont": [
+        "Don't rely on vague emotional language without concrete action/visual cues",
+        "Don't assume you must run an external rewriter - the formula works directly",
+        "Don't lean on negative prompts to fix quality on distilled checkpoints",
+        "Don't over-stuff contradictory camera moves or styles in one clip",
+        "Don't omit the subject/scene (t2v invents everything from text)"
+      ],
+      "examples": [
+        "A tired middle-aged Asian man in a pilling grey sweater, fine wrinkles around his eyes, looks out the window with a worried expression; he slowly exhales and lowers his gaze. Fixed camera, cinematic lighting, photorealism style, tense and melancholic atmosphere."
+      ],
+      "negative_guidance": "Negatives are supported (default empty) and apply only to standard checkpoints at the recommended CFG~6; on cfg-distilled variants (guidance_scale=1) they have little effect. The non-distilled real-CFG t2v variant responds to negatives.",
+      "source": "https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5/blob/main/assets/HunyuanVideo_1_5_Prompt_Handbook_EN.md ; https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5"
+    },
+    "ui_help": {
+      "note": "HunyuanVideo 1.5 text\u2192video with a 1080p super-resolution pass.",
+      "good_for": "1080p text-to-video"
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "Two-stage 480p\u21921080p; not yet benchmarked on this box."
+    }
+  },
+  "resolution": {
+    "min_w": 320,
+    "min_h": 320,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

@@ -1,0 +1,147 @@
+using System.Formats.Tar;
+using System.IO.Compression;
+
+namespace ImageGen.Comfy.Patches;
+
+/// <summary>
+/// Fetches the node pack a patch is written against, at the exact revision it was written against.
+///
+/// <para>A tarball rather than a clone, deliberately: a release build on Windows has no git, and asking the
+/// person who just clicked "Apply" to install one is not an answer. A pinned commit archive is every bit as
+/// reproducible as a pinned clone and needs nothing but the HTTP client the app already has.</para>
+///
+/// <para>What it fetches is always the pinned <c>Rev</c> — never a branch. The diff was taken against that
+/// commit; anything else is a patch applied to code it has never seen.</para>
+/// </summary>
+public sealed class PackSource(IHttpClientFactory httpFactory)
+{
+    /// <summary>
+    /// Where a token for a PRIVATE source repository is read from, in order of preference. A pack of one's own
+    /// kept in a private repository is a perfectly ordinary patch source, and without a token the archive fetch
+    /// comes back 404 — indistinguishable from a deleted revision unless something says so.
+    ///
+    /// <para>An environment variable rather than a machine setting: it is a credential, it belongs to the account
+    /// running the app rather than to the app's database, and nothing here should be able to read it back out
+    /// over HTTP.</para>
+    /// </summary>
+    private static readonly string[] TokenVariables = ["IMAGEGEN_GITHUB_TOKEN", "GITHUB_TOKEN"];
+
+    private readonly IHttpClientFactory _httpFactory = httpFactory;
+
+    public sealed class FetchException(string message, Exception? inner = null) : Exception(message, inner);
+
+    private static string? Token() => TokenVariables
+        .Select(Environment.GetEnvironmentVariable)
+        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+    /// <summary>
+    /// Download <paramref name="sourceUrl"/> at <paramref name="rev"/> and unpack it into
+    /// <paramref name="destination"/>, which must not already exist.
+    /// </summary>
+    public async Task FetchAsync(string sourceUrl, string rev, string destination, CancellationToken ct)
+    {
+        if (Directory.Exists(destination))
+            throw new FetchException($"{destination} already exists — nothing was fetched over it.");
+
+        var archive = ArchiveUrl(sourceUrl, rev);
+
+        // Unpack beside the destination and move into place at the end, so an interrupted download never
+        // leaves a half-extracted pack that looks installed. Same volume, so the move is atomic.
+        var staging = destination + ".incoming";
+        if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+
+        try
+        {
+            var http = _httpFactory.CreateClient();
+            // GitHub serves codeload without authentication but requires a user agent.
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+
+            var token = Token();
+            if (token is not null)
+                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            using var response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                // 404 is what GitHub answers for "private and you are nobody" as well as for a revision that is
+                // genuinely gone. Saying only the status code sends people looking for a deleted commit.
+                var hint = (int)response.StatusCode == 404
+                    ? token is null
+                        ? " That is also what a PRIVATE repository answers when nothing authenticates: set "
+                          + $"{TokenVariables[0]} to a token that can read it."
+                        : " The token that was sent could not read it either — check the revision, and that the token has repo scope."
+                    : "";
+                throw new FetchException($"{archive} answered {(int)response.StatusCode}.{hint}");
+            }
+
+            Directory.CreateDirectory(staging);
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            await using var gzip = new GZipStream(stream, CompressionMode.Decompress);
+            await ExtractStrippingRootAsync(gzip, staging, ct);
+
+            // A commit archive wraps everything in one "{repo}-{sha}" directory. What we want is its contents.
+            var entries = Directory.GetFileSystemEntries(staging);
+            var root = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            Directory.Move(root, destination);
+        }
+        catch (Exception ex) when (ex is not FetchException and not OperationCanceledException)
+        {
+            throw new FetchException($"Could not fetch {archive}: {ex.Message}", ex);
+        }
+        finally
+        {
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>The commit archive for a GitHub repository URL.</summary>
+    internal static Uri ArchiveUrl(string sourceUrl, string rev)
+    {
+        if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out var uri))
+            throw new FetchException($"'{sourceUrl}' is not a repository URL.");
+
+        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) &&
+            !uri.Host.Equals("www.github.com", StringComparison.OrdinalIgnoreCase))
+            throw new FetchException($"{uri.Host} is not somewhere this knows how to fetch a pinned archive from. Install {sourceUrl} yourself and apply the patch again.");
+
+        var path = uri.AbsolutePath.Trim('/');
+        if (path.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length != 2) throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");
+
+        return new Uri($"https://codeload.github.com/{segments[0]}/{segments[1]}/tar.gz/{rev}");
+    }
+
+    /// <summary>
+    /// Extract, refusing any entry that would land outside <paramref name="destination"/>. <c>TarFile</c>'s own
+    /// extractor is not used because the root directory has to be stripped, and rolling the loop by hand means
+    /// the path check is ours rather than assumed.
+    /// </summary>
+    private static async Task ExtractStrippingRootAsync(Stream tar, string destination, CancellationToken ct)
+    {
+        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
+        await using var reader = new TarReader(tar);
+
+        while (await reader.GetNextEntryAsync(cancellationToken: ct) is { } entry)
+        {
+            if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile or TarEntryType.Directory))
+                continue;   // links, devices and the rest have no place in a node pack
+
+            var full = Path.GetFullPath(Path.Combine(destination, entry.Name.Replace('/', Path.DirectorySeparatorChar)));
+            if (!full.StartsWith(root, StringComparison.Ordinal))
+                throw new FetchException($"the archive contains '{entry.Name}', which would be written outside the pack directory.");
+
+            if (entry.EntryType == TarEntryType.Directory)
+            {
+                Directory.CreateDirectory(full);
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            await entry.ExtractToFileAsync(full, overwrite: false, ct);
+        }
+    }
+}

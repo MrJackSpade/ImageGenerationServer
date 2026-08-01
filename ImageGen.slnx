@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ImageGen.Analyzers/ImageGen.Analyzers.csproj" />
+    <Project Path="src/ImageGen.Api/ImageGen.Api.csproj" />
+    <Project Path="src/ImageGen.Application/ImageGen.Application.csproj" />
+    <Project Path="src/ImageGen.Comfy/ImageGen.Comfy.csproj" />
+    <Project Path="src/ImageGen.Domain/ImageGen.Domain.csproj" />
+    <Project Path="src/ImageGen.Infrastructure/ImageGen.Infrastructure.csproj" />
+    <Project Path="src/ImageGen.Media/ImageGen.Media.csproj" />
+    <Project Path="src/ImageGen.TagModel/ImageGen.TagModel.csproj" />
+    <Project Path="src/ImageGen.Web/ImageGen.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ImageGen.Tests/ImageGen.Tests.csproj" />
+  </Folder>
+  <!-- ComfyPatch is here, unlike the throwaway backfills in tools/, because the container build runs it: if it
+       stops compiling the image stops building, and that should surface in an ordinary solution build. -->
+  <Folder Name="/tools/">
+    <Project Path="tools/ComfyPatch/ComfyPatch.csproj" />
+  </Folder>
+</Solution>

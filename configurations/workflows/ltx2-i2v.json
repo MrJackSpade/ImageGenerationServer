@@ -1,0 +1,88 @@
+{
+  "id": "ltx2-i2v",
+  "workflow": "ltx2-i2v",
+  "friendly_name": "LTX-2",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ltx-2-19b-distilled",
+    "text_encoders": [
+      "gemma-3-12b-it",
+      "ltx-2-19b-dev-embeddings-connectors"
+    ],
+    "vae": "ltx-2-19b-dev-video-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "ltxv",
+    "dual": true,
+    "steps": 8,
+    "cfg": 5.0,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "width": 832,
+    "height": 480,
+    "fps": 24,
+    "length": {
+      "value": 97,
+      "exposed": true,
+      "min": 9,
+      "max": 97,
+      "step": 8
+    }
+  },
+  "card": {
+    "architecture": "LTX-2 19B distilled (DiT, Gemma-3-12B encoder) GGUF \u2014 IMAGE-TO-VIDEO",
+    "summary": "Newer, larger LTX video model (19B) run as an 11GB Q4 GGUF + Gemma encoder, spilling to RAM on 8GB. Animates anime natively (no LoRA needed); the source image conditions the first frame.",
+    "use_cases": [
+      "image-to-video with a stronger, newer base model",
+      "anime image-to-video without a style LoRA"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "check license",
+    "pick_when": "You want a newer/stronger image-to-video base than LTX 0.9.8.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene in a sentence (a camera move, the subject's action). The image is the first frame.",
+      "required_prefix": null,
+      "example": "she smiles and turns her head as petals drift past, gentle camera push-in",
+      "overview": "For LTX-2 image-to-video, the prompt should briefly anchor to what the source image shows and then describe the motion, camera move, and any audio that unfolds from it.",
+      "instructions": "LTX-2 (the 19B, Gemma-3 text-encoder model) wants one flowing cinematic paragraph with no line breaks, lists, or fragments, written entirely in present tense (walks, tilts, flickers). For image-to-video, briefly restate the subject and setting actually in the frame so the model stays consistent, then spend most of the prompt on what happens next: how subjects move, how the camera behaves, and how the scene goes from still to motion. State the camera's perspective, angle, movement, and speed explicitly, and include audio cues (dialogue in quotes, music, ambient sound) since LTX-2 generates synced audio. Keep it to roughly 3-6 sentences / under ~200 words.",
+      "do": [
+        "Restate the image's actual subject and setting, then build motion on top of it",
+        "Write one flowing paragraph with no line breaks, bullets, or fragments",
+        "Use present tense for every action (walks, turns, drifts, flickers)",
+        "Name the camera perspective, angle, movement, and speed explicitly",
+        "Describe the transition from stillness into motion and how it resolves",
+        "Add audio cues - dialogue in quotation marks, music, ambient sound",
+        "Use concrete cinematographic and physical detail; keep it literal and ordered"
+      ],
+      "dont": [
+        "Don't redundantly over-describe static elements already visible in the image",
+        "Don't use line breaks, lists, headings, or keyword/tag spam",
+        "Don't write in past or future tense",
+        "Don't leave camera motion unspecified or contradict the source image",
+        "Don't pad far beyond ~200 words"
+      ],
+      "examples": [
+        "A young woman stands at a rain-streaked cafe window holding a white ceramic mug, the warm interior lights glowing behind her. She slowly turns to face the camera and smiles as a soft breeze moves a loose strand of hair across her cheek, steam curling up from the mug. The camera begins as a static medium close-up, then gently pushes in at eye level over several seconds, the shallow depth of field softening the wet street outside. Quiet piano music plays beneath the faint patter of rain on the glass.",
+        "A red vintage convertible sits parked on a sunlit coastal road, its polished hood reflecting the bright sky. The car holds still as the camera tracks smoothly from left to right along its profile at hip height, reflections sliding across the chrome and paint while palm-frond shadows ripple over the surface. The move slows to a stop on the front grille as warm afternoon light flares across the windshield. Gentle ocean waves and distant gulls fill the background ambience."
+      ],
+      "negative_guidance": "LTX-2 supports a negative prompt; the official default is 'pc game, console game, video game, cartoon, childish, ugly'. On the full (real-CFG) path - including the non-distilled 'dev' variant - negatives meaningfully shape the video (useful: subtitle, text, watermark, morphing, warping, flicker, jitter, shaky camera, deformed, extra limbs). On the distilled CFG~1 path they have little effect.",
+      "source": "https://www.rundiffusion.com/ltx-2-prompt-guide, https://docs.ltx.video/open-source-model/usage-guides/image-to-video, https://ltx.io/model/model-blog/prompting-guide-for-ltx-2, https://huggingface.co/Lightricks/LTX-2"
+    },
+    "ui_help": {
+      "note": "Newer LTX-2 video from the picture: describe the motion you want. The picture is the first frame.",
+      "good_for": "image-to-video with a stronger base model"
+    },
+    "edit_use_cases": [
+      "image-to-video: animate the current picture with LTX-2 (19B)"
+    ]
+  },
+  "resolution": {
+    "min_w": 128,
+    "min_h": 128,
+    "max_w": 3840,
+    "max_h": 2160,
+    "step": 32
+  }
+}

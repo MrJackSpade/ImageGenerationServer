@@ -1,0 +1,75 @@
+{
+  "id": "pixelize-flux",
+  "workflow": "pixelize",
+  "friendly_name": "Flux-dev",
+  "effect_type": "Pixelize",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "snap_resolution": {
+      "value": true,
+      "exposed": true
+    },
+    "reference": {
+      "value": 70,
+      "exposed": true
+    },
+    "loader": "unet_gguf",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 28,
+    "cfg": 1,
+    "guidance": 2.5,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "style_prompt": "16-bit pixel art, flat colors, clean crisp pixels, vibrant",
+    "strength": 0.3,
+    "virtual_resolution": {
+      "value": 384,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "megapixels": 1.0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "Flux-dev img2img with per-step pixel-manifold projection (PixelManifoldProjection patch + PixelQuantize final render)",
+    "summary": "The diffusion pixelizer: redraws an image into clean pixel art while clamping the x0 estimate onto a fixed grid+palette every denoise step. Flux-dev is a neutral high-fidelity denoiser (it does not author the art); low strength + strong projection ramp let the quantizer lead. API-only.",
+    "use_cases": [
+      "high-quality pixelization of a hero still",
+      "redraw-style pixel art where plain quantization would be mushy"
+    ],
+    "pick_when": "Quality pixelization of a single still where a diffusion redraw beats a straight quantize."
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

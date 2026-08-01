@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-anima-lllite",
+  "kind": "custom_node",
+  "label": "Anima LLLite node",
+  "node": "AnimaLLLiteApply"
+}

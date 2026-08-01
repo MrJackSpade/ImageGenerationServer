@@ -1,0 +1,86 @@
+{
+  "id": "ltxv-i2v",
+  "workflow": "ltxv-i2v",
+  "friendly_name": "LTX Video",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ltxv-2b-0-9-8-distilled",
+    "text_encoders": [
+      "t5xxl"
+    ]
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": "ltxv",
+    "dual": false,
+    "steps": 8,
+    "cfg": 5.0,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "width": 768,
+    "height": 512,
+    "fps": 24,
+    "length": {
+      "value": 97,
+      "exposed": true,
+      "min": 9,
+      "max": 97,
+      "step": 8
+    }
+  },
+  "card": {
+    "architecture": "LTX-Video 2B 0.9.8 distilled (DiT, T5 encoder) \u2014 IMAGE-TO-VIDEO",
+    "summary": "Fast image-to-video: a ~4s clip in ~20s on 8GB (distilled, 8 steps). Photographic/realistic like Wan but MUCH faster; the source image conditions the first frame.",
+    "use_cases": [
+      "fast image-to-video",
+      "quick motion previews"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "check license",
+    "pick_when": "You want a fast image-to-video clip and realistic style is fine.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene in a sentence (a camera move, the subject's action). The image is the first frame.",
+      "required_prefix": null,
+      "example": "the camera slowly pushes in, gentle natural motion",
+      "overview": "LTX-Video 0.9.x (the original T5-conditioned line) needs long, detailed, cinematographer-style prompts; short or vague prompts produce poor, static results.",
+      "instructions": "Write one flowing English paragraph describing the scene and its motion in detail - the official guidance is literally 'the more elaborate the better', aiming for up to ~200 words. Start directly with the main action, keep descriptions literal and precise, and move chronologically: the action, specific movements/gestures, subject and object appearance, background/environment, then camera angle/movement, lighting and color, then any changes or sudden events. For image-to-video, explicitly describe the motion to be introduced from the supplied frame (a sparse prompt leaves the clip nearly static). Favor natural, everyday actions over fantastical scenes, and keep the prompt in English.",
+      "do": [
+        "Write a single detailed paragraph (target up to ~200 words) - 0.9.x rewards elaborate prompts",
+        "Open directly with the concrete main action, then unfold events chronologically",
+        "For i2v, explicitly describe the motion to introduce, not just a static scene description",
+        "Spell out specific movements, gestures, and the appearance of subjects/objects literally",
+        "Describe camera angle and camera movement (medium shot, slow dolly-in, static wide shot)",
+        "Include environment, lighting, and color/texture detail",
+        "Prefer natural, realistic, everyday actions and keep prompts in English"
+      ],
+      "dont": [
+        "Don't use short, terse, or keyword/tag-style prompts - they yield blurry, static, low-quality motion",
+        "Don't write abstract, vague, or purely emotional descriptions instead of concrete visual/motion detail",
+        "Don't lean on fantastical or extremely stylized concepts the model handles poorly",
+        "Don't omit motion/camera description in i2v, or the clip stays nearly still",
+        "Don't write non-English prompts"
+      ],
+      "examples": [
+        "A young man in a faded blue t-shirt sits at a wooden desk in a sunlit home office, typing steadily on a laptop with natural hand movements, then pauses and leans back in his chair, rubbing his eyes before glancing toward the window. Warm afternoon light pours through sheer curtains behind him, casting soft shadows across the cluttered desk of papers and a coffee mug. The camera holds a steady medium shot at chest height, framing him from the front, with a realistic, gently lit everyday-video style and muted natural colors.",
+        "Turquoise waves roll in from the left and crash against the dark, jagged rocks of the shoreline, sending sprays of white foam bursting into the air before the water recedes and the next swell builds. The bright blue-green sea contrasts sharply with the almost-black rocks, streaked with patches of green moss glistening from the spray. A light mist drifts over the surface as the camera holds a slow, steady wide shot, with overcast daylight giving cool, even, naturalistic tones."
+      ],
+      "negative_guidance": "Use a generic quality/motion negative prompt - the official Diffusers example is 'worst quality, inconsistent motion, blurry, jittery, distorted'.",
+      "source": "https://github.com/Lightricks/LTX-Video ; https://huggingface.co/Lightricks/LTX-Video"
+    },
+    "ui_help": {
+      "note": "Fast video from the picture: describe the motion you want (a camera move, the subject's action). The picture is the first frame.",
+      "good_for": "fast image-to-video"
+    },
+    "edit_use_cases": [
+      "fast image-to-video (LTX distilled; ~4s clip in ~20s)"
+    ]
+  },
+  "resolution": {
+    "min_w": 128,
+    "min_h": 128,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 32
+  }
+}

@@ -1,0 +1,17 @@
+__pycache__/
+*.bak
+*.pyc
+pixelharness_debug.log
+
+# Vendored sketchKeras.
+#
+# model.pth IS tracked. The node cannot run without it, and upstream's answer -- "download it from this Google
+# Drive link" -- makes a shipped workflow that throws FileNotFoundError until somebody reads a README. 71 MB is
+# a fair price for line-thicken-sketchkeras working out of the box.
+#
+# mod.h5 is NOT. It is the original Keras file that src/fromkeras.py converts INTO model.pth; nothing loads it
+# at runtime, and at 214 MB it exceeds what GitHub accepts anyway.
+vendor/sketchKeras-pytorch/weights/*
+!vendor/sketchKeras-pytorch/weights/.gitkeep
+!vendor/sketchKeras-pytorch/weights/model.pth
+vendor/sketchKeras-pytorch/outputs/

@@ -1,0 +1,62 @@
+{
+  "id": "flux2-klein-4b-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "FLUX.2-Klein 4B",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux-2-klein-4b",
+    "text_encoders": [
+      "qwen-3-4b"
+    ],
+    "vae": "flux2-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "flux2",
+    "dual": false,
+    "steps": 4,
+    "cfg": 1,
+    "guidance": 4,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Flux.2 rectified-flow DiT (Qwen3 encoder), 4-step distilled, whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through FLUX.2-Klein 4B using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn in Klein's modern, realistic look at 4 steps. The small, fast, Apache-licensed FLUX.2 — a cheap whole-image redraw with strong complex-prompt understanding for its size.",
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "yes",
+    "pick_when": "You want a cheap, fast whole-image redraw on a commercially-usable FLUX.2 model.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Long/complex prose is handled well by the Qwen3 encoder. Lower the redraw strength to stay close to the source composition; raise it to let Klein reinterpret more.",
+      "example": "A cozy reading nook by a rain-streaked window, a tabby cat asleep on a stack of books, warm lamplight, autumn leaves outside, soft painterly style",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-Klein 4B follows natural-language prose.\n4 steps, euler/simple, distilled guidance 4 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the distilled weight runs at CFG 1."
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled (guidance 1)."
+    },
+    "ui_help": {
+      "note": "Send an image + a description; the whole frame is redrawn through FLUX.2-Klein 4B. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "a fast, cheap whole-image redraw keeping the composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: fast redraw of an entire image through FLUX.2-Klein 4B, keeping composition"
+    ]
+  },
+  "resolution": {
+    "min_w": 64,
+    "min_h": 64,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "id": "animatediff-lightning-i2v",
+  "workflow": "animatediff-lightning-i2v",
+  "friendly_name": "AnimateDiff Lightning (SD1.5)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "counterfeit-v3-0",
+    "motion_model": "animatediff-lightning-8step-comfyui",
+    "controlnet": "v3-sd15-sparsectrl-rgb",
+    "extra": [
+      "ip-adapter-plus-sd15",
+      "clip-vit-h-14-laion2b-s32b-b79k",
+      "comfyui-advanced-controlnet",
+      "comfyui-animatediff-evolved",
+      "comfyui-ipadapter-plus"
+    ]
+  },
+  "params": {
+    "motion_model": "animatediff-lightning-8step-comfyui",
+    "beta_schedule": "sqrt_linear (AnimateDiff)",
+    "sampler": "euler",
+    "scheduler": "sgm_uniform",
+    "steps": 8,
+    "cfg": 1.0,
+    "width": 512,
+    "height": 768,
+    "length": {
+      "value": 16,
+      "exposed": true,
+      "min": 8,
+      "max": 32,
+      "step": 4
+    },
+    "fps": 8,
+    "sparsectrl_name": "v3-sd15-sparsectrl-rgb",
+    "sparsectrl_strength": 0.8,
+    "sparsectrl_end": {
+      "value": 0.7,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    },
+    "ipadapter_preset": "PLUS (high strength)",
+    "ipadapter_weight": {
+      "value": 0.7,
+      "exposed": true,
+      "min": 0.0,
+      "max": 1.5
+    }
+  },
+  "card": {
+    "architecture": "SD1.5 AnimateDiff + SparseCtrl + IP-Adapter (image-to-video)",
+    "summary": "Animate the current image into a short clip: SparseCtrl pins the first frame to your image, IP-Adapter keeps the subject, and the motion module animates it. Subpar SD1.5 quality but the subject is preserved and moves.",
+    "prompt": {
+      "format": "tags",
+      "guidance": "Describe the SCENE/subject in your image. AnimateDiff adds generic motion on its own; the prompt does NOT direct the motion (use Wan/LTX for prompt-directed motion).",
+      "example": "detailed scene, soft lighting",
+      "overview": "The text prompt sets the SCENE, subject, and STYLE (an ordinary SD-style prompt); motion is generic/automatic from the motion module, not precisely prompt-directed.",
+      "instructions": "Write a normal SD-style prompt (booru tags for anime checkpoints, a short natural-language phrase for photoreal) describing subject, setting, lighting, and art style to match your checkpoint. For i2v the actual motion comes from the SparseCtrl-RGB start frame plus the motion module, NOT the words - the prompt barely steers HOW things move, so you mostly get generic ambient motion. To direct motion, add a motion-LoRA (zoom in/out, pan left/right, tilt, rolling) rather than prose. The distilled variants (AnimateLCM, AnimateDiff-Lightning) use the same prompt style but run few steps at low/no CFG, so keep prompts and negatives shorter and avoid high CFG. Be realistic: this gives SD-style scene/style control but only weak, generic motion control compared to Wan/LTX.",
+      "do": [
+        "Prompt like a still SD image: subject + setting + lighting + style, in your checkpoint's tag/phrase convention",
+        "Match the prompt and checkpoint to the start frame so conditioning and text agree",
+        "Add quality/style anchor tags ('masterpiece, best quality, detailed') to reduce flicker",
+        "Use a motion-LoRA token for camera movement (zoom, pan, tilt, rolling) when you need directed motion",
+        "Add a light action hint ('hair blowing in wind', 'walking forward') as a nudge, not a command",
+        "For AnimateLCM / Lightning keep prompts concise and run low steps at low/no CFG",
+        "Use SD-style negative prompts - they materially improve quality here"
+      ],
+      "dont": [
+        "Don't write cinematic frame-by-frame motion choreography expecting it to execute - AnimateDiff won't follow it",
+        "Don't request complex/unusual motion outside the module's training (it produces generic movement)",
+        "Don't crank CFG or pile on emphasis weights with the distilled (LCM/Lightning) variants",
+        "Don't expect the prompt to override the start frame's motion in i2v",
+        "Don't omit the negative prompt; an empty negative noticeably degrades output"
+      ],
+      "examples": [
+        "1girl, long silver hair, school uniform, standing on rooftop, sunset, cinematic lighting, wind, hair blowing in the wind, masterpiece, best quality, highly detailed",
+        "a lone astronaut walking across a red desert under a pink sky, dust drifting, soft volcanic light, photorealistic"
+      ],
+      "negative_guidance": "Use standard SD-style negatives (e.g. 'worst quality, low quality, blurry, deformed, bad anatomy, watermark, text') - they apply and meaningfully improve coherence; keep them lighter for the AnimateLCM/Lightning low-CFG variants.",
+      "source": "https://github.com/guoyww/AnimateDiff ; https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved ; https://github.com/G-U-N/AnimateLCM"
+    },
+    "ui_help": {
+      "note": "Animate the current picture into a short clip. The subject is kept; motion is automatic.",
+      "good_for": "turning a still image into a short anime clip"
+    },
+    "edit_use_cases": [
+      "image-to-video: animate the current picture, keeping its subject (SD1.5 AnimateDiff + IP-Adapter)"
+    ]
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 768,
+    "max_h": 768,
+    "step": 8
+  }
+}

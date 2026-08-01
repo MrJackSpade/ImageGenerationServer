@@ -1,0 +1,8 @@
+{
+  "id": "ae",
+  "kind": "vae",
+  "label": "FLUX Autoencoder (ae)",
+  "match": [
+    "^ae$"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "flux1-dev-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "FLUX.1-dev",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 28,
+    "cfg": 1,
+    "guidance": 3.5,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Rectified-flow DiT (T5-XXL + CLIP-L), guidance-distilled, whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through FLUX.1-dev using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn with FLUX's prompt following, detail and photorealism. Ideal for pushing an off-model or low-fidelity image up to FLUX quality while keeping its layout.",
+    "nsfw_capable": "no (safety-aligned base)",
+    "commercial_use": "no (outputs usable per license; model commercial use needs BFL license)",
+    "pick_when": "You want to redraw the WHOLE image (not a masked region) through FLUX.1-dev, keeping the composition.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the finished picture in long, descriptive sentences. Lower the redraw strength to stay close to the source composition; raise it to let FLUX reinterpret more.",
+      "example": "A close-up portrait of an elderly fisherman with a weathered face and thick grey beard, yellow raincoat, standing on a wooden dock at golden hour, soft rim lighting, shallow depth of field, photorealistic, 85mm lens",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.1-dev follows natural-language prose.\n28 steps, euler/simple, distilled guidance 3.5 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the model is guidance-distilled and runs at CFG 1."
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (effective CFG 1); negatives don't work."
+    },
+    "ui_help": {
+      "note": "Send an image + a description; the whole frame is redrawn through FLUX.1-dev. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "restyling / upgrading a whole image to FLUX quality while keeping its composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image through FLUX.1-dev from a prompt, keeping composition (restyle / raise fidelity)"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

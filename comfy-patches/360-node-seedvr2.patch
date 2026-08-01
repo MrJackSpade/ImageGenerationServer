@@ -1,0 +1,12 @@
+Id: node-seedvr2
+Title: SeedVR2 video upscaler
+Does: Adds the SeedVR2 upscaler, which enlarges a clip by re-diffusing it with the frames kept consistent
+ with each other, rather than upscaling each frame on its own. The catalogue's SeedVR2 workflows need it.
+Target: custom_nodes/ComfyUI-SeedVR2_VideoUpscaler
+Source: https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler
+Rev: 4490bd1f482e026674543386bb2a4d176da245b9
+Why: numz's SeedVR2 diffusion upscaler. Its loaders are what the catalogue gates the SeedVR2 slots on -- they
+ list their whole model registry whether or not the weights are on disk, so presence of the PACK is the gate.
+ Run unmodified.
+Provides: comfyui-seedvr2-node
+---

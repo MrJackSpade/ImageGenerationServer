@@ -1,0 +1,85 @@
+{
+  "id": "flux1-fill-inpaint",
+  "workflow": "flux1-fill-inpaint",
+  "friendly_name": "FLUX.1 Fill (inpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-fill-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "weight_dtype": "fp8_e4m3fn",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 20,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "negative_supported": false,
+    "max_dimension": 1536,
+    "guidance": {
+      "value": 30.0,
+      "exposed": true,
+      "min": 1.0,
+      "max": 60.0
+    },
+    "color_correct": {
+      "value": true,
+      "exposed": true
+    },
+    "mask_grow": {
+      "value": 16,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    },
+    "mask_blur": {
+      "value": 31,
+      "exposed": true,
+      "min": 0,
+      "max": 31
+    }
+  },
+  "card": {
+    "architecture": "FLUX.1 Fill [dev] 12B rectified-flow DiT (T5-XXL + CLIP-L), guidance-distilled — purpose-trained for fill: the mask and masked image are native model inputs (InpaintModelConditioning), full-frame sampling + measured color-corrected paste-back",
+    "summary": "Replace a painted region with the model BUILT for inpainting rather than a txt2img base steered by a ControlNet. Because the mask is part of what the model was trained on, the fill continues the surrounding scene natively. The whole frame is sampled from that conditioning (the reference Fill behaviour), the fill's exposure/tint drift is measured against the untouched pixels and inverted, and everything outside the region is composited back bit-identical.",
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "First choice for any masked fill or repair. Prefer Qwen-Image (inpaint) only if you specifically want Qwen's look or ZH prompting.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe what should appear IN the painted region — an object or local scene content, briefly ('a white paper cup'). Do NOT describe the whole picture: at Fill guidance the model renders whatever you describe INTO the region, so a whole-scene prompt crams a miniature of the scene into the hole. Leave the prompt empty to just continue the surroundings (removal/repair).",
+      "example": "a wooden park bench",
+      "instructions": "Natural language, region content only. Recommended: 20 steps, euler/normal, CFG 1. The strength knob is 'Fill guidance' (~30), not CFG — Fill is guidance-distilled.",
+      "negative_guidance": "Not supported (CFG 1; the negative is zeroed).",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Guidance-distilled: real CFG stays 1 and the negative is zeroed out."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "12B bf16 cast to fp8_e4m3fn at load, alongside fp16 T5-XXL on 24 GB. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Paint over the area to replace, say what should fill it (or leave the prompt empty to continue the surroundings), and send. 'Fill guidance' is how hard it obeys the prompt.",
+      "good_for": "replacing an object, filling blank space, or repairing a region so it matches its surroundings"
+    },
+    "edit_use_cases": [
+      "masked inpaint: fill or replace a painted region so it continues the surrounding scene, keeping every pixel outside it"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

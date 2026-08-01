@@ -1,0 +1,93 @@
+{
+  "id": "flux2-dev",
+  "workflow": "flux2-dev",
+  "friendly_name": "FLUX.2-dev",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux2-dev",
+    "text_encoders": [
+      "mistral-3-small-flux2"
+    ],
+    "vae": "flux2-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux2",
+    "dual": false,
+    "latent": "flux2",
+    "clip_skip": 0,
+    "steps": 20,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "guidance": 4,
+    "width": 1408,
+    "height": 1408,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1408,
+        1408
+      ],
+      "landscape": [
+        1872,
+        1056
+      ],
+      "portrait": [
+        1056,
+        1872
+      ]
+    }
+  },
+  "card": {
+    "architecture": "FLUX.2 rectified-flow DiT (~32B, Mistral-Small-3.2-24B encoder)",
+    "summary": "The full FLUX.2 [dev] flagship (Q4_K_M on 24 GB). Best-in-family prompt understanding, typography and photorealism; the large sibling of the Klein models. Encoder and model load sequentially, so each fits 24 GB separately.",
+    "use_cases": [
+      "top-tier general generation",
+      "complex/relational prompts",
+      "typography",
+      "photorealism"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no (BFL non-commercial)",
+    "pick_when": "You want the highest FLUX.2 quality on a 24 GB card and non-commercial is OK.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "LLM-style prose (Mistral encoder); front-load the key subject. Distilled guidance ~4, no negative.",
+      "example": "A weathered lighthouse on a storm-lashed cliff at dusk, beam cutting through rain, huge crashing waves, dramatic volumetric light, photorealistic, 35mm",
+      "instructions": "Structure as Subject + Action + Style + Context; word order matters (most important first). Specify lighting. Quote literal text for typography and tie colors to objects with hex codes. FLUX.2 does not use negative prompts: guidance ~4, cfg 1, ~20 steps.",
+      "do": [
+        "Front-load the key subject/action",
+        "Specify lighting",
+        "Quote text and give its style/placement/hex color",
+        "Medium-length prompts (30-80 words)"
+      ],
+      "dont": [
+        "Use negative prompts (unsupported)",
+        "Bury the subject late",
+        "Expect flawless text"
+      ],
+      "negative_guidance": "FLUX.2 does not support negative prompts — describe what you want.",
+      "source": "https://docs.bfl.ml/guides/prompting_guide_flux2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (cfg 1)."
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "~32B Q4_K_M on 24 GB (sequential encoder/model swap); not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want like you'd tell ChatGPT — more detail looks better. The top-quality model here.",
+      "good_for": "the highest-quality detailed images & text"
+    }
+  },
+  "resolution": {
+    "min_w": 64,
+    "min_h": 64,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

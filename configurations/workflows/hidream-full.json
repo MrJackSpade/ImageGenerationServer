@@ -1,0 +1,90 @@
+{
+  "id": "hidream-full",
+  "workflow": "hidream",
+  "friendly_name": "HiDream-I1 Full",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hidream-i1-full",
+    "text_encoders": [
+      "clip-l-hidream",
+      "clip-g-hidream",
+      "t5xxl",
+      "llama-3-1-8b-instruct"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "dual": false,
+    "latent": "sd3",
+    "steps": 50,
+    "cfg": 5.0,
+    "sampler": "uni_pc",
+    "scheduler": "simple",
+    "shift": 3.0,
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "HiDream-I1 17B MoE DiT (quad encoder: CLIP-L + CLIP-G + T5-XXL + Llama-3.1-8B)",
+    "summary": "17B sparse-MoE model, the Full (highest-quality) variant. Four text encoders give very strong prompt adherence; real CFG + negative prompts. Heaviest still-image model here.",
+    "use_cases": [
+      "highest prompt adherence",
+      "complex compositional prompts",
+      "detailed general generation with negative control"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes (MIT)",
+    "pick_when": "You want maximum prompt adherence on a 24 GB card and can accept ~50 steps.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose. Full variant uses real CFG (~5) and a negative prompt.",
+      "example": "A grand library with floating books, warm shafts of light through tall windows, a small dragon perched on a ladder, intricate, cinematic",
+      "instructions": "Write rich natural language; the four encoders reward detail and relational description. Full: ~50 steps, cfg 5, uni_pc/simple, flow-shift 3. Negative prompts are effective.",
+      "do": [
+        "Write detailed, relational prompts",
+        "Use a negative prompt",
+        "~50 steps, cfg 5"
+      ],
+      "dont": [
+        "Expect Turbo-style speed (Full is ~50 steps)"
+      ],
+      "negative_guidance": "Supported and effective (real CFG).",
+      "source": "https://huggingface.co/HiDream-ai/HiDream-I1-Full"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~5; negatives effective."
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "17B MoE Q5_K_M, ~50 steps; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in detail. Follows instructions very closely; slower.",
+      "good_for": "the most faithful prompt following (slow)"
+    }
+  },
+  "resolution": {
+    "min_w": 768,
+    "min_h": 768,
+    "max_w": 1360,
+    "max_h": 1360,
+    "step": 16
+  }
+}

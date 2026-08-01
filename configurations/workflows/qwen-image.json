@@ -1,0 +1,92 @@
+{
+  "id": "qwen-image",
+  "workflow": "qwen-image",
+  "friendly_name": "Qwen-Image",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 20,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "auraflow": 3.1,
+    "width": 1328,
+    "height": 1328,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1328,
+        1328
+      ],
+      "landscape": [
+        1664,
+        928
+      ],
+      "portrait": [
+        928,
+        1664
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Qwen-Image 20B MMDiT (Qwen2.5-VL encoder)",
+    "summary": "The 20B Qwen-Image text-to-image base (Q6_K on 24 GB). Best-in-class legible text rendering (EN/ZH), strong prompt adherence and fine detail; the from-scratch counterpart to the Qwen edit model.",
+    "use_cases": [
+      "legible in-image text / typography (EN & ZH)",
+      "detailed general generation",
+      "posters, signage, UI mockups",
+      "complex multi-element prompts"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "You need accurate in-image text or top-tier prompt adherence and have a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose (EN or ZH). Quote literal text to render it.",
+      "example": "A bookstore storefront at dusk, a glowing sign reading \"NIGHT OWL BOOKS\" in warm amber letters, rain-slicked pavement reflecting the glow, cinematic",
+      "instructions": "Write descriptive natural language; word order and specificity matter. To render literal text, wrap the exact string in double quotes and keep it short. Recommended: ~20-50 steps, cfg ~4, euler/simple. Native resolution ~1328px. Negative prompts are supported (real CFG).",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Quote literal on-image text",
+        "Render near 1328px",
+        "Use a light negative if needed"
+      ],
+      "dont": [
+        "Rely on booru tag soup",
+        "Expect long paragraphs of in-image text to stay perfect"
+      ],
+      "negative_guidance": "Supported (real CFG ~4); keep it light.",
+      "source": "https://huggingface.co/Qwen/Qwen-Image"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~4; light negatives help."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "20B Q6_K on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in plain words. Best here for pictures that need readable text or signs.",
+      "good_for": "readable in-image text & detailed scenes"
+    }
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

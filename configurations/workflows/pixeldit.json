@@ -1,0 +1,52 @@
+{
+  "id": "pixeldit",
+  "workflow": "pixeldit",
+  "friendly_name": "PixelDiT 1300M (pixel-space)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "pixeldit-1300m-1024px",
+    "text_encoders": [
+      "gemma-2-2b-it-elm"
+    ],
+    "vae": "pixel-space-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "pixeldit",
+    "dual": false,
+    "latent": "pixel",
+    "clip_skip": 0,
+    "steps": 50,
+    "cfg": 2.75,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1280,
+        896
+      ],
+      "portrait": [
+        896,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "summary": "NVIDIA PixelDiT-1300M. Diffuses directly in pixel space -- no VAE, so the output pixels are exact with no latent round-trip. Gemma-2-2b-it text encoder.",
+    "notes": "LICENCE: NVIDIA NSCLv1 s3.3 is NON-COMMERCIAL (research/evaluation) only. Trained at ~1024px multi-aspect; stay near 1MP."
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

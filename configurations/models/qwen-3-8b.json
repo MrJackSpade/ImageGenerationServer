@@ -1,0 +1,5 @@
+{
+  "id": "qwen-3-8b",
+  "kind": "text_encoder",
+  "label": "Qwen3 8B"
+}

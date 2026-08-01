@@ -1,0 +1,93 @@
+{
+  "id": "qwen-image-edit",
+  "workflow": "qwen-image-edit",
+  "friendly_name": "Qwen-Image-Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-edit-2511",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 20,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 2,
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ]
+  },
+  "card": {
+    "architecture": "Qwen-Image 20B MMDiT edit model (Qwen2.5-VL encoder; dual semantic + appearance path)",
+    "summary": "Clean instruction editor on the 20B Qwen-Image base, fp8 for near-bf16 quality. Strong character/scene consistency and text rendering. Offloads to RAM on 8GB (slow); declines explicit edits.",
+    "use_cases": [
+      "high-quality SFW instruction editing",
+      "add/remove/replace objects, change clothing/colour",
+      "background swap/relight with strong consistency"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "Editing an existing image with clean, high-consistency SFW results; commercial OK; can wait.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Put a red baseball cap on her and change the background to a beach",
+      "overview": "Plain natural-language edit instructions (English or Chinese). Supports semantic editing (high-level changes keeping identity) and appearance editing (precise local changes) -- phrase the instruction to match which you want.",
+      "instructions": "Two modes: semantic editing (high-level changes -- many pixels may change but identity/semantics stay: IP/character work, rotation/viewpoint, style transfer, composition) and appearance editing (precise local edits -- the rest stays untouched: add/remove/recolor a specific element).\nGeneral structure: '[action] the [object] to [result]'. Be specific and include context (e.g. 'add a signboard with reflection', not just 'add a signboard').\nStrong identity/character consistency (2511 improves it and supports multi-person / multi-image -- describe the layout).\nText editing is a headline strength: bilingual, can add/delete/modify text while preserving font/size/style; quote the exact text and correct iteratively or region by region.\nBreak complex edits into sequential steps. Recommended (base): true_cfg_scale 4.0, negative_prompt ' ' (a single space), ~40-50 steps.",
+      "do": [
+        "Write plain add/remove/change instructions (EN or ZH)",
+        "Match phrasing to semantic vs appearance intent",
+        "Add disambiguating context",
+        "Quote exact text for text edits; correct iteratively",
+        "Mention identity preservation when needed"
+      ],
+      "dont": [
+        "Phrase a big semantic change when you meant a local one (and vice versa)",
+        "Cram many unrelated edits into one step",
+        "Omit context that disambiguates the target"
+      ],
+      "examples": [
+        "Change the rabbit's color to purple, with a flash light background.",
+        "Add a signboard with reflection.",
+        "Replace the headline text with 'GRAND OPENING' while keeping the same font, size and color."
+      ],
+      "negative_guidance": "Official examples pass a single-space negative prompt (effectively none); no content-based negative guidance is given.",
+      "source": "https://huggingface.co/Qwen/Qwen-Image-Edit-2511"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Runs at CFG ~4 with an empty negative."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "fp8 20B with RAM offload on 8GB.",
+      "measured_note": "Qwen edit measured ~6.7-7.0GB VRAM peak; ~140s at 8 steps."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction; not used for from-scratch generation here.",
+      "good_for": "clean, high-quality SFW instruction editing"
+    },
+    "edit_use_cases": [
+      "high-quality SFW instruction editing on the 20B Qwen base: add/remove/replace, clothing/colour, background, relight; strong consistency and text"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number. Example: 'put the dress from image 2 on the person in image 1.'"
+    }
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

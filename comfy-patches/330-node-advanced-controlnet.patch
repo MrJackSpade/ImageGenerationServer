@@ -1,0 +1,11 @@
+Id: node-advanced-controlnet
+Title: Advanced ControlNet
+Does: Lets a controlnet's strength vary over a render -- strong early, weaker as detail arrives -- and over
+ the frames of a clip. It is also what makes controlnet guidance work inside an AnimateDiff graph at all.
+Target: custom_nodes/ComfyUI-Advanced-ControlNet
+Source: https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet.git
+Rev: ba0795aaaa6d100f8d84a1f060df682bcc1091fa
+Why: Timestep and latent keyframe control over a controlnet's strength across a sampling run, and a required
+ companion to AnimateDiff-Evolved for controlnet-guided animation. Run unmodified.
+Provides: comfyui-advanced-controlnet
+---

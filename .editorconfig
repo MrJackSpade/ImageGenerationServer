@@ -1,0 +1,6 @@
+root = true
+
+[*.cs]
+# IMGDOC001: declaration-level // and /* */ comments must be XML doc comments (///).
+# Enforced by src/ImageGen.Analyzers. Default is error; change to 'warning' or 'none' to dial down.
+dotnet_diagnostic.IMGDOC001.severity = error

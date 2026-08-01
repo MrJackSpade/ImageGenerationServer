@@ -1,0 +1,105 @@
+{
+  "id": "anima-outpaint",
+  "workflow": "anima-outpaint",
+  "friendly_name": "Anima (outpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "anima-base-v1-0",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae",
+    "controlnet": "anima-lllite-inpainting-v2",
+    "extra": [
+      "comfyui-anima-lllite"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "required_prefix": "masterpiece, best quality, score_7,",
+    "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
+    "denoise": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.5,
+      "max": 1.0
+    },
+    "feather": {
+      "value": 24,
+      "exposed": true,
+      "min": 0,
+      "max": 256
+    },
+    "mask_grow": {
+      "value": 8,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    },
+    "lllite_strength": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "lllite_start": {
+      "value": 0.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "lllite_end": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "pad_left": 0,
+    "pad_top": 0,
+    "pad_right": 0,
+    "pad_bottom": 0
+  },
+  "card": {
+    "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE), ImagePadForOutpaint + masked img2img (same op as anima-inpaint)",
+    "summary": "Extend an image beyond its edges with Anima. The source is padded on each side by pad_left/top/right/bottom (source-native pixels); only the new border is generated (masked img2img) from the prompt, feathered into the original, which is preserved. Use it to add head/foot room or widen a character's framing.",
+    "nsfw_capable": "yes (via safety tags)",
+    "commercial_use": "no",
+    "pick_when": "You want to EXTEND the canvas outward (add margin on one or more sides) and let Anima fill the new area, keeping the original pixels.",
+    "prompt": {
+      "format": "booru_tags",
+      "guidance": "Type the FULL prompt for the whole enlarged image; the added border is generated to match it and the quality prefix is added automatically. Booru tags, lowercase with spaces; artists prefixed with '@'. The pad_* amounts (in source pixels) come from the caller.",
+      "required_prefix": "masterpiece, best quality, score_7,",
+      "example": "1girl, solo, full body, standing, plain background, @artistname"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Default: 'worst quality, low quality, score_1, score_2, score_3, artist name'."
+    },
+    "ui_help": {
+      "note": "Set how many pixels to extend on each side, add a prompt, and send; the new margin is generated and blended into the original. 'Seam feather' softens the join.",
+      "good_for": "outpainting / extending an image's canvas on any side while keeping the original"
+    },
+    "edit_use_cases": [
+      "outpaint: extend the canvas outward on any side (pad_left/top/right/bottom px) and fill the new border from the prompt, keeping the original"
+    ],
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

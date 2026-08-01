@@ -1,0 +1,5 @@
+{
+  "id": "v3-sd15-sparsectrl-rgb",
+  "kind": "controlnet",
+  "label": "AnimateDiff SparseCtrl RGB"
+}

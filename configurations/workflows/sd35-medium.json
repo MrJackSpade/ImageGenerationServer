@@ -1,0 +1,96 @@
+{
+  "id": "sd35-medium",
+  "workflow": "sd35-medium",
+  "friendly_name": "Stable Diffusion 3.5 Medium",
+  "default": false,
+  "requirements": {
+    "checkpoint": "sd3-5-medium"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 30,
+    "cfg": 4.5,
+    "sampler": "euler",
+    "scheduler": "sgm_uniform",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SD3 (MMDiT)",
+    "summary": "2.5B MMDiT with strong prompt adherence + typography; runs great on ComfyUI (EmptySD3LatentImage, cfg ~4.5).",
+    "use_cases": [
+      "general text-to-image",
+      "typography",
+      "prompt-faithful scenes"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes (revenue-tiered)",
+    "pick_when": "Modern general model when typography/prompt-adherence matters.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive English; cfg ~4-5 (higher oversaturates).",
+      "required_prefix": null,
+      "example": "a photorealistic close-up of an elderly fisherman mending a net at golden hour, 85mm",
+      "overview": "MMDiT with a triple text encoder (incl. T5): detailed natural-language prompting, low CFG (~4.5), minimal quality boilerplate.",
+      "instructions": "The T5 encoder shifts this from keyword tags to natural language -- write full, specific descriptive sentences ('prompts lacking specificity' increase output uncertainty). Keep T5 tokens under ~256 (edge artifacts appear beyond that; shorten if they show). Defaults: 40 steps, guidance_scale 4.5 (much lower than the SD1/SDXL ~7.5 era). Resolution 0.25-2 MP (target ~1 MP). Consider Skip Layer Guidance for better anatomy. Prefer full natural language over comma-tag stacks; keep negatives minimal or omit them.",
+      "do": [
+        "Write detailed, specific natural-language descriptions",
+        "Use guidance_scale ~4.5 with ~40 steps",
+        "Keep T5 tokens under ~256",
+        "Generate around 1 MP"
+      ],
+      "dont": [
+        "Rely on long comma-separated quality-tag boilerplate",
+        "Use SD1/SDXL-style high CFG (~7.5+)",
+        "Pile on heavy negative prompts",
+        "Be vague (specificity matters)"
+      ],
+      "examples": [
+        "A capybara holding a sign that reads Hello World",
+        "A whimsical creature that is a hybrid of a waffle and a hippopotamus, basking in a river of melted butter amidst a breakfast-themed landscape, soft morning light, highly detailed, painterly"
+      ],
+      "negative_guidance": "Optional / minimal -- SD3.5 guidance is 'less is better' with negatives (opposite of SD2.x).",
+      "source": "https://huggingface.co/stabilityai/stable-diffusion-3.5-medium"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Light at low cfg."
+    },
+    "speed": {
+      "class": "moderate",
+      "note": "",
+      "measured_seconds": 32.2,
+      "measured_note": "~32s for the first image at default settings (1024x1024, 30 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "modern images with good text"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

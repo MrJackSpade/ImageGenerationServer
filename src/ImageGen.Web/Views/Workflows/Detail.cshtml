@@ -1,0 +1,13 @@
+@{
+    ViewData["Title"] = "Workflow";
+    var workflowId = ViewData["WorkflowId"] as string ?? "";
+}
+<div id="workflowDetail" data-id="@workflowId"><p class="muted">Loading…</p></div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/workflow-detail.js" asp-append-version="true"></script>
+}

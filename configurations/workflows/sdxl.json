@@ -1,0 +1,96 @@
+{
+  "id": "sdxl",
+  "workflow": "sdxl",
+  "friendly_name": "SDXL 1.0",
+  "default": false,
+  "requirements": {
+    "checkpoint": "sd-xl-base-1-0"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 1,
+    "steps": 30,
+    "cfg": 6,
+    "sampler": "DPM++ 2M",
+    "scheduler": "karras",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SDXL (dual CLIP encoders, 1024 native)",
+    "summary": "High-quality native-1024 base with strong prompt adherence and composition; the standard general-purpose foundation.",
+    "use_cases": [
+      "general-purpose",
+      "photoreal",
+      "detailed scenes",
+      "natural-language prompting at 1024"
+    ],
+    "nsfw_capable": "limited (base; explicit via finetunes)",
+    "commercial_use": "yes",
+    "pick_when": "Default for general/photoreal natural-language requests without an anime-tag workflow.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Concise descriptive prompts; quality-booster spam not needed.",
+      "required_prefix": null,
+      "example": "cinematic photo of a red fox in a snowy forest at golden hour, shallow depth of field, 85mm, highly detailed",
+      "overview": "Dual-CLIP model, 1024 native: short natural phrases or comma-separated descriptor tags; richer than SD1.x but still keyword-friendly.",
+      "instructions": "Generate at 1024x1024 (native -- 512 hurts SDXL). Both short natural phrases and comma-separated descriptor/quality tag stacks work. Lead with the subject; add quality/style descriptors. No documented default CFG (diffusers default 7.5). Same family limits: no perfectly reliable legible text, weak spatial composition, imperfect faces. Negative prompts are supported and widely used for quality/anatomy.",
+      "do": [
+        "Generate at 1024x1024 (native)",
+        "Use short natural phrases or comma-separated descriptor tags",
+        "Lead with the subject; include quality/style descriptors"
+      ],
+      "dont": [
+        "Generate at 512 (off-native hurts SDXL)",
+        "Expect reliably legible text",
+        "Over-rely on complex spatial composition"
+      ],
+      "examples": [
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
+        "A majestic lion jumping from a big stone at night",
+        "An astronaut riding a green horse"
+      ],
+      "negative_guidance": "Helpful (not documented as required). Typical: 'blurry, lowres, bad anatomy, extra fingers, watermark, text, jpeg artifacts'.",
+      "source": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Helpful but less critical than SD1.5."
+    },
+    "speed": {
+      "class": "moderate",
+      "note": "",
+      "measured_seconds": 24.2,
+      "measured_note": "~24s for the first image at default settings (1024x1024, 30 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "all-purpose realistic scenes"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 8
+  }
+}

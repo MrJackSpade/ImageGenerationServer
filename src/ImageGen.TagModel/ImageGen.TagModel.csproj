@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    In-process tag model. Isolated in its own project so the ONNX Runtime dependency (and the ~870 MB of weights
+    it loads) stays out of ImageGen.Comfy, which is about driving ComfyUI and has no business carrying an
+    inference engine. It implements the ports in ImageGen.Application/Tags, so nothing upstream knows it exists.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ImageGen.Application\ImageGen.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.28.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,31 @@
+@model RegisterViewModel
+@{ ViewData["Title"] = "Create account"; }
+
+<section class="account">
+    <div class="card">
+        <h2>@(Model.IsFirstAccount ? "Create the first account" : "Create an account")</h2>
+        @if (Model.IsFirstAccount)
+        {
+            @* They did not choose this page — they asked to sign in and there was nobody to sign in as. Say so,
+               or the redirect looks like the app losing their place. *@
+            <p class="settings-desc">This machine has no accounts yet. Make one to get started.</p>
+        }
+        @if (!string.IsNullOrEmpty(Model.Error))
+        {
+            <div class="auth-error">@Model.Error</div>
+        }
+        <form method="post" action="/account/register">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <input name="username" value="@Model.Username" placeholder="Username" autocomplete="username" required autofocus />
+            <input name="password" type="password" placeholder="Password (8+ characters)" autocomplete="new-password" required />
+            <input name="displayName" value="@Model.DisplayName" placeholder="Display name (optional)" autocomplete="name" />
+            @if (Model.RequiresCode)
+            {
+                <input name="code" placeholder="Registration code" autocomplete="off" required />
+            }
+            <button type="submit">Create account</button>
+        </form>
+        <p class="auth-toggle"><a asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Model.ReturnUrl">Have an account? Sign in</a></p>
+    </div>
+</section>

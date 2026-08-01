@@ -1,0 +1,98 @@
+{
+  "id": "krea2-turbo",
+  "workflow": "krea2",
+  "friendly_name": "Krea 2 Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "krea2-turbo",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "krea2",
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 8,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": false,
+    "rebalance_multiplier": {
+      "value": 4.0,
+      "exposed": false
+    },
+    "per_layer_weights": {
+      "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
+      "exposed": false
+    },
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1280,
+        768
+      ],
+      "portrait": [
+        768,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Krea 2 Turbo — 8-step distilled of Krea 2 RAW (Qwen3-VL 4B encoder, Qwen-Image/Wan2.1 VAE); fp8 (bf16 is 26 GB), run on an 8 GB GPU with the weights offloaded to system RAM",
+    "summary": "Distilled few-step (8-step) version of Krea 2 with the same polished aesthetic at a fraction of the cost. Runs without CFG (guidance 0 / cfg 1), so no negative prompts. fp8 weight spilled to system RAM on an 8 GB GPU; pick this over RAW when you want Krea's look fast.",
+    "use_cases": [
+      "fast aesthetic / design-forward general generation",
+      "interactive iteration on Krea's look",
+      "photographic and editorial looks at speed"
+    ],
+    "nsfw_capable": "unknown (new release; not yet characterized)",
+    "commercial_use": "open weights — verify the Krea 2 license for your use",
+    "pick_when": "You want Krea 2's polished aesthetic fast (8 steps) and don't need negative prompts; runs on an 8 GB GPU (fp8 + RAM offload).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural-language prose; aesthetic/style words carry weight.",
+      "example": "an editorial photograph of a ceramic vase on a sunlit table, soft film grain, muted earth tones, shallow depth of field",
+      "instructions": "Write natural language; lean into style, lighting, and mood descriptors. Distilled turbo: 8 steps, no CFG (guidance 0 / cfg 1), euler/simple. Native ~1K (up to 2K). No negative prompts (cfg 1).",
+      "do": [
+        "Describe style, lighting, and mood",
+        "Write natural language",
+        "Keep it to 8 steps — more won't help"
+      ],
+      "dont": [
+        "Rely on booru tag soup",
+        "Expect negative prompts to work (cfg 1)"
+      ],
+      "negative_guidance": "Not supported (distilled, cfg 1); describe what you want.",
+      "source": "https://huggingface.co/Comfy-Org/Krea-2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled few-step (cfg 1 / guidance 0); negatives don't work."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "12B-class fp8 but only 8 steps; the fp8 encoder offloads before the diffusion model loads.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in plain words; style and lighting words matter most. This is the fast (8-step) Krea — use it for quick aesthetic results.",
+      "good_for": "fast, polished, aesthetic general generation"
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

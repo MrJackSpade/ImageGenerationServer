@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-seedvr2-node",
+  "kind": "custom_node",
+  "label": "SeedVR2 node",
+  "node": "SeedVR2LoadDiTModel"
+}

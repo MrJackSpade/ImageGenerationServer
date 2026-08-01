@@ -1,0 +1,63 @@
+{
+  "id": "flux1-krea-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "FLUX.1-Krea",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-krea-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 28,
+    "cfg": 1,
+    "guidance": 4.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "FLUX.1-dev finetune (Krea, rectified-flow DiT, T5-XXL + CLIP-L), guidance-distilled, whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through FLUX.1-Krea using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn as a natural, un-'AI-looking' photograph. Ideal for pushing an illustration or an over-processed render toward candid realism while keeping its layout.",
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no (FLUX.1-dev license)",
+    "pick_when": "You want to redraw the WHOLE image into a natural photograph, keeping the composition. Use FLUX.1-dev instead when you want the stock FLUX look.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the photo you want in plain, specific words (subject, setting, lighting, lens, mood). Lower the redraw strength to stay close to the source composition; raise it to let Krea reinterpret more.",
+      "example": "A candid 35mm photo of a woman laughing on a sunlit balcony, soft natural skin texture, shallow depth of field, warm afternoon light",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.1-Krea follows natural-language prose.\n28 steps, euler/simple, distilled guidance 4.5 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the model is guidance-distilled and runs at CFG 1."
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (cfg 1)."
+    },
+    "ui_help": {
+      "note": "Send an image + a photo description; the whole frame is redrawn through FLUX.1-Krea. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "redrawing a whole image as natural, realistic photography while keeping its composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image as natural photography through FLUX.1-Krea, keeping composition"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "id": "photanima",
+  "workflow": "photanima",
+  "friendly_name": "Photanima",
+  "default": false,
+  "requirements": {
+    "checkpoint": "photanima-v21-noturbo",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 40,
+    "cfg": 4,
+    "sampler": "er_sde",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    },
+    "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,"
+  },
+  "card": {
+    "architecture": "Anima finetune (Cosmos-Predict2-derived 2B, Qwen3-0.6B encoder, Qwen-Image VAE)",
+    "summary": "Photographic finetune of Anima Base v1.0 (same 2B architecture), trained ~45k steps on ~2000 highly-aesthetic photos. THIS entry is the de-turbo'd build: the baked-in Anima Turbo LoRA was subtracted back out, so it runs at full quality (~40 steps, CFG ~4) instead of Turbo's few-step / CFG-1 path. Strong prompt adherence, stable anatomy, up to ~2MP; amateur/candid realism. Non-commercial.",
+    "use_cases": [
+      "realistic / candid-style photography",
+      "amateur-photo aesthetics (smartphone, grain, natural skin)",
+      "fast 2B photoreal on 8GB",
+      "photographic NSFW"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "no",
+    "pick_when": "Fast, realistic, candid-style photos from a lightweight 2B model; non-commercial OK. De-turbo'd -- uses normal CFG/steps, not the Turbo few-step path.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Write a plain, specific photo description. The quality/realism prefix is auto-prepended -- don't type it. Because it's photographic and aesthetic by default, don't pile on hype/quality words (it fries the image).",
+      "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,",
+      "example": "amateur smartphone photo of a young woman standing by a white van in a sunlit pine forest, dappled light, natural skin texture, visible grain, candid, medium shot",
+      "overview": "De-turbo'd photographic finetune of Anima (2B): plain natural-language photo prompts with a quality/realism prefix auto-prepended. Run at ~40 steps, er_sde sampler, simple scheduler, CFG ~4.",
+      "instructions": "This is the DE-TURBO'D Photanima (the baked-in Anima Turbo LoRA was removed), so use the base-model recipe: ~40 steps, er_sde sampler, 'simple' scheduler, CFG ~4 -- NOT the Turbo 6-8 step / CFG 1 / custom-sigma path.\nWrite plain, specific photographic descriptions (subject, setting, lighting, lens, mood). Amateur/candid language helps realism (e.g. 'amateur smartphone photo', 'visible grain', 'natural skin texture').\nThe quality/realism fluff prefix ('masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,') is prepended AUTOMATICALLY for this base/non-turbo build -- do NOT type it. For extra realism you can prepend a stronger weighted '(photo \\(medium\\):3)' (the model tolerates strengths up to ~5-6 before breaking).\nDo NOT add further hype tags (hyperreal, etc.) beyond the auto prefix -- the model is photographic and aesthetic by default and over-driving fries the image.\nAnatomy is stable; if something glitches, nudge steps +/-1. Supports up to ~2MP (preferred 832x1216 or 1040x1520) with little distortion. In-image text is weak beyond 3-4 words. Micro-detail is between SDXL and Z-Image -- a touch of film grain, or refining the output in another model, helps.",
+      "do": [
+        "Write a plain, specific photographic description (subject, setting, lighting, lens, mood)",
+        "Use amateur/candid photo language for realism (grain, natural skin, smartphone photo)",
+        "Let the app add the quality/realism prefix -- don't type it",
+        "For more realism, prepend a stronger '(photo \\(medium\\):3)', or just add a little film grain",
+        "Keep any in-image text to 3-4 words"
+      ],
+      "dont": [
+        "Pile on hype/quality tags beyond the auto prefix (it fries the image)",
+        "Use the Turbo settings (6-8 steps / CFG 1 / custom sigma) -- this build is de-turbo'd",
+        "Expect reliable long in-image text",
+        "Rely on niche art terms like 'silhouette'"
+      ],
+      "examples": [
+        "amateur smartphone photo of a young woman by a white van in a sunlit pine forest, dappled light, natural skin texture, visible grain, candid, medium shot",
+        "candid 35mm photo of an elderly fisherman mending a net on a weathered dock at golden hour, soft side light, shallow depth of field"
+      ],
+      "negative_guidance": "CFG ~4, so negatives work but keep them light (the model is aesthetic by default). e.g. 'worst quality, low quality, jpeg artifacts'.",
+      "source": "https://civitai.com/models/2645333/photanima"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Works at CFG ~4; keep it light -- aesthetic by default."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "~40 steps at CFG 4 (de-turbo'd); similar to Anima base.",
+      "measured_note": "Not yet measured on this box; estimated ~55s cold at 40 steps / 1024px (same 2B architecture as Anima, which measures ~54s)."
+    },
+    "ui_help": {
+      "note": "Describe the photo you want in plain words (subject, setting, lighting). It's photographic and aesthetic by default, so skip the hype/quality words -- the app adds what it needs. Great for candid, realistic, amateur-style photos.",
+      "good_for": "realistic, candid-style photographs"
+    },
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

@@ -1,0 +1,24 @@
+# Keep host build artifacts and local cruft out of the image build context.
+#
+# The important one is obj/ and bin/: the Dockerfile does `dotnet restore` then `COPY src/ src/`, and a host
+# obj/project.assets.json carries a Windows fallback package folder
+# ('C:\Program Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages') that does not exist in the Linux build
+# image — copying it over clobbers the container's clean restore and `dotnet publish --no-restore` then fails with
+# "Unable to find fallback package folder". Excluding these makes the build reproducible from any working tree.
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Python venvs, caches, and the tag-model artifacts (fetched at runtime, never built into the image)
+**/.venv/
+**/__pycache__/
+tagmodel/artifacts/
+
+# VCS, local config, editor/IDE state
+.git/
+.env
+*.user
+.vs/
+.vscode/
+.idea/

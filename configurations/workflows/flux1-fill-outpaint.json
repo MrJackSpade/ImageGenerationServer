@@ -1,0 +1,89 @@
+{
+  "id": "flux1-fill-outpaint",
+  "workflow": "flux1-fill-outpaint",
+  "friendly_name": "FLUX.1 Fill (outpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-fill-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "weight_dtype": "fp8_e4m3fn",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 20,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "normal",
+    "negative_supported": false,
+    "max_dimension": 1536,
+    "pad_left": 0,
+    "pad_top": 0,
+    "pad_right": 0,
+    "pad_bottom": 0,
+    "guidance": {
+      "value": 30.0,
+      "exposed": true,
+      "min": 1.0,
+      "max": 60.0
+    },
+    "color_correct": {
+      "value": true,
+      "exposed": true
+    },
+    "mask_grow": {
+      "value": 16,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    },
+    "mask_blur": {
+      "value": 31,
+      "exposed": true,
+      "min": 0,
+      "max": 31
+    }
+  },
+  "card": {
+    "architecture": "FLUX.1 Fill [dev] 12B rectified-flow DiT, ImagePadForOutpaint canvas extension + native mask conditioning, full-frame sampling + measured color-corrected paste-back",
+    "summary": "Extend an image past its edges with the model trained for outpainting. The canvas is padded on the sides you choose; because the mask is native model conditioning, the border continues the existing scene rather than being a stylistically-similar invention. The border's exposure/tint drift is measured against the untouched pixels and inverted, and the original area is composited back untouched.",
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "First choice for widening framing or adding head/foot room.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the scene being continued, briefly and scene-level ('beautiful scenery', 'a wide city street at dusk'). Anything you name in detail tends to get rendered INTO the new border, so don't re-describe objects that are already in the picture.",
+      "example": "a wide city street at dusk, wet pavement, neighbouring shopfronts",
+      "instructions": "Natural language. Recommended: 20 steps, euler/normal, CFG 1, guidance ~30. Extend in moderate increments — a very large pad in one pass gives the model little context to continue from.",
+      "negative_guidance": "Not supported (CFG 1; the negative is zeroed).",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Guidance-distilled: real CFG stays 1 and the negative is zeroed out."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "12B bf16 cast to fp8_e4m3fn at load, alongside fp16 T5-XXL on 24 GB. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Drag the frame out on the sides you want to extend, describe the whole enlarged scene, and send.",
+      "good_for": "extending a photo's canvas on any side while keeping the original"
+    },
+    "edit_use_cases": [
+      "outpaint: extend the canvas on any side and fill the new border in keeping with the existing scene"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

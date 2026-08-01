@@ -1,0 +1,53 @@
+{
+  "id": "line-thicken-controlnet",
+  "workflow": "line-thicken-controlnet",
+  "friendly_name": "Line Thicken (ControlNet lineart re-render)",
+  "effect_type": "Line art",
+  "default": false,
+  "requirements": {
+    "checkpoint": "counterfeit-v3-0",
+    "controlnet": "controlnet-sd15-lineart"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "steps": 20,
+    "cfg": 7.0,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "denoise": {
+      "value": 0.55,
+      "exposed": true,
+      "min": 0.1,
+      "max": 1.0
+    },
+    "style_prompt": "masterpiece, best quality, anime, clean bold outlines",
+    "coarse": {
+      "value": "enable",
+      "exposed": true
+    },
+    "controlnet_strength": {
+      "value": 0.9,
+      "exposed": true,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "resolution": 512
+  },
+  "card": {
+    "architecture": "SD1.5 lineart ControlNet (control_v11p_sd15_lineart) over the Counterfeit-V3 anime checkpoint, driven by a lineart preprocessor (coarse=bolder) — img2img re-render",
+    "summary": "Re-renders the source as img2img at partial denoise with a lineart ControlNet enforcing the (coarse, bolder) outlines, so the character is preserved while the lines are redrawn clean and thick.",
+    "use_cases": [
+      "redraw bold clean outlines while keeping the character",
+      "thicken outlines where a diffusion redraw beats a pixel op"
+    ],
+    "nsfw_capable": "depends on the base checkpoint",
+    "pick_when": "You want the outlines genuinely redrawn (not just dilated) and a diffusion pass is acceptable."
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 768,
+    "max_h": 768,
+    "step": 8
+  }
+}

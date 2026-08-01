@@ -1,0 +1,101 @@
+{
+  "id": "wan22-t2v",
+  "workflow": "wan22-t2v",
+  "friendly_name": "Wan 2.2 T2V",
+  "default": false,
+  "requirements": {
+    "checkpoint": "wan2-2-t2v-high-noise-14b",
+    "text_encoders": [
+      "umt5-xxl"
+    ],
+    "vae": "wan-2-1-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "wan",
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 20,
+    "cfg": 4,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1280,
+    "height": 720,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1280,
+        720
+      ],
+      "landscape": [
+        1280,
+        720
+      ],
+      "portrait": [
+        720,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "MoE diffusion transformer (high+low noise experts, umT5 encoder) — TEXT-TO-VIDEO",
+    "summary": "Text-to-VIDEO MoE model generating ~5s 720p clips using paired high/low-noise experts. Impractical for single still images.",
+    "use_cases": [
+      "short text-to-video clips (motion, camera moves)",
+      "5s 480p/720p animation"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "User explicitly wants a short VIDEO clip, not a still image.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe motion, action, camera movement, and scene over time.",
+      "required_prefix": null,
+      "example": "Two anthropomorphic cats in boxing gear fight on a spotlighted stage, gloves swinging, crowd lights flickering, dynamic camera slowly pushing in",
+      "overview": "Write a fuller natural-language prompt that establishes the subject and scene AND the motion/camera/speed/atmosphere, since the model must invent all visual content from text.",
+      "instructions": "Wan 2.2 responds best to detailed, structured natural-language prompts (target ~80-120 words) built in layers: describe the Subject and Scene first, then Motion (what moves and how), then Camera movement (pan, tilt, dolly, orbit, crane, push-in/zoom), then Speed/Intensity (slow, gentle, brisk, slow-motion), then Atmosphere/Aesthetics (lighting, color grade, lens, mood). Put the most important detail early since Wan weights the start of the prompt, and always pair with a negative prompt, which Wan 2.2 enforces more reliably than 2.1.",
+      "do": [
+        "Describe the subject and environment fully before the motion and camera layers",
+        "Use concrete motion verbs with explicit speed and direction",
+        "Specify a distinct camera move (push-in, dolly out, pan, clockwise orbit, crane, static)",
+        "State speed/intensity explicitly (gentle, gradual, rapid, slow-motion)",
+        "Add lighting, color grade, lens/shot type, weather, and mood",
+        "Put the most important detail early; keep it ~80-120 words",
+        "Always include a negative prompt"
+      ],
+      "dont": [
+        "Don't use vague generic action verbs without speed/direction",
+        "Don't overload with so many details that key motion gets ignored (avoid >120 words)",
+        "Don't omit the subject/scene description (t2v has no source image to define them)",
+        "Don't pile on contradictory camera moves or styles in one clip",
+        "Don't omit the negative prompt"
+      ],
+      "examples": [
+        "A lone astronaut in a weathered white spacesuit walks slowly across a red Martian dune at dusk, kicking up fine dust with each step. The camera tracks alongside in a smooth lateral dolly, then arcs into a slow clockwise orbit. Long shadows stretch across the sand, low golden backlight rims the suit, cinematic anamorphic lens with subtle grain, vast and lonely atmosphere, unhurried slow-motion pacing."
+      ],
+      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: 色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走 . For video, add terms like morphing, warping, distortion, flickering, jittering.",
+      "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Supported (full model uses CFG)."
+    },
+    "speed": {
+      "class": "very_slow",
+      "note": "Minutes per clip.",
+      "measured_note": "Not measured — text-to-video model (produces a clip, not a still)."
+    },
+    "ui_help": {
+      "note": "This makes short videos, not still pictures.",
+      "good_for": "short videos"
+    }
+  },
+  "resolution": {
+    "min_w": 480,
+    "min_h": 480,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "chroma1-flash",
+  "kind": "unet",
+  "label": "Chroma1-Flash",
+  "match": [
+    "chroma1[-_. ]?hd[-_. ]?flash"
+  ]
+}

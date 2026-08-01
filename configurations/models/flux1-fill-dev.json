@@ -1,0 +1,5 @@
+{
+  "id": "flux1-fill-dev",
+  "kind": "unet",
+  "label": "FLUX.1 Fill"
+}

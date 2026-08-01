@@ -1,0 +1,99 @@
+{
+  "id": "flux1-schnell",
+  "workflow": "flux1-schnell",
+  "friendly_name": "FLUX.1-schnell",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-schnell",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux",
+    "dual": true,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 4,
+    "cfg": 1,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1216,
+    "height": 1216,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1216,
+        1216
+      ],
+      "landscape": [
+        1616,
+        912
+      ],
+      "portrait": [
+        912,
+        1616
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Rectified-flow DiT (T5-XXL + CLIP-L), LADD-distilled 1-4 step",
+    "summary": "Apache-2.0 12B distilled to 1-4 steps: fast, commercial-friendly, same strong prompt understanding as dev with slightly lower peak fidelity.",
+    "use_cases": [
+      "fast Flux-quality generation",
+      "commercial use",
+      "drafting/batch"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "yes",
+    "pick_when": "Fast Flux-quality image, commercial license needed, or quick drafts.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Natural language; runs at CFG 1.",
+      "required_prefix": null,
+      "example": "A vibrant Bangkok street-food market at night, neon signs reflecting on wet pavement, steam rising from stalls, crowds, cinematic, highly detailed",
+      "overview": "Same natural-language style as FLUX.1-dev but tuned for speed: 1-4 steps, guidance disabled, shorter 256-token window -- keep prompts concise.",
+      "instructions": "Same descriptive natural-language style as [dev], but timestep-distilled for 1-4 steps with guidance disabled (guidance_scale 0.0) and a shorter 256-token prompt window -- favor concise, focused prompts. Classifier-free guidance is effectively off, so negatives have no effect. Short in-image text can be included directly. The model may sometimes fail to match the prompt (the speed trade-off).",
+      "do": [
+        "Use concise descriptive natural language + style modifiers",
+        "Keep within the 256-token window",
+        "Include short quoted text directly for rendering"
+      ],
+      "dont": [
+        "Use negative prompts (CFG disabled)",
+        "Write very long prompts (256-token limit)",
+        "Expect perfect prompt adherence"
+      ],
+      "examples": [
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
+        "A cat holding a sign that says hello world"
+      ],
+      "negative_guidance": "Guidance disabled (CFG off); negatives have no effect.",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.1-schnell"
+    },
+    "negative": {
+      "supported": false,
+      "note": "CFG 1; negatives inactive."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "4 steps; GGUF offload adds some load time.",
+      "measured_seconds": 22.4,
+      "measured_note": "~22s for the first image at default settings (1024x1024, 4 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "fast, high-quality images"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

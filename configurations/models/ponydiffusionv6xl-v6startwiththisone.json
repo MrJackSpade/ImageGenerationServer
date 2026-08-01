@@ -1,0 +1,9 @@
+{
+  "id": "ponydiffusionv6xl-v6startwiththisone",
+  "kind": "checkpoint",
+  "label": "Pony Diffusion V6 XL",
+  "match": [
+    "pony.*diffusion.*v6",
+    "pony.*xl.*v6"
+  ]
+}

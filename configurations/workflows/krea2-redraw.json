@@ -1,0 +1,94 @@
+{
+  "id": "krea2-redraw",
+  "workflow": "krea2-redraw",
+  "friendly_name": "Krea 2 Turbo",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "krea2-turbo",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "qwen-image-vae",
+    "extra": [
+      "comfyui-conditioning-rebalance"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "krea2",
+    "dual": false,
+    "steps": 8,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "negative_supported": false,
+    "denoise": {
+      "value": 0.35,
+      "exposed": true,
+      "min": 0.1,
+      "max": 0.9
+    },
+    "rebalance_multiplier": {
+      "value": 4.0,
+      "exposed": false
+    },
+    "per_layer_weights": {
+      "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
+      "exposed": false
+    }
+  },
+  "card": {
+    "architecture": "Krea 2 Turbo (8-step distilled; Qwen3-VL 4B encoder, Qwen-Image/Wan2.1 VAE), whole-image partial-denoise img2img polish",
+    "summary": "Polish any existing image through Krea 2 Turbo \u2014 the source is VAE-encoded to the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept while Turbo reworks texture and applies Krea's aesthetic. This is the 'Turbo polish' stage of Krea 2 (Base + Turbo Polish), but fed an image from ANY model instead of a Krea base render. Single pass, single weight.",
+    "use_cases": [
+      "apply Krea's polished aesthetic to an image another model generated",
+      "clean up texture / micro-detail without changing composition",
+      "cheap single-pass finishing on an existing render"
+    ],
+    "nsfw_capable": "unknown (new release; not yet characterized)",
+    "commercial_use": "open weights \u2014 verify the Krea 2 license for your use",
+    "pick_when": "You have an image from another model and want Krea 2's look applied over it, keeping the composition. Use Krea 2 (Base + Turbo Polish) instead when you are generating from scratch.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the image you are polishing in natural language \u2014 style, lighting, and mood words carry the most weight. Lower 'Polish strength' to stay close to the source; raise it to let Turbo redraw more (and drift toward the prompt).",
+      "example": "an editorial photograph of a ceramic vase on a sunlit table, soft film grain, muted earth tones, shallow depth of field",
+      "instructions": "Write natural language describing the target look. Distilled Turbo: 8 steps, no CFG (cfg 1), euler/simple. 'Polish strength' (denoise) ~0.25-0.4 polishes texture while keeping the source composition; higher redraws more. No negative prompts (cfg 1). The source is sampled at its own resolution \u2014 Krea 2 is native at ~1K and holds up to 2K.",
+      "do": [
+        "Describe style, lighting, and mood",
+        "Keep Polish strength low (~0.25-0.4) to preserve the source",
+        "Keep it to 8 steps \u2014 more won't help"
+      ],
+      "dont": [
+        "Rely on booru tag soup",
+        "Expect negative prompts to work (cfg 1)",
+        "Push Polish strength near 0.9 unless you want the source largely redrawn"
+      ],
+      "negative_guidance": "Not supported (distilled, cfg 1); describe what you want.",
+      "source": "https://huggingface.co/Comfy-Org/Krea-2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled few-step (cfg 1 / guidance 0); negatives don't work."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "Single 8-step Turbo pass at partial denoise (fewer sigma steps than a full render); the fp8 encoder offloads before the diffusion model loads.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image + a prompt describing the look; the whole frame is polished through Krea 2 Turbo. 'Polish strength' controls how far it drifts from the source.",
+      "good_for": "applying Krea's polished aesthetic to an existing image while keeping its composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: polish/restyle an entire image through Krea 2 Turbo from a prompt, keeping composition"
+    ]
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

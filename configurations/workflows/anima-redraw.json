@@ -1,0 +1,69 @@
+{
+  "id": "anima-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "Anima",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "anima-base-v1-0",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "required_prefix": "masterpiece, best quality, score_7,",
+    "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
+    "native_pixels": 921600,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE), whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through Anima using a prompt — the source is used as the init latent ('the noise thing') and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn in Anima's anime style. Ideal for restoring an off-model edit (e.g. a pose produced by another editor) back to the character's clean look.",
+    "nsfw_capable": "yes (via safety tags)",
+    "commercial_use": "no",
+    "pick_when": "You want to redraw the WHOLE image (not a masked region) through Anima, keeping the composition — e.g. converting an off-model pose back to the character's Anima look.",
+    "prompt": {
+      "format": "booru_tags",
+      "guidance": "Type the FULL prompt for the character/scene; the quality prefix is added automatically. Booru tags, lowercase with spaces; artists prefixed with '@'. Lower the redraw strength (denoise) to stay close to the source composition; raise it to let Anima reinterpret more.",
+      "required_prefix": "masterpiece, best quality, score_7,",
+      "example": "1girl, solo, brown hair, long hair, standing, @artistname"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Default: 'worst quality, low quality, score_1, score_2, score_3, artist name'."
+    },
+    "ui_help": {
+      "note": "Send an image + a prompt; the whole frame is redrawn through Anima. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "restyling / restoring a whole image to Anima's look while keeping its composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image through Anima from a prompt, keeping composition (restyle / fix an off-model image)"
+    ],
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

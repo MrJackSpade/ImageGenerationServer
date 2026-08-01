@@ -1,0 +1,8 @@
+{
+  "id": "qwen-image-vae",
+  "kind": "vae",
+  "label": "Qwen-Image VAE",
+  "match": [
+    "qwen[-_. ]?image[-_. ]?vae"
+  ]
+}

@@ -1,0 +1,40 @@
+@model BookmarkFilterViewModel
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Bookmarks";
+    var gateway = "/forge";
+    var prefix = Model.Kind == "artist" ? "@" : "#";
+}
+
+<div class="hist-head">
+    <h2>@prefix@Model.Token.Replace('_', ' ') · @Model.Items.Count</h2>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <p class="bm-empty">No images in your history use this yet.</p>
+}
+else
+{
+    <div class="cardgrid">
+        @foreach (var r in Model.Items)
+        {
+            var id = Uri.EscapeDataString(r.GatewayImageId);
+            @* Outlined until the user has opened it — see .imgcard.unviewed. *@
+            <a class="imgcard @(r.Viewed ? "" : "unviewed")" href="/image/@id">
+                <div class="img"><img data-src="@gateway/image/@id?w=512" alt="@r.Prompt" /></div>
+                <div class="meta">
+                    <div class="p">@r.Prompt</div>
+                    <div class="row"><span class="tag">@r.ModelFriendly</span></div>
+                </div>
+            </a>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+}

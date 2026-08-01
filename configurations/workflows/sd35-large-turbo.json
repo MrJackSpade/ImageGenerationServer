@@ -1,0 +1,87 @@
+{
+  "id": "sd35-large-turbo",
+  "workflow": "sd35-large-tri",
+  "friendly_name": "Stable Diffusion 3.5 Large Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "sd3-5-large-turbo",
+    "text_encoders": [
+      "clip-l",
+      "clip-g",
+      "t5xxl"
+    ]
+  },
+  "params": {
+    "loader": "checkpoint",
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 4,
+    "cfg": 1.2,
+    "sampler": "euler",
+    "scheduler": "sgm_uniform",
+    "width": 1280,
+    "height": 1280,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1280,
+        1280
+      ],
+      "landscape": [
+        1712,
+        960
+      ],
+      "portrait": [
+        960,
+        1712
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SD3 (MMDiT, 8.1B) — Large Turbo, 4-step distilled, full bf16 + external triple CLIP",
+    "summary": "The 4-step distilled SD3.5 Large Turbo at bf16 (24 GB). Near-Large quality in ~4 steps; runs at cfg ~1.2 (no real negative).",
+    "use_cases": [
+      "fast SD3.5-quality generation",
+      "drafting / batch",
+      "quick high-fidelity images"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes (revenue-tiered)",
+    "pick_when": "You want SD3.5 Large quality in ~4 steps on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed English; distilled (4 steps, cfg ~1.2).",
+      "example": "A capybara wearing a tiny crown, studio portrait, soft light, highly detailed",
+      "instructions": "Same natural-language style as SD3.5 Large but distilled: 4 steps, cfg ~1.2, euler/sgm_uniform. Negatives are largely inert at cfg 1.2.",
+      "do": [
+        "Write specific, detailed prompts",
+        "4 steps, cfg ~1.2"
+      ],
+      "dont": [
+        "Use high CFG",
+        "Rely on negatives"
+      ],
+      "negative_guidance": "Distilled (cfg ~1.2); negatives largely inert.",
+      "source": "https://huggingface.co/stabilityai/stable-diffusion-3.5-large-turbo"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled (cfg ~1.2)."
+    },
+    "speed": {
+      "class": "fast",
+      "measured_note": "8.1B bf16, 4 steps on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two. Fast SD3.5-quality images.",
+      "good_for": "fast, high-quality SD3.5 images"
+    }
+  },
+  "resolution": {
+    "min_w": 640,
+    "min_h": 640,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

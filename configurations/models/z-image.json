@@ -1,0 +1,9 @@
+{
+  "id": "z-image",
+  "kind": "unet",
+  "label": "Z-Image",
+  "match": [
+    "z[-_. ]?image[-_. ]?bf16",
+    "z[-_. ]?image[-_. ]?q4"
+  ]
+}

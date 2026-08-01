@@ -1,0 +1,8 @@
+{
+  "id": "wan2-2-vae",
+  "kind": "vae",
+  "label": "Wan 2.2 VAE",
+  "match": [
+    "wan2[-_. ]?2[-_. ]?vae"
+  ]
+}

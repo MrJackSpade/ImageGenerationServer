@@ -1,0 +1,41 @@
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="hist-head">
+    <h2>Settings</h2>
+</div>
+
+@* Two groups, and the labels are the point. Everything under "Your account" is yours alone; everything under "This
+   machine" is one value shared by everyone with an account on the box. Listing them together without saying which
+   is which is how someone changes a machine-wide setting believing they changed their own. *@
+<div class="settings">
+    <h3 class="settings-group">Your account</h3>
+    <a class="settings-card settings-link" href="/settings/bans">
+        <span class="sl-name">Banned tags &amp; artists</span>
+        <span class="sl-desc">Tokens to keep out of auto-generated prompts, per workflow.</span>
+    </a>
+    <a class="settings-card settings-link" href="/settings/workflows">
+        <span class="sl-name">Workflow library</span>
+        <span class="sl-desc">Every workflow this box can run. Star the ones you use, label them, hide the rest.</span>
+    </a>
+
+    <h3 class="settings-group">This machine <span class="settings-group-note">shared by everyone here</span></h3>
+    <a class="settings-card settings-link" href="/settings/models">
+        <span class="sl-name">Models</span>
+        <span class="sl-desc">Which file on this disk fills each catalogue slot, and what that leaves unavailable.</span>
+    </a>
+    <a class="settings-card settings-link" href="/settings/machine">
+        <span class="sl-name">This machine</span>
+        <span class="sl-desc">The renderer's address, the rest of the box's configuration, and Free VRAM.</span>
+    </a>
+    <a class="settings-card settings-link" href="/settings/patches">
+        <span class="sl-name">Renderer patches</span>
+        <span class="sl-desc">The changes this app makes to ComfyUI's own code, and whether they are in place.</span>
+    </a>
+</div>
+
+@* Two random-prompt controls used to live here and have moved onto the composer, next to what they qualify, and both
+   are per-generation there: the temperature is the Random prompt slider itself (0 = off), and the tag-kind mask is the
+   chip row that appears under that slider once it's above 0. The stored account mask remains only as the server-side
+   fallback for a caller that sends none (the MCP), settable via PUT /api/settings/generation-tag-types. *@

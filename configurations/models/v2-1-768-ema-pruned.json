@@ -1,0 +1,8 @@
+{
+  "id": "v2-1-768-ema-pruned",
+  "kind": "checkpoint",
+  "label": "Stable Diffusion 2.1",
+  "match": [
+    "v2[-_. ]?1[-_. ]?768"
+  ]
+}

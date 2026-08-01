@@ -1,0 +1,66 @@
+Copyright (c) 2026 MrJackSpade. All rights reserved.
+
+SOURCE-AVAILABLE — PERSONAL, NON-COMMERCIAL USE ONLY
+
+This software and its source code, documentation, configuration and assets (the
+"Software") are proprietary. The source is published so it can be read, audited,
+learned from and run; it is not open source, and publication transfers no
+ownership.
+
+WHAT YOU MAY DO
+
+You may use, run and host the Software for your own personal, non-commercial
+purposes, on machines you control. You may make copies for backup.
+
+WHAT YOU MAY NOT DO
+
+You may not use the Software, in whole or in part, for any commercial purpose —
+that is, for or in connection with commercial advantage, revenue, or monetary
+compensation of any kind.
+
+You may not MODIFY the Software or create works derived from it, except to
+prepare a contribution back to the project (see CONTRIBUTIONS below). The source
+is yours to read and to run, not to change for any other purpose.
+
+You may not REDISTRIBUTE the Software. That means you may not publish, share,
+sell, sublicense, rehost, or otherwise make the Software — original or modified,
+in whole or in part, as source or as a build — available to anyone else. Offering
+it to others as a hosted or managed service is redistribution for this purpose.
+
+You may not remove or alter this licence, the copyright notice, or the
+attribution in any copy you make.
+
+CONTRIBUTIONS
+
+Contributions are welcome and entirely optional. Your right to use the Software
+is not conditioned on contributing — nothing here asks for one. You may modify
+the Software as needed to prepare and submit a contribution back to the project.
+By submitting a contribution you grant the copyright holder a perpetual,
+worldwide, irrevocable, royalty-free, sublicensable right to use, modify and
+relicense it as part of the Software, and you confirm the contribution is yours
+to give.
+
+RESERVATION
+
+All rights not expressly granted above are reserved. This permission may be
+withdrawn by the copyright holder; it does not transfer any ownership in the
+Software.
+
+THIRD-PARTY COMPONENTS
+
+This licence covers only the copyright holder's own work. Components this project
+depends on, bundles or downloads — including ffmpeg (GPL/LGPL), ComfyUI (GPL-3.0),
+the s2srec2 tag model (CC0-1.0) and the NuGet packages — remain under their own
+licences, which this document neither alters nor can alter. See
+THIRD-PARTY-NOTICES.md. Their terms may grant you rights to those components
+independently of this Software; nothing here restricts what their own licences
+allow you to do with them.
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR ITS USE.

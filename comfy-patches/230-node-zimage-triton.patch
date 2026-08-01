@@ -1,0 +1,90 @@
+Id: node-zimage-triton
+Title: Z-Image int8 buffers follow the compute device
+Does: Lets Z-Image's int8 mode run under the renderer's normal memory management instead of only when the
+ whole model happens to fit in VRAM -- it used to fail on the first step with a device mismatch. Also
+ lets this pack's requirements install on Windows, where the maintained triton build has another name.
+Target: custom_nodes/ComfyUI-ZImage-Triton
+Source: https://github.com/newgrit1004/ComfyUI-ZImage-Triton.git
+Rev: 76ca2428301cc5e03e63db8edfd3b0a4d41a21bf
+Why: ComfyUI keeps Lumina/Z-Image weights on the CPU and casts them onto the compute device per
+ operation. The pack's int8 quantisation registers its own _w_int8/_w_scale buffers and a captured
+ bias, none of which take part in that move, so the first forward pass hit a device mismatch. Moving
+ them to the input's device -- and reassigning the buffer so the moved tensor is kept -- makes the
+ int8 path work under ComfyUI's memory management rather than only under a fully-resident model.
+ Also gives the triton requirement an environment marker: on Windows the maintained build is the
+ `triton-windows` distribution, which installs the same `triton` module, so naming only `triton` makes
+ pip refuse to install this pack's requirements even where triton is already importable.
+---
+diff --git a/requirements.txt b/requirements.txt
+index 09406bb..9d15002 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,2 +1,6 @@
+-triton>=3.1.0
++# Triton ships under two distribution names. The Linux/PyPI package is `triton`; on Windows the maintained
++# build is `triton-windows`, which installs the SAME `triton` module. Naming only the first makes pip fail on
++# Windows with "no matching distribution" even when a perfectly good triton is already importable.
++triton>=3.1.0; platform_system != "Windows"
++triton-windows>=3.1.0; platform_system == "Windows"
+ scipy>=1.10.0
+diff --git a/src/zimage_triton/quantization/int8_linear.py b/src/zimage_triton/quantization/int8_linear.py
+index d842691..32d5f46 100644
+--- a/src/zimage_triton/quantization/int8_linear.py
++++ b/src/zimage_triton/quantization/int8_linear.py
+@@ -86,6 +86,13 @@ def _make_w8a8_forward(module):
+         orig_dtype = x.dtype
+         x_2d = x.reshape(-1, orig_shape[-1])
+ 
++        # PATCH: ComfyUI keeps Lumina/Z-Image weights on CPU and casts per-op onto the compute device.
++        # The int8 buffers don't follow, so move them (and bias) to x's device. Reassigning the registered
++        # buffer caches the moved tensor for subsequent forwards.
++        if self._w_int8.device != x.device:
++            self._w_int8 = self._w_int8.to(x.device)
++            self._w_scale = self._w_scale.to(x.device)
++
+         x_scale = x_2d.abs().amax(dim=-1, keepdim=True).clamp(min=1e-5) / 127.0
+         x_int8 = (x_2d / x_scale).round().clamp(-128, 127).to(torch.int8)
+ 
+@@ -93,7 +100,7 @@ def _make_w8a8_forward(module):
+         y = y_int32.to(orig_dtype) * (x_scale * self._w_scale.unsqueeze(0))
+ 
+         if has_bias:
+-            y = y + bias
++            y = y + (bias.to(y.device) if bias.device != y.device else bias)
+         return y.view(*orig_shape[:-1], y.shape[-1])
+ 
+     return types.MethodType(_forward, module)
+@@ -116,6 +123,11 @@ def _make_w8a8_hadamard_forward(module, H):
+         orig_dtype = x.dtype
+         x_2d = x.reshape(-1, orig_shape[-1])
+ 
++        # PATCH: move int8 buffers to the compute device (ComfyUI keeps weights on CPU; see _make_w8a8_forward).
++        if self._w_int8.device != x.device:
++            self._w_int8 = self._w_int8.to(x.device)
++            self._w_scale = self._w_scale.to(x.device)
++
+         # Online group-wise Hadamard rotation (cached after first call)
+         cache_key = (x_2d.device, x_2d.dtype)
+         if cache_key not in _H_cache:
+@@ -134,7 +146,7 @@ def _make_w8a8_hadamard_forward(module, H):
+         y = y_int32.to(orig_dtype) * (x_scale * self._w_scale.unsqueeze(0))
+ 
+         if has_bias:
+-            y = y + bias
++            y = y + (bias.to(y.device) if bias.device != y.device else bias)
+         return y.view(*orig_shape[:-1], y.shape[-1])
+ 
+     return types.MethodType(_forward, module)
+@@ -145,8 +157,10 @@ def _make_w8a16_forward(module):
+     bias = module.bias
+ 
+     def _forward(self, x: torch.Tensor) -> torch.Tensor:
+-        w_deq = self._w_int8.to(x.dtype) * self._w_scale.unsqueeze(1).to(x.dtype)
+-        return F.linear(x, w_deq, bias)
++        # PATCH: move int8 weight/scale/bias to x's device (ComfyUI keeps weights on CPU).
++        w_deq = self._w_int8.to(device=x.device, dtype=x.dtype) * self._w_scale.unsqueeze(1).to(device=x.device, dtype=x.dtype)
++        b = bias.to(x.device) if (bias is not None and bias.device != x.device) else bias
++        return F.linear(x, w_deq, b)
+ 
+     return types.MethodType(_forward, module)
+ 

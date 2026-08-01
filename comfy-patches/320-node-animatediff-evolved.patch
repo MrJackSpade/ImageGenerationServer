@@ -1,0 +1,11 @@
+Id: node-animatediff-evolved
+Title: AnimateDiff-Evolved
+Does: Adds AnimateDiff -- motion modules, and the context scheduling that lets a clip run longer than the
+ window the motion module was trained on. The catalogue's AnimateDiff animation workflows sample through it.
+Target: custom_nodes/ComfyUI-AnimateDiff-Evolved
+Source: https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
+Rev: d8d163cd90b1111f6227495e3467633676fbb346
+Why: Kosinkadink's AnimateDiff implementation -- the motion-module loader and context scheduling the animation
+ workflows are built on. Run unmodified.
+Provides: comfyui-animatediff-evolved
+---

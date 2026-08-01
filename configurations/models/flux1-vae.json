@@ -1,0 +1,8 @@
+{
+  "id": "flux1-vae",
+  "kind": "vae",
+  "label": "FLUX.1 VAE",
+  "match": [
+    "flux1[-_. ]?vae"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "hunyuanimage21",
+  "workflow": "hunyuanimage21",
+  "friendly_name": "HunyuanImage 2.1",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hunyuanimage21-distilled",
+    "text_encoders": [
+      "qwen-2-5-vl-7b",
+      "byt5-small-glyphxl"
+    ],
+    "vae": "hunyuan-image-2-1-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "hunyuan_image",
+    "dual": true,
+    "steps": 8,
+    "cfg": 2.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 5.0,
+    "width": 2048,
+    "height": 2048,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        2048,
+        2048
+      ],
+      "landscape": [
+        2560,
+        1536
+      ],
+      "portrait": [
+        1536,
+        2560
+      ]
+    }
+  },
+  "card": {
+    "architecture": "HunyuanImage 2.1 — DiT text-to-image (Qwen2.5-VL + byT5-glyph encoders, 32× VAE), distilled fp8",
+    "summary": "Tencent's 2K-native text-to-image base, distilled for ~8-step sampling (meanflow). Strong prompt adherence and legible text; the still-image sibling of HunyuanVideo 1.5 (shares its Qwen + byT5 encoders). ~17 GB fp8 on 24 GB.",
+    "use_cases": [
+      "2K detailed text-to-image",
+      "legible in-image text",
+      "fast high-res generation"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "check license",
+    "pick_when": "You want fast 2K HunyuanImage 2.1 generation on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose; quote literal text to render it. Native ~2048px. Distilled: ~8 steps, cfg ~2-2.5.",
+      "required_prefix": null,
+      "example": "a serene koi pond at dawn, mist over the water, a wooden bridge, soft volumetric light, highly detailed"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~2.5; keep negatives light."
+    },
+    "ui_help": {
+      "note": "Describe the picture in plain words; renders at 2K.",
+      "good_for": "detailed 2K images & readable text"
+    }
+  },
+  "resolution": {
+    "min_w": 1536,
+    "min_h": 1536,
+    "max_w": 2560,
+    "max_h": 2560,
+    "step": 16
+  }
+}

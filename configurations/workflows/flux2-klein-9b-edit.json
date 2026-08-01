@@ -1,0 +1,91 @@
+{
+  "id": "flux2-klein-9b-edit",
+  "workflow": "flux2-klein-9b-edit",
+  "friendly_name": "FLUX.2-Klein 9B",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux-2-klein-9b",
+    "text_encoders": [
+      "qwen-3-8b"
+    ],
+    "vae": "flux2-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux2",
+    "dual": false,
+    "steps": 4,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 3
+  },
+  "card": {
+    "architecture": "Flux.2 rectified-flow DiT (Qwen3-8B encoder), 4-step distilled",
+    "summary": "Higher-quality Klein with best-in-family complex-prompt handling; non-commercial. Heavier than 4B but still few-step.",
+    "use_cases": [
+      "higher-quality Flux.2 generation",
+      "complex/multi-clause prompts",
+      "non-commercial work"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no",
+    "pick_when": "Want better Klein quality than 4B and non-commercial use is acceptable.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Excels at complex multi-clause prompts (Qwen3-8B); distilled guidance 1.",
+      "required_prefix": null,
+      "example": "A bustling steampunk airship hangar with brass pipes and glowing dials, two engineers in leather aprons inspecting a propeller, dramatic volumetric light from high windows, intricate detail, cinematic wide shot",
+      "overview": "Same FLUX.2 LLM-style natural-language (or JSON) prompting as Klein 4B; the 9B is larger (8B Qwen3 encoder) and follows long/complex prompts more faithfully.",
+      "instructions": "Same FLUX.2 prompting rules as Klein 4B: Subject + Action + Style + Context; word order matters (front-load the key subject/action); length tiers short 10-30 / medium 30-80 (usually ideal) / long 80+ words; natural language and JSON work equally well; FLUX.2 does NOT support negative prompts; specifying lighting matters most; quote text for typography and tie colors to objects with hex codes (text may still distort). The 9B uses a larger 8B Qwen3 text embedder and handles relational, multi-sentence and complex prompts more faithfully than the 4B. Distilled: 4 steps, guidance_scale 1.0; non-commercial license.",
+      "do": [
+        "Use rich natural-language prose (or JSON for production)",
+        "Front-load the key subject/action",
+        "Specify lighting",
+        "Quote text and give its style/size/placement/hex color",
+        "Exploit relational, multi-sentence descriptions (8B Qwen3 encoder)"
+      ],
+      "dont": [
+        "Use negative prompts (unsupported)",
+        "Expect flawless text rendering",
+        "Make object-less vague color references",
+        "Bury the main subject late (word order matters)"
+      ],
+      "examples": [
+        "A lone astronaut kneeling beside a cracked rover on a red dune at dawn, two distant moons in a violet sky, dust drifting in low gravity, cinematic wide shot, soft directional sunrise lighting, photorealistic",
+        "A cozy independent bookstore interior, a chalkboard sign reading \"NEW ARRIVALS\" in elegant white serif lettering by the entrance, warm tungsten lighting, shelves of colorful spines, shallow depth of field",
+        "A bold sustainable-energy ad poster, a wind turbine on a green hill, headline text \"POWER THE FUTURE\" in large bold sans-serif in color #0A7E3D, clear midday lighting, clean modern editorial layout"
+      ],
+      "negative_guidance": "FLUX.2 does not support negative prompts -- describe what you want, not what you don't.",
+      "source": "https://docs.bfl.ml/guides/prompting_guide_flux2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled."
+    },
+    "speed": {
+      "class": "moderate",
+      "note": "9B with offload, but only 4 steps.",
+      "measured_seconds": 32.2,
+      "measured_note": "~32s for the first image at default settings (1024x1024, 4 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "higher-quality modern images"
+    },
+    "edit_use_cases": [
+      "higher-quality instruction image editing (unified generate+edit), non-commercial"
+    ],
+    "reference": {
+      "max": 3,
+      "hint": "Describe the change and refer to the attached picture as 'the reference image'. Example: 'dress the woman in the dress from the reference image; keep her face and hair.' Name what to take from it; mention keeping the subject's identity. You can attach more than one reference."
+    }
+  },
+  "resolution": {
+    "min_w": 64,
+    "min_h": 64,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

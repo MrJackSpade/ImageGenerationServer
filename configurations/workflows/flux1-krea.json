@@ -1,0 +1,91 @@
+{
+  "id": "flux1-krea",
+  "workflow": "flux1-dev",
+  "friendly_name": "FLUX.1-Krea",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-krea-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "flux",
+    "dual": true,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 28,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "guidance": 4.5,
+    "width": 1216,
+    "height": 1216,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1216,
+        1216
+      ],
+      "landscape": [
+        1616,
+        912
+      ],
+      "portrait": [
+        912,
+        1616
+      ]
+    }
+  },
+  "card": {
+    "architecture": "FLUX.1-dev finetune (Krea, rectified-flow DiT, T5-XXL + CLIP-L), guidance-distilled",
+    "summary": "Krea's opinionated FLUX.1-dev realism finetune (fp8 on 24 GB). Tuned away from the 'AI look' toward natural, photographic results; same Flux prompting, distilled guidance.",
+    "use_cases": [
+      "natural photorealism",
+      "candid / editorial photography looks",
+      "general high-quality generation"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "no (FLUX.1-dev license)",
+    "pick_when": "You want Flux-quality photorealism with a less 'AI' aesthetic, non-commercial OK.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural language; distilled guidance ~4.5, no negative.",
+      "example": "A candid 35mm photo of a woman laughing on a sunlit balcony, soft natural skin texture, shallow depth of field, warm afternoon light",
+      "instructions": "Use descriptive natural language with style/quality modifiers. Guidance-distilled: set distilled guidance ~4.5, cfg 1, ~28 steps; no true negative prompt. Photographic, lens and lighting language helps realism.",
+      "do": [
+        "Use descriptive natural language + photographic modifiers",
+        "Set distilled guidance ~4.5",
+        "Describe lens/lighting for realism"
+      ],
+      "dont": [
+        "Rely on negative prompts (unavailable)",
+        "Pile on hype quality tags"
+      ],
+      "negative_guidance": "Guidance-distilled; true negatives unavailable.",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.1-Krea-dev"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (cfg 1)."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "12B fp8, ~28 steps on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe the photo you want in plain words. Tuned for natural, realistic results.",
+      "good_for": "natural, realistic photography"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

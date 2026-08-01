@@ -1,0 +1,11 @@
+Id: node-controlnet-aux
+Title: ControlNet preprocessors
+Does: Adds the nodes that turn a reference picture into the hint a controlnet steers from -- depth maps,
+ pose skeletons, line art, edges. Every controlnet workflow in the catalogue feeds from one of these.
+Target: custom_nodes/comfyui_controlnet_aux
+Source: https://github.com/Fannovel16/comfyui_controlnet_aux.git
+Rev: e8b689a513c3e6b63edc44066560ca5919c0576e
+Why: Fannovel16's preprocessor collection -- the depth, pose, lineart and canny estimators every controlnet
+ workflow feeds from. Run unmodified; pinned because a preprocessor that changes its output changes the
+ picture, and the catalogue's controlnet workflows are built against these node names.
+---

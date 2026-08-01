@@ -1,0 +1,29 @@
+@{
+    ViewData["Title"] = "Renderer patches";
+}
+
+<div class="hist-head">
+    <h2>Renderer patches</h2>
+    <div class="hist-head-actions">
+        <button id="applyAllBtn" type="button" class="link-btn" hidden
+                title="Apply every patch that isn't in place yet, in order.">Apply all</button>
+    </div>
+</div>
+
+<div class="settings">
+    <p class="settings-desc settings-warn">These change ComfyUI's own files on this box, not your account — everyone signed in here gets what you set.</p>
+
+    <div id="patchRows"><p class="muted">Loading…</p></div>
+
+    <section class="settings-card" id="restartCard" hidden>
+        <h3>Restart</h3>
+        <p class="settings-desc" id="restartNote"></p>
+        <button id="restartBtn" type="button" class="settings-btn" hidden
+                title="Stops ComfyUI and starts it again so it re-reads the patched files. Anything rendering is lost.">Restart the renderer</button>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/patches.js" asp-append-version="true"></script>
+}

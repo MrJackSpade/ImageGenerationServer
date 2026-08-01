@@ -1,0 +1,29 @@
+Id: core-quant-controlnet
+Title: Quantised controlnets get mixed-precision ops
+Does: Lets the renderer load an int8-quantised controlnet. Without it one loads without complaint and
+ steers the picture with nonsense, which reads as a bad controlnet rather than a broken one.
+Target: .
+Base: comfyanonymous/ComfyUI
+Why: controlnet_config() builds its operations with pick_operations() but never forwards the
+ model_config it just derived. model_config_from_unet has already populated model_config.quant_config
+ via detect_layer_quantization, so without it pick_operations cannot reach its quant branch at all and
+ the per-layer comfy_quant keys are read as ordinary weights -- the controlnet loads, and produces
+ garbage. This is what lets a self-quantised int8-convrot controlnet work.
+---
+diff --git a/comfy/controlnet.py b/comfy/controlnet.py
+index 6dbbaa95..4e8df2cb 100644
+--- a/comfy/controlnet.py
++++ b/comfy/controlnet.py
+@@ -504,7 +504,11 @@ def controlnet_config(sd, model_options={}):
+ 
+     operations = model_options.get("custom_operations", None)
+     if operations is None:
+-        operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype, disable_fast_fp8=True)
++        # Pass model_config so a QUANTIZED controlnet gets mixed_precision_ops. model_config_from_unet above already
++        # populated model_config.quant_config via detect_layer_quantization; without forwarding it here,
++        # pick_operations can never reach its quant branch and the per-layer comfy_quant keys load as garbage.
++        # This is what lets a self-quanted int8-convrot controlnet (ctq) load at all.
++        operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype, disable_fast_fp8=True, model_config=model_config)
+ 
+     offload_device = comfy.model_management.unet_offload_device()
+     return model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device

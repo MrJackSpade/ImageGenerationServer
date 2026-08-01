@@ -1,0 +1,42 @@
+{
+  "id": "deflicker-auto",
+  "workflow": "deflicker-auto",
+  "friendly_name": "Deflicker Auto (video)",
+  "effect_type": "Flicker correction",
+  "params": {
+    "mad_k": {
+      "value": 4.0,
+      "exposed": true,
+      "min": 0.5,
+      "max": 20.0
+    },
+    "min_dev": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 16.0
+    },
+    "alpha_cut": {
+      "value": 0.5,
+      "exposed": true,
+      "min": 0.0,
+      "max": 1.0
+    },
+    "time_sigma": {
+      "value": 3.0,
+      "exposed": true,
+      "min": 0.1,
+      "max": 32.0
+    }
+  },
+  "card": {
+    "architecture": "DeflickerAuto node (PixelHarness) — LoadVideo → GetVideoComponents → DeflickerAuto → SaveAnimatedWEBP(lossless). Per frame: BiRefNet matte, character stats (luma P5/P15 dark tail, chroma P90), whole-clip median±K·MAD outlier flagging, drift-weighted per-channel CDF match of flagged frames to the clean pool.",
+    "summary": "Automatically detects and corrects flicker/washed-out frames in an AI-generated clip. Mattes each frame with BiRefNet, measures pose- and drift-invariant character statistics, flags frames that deviate from the whole-clip median (a wash is a chroma collapse), and re-histograms each flagged frame to the temporally-weighted clean frames. If nothing is defective the clip passes through untouched. No checkpoint — the node loads its own BiRefNet.",
+    "use_cases": [
+      "fix a washed-out or flickering frame in a WAN/i2v sprite clip before pixelization",
+      "normalize per-frame tone/saturation drift outliers in an animation clip"
+    ],
+    "nsfw_capable": "n/a (statistical correction only)",
+    "pick_when": "You have a clip with occasional bad (washed/flickering) frames and want them auto-corrected against the good frames."
+  }
+}

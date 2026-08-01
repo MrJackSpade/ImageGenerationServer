@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    NOT a throwaway. This is how the container build puts the patches into its ComfyUI, running the SAME engine
+    the settings page runs. A build that applied them its own way would produce an image whose state the UI
+    then misreads. It is also the only way to apply patches on a box with no browser open.
+
+    FrameworkReference rather than package references: it needs the DI container, IHttpClientFactory and console
+    logging, all of which the shared framework already carries, and ImageGen.Comfy is built against it too.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The namespace is not "ComfyPatch": that is the name of the record this tool works with. -->
+    <RootNamespace>ComfyPatchCli</RootNamespace>
+    <AssemblyName>ComfyPatch</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ImageGen.Comfy\ImageGen.Comfy.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

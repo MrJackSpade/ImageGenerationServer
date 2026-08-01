@@ -1,0 +1,228 @@
+Id: node-step1x-edit
+Title: Step1X-Edit runs without flash-attn, on transformers 5.x
+Does: Makes Step1X-Edit run without flash-attn, which it otherwise demands and which has no prebuilt
+ wheel for recent CUDA builds -- every Step1X graph failed on import. The same attention runs through
+ PyTorch instead. Also fixes its text encoder under current transformers, and finds that encoder in any
+ configured models folder rather than one hard-coded path.
+Target: custom_nodes/ComfyUI_Step1X-Edit
+Source: https://github.com/raykindle/ComfyUI_Step1X-Edit.git
+Rev: 1a674089f74f84fd6de8688ea9fbc1a625a34b4a
+Why: The pack hard-requires flash-attn, which has no prebuilt wheel for cu13x and will not build
+ locally, so every graph died at import. Falling back to PyTorch SDPA when flash_attn_func is absent
+ is mathematically equivalent -- the existing "torch" path already does the layout transpose SDPA
+ wants. Separately, transformers 5.x moved hidden_size onto config.text_config for Qwen2.5-VL, so the
+ embedder read None and allocated a zero-width buffer. The text encoder is located by searching every
+ folder ComfyUI configures instead of index [0] of one of them, which is what forced the absolute
+ path this was written with -- an install with extra_model_paths.yaml keeps its encoders on a root
+ index [0] never looks at. Finally, liger_kernel comes out of requirements.txt: nothing imports it, and
+ requiring it drags in triton, which has no Windows wheel, so installing this pack's requirements failed
+ outright over a package no code path touches.
+---
+diff --git a/modules/attention.py b/modules/attention.py
+index d2c6c43..38da3ab 100644
+--- a/modules/attention.py
++++ b/modules/attention.py
+@@ -63,6 +63,12 @@ def attention(
+     Returns:
+         torch.Tensor: 注意力输出，形状 [batch_size, seq_len, num_heads * head_dim]
+     """
++    # No flash-attn on this box (no compatible prebuilt wheel for cu13x/torch2.12; CUTLASS won't build under
++    # MSVC18/CUDA13.2). Fall back to PyTorch SDPA, which is mathematically equivalent — the "torch" path below
++    # already handles the [B,S,A,D]->[B,A,S,D] transpose SDPA expects.
++    if mode == "flash" and flash_attn_func is None:
++        mode = "torch"
++
+     # 获取预处理和后处理函数
+     pre_attn_layout, post_attn_layout = MEMORY_LAYOUT[mode]
+ 
+diff --git a/modules/conditioner.py b/modules/conditioner.py
+index d30909c..84c30e3 100644
+--- a/modules/conditioner.py
++++ b/modules/conditioner.py
+@@ -73,7 +73,7 @@ class Qwen25VL_7b_Embedder(torch.nn.Module):
+         self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+             model_path,
+             torch_dtype=dtype,
+-            attn_implementation="flash_attention_2"
++            attn_implementation="sdpa"   # no flash-attn on this box; SDPA is equivalent
+         ).to(self.device)
+ 
+         self.model.requires_grad_(False)
+@@ -88,14 +88,14 @@ class Qwen25VL_7b_Embedder(torch.nn.Module):
+         embs = torch.zeros(
+             len(text_list),
+             self.max_length,
+-            self.model.config.hidden_size,
++            (getattr(self.model.config, "hidden_size", None) or self.model.config.text_config.hidden_size),
+             dtype=torch.bfloat16,
+             device=torch.cuda.current_device(),
+         )
+         hidden_states = torch.zeros(
+             len(text_list),
+             self.max_length,
+-            self.model.config.hidden_size,
++            (getattr(self.model.config, "hidden_size", None) or self.model.config.text_config.hidden_size),
+             dtype=torch.bfloat16,
+             device=torch.cuda.current_device(),
+         )
+diff --git a/modules/layers.py b/modules/layers.py
+index 432cf07..223d0ef 100644
+--- a/modules/layers.py
++++ b/modules/layers.py
+@@ -92,6 +92,11 @@ def attention(
+     Returns:
+         torch.Tensor: Output tensor after self attention with shape [b, s, ad]
+     """
++    # No flash-attn on this box — fall back to PyTorch SDPA (the "torch" path). The varlen packing args are only
++    # used by the flash branch; SDPA on the [B,A,S,D] layout is equivalent for our fixed-length edit batches.
++    if mode == "flash" and flash_attn_varlen_func is None:
++        mode = "torch"
++
+     pre_attn_layout, post_attn_layout = MEMORY_LAYOUT[mode]
+     q = pre_attn_layout(q)
+     k = pre_attn_layout(k)
+diff --git a/nodes/step1x_edit_nodes.py b/nodes/step1x_edit_nodes.py
+index e289eaf..8568e25 100644
+--- a/nodes/step1x_edit_nodes.py
++++ b/nodes/step1x_edit_nodes.py
+@@ -8,6 +8,7 @@ from torchvision.transforms import functional as F
+ 
+ from ..utils.model_loader import Step1XEditModelBundle
+ from ..utils.sampling import get_schedule
++from ..utils.text_encoder_paths import list_text_encoders, resolve_text_encoder
+ import folder_paths
+ 
+ 
+@@ -20,7 +21,7 @@ class Step1XEditModelLoader:
+             "required": {
+                 "diffusion_model": (folder_paths.get_filename_list("diffusion_models"), {"default": "step1x-edit-i1258-FP8.safetensors"}),
+                 "vae": (folder_paths.get_filename_list("vae"), {"default": "vae.safetensors"}),
+-                "text_encoder": (os.listdir(folder_paths.get_folder_paths("text_encoders")[0]), {"default": "Qwen2.5-VL-7B-Instruct"}),
++                "text_encoder": (list_text_encoders(), {"default": "Qwen2.5-VL-7B-Instruct"}),
+                 "dtype": (["bfloat16", "float16", "float32"], {"default": "bfloat16"}),
+                 "quantized": ("BOOLEAN", {"default": True}),
+                 "offload": ("BOOLEAN", {"default": False})
+@@ -36,7 +37,7 @@ class Step1XEditModelLoader:
+         """Load the Step1X-Edit model components."""
+         dit_path = folder_paths.get_full_path("diffusion_models", diffusion_model)
+         ae_path = folder_paths.get_full_path("vae", vae)
+-        qwen2vl_model_path = os.path.join(folder_paths.get_folder_paths("text_encoders")[0], text_encoder)
++        qwen2vl_model_path = resolve_text_encoder(text_encoder)
+ 
+         # Convert dtype string to torch dtype
+         if dtype == "bfloat16":
+diff --git a/nodes/step1x_edit_teacache_nodes.py b/nodes/step1x_edit_teacache_nodes.py
+index fdb11ed..0890d91 100644
+--- a/nodes/step1x_edit_teacache_nodes.py
++++ b/nodes/step1x_edit_teacache_nodes.py
+@@ -8,6 +8,7 @@ from torchvision.transforms import functional as F
+ 
+ from ..utils.model_loader_teacache import Step1XEditTeaCacheModelBundle
+ from ..utils.sampling import get_schedule
++from ..utils.text_encoder_paths import list_text_encoders, resolve_text_encoder
+ import folder_paths
+ 
+ 
+@@ -20,7 +21,7 @@ class Step1XEditTeaCacheModelLoader:
+             "required": {
+                 "diffusion_model": (folder_paths.get_filename_list("diffusion_models"), {"default": "step1x-edit-i1258-FP8.safetensors"}),
+                 "vae": (folder_paths.get_filename_list("vae"), {"default": "vae.safetensors"}),
+-                "text_encoder": (os.listdir(folder_paths.get_folder_paths("text_encoders")[0]), {"default": "Qwen2.5-VL-7B-Instruct"}),
++                "text_encoder": (list_text_encoders(), {"default": "Qwen2.5-VL-7B-Instruct"}),
+                 "dtype": (["bfloat16", "float16", "float32"], {"default": "bfloat16"}),
+                 "quantized": ("BOOLEAN", {"default": True}),
+                 "offload": ("BOOLEAN", {"default": False}),
+@@ -42,7 +43,7 @@ class Step1XEditTeaCacheModelLoader:
+         """Load the Step1X-Edit model components with TeaCache acceleration."""
+         dit_path = folder_paths.get_full_path("diffusion_models", diffusion_model)
+         ae_path = folder_paths.get_full_path("vae", vae)
+-        qwen2vl_model_path = os.path.join(folder_paths.get_folder_paths("text_encoders")[0], text_encoder)
++        qwen2vl_model_path = resolve_text_encoder(text_encoder)
+ 
+         # Convert dtype string to torch dtype
+         if dtype == "bfloat16":
+diff --git a/requirements.txt b/requirements.txt
+index 544692e..5905a13 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,5 +1,8 @@
+ torch>=2.3.1
+-liger_kernel>=0.5.4
++# liger_kernel removed: nothing here imports it. Its only mention is the commented-out import in
++# modules/layers.py, next to the pack's own note that "windows does not support liger_kernel, So I delete it
++# for windows users". Requiring it regardless makes pip resolve liger-kernel -> triton, which has no wheel on
++# Windows, so installing this pack's requirements fails outright over a package no code path touches.
+ einops>=0.8.1
+ transformers>=4.49.0
+ qwen_vl_utils>=0.0.10
+diff --git a/utils/text_encoder_paths.py b/utils/text_encoder_paths.py
+new file mode 100644
+index 0000000..ea2a27f
+--- /dev/null
++++ b/utils/text_encoder_paths.py
+@@ -0,0 +1,65 @@
++"""Where the Qwen2.5-VL text encoder lives, resolved rather than hardcoded.
++
++Upstream reads `folder_paths.get_folder_paths("text_encoders")[0]`, which is ComfyUI's OWN
++`models/text_encoders` and nothing else. An install that keeps its text encoders somewhere else --
++anything with an `extra_model_paths.yaml`, which is the usual arrangement once the models predate
++the ComfyUI install -- has the encoder on a path index [0] never looks at, so the node lists an
++empty dropdown and then fails to load.
++
++Searching EVERY configured root fixes that without naming a machine's drive. STEP1X_TEXT_ENCODER_DIR
++overrides the lot for a layout none of this anticipates.
++"""
++import os
++
++
++def _roots():
++    """Every directory ComfyUI considers a text-encoder root, plus the env override, in priority order."""
++    from_env = os.environ.get("STEP1X_TEXT_ENCODER_DIR")
++    if from_env:
++        return [from_env]
++
++    import folder_paths
++    roots = []
++    # "text_encoders" is the current name; "clip" is the same directory under ComfyUI's older key, and
++    # installs configured years apart use one or the other. Both, deduped, in the order ComfyUI gives them.
++    for key in ("text_encoders", "clip"):
++        try:
++            roots.extend(folder_paths.get_folder_paths(key))
++        except KeyError:
++            # Not a folder ComfyUI knows -- not an error, just nothing to contribute.
++            pass
++
++    seen, unique = set(), []
++    for root in roots:
++        normalised = os.path.normcase(os.path.abspath(root))
++        if normalised not in seen:
++            seen.add(normalised)
++            unique.append(root)
++    return unique
++
++
++def list_text_encoders():
++    """The subdirectories offered in the dropdown, across every root. A model is a DIRECTORY here."""
++    names, seen = [], set()
++    for root in _roots():
++        if not os.path.isdir(root):
++            continue
++        for name in sorted(os.listdir(root)):
++            if name not in seen and os.path.isdir(os.path.join(root, name)):
++                seen.add(name)
++                names.append(name)
++    return names
++
++
++def resolve_text_encoder(name):
++    """The full path of a chosen encoder. Raises naming every root searched -- an empty string
++    or a silently wrong path here surfaces much later as an unreadable from_pretrained error."""
++    roots = _roots()
++    for root in roots:
++        candidate = os.path.join(root, name)
++        if os.path.isdir(candidate):
++            return candidate
++    raise FileNotFoundError(
++        "Text encoder '{}' is not in any of ComfyUI's text-encoder folders: {}. "
++        "Put it in one of them, or set STEP1X_TEXT_ENCODER_DIR.".format(name, ", ".join(roots) or "(none configured)")
++    )

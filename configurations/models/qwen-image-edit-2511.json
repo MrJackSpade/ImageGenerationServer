@@ -1,0 +1,8 @@
+{
+  "id": "qwen-image-edit-2511",
+  "kind": "unet",
+  "label": "Qwen-Image-Edit 2511",
+  "match": [
+    "qwen[-_. ]?image[-_. ]?edit[-_. ]?2511[-_. ]?q6"
+  ]
+}

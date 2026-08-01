@@ -1,0 +1,31 @@
+{
+  "id": "pixel-quantize-batch",
+  "workflow": "pixel-quantize-batch",
+  "friendly_name": "Pixel Quantize (batch)",
+  "effect_type": "Pixelize",
+  "default": false,
+  "params": {
+    "virtual_resolution": {
+      "value": 128,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "engine": {
+      "value": "fp",
+      "exposed": true
+    }
+  },
+  "card": {
+    "architecture": "Deterministic OKLab/DIN99d palette + grid quantizer over a batch of stills (no model) — LoadImage×N → ImageBatch → PixelQuantizeFP → SaveImage",
+    "summary": "Pixel-quantizes N still frames together, deriving ONE global fp palette + label frequencies across the whole set (temporally consistent — no frame-to-frame flicker) and emitting the per-frame lossless sprites. The images-in sibling of pixel-quantize-video: same fp math over the same batched IMAGE tensor, but fed the frames directly (source + reference images) with no video encode/decode. No model, no VRAM. API-only — submitted by id with the frames as the edit source + references.",
+    "use_cases": [
+      "derive the shared pixel-art palette for a set of animation frames without round-tripping through a video",
+      "batch-pixelize exploded frames in the sprite export pipeline"
+    ],
+    "nsfw_capable": "n/a (no model)",
+    "pick_when": "You have a set of still frames and want them pixel-quantized against one shared derived palette."
+  }
+}

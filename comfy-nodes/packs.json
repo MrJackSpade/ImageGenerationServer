@@ -1,0 +1,59 @@
+{
+  "//": "What each node pack IS, for the patch that installs it. The pack's files are the payload; this is",
+  "//2": "the header the app shows on Settings -> Renderer patches. A pack directory with no entry here is not",
+  "//3": "a patch and never reaches ComfyUI -- adding the folder is half the job, this file is the other half.",
+  "//4": "\"does\" is the line shown under the name: what having this pack lets the renderer do, in the words of",
+  "//5": "somebody deciding whether to install it. \"why\" is the reasoning behind it, and is the row's tooltip.",
+
+  "packs": [
+    {
+      "dir": "imagegen_gate",
+      "order": 100,
+      "id": "node-imagegen-gate",
+      "title": "Queue gate",
+      "does": "Makes this app the only thing that can put work on the GPU: ComfyUI refuses any submission, cancellation or upload that does not carry this app's token. Adds no nodes and changes nothing about how a picture is made.",
+      "why": "Installs an aiohttp middleware that makes this app's fair queue the only way to enqueue work. It guards /prompt, /queue, /interrupt, /free and the upload routes, and refuses anything without the X-ImageGen-Token header. It registers no nodes -- it is purely a change to the running ComfyUI's HTTP surface.",
+      "warn": "Removing the gate lets ANYTHING that can reach ComfyUI submit, cancel and free work directly, around this app's queue. Renders will then compete for the GPU with jobs the app cannot see or account for."
+    },
+    {
+      "dir": "ComfyUI-ModelPin",
+      "order": 110,
+      "id": "node-model-pin",
+      "title": "VRAM residency control",
+      "does": "Lets a workflow say what stays in VRAM: hold this model fully resident, drop that text encoder now its work is done. It is how a graph keeps a large model from being starved into streaming over PCIe, one workflow at a time rather than by retuning the whole renderer.",
+      "why": "PinModelGPU forces a MODEL fully resident; EvictCLIPFromGPU drops a text encoder once its conditioning exists, so a large UNET loading next is not starved into streaming over PCIe. Per-graph, so a workflow decides its own residency rather than the whole install being tuned for one model."
+    },
+    {
+      "dir": "ComfyUI-CondCache",
+      "order": 120,
+      "id": "node-cond-cache",
+      "title": "Conditioning cache",
+      "does": "Encodes a prompt once and reuses it, so a clip whose frames share a prompt pays for the text encoder on the first frame instead of on all of them.",
+      "why": "SaveConditioning / LoadConditioning -- encode a fixed prompt once and reuse it across a clip's per-frame graphs, instead of paying for the text encoder on every frame. Its cache/ directory is a runtime artifact and is not part of the patch."
+    },
+    {
+      "dir": "ComfyUI-ColorCorrectedComposite",
+      "order": 130,
+      "id": "node-color-corrected-composite",
+      "title": "Colour-matched compositing",
+      "does": "Puts an edited region back over the picture it came from with its colour matched to the original, which is what stops an inpaint leaving a visible rectangle where the edit was. The edit and inpaint workflows use it.",
+      "why": "Composites an edited region back over its source with the colour statistics matched, which is what keeps a FLUX Fill inpaint from leaving a visible rectangle. Used by the edit and inpaint paths."
+    },
+    {
+      "dir": "ComfyUI-PixelHarness",
+      "order": 135,
+      "id": "node-pixelharness",
+      "title": "PixelHarness — pixel quantisation and manifold projection",
+      "does": "Turns a rendered image into real pixel art — snapped to a pixel grid and to a fixed palette, rather than a smooth picture that merely looks blocky. Around fifteen workflows are built on these nodes and do not appear without it. Includes sketchKeras's weights, so its line-extraction workflow works out of the box.",
+      "why": "PixelQuantize and PixelManifoldProjection, plus the palettes they quantise against. Around fifteen workflow classes depend on these node names, and the DreamOmni2 patch loads this pack's quant.py directly for its pixel projection — without it those workflows do not appear at all. First-party: it was developed in a separate repository, which is retired because a pack in two places drifts and that one was private, so nothing but its author's machine could install it. Carries sketchKeras model.pth (71 MB) so its line-extraction workflow runs out of the box; see VENDORED.md for what is and is not included."
+    },
+    {
+      "dir": "ComfyUI-GGUF",
+      "order": 140,
+      "id": "node-gguf",
+      "title": "GGUF loaders (vendored)",
+      "does": "Loads .gguf model files — a quantised format that stores the same model as a much smaller file. The renderer picks this loader from a bound file's extension, so it is needed exactly when a slot holds a .gguf, and not when that same slot holds a safetensors file.",
+      "why": "city96's GGUF loaders, carried here rather than cloned because they hold local changes that a re-clone would silently drop. Whether a graph needs them is decided by the FILE bound to its diffusion or text-encoder slot and not by the workflow: ComfyGraph.DiffusionLoader picks the loader off the extension, and both loaders are offered for both slot kinds. Quantisation is a property of what is on the disk."
+    }
+  ]
+}

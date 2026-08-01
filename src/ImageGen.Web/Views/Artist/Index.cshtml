@@ -1,0 +1,75 @@
+@model ArtistViewModel
+@inject IConfiguration Configuration
+@{
+    var pretty = "@" + Model.Name.Replace('_', ' ');
+    ViewData["Title"] = pretty;
+    var gateway = "/forge";
+}
+
+<div class="hist-head">
+    <h2>@pretty</h2>
+</div>
+
+<div id="artist" data-artist="@Model.Name" data-total="@Model.Total" data-page-size="@Model.PageSize" data-loaded-page="@Model.Page" data-gateway="@gateway">
+    <section class="artist-hero">
+        <div class="artist-hero-img" id="artistHero">
+            @if (Model.DisplayImageId is not null)
+            {
+                <img src="@gateway/image/@Uri.EscapeDataString(Model.DisplayImageId)?w=768" alt="@pretty" />
+            }
+            else
+            {
+                <div class="artcard-empty">no image yet</div>
+            }
+        </div>
+        <div class="artist-hero-meta">
+            <div class="artist-hero-name">@pretty</div>
+            <div class="artist-hero-sub">@Model.Total generation@(Model.Total == 1 ? "" : "s")</div>
+            <div class="artist-hero-note" id="artistDisplayNote">@(Model.HasOverride ? "Showing the image you chose." : "Showing your latest generation.")</div>
+            <button type="button" id="artistClearDisplay" class="pager-btn@(Model.HasOverride ? "" : " hidden")">Use latest instead</button>
+        </div>
+    </section>
+
+    <div class="hist-head"><h2>Make one in this style</h2></div>
+    <partial name="_Composer" model="new ImageGen.Web.ViewModels.ComposerOptions { LockedArtist = Model.Name }" />
+
+    @if (Model.Total == 0)
+    {
+        <p class="bm-empty">You haven't generated anything with this artist yet.</p>
+    }
+    else
+    {
+        <div class="cardgrid" id="artistGrid">
+            @foreach (var r in Model.Items)
+            {
+                var id = Uri.EscapeDataString(r.GatewayImageId);
+                var isDisplay = Model.HasOverride && r.GatewayImageId == Model.DisplayImageId;
+                <div class="gen@(isDisplay ? " is-display" : "")" data-id="@r.GatewayImageId">
+                    @* Outlined until the user has opened it — see .imgcard.unviewed. *@
+                    <a class="imgcard @(r.Viewed ? "" : "unviewed")" href="/image/@id">
+                        <div class="img"><img data-src="@gateway/image/@id?w=512" alt="@r.Prompt" /></div>
+                        <div class="meta">
+                            <div class="p">@r.Prompt</div>
+                            <div class="row"><span class="tag">@r.ModelFriendly</span></div>
+                        </div>
+                    </a>
+                    <button type="button" class="set-display" title="Use as @pretty's display image">★</button>
+                </div>
+            }
+        </div>
+        <div id="artistSentinel" aria-hidden="true"></div>
+        <div id="galleryPager"><span id="artistStatus"></span></div>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/modelpicker.js" asp-append-version="true"></script>
+    <script src="~/js/tagbox.js" asp-append-version="true"></script>
+    <script src="~/js/compose.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/multiselect.js" asp-append-version="true"></script>
+    <script src="~/js/artist.js" asp-append-version="true"></script>
+}

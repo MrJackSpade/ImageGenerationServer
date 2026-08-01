@@ -1,0 +1,8 @@
+{
+  "id": "sd3-5-large-turbo",
+  "kind": "checkpoint",
+  "label": "Stable Diffusion 3.5 Large Turbo",
+  "match": [
+    "sd3[-_. ]?5[-_. ]?large[-_. ]?turbo"
+  ]
+}

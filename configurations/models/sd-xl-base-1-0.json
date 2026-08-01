@@ -1,0 +1,8 @@
+{
+  "id": "sd-xl-base-1-0",
+  "kind": "checkpoint",
+  "label": "SDXL 1.0",
+  "match": [
+    "sd[-_. ]?xl[-_. ]?base"
+  ]
+}

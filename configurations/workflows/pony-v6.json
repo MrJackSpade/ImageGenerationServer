@@ -1,0 +1,112 @@
+{
+  "id": "pony-v6",
+  "workflow": "pony-v6",
+  "friendly_name": "Pony Diffusion V6 XL",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ponydiffusionv6xl-v6startwiththisone"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 2,
+    "steps": 25,
+    "cfg": 7,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    },
+    "required_prefix": "score_9, score_8_up, score_7_up, score_6_up, score_5_up, score_4_up"
+  },
+  "card": {
+    "architecture": "SDXL finetune",
+    "summary": "The best model here for FURRY and PONY (My Little Pony) art -- a heavily re-trained SDXL with deep furry/anthro and pony concept coverage. NOT the pick for plain anime: for anime use Anima (highest quality) or AutismMix (faster). Requires the mandatory score-tag prompt system + CLIP skip 2; pick the source_ tag for the look you want.",
+    "use_cases": [
+      "furry / anthro characters",
+      "My Little Pony (MLP) art",
+      "anime & cartoon characters",
+      "strong pose/concept control",
+      "NSFW and SFW character art"
+    ],
+    "nsfw_capable": "yes (trained on balanced safe/questionable/explicit)",
+    "commercial_use": "limited (check license for hosted inference)",
+    "pick_when": "Best choice for FURRY/anthro or PONY (MLP) art (also general anime/cartoon and NSFW). Emit the score prefix + source_furry (furry/anthro) or source_pony (MLP) + clip_skip 2.",
+    "prompt": {
+      "format": "hybrid",
+      "guidance": "The required score-tag prefix is prepended automatically -- do NOT include it. Write the source_ tag for the look you want: source_furry for furry/anthro (add 'anthro' plus a species like 'wolf'/'fox'/'dragon', and tags like 'fur','tail'), source_pony for My Little Pony (add 'pony' or 'my little pony' plus character names like 'twilight sparkle'), or source_anime / source_cartoon. Then a rating_ tag (rating_safe/rating_questionable/rating_explicit) and booru comma tags and/or a description. CLIP skip 2 is required (applied for you).",
+      "required_prefix": "score_9, score_8_up, score_7_up, score_6_up, score_5_up, score_4_up",
+      "optional_tags": [
+        "source_anime|source_cartoon|source_furry|source_pony",
+        "rating_safe|rating_questionable|rating_explicit"
+      ],
+      "example": "source_furry, rating_safe, anthro, male wolf, blue fur, green eyes, hoodie, city street at night, looking at viewer",
+      "overview": "SDXL finetune: the required score-tag block is prepended automatically; write an optional source_ style tag and a rating_ tag, then danbooru tags / a short description.",
+      "instructions": "The full score block (the required_prefix: `score_9, score_8_up, score_7_up, score_6_up, score_5_up, score_4_up`) is prepended AUTOMATICALLY -- do NOT type it, and never use `score_9` alone.\nWrite, after that auto block: an optional source_ style tag, an optional rating_ tag, then your danbooru tags / description.\nRating tags control content: `rating_safe, rating_questionable, rating_explicit`.\nSource/style tags select the art domain: `source_pony, source_furry, source_cartoon, source_anime`.\nTemplate (what YOU write, after the auto score block): `<source_ tag>, <rating_ tag>, <describe what you want>, tag1, tag2`.\nThe special source_/rating_ tags keep their underscores (they are not danbooru tags). The model is designed to not need negatives in most cases, and does not need extra quality words like 'hd' or 'masterpiece'. Recommended: Euler a, 25 steps, 1024px.",
+      "do": [
+        "Add a source_ tag (e.g. source_anime/source_furry) to pick the art style",
+        "Add a rating_ tag for content level",
+        "Keep underscores in source_/rating_ tags",
+        "Let the app add the score block -- don't type it"
+      ],
+      "dont": [
+        "Type the score block yourself (it is auto-prepended)",
+        "Add 'hd'/'masterpiece'-type quality words",
+        "Assume negatives are required"
+      ],
+      "examples": [
+        "source_anime, rating_safe, 1girl, blue hair, looking at viewer, village background",
+        "source_pony, anthro pony, blue mane, smiling, sunny meadow"
+      ],
+      "negative_guidance": "Designed to not need negatives in most cases; no official negative string required.",
+      "source": "https://civitai.com/models/257749/pony-diffusion-v6-xl"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Usually NOT needed; keep minimal. Avoid heavy negative embeddings."
+    },
+    "speed": {
+      "class": "moderate",
+      "note": "",
+      "measured_seconds": 20.1,
+      "measured_note": "~20s for the first image at default settings (1024x1024, 25 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Best for furry and My Little Pony art. Uses short comma tags -- add source_furry plus 'anthro' and a species (e.g. wolf, fox) for furry, or source_pony plus character names for MLP. Score/quality tags are added for you.",
+      "link": {
+        "text": "Browse the tag list (Gelbooru)",
+        "url": "https://gelbooru.com/index.php?page=tags&s=list"
+      },
+      "good_for": "furry, anthro & My Little Pony art (NOT plain anime — use Anima/AutismMix for that)"
+    },
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": false,
+      "underscores_to_spaces": false
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 8
+  }
+}

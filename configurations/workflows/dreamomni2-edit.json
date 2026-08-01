@@ -1,0 +1,51 @@
+{
+  "id": "dreamomni2-edit",
+  "workflow": "dreamomni2-edit",
+  "friendly_name": "DreamOmni2 (reference edit)",
+  "default": false,
+  "params": {
+    "steps": 30,
+    "cfg": 3.5,
+    "reference_max": 1,
+    "reference_inputs": [
+      "image2"
+    ]
+  },
+  "card": {
+    "architecture": "DreamOmni2 — FLUX.1-Kontext base (int8 via optimum-quanto + model-cpu-offload) + a Qwen2.5-VL VLM that rewrites the instruction, run through the HM-RunningHub ComfyUI pipeline nodes (no llama.cpp). Reference-based editing.",
+    "summary": "Reference-based instruction editor: give a source image + ONE reference image and an instruction (e.g. put the object from the reference into the source). Self-contained pipeline; weights stream from RAM (int8 DiT ~12GB + VLM on CPU). Slower per run due to offload.",
+    "use_cases": [
+      "reference-based editing (insert/transfer an element from a reference into the source)",
+      "identity/style transfer guided by a reference image"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You have a reference image and want its content/style brought into the source image.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide the source image + ONE reference image + an instruction referring to the reference.",
+      "required_prefix": null,
+      "example": "Add the hat from the reference image onto the person",
+      "overview": "Reference-based edit. Attach exactly one reference image; the VLM rewrites your instruction and the Kontext base applies it. If no reference is attached, the source is used as its own reference.",
+      "source": "https://github.com/HM-RunningHub/ComfyUI_RH_DreamOmni2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "No negative input; the pipeline runs at guidance 3.5."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "int8 Kontext + CPU-offloaded VLM; per-run VLM↔GPU shuffle. Needs ample system RAM."
+    },
+    "ui_help": {
+      "note": "Reference-based edit — attach one reference image the instruction refers to.",
+      "good_for": "bringing content/style from a reference image into the source"
+    },
+    "edit_use_cases": [
+      "reference-based instruction editing: transfer an element/style from a reference image into the source"
+    ],
+    "reference": {
+      "max": 1,
+      "hint": "Attach ONE reference image; your instruction should refer to it (e.g. 'use the jacket from the reference')."
+    }
+  }
+}

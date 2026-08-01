@@ -1,0 +1,100 @@
+{
+  "id": "flux1-dev",
+  "workflow": "flux1-dev",
+  "friendly_name": "FLUX.1-dev",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-dev",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux",
+    "dual": true,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 28,
+    "cfg": 1,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1216,
+    "height": 1216,
+    "negative_supported": false,
+    "guidance": 3.5,
+    "aspect": {
+      "square": [
+        1216,
+        1216
+      ],
+      "landscape": [
+        1616,
+        912
+      ],
+      "portrait": [
+        912,
+        1616
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Rectified-flow DiT (T5-XXL + CLIP-L), guidance-distilled",
+    "summary": "12B open-weight quality flagship of the Flux.1 generation: excellent prompt following, typography, photorealism, and hands. Natural-language prompts; no true negatives.",
+    "use_cases": [
+      "high-quality general t2i",
+      "typography",
+      "photorealism",
+      "complex prompts"
+    ],
+    "nsfw_capable": "no (safety-aligned base)",
+    "commercial_use": "no (outputs usable per license; model commercial use needs BFL license)",
+    "pick_when": "Top open-weight quality / typography / photorealism and non-commercial is OK; user can wait.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Long descriptive sentences. Uses a distilled 'guidance' (~3.5), not real CFG.",
+      "required_prefix": null,
+      "example": "A close-up portrait of an elderly fisherman with a weathered face and thick grey beard, yellow raincoat, standing on a wooden dock at golden hour, soft rim lighting, shallow depth of field, photorealistic, 85mm lens",
+      "overview": "Descriptive natural language plus comma-separated style/quality modifiers; guidance-distilled (set distilled guidance ~3.5), no true negative prompt.",
+      "instructions": "Prompt following is heavily influenced by prompting style. Use descriptive natural language with comma-separated style/quality modifiers (e.g. `Astronaut in a jungle, cold color palette, muted colors, detailed, 8k`). Prompts can be fairly long (up to 512 tokens). It is guidance-distilled -- set a distilled guidance_scale around 3.5; there is no separate CFG negative-prompt mechanism, so describe what you want, not what you don't. For short in-image text, put it in the prompt (e.g. a sign that says 'hello world').",
+      "do": [
+        "Use descriptive natural language + comma-separated modifiers",
+        "Set distilled guidance ~3.5",
+        "Include short text to render directly in the prompt"
+      ],
+      "dont": [
+        "Rely on negative prompts (unavailable for this distilled model)",
+        "Assume pure booru tag lists are optimal"
+      ],
+      "examples": [
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
+        "A cat holding a sign that says hello world"
+      ],
+      "negative_guidance": "Guidance-distilled (effective CFG ~1); true negative prompts are unavailable -- describe what you want.",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.1-dev"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled guidance (effective CFG 1); negatives don't work."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "12B GGUF Q4, ~20-28 steps.",
+      "measured_seconds": 104.7,
+      "measured_note": "~105s for the first image at default settings (1024x1024, 28 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "top-quality detailed images & text"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Banned tags & artists";
+}
+
+<div class="hist-head"><h2>Banned tags &amp; artists</h2></div>
+
+<div class="settings">
+    <section class="settings-card">
+        <p class="settings-desc">
+            Per workflow, exclude tags or artists from <em>auto-gen</em> (Random Prompt / Random Artist). A banned
+            token is stripped from auto-generated prompts before the image is rendered; typing it yourself in a
+            manual prompt still works. You can also ban a token by cycling it on any image's detail page.
+        </p>
+        <select id="banModel" class="ban-model"></select>
+        <div id="banLists" class="ban-lists"></div>
+        <form id="banAddForm" class="ban-add">
+            <select id="banKind">
+                <option value="tag">tag</option>
+                <option value="artist">artist</option>
+            </select>
+            <input id="banInput" type="text" placeholder="tag or artist to ban…" autocomplete="off" />
+            <button type="submit" class="settings-btn">Ban</button>
+        </form>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/settings.js" asp-append-version="true"></script>
+}

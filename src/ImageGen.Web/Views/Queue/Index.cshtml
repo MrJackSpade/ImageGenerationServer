@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Queue";
+}
+<div id="queuePage">
+    @* What's still outstanding across the whole box — the list only ever shows 25 rows, so this is the only place
+       the total is visible. Filled by queue.js from the /queue payload on every poll. *@
+    <div class="hist-head queue-head">
+        <h2>Queue</h2>
+        <span id="queueOutstanding" class="queue-outstanding"></span>
+        @* Shown by queue.js only while there is something for them to cancel. *@
+        <span class="hist-head-actions">
+            <button type="button" id="queueCancelMine" class="link-btn danger" hidden
+                    title="Cancel every queued and running generation of yours on this box">Cancel mine</button>
+            <button type="button" id="queueCancelAll" class="link-btn danger" hidden
+                    title="Cancel every queued and running generation on this box, including other users'">Cancel all</button>
+        </span>
+    </div>
+    <div id="queueList" class="listrows"><p class="muted">Loading…</p></div>
+    <div id="queuePager" class="queue-pager"></div>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/queue.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,22 @@
+@{
+    ViewData["Title"] = null;
+}
+
+<partial name="_Composer" model="new ImageGen.Web.ViewModels.ComposerOptions()" />
+
+<section id="recent-wrap" class="hidden">
+    <div class="hist-head"><h2>Recent</h2><span class="hist-head-actions"><a href="/gallery" class="link-btn">More →</a></span></div>
+    <div id="recent"></div>
+</section>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/modelpicker.js" asp-append-version="true"></script>
+    <script src="~/js/tagbox.js" asp-append-version="true"></script>
+    <script src="~/js/compose.js" asp-append-version="true"></script>
+    <script src="~/js/recents.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/multiselect.js" asp-append-version="true"></script>
+}

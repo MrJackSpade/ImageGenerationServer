@@ -1,0 +1,98 @@
+{
+  "id": "sd21",
+  "workflow": "sd21",
+  "friendly_name": "Stable Diffusion 2.1",
+  "default": false,
+  "requirements": {
+    "checkpoint": "v2-1-768-ema-pruned"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 25,
+    "cfg": 7,
+    "sampler": "dpmpp_2m",
+    "scheduler": "karras",
+    "width": 768,
+    "height": 768,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        768,
+        768
+      ],
+      "landscape": [
+        1024,
+        576
+      ],
+      "portrait": [
+        576,
+        1024
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SD2",
+    "summary": "Native-768 SD2 model; niche today but works perfectly on ComfyUI (auto v-prediction). Its distinct older aesthetic suits heavily stylized art, intentionally low-fi/poor-quality looks, and horror (SFW only).",
+    "use_cases": [
+      "native 768 SFW work",
+      "SD2-specific styles",
+      "heavily stylized art",
+      "intentionally low-fi / gritty / poor-quality aesthetics",
+      "horror and unsettling imagery (SFW)"
+    ],
+    "nsfw_capable": "no (filtered dataset)",
+    "commercial_use": "yes",
+    "pick_when": "Native-768 SFW or an SD2-specific need.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive English; a solid negative helps.",
+      "required_prefix": null,
+      "example": "a highly detailed matte painting of a futuristic city at sunset, volumetric light",
+      "overview": "OpenCLIP-ViT/H model, 768 native: comma-separated keyword/descriptor tags; well-chosen negative prompts are especially important for quality.",
+      "instructions": "Generate at 768x768 (native). Use comma-separated descriptor/quality tags as in the SD1/SDXL era. Guidance scale ~7-9 (default 7.5, range 1-20). Because the OpenCLIP-ViT/H encoder responds differently than SD1.5's CLIP-L, negative prompts are an emphasized lever -- SD2.x typically needs a good negative prompt to reach strong output and anatomy.",
+      "do": [
+        "Generate at 768x768 (native)",
+        "Use comma-separated descriptor/quality tags",
+        "Always pair with a quality/anatomy negative prompt",
+        "Keep guidance ~7-9 (range 1-20)"
+      ],
+      "dont": [
+        "Generate far below 768",
+        "Omit a negative prompt (SD2.x relies on it)",
+        "Exceed guidance_scale 20",
+        "Write long narrative paragraphs"
+      ],
+      "examples": [
+        "a high quality photograph of an astronaut riding a horse, detailed, sharp focus, 8k",
+        "portrait of a fox in a forest, golden hour, bokeh, highly detailed"
+      ],
+      "negative_guidance": "Important for SD2.x. Typical: 'blurry, lowres, bad anatomy, bad hands, extra fingers, deformed, watermark, text, jpeg artifacts, ugly'.",
+      "source": "https://huggingface.co/stabilityai/stable-diffusion-2-1"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Useful."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "",
+      "measured_seconds": 8.0,
+      "measured_note": "~8s for the first image at default settings (768x768, 25 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better. Also good for heavily stylized art, intentionally rough/low-fi looks, and horror (SFW).",
+      "good_for": "classic 768px scenes, heavily stylized art, low-fi/gritty looks, and horror (SFW)"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 768,
+    "max_h": 768,
+    "step": 8
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "id": "boogu-base",
+  "workflow": "boogu-base",
+  "friendly_name": "Boogu-Image Base",
+  "default": false,
+  "requirements": {
+    "checkpoint": "boogu-image-base",
+    "text_encoders": [
+      "qwen3vl-8b-boogu"
+    ],
+    "vae": "flux1-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "boogu",
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 40,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1280,
+        768
+      ],
+      "portrait": [
+        768,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Boogu-Image-0.1 10B unified DiT (Qwen3-VL encoder, FLUX.1 VAE); Apache-2.0; bf16 (full precision)",
+    "summary": "Brand-new (0.1) Apache-2.0 text-to-image foundation model. 10B unified gen+edit family; the Base variant targets diversity, controllability, and dense bilingual text rendering (run at 2K for the densest text/poster layouts). Real CFG (~4). Runs bf16 on a 24 GB card (the fp8 encoder offloads before the diffusion model loads). The flow-matching shift (3.16) is applied automatically at load.",
+    "use_cases": [
+      "dense / layout-heavy in-image text (posters, documents, bilingual designs)",
+      "general high-quality text-to-image",
+      "a clean Apache-2.0 base for downstream development"
+    ],
+    "nsfw_capable": "unknown (new 0.1 release; not yet characterized)",
+    "commercial_use": "yes (Apache-2.0)",
+    "pick_when": "You want to try the new Boogu base model, or need dense/bilingual in-image text, on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose (EN or ZH). Quote literal text to render it.",
+      "example": "A vintage travel poster for the Alps at sunrise, bold headline reading \"WANDER\" in cream serif letters, snow peaks and a winding railway, textured paper grain",
+      "instructions": "Write descriptive natural language (English or Chinese); specificity and word order matter. To render literal text, wrap the exact string in double quotes and keep it short. Recommended (model card): 25-50 steps (50 for best fidelity), CFG 2.0-5.0 (4.0 is a good default), euler/simple. Native ~1K; bump width/height to ~2K for the densest text/poster layouts. Negative prompts are supported (real CFG).",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Quote literal on-image text and keep it short",
+        "Render near 1K (or 2K for dense text)",
+        "Use a light negative if needed"
+      ],
+      "dont": [
+        "Rely on booru tag soup",
+        "Expect long paragraphs of in-image text to stay perfect at 1K"
+      ],
+      "negative_guidance": "Supported (real CFG ~4); keep it light.",
+      "source": "https://huggingface.co/Boogu/Boogu-Image-0.1-Base"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~4; light negatives help."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "10B bf16; the fp8 text encoder offloads before the diffusion model loads so it fits unquantized on 24 GB.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in plain words. Strong here for images that need readable, dense, or bilingual text.",
+      "good_for": "dense/bilingual in-image text & general generation"
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

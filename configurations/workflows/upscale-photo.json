@@ -1,0 +1,76 @@
+{
+  "id": "upscale-photo",
+  "workflow": "upscale-model",
+  "friendly_name": "Photo",
+  "edit_group": "Upscale",
+  "default": false,
+  "requirements": {
+    "extra": [
+      "nomos2-hq-dat2-4x"
+    ]
+  },
+  "params": {
+    "upscale_model": {
+      "value": "nomos2-hq-dat2-4x",
+      "exposed": false
+    },
+    "model_scale": {
+      "value": 4.0,
+      "exposed": false
+    },
+    "scale": {
+      "value": 2,
+      "exposed": true,
+      "min": 1,
+      "max": 4,
+      "step": 1
+    },
+    "resample": {
+      "value": "lanczos",
+      "exposed": false
+    }
+  },
+  "card": {
+    "architecture": "Nomos2 HQ (DAT2, fixed 4x) - a feed-forward super-resolution transformer, no diffusion",
+    "summary": "Upscale photographic and real-world images through Nomos2's high-quality DAT2 network. One deterministic pass: it resolves existing texture, grain and edge detail and hallucinates nothing, so faces, text and fine structure stay honest to the source. The network is fixed at 4x; Scale below 4 fits the 4x result down to the size you asked for.",
+    "use_cases": [
+      "enlarge a photograph while keeping skin, fabric and foliage texture",
+      "resolve a photographic render without a diffusion pass reinterpreting it",
+      "finish an image whose content is already correct and only needs resolution"
+    ],
+    "nsfw_capable": "yes - no content model, it only resolves pixels",
+    "commercial_use": "yes - Nomos2 HQ DAT2 is CC-BY-4.0 (attribution required)",
+    "pick_when": "The source is photographic or photoreal. Use Anime for drawn art; the photo net will chew on flat colour and clean line work.",
+    "prompt": {
+      "format": "none",
+      "guidance": "This editor takes no prompt. Anything typed in the instruction box is ignored - there is no text encoder in the graph.",
+      "instructions": "Send a source image and set Scale. No prompt, no seed, no steps: the same source always produces the same output. Scale 4 is the network's native factor and its sharpest result; lower values downscale that 4x output to fit.",
+      "do": [
+        "Feed it a photographic / photoreal source",
+        "Use Scale 4 when you want the network's full native detail"
+      ],
+      "dont": [
+        "Expect invented detail - it resolves what is there, it does not restore what is missing",
+        "Use it on flat-colour 2D art"
+      ],
+      "negative_guidance": "Not supported - no text encoder.",
+      "source": "https://huggingface.co/Phips/4xNomos2_hq_dat2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Feed-forward SR network; there is no conditioning of any kind."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "A single transformer pass. No sampling loop, but DAT2 is heavier than the anime CNN (~140 MB of weights); ComfyUI tiles it to fit.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image and pick a Scale. No prompt is used. Output is deterministic - re-running gives the identical image.",
+      "good_for": "enlarging photographs while keeping texture honest"
+    },
+    "edit_use_cases": [
+      "upscale a photographic image, preserving the composition exactly"
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "id": "hunyuanvideo15-i2v-cfg-480",
+  "workflow": "hunyuanvideo15-i2v",
+  "friendly_name": "HunyuanVideo 1.5 HQ (480p)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hunyuanvideo15-480p-i2v",
+    "text_encoders": [
+      "qwen-2-5-vl-7b",
+      "byt5-small-glyphxl"
+    ],
+    "vae": "hunyuanvideo15-vae",
+    "extra": [
+      "sigclip-vision-patch14-384"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "hunyuan_video_15",
+    "dual": true,
+    "steps": 30,
+    "cfg": 6.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 7.0,
+    "width": 832,
+    "height": 480,
+    "fps": 24,
+    "length": {
+      "value": 49,
+      "exposed": true,
+      "min": 5,
+      "max": 121,
+      "step": 4
+    },
+    "clip_vision": "sigclip-vision-patch14-384"
+  },
+  "card": {
+    "architecture": "HunyuanVideo 1.5 480p i2v, NON-distilled fp16 — real CFG (Qwen2.5-VL + byT5, SigCLIP vision) — IMAGE-TO-VIDEO",
+    "summary": "The high-quality non-distilled HunyuanVideo 1.5 480p image-to-video: true classifier-free guidance (negative prompts work), ~30 steps at cfg ~6. Slower but the most faithful 480p i2v. 24 GB.",
+    "use_cases": [
+      "highest-fidelity 480p image-to-video",
+      "image-to-video where negative prompts matter"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "check license",
+    "pick_when": "You want the most faithful HunyuanVideo 1.5 480p i2v and have a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene in a sentence; negatives are supported (real CFG). The image is the first frame.",
+      "required_prefix": null,
+      "example": "she smiles and turns her head as petals drift past, gentle camera push-in",
+      "overview": "Keep the uploaded image as the first frame and write a prompt focused on motion dynamics (how subject and scene move/evolve) plus optional camera movement, not the static appearance.",
+      "instructions": "HunyuanVideo 1.5 (Qwen2.5-VL + ByT5 encoders) follows an official I2V formula: 'Subject Motion Dynamics + Scene Motion Dynamics + [Camera Movement]', using concise, direct vocabulary (bracketed layers are optional). Tencent says longer, detailed prompts measurably improve output, and recommends sequencing actions in temporal order with connectives ('first... then... meanwhile... finally...') and concrete actions plus spatial references (left/right frame, foreground/background) instead of abstract emotion words. Wrap any in-frame text in quotation marks (ByT5 glyph encoder renders it). Built-in prompt rewriting auto-expands short prompts, but the formula works directly without an external rewriter.",
+      "do": [
+        "Follow the I2V formula: Subject motion dynamics + Scene motion dynamics + optional Camera movement",
+        "Describe how things MOVE and what changes (legs alternating, grass rushing backward), not static appearance",
+        "Sequence actions temporally with connectives: 'first... then... meanwhile... finally...'",
+        "Use concrete observable actions and spatial references (left/right frame, foreground/background)",
+        "Use standard camera-move terms: dolly in/out, pan, tilt, orbit, tracking, crane, follow, fixed/static",
+        "Wrap on-screen text in quotation marks to trigger accurate text rendering",
+        "Layer optional lighting/style/atmosphere keywords (cinematic lighting, golden hour, photorealism)"
+      ],
+      "dont": [
+        "Don't re-describe the static first-frame content - focus the prompt on motion",
+        "Don't rely on vague emotional language ('beautiful', 'sad mood') without concrete action cues",
+        "Don't assume you must run an external rewriter - the formula works directly",
+        "Don't lean on negative prompts to fix quality, especially on distilled checkpoints",
+        "Don't stuff contradictory camera moves or styles into one clip"
+      ],
+      "examples": [
+        "The camera follows the puppy as it runs forward on grass, its four legs alternating, tail held high and wagging. Blades of grass are kicked up, ears bounce with rhythm, tongue hangs from open mouth panting gently. Background grass rushes backward; distant sky is pale blue with drifting clouds.",
+        "The woman slowly turns her head toward the window, then a faint smile spreads across her face as wind lifts strands of her hair; meanwhile sheer curtains billow inward and soft afternoon light shifts across her cheek. Camera slowly dollies in."
+      ],
+      "negative_guidance": "Negatives are supported (default empty) and apply only to standard checkpoints at the recommended CFG~6; on the cfg-distilled and step-distilled variants (guidance_scale=1) CFG is effectively off, so negatives have little to no effect. The non-distilled cfg-480/cfg-720 variants run real CFG and do respond to negatives.",
+      "source": "https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5/blob/main/assets/HunyuanVideo_1_5_Prompt_Handbook_EN.md ; https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5"
+    },
+    "ui_help": {
+      "note": "High-quality HunyuanVideo 1.5 (480p) from the picture; negatives work.",
+      "good_for": "faithful image-to-video"
+    },
+    "edit_use_cases": [
+      "image-to-video: animate the current picture at high fidelity with HunyuanVideo 1.5"
+    ]
+  },
+  "resolution": {
+    "min_w": 320,
+    "min_h": 320,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

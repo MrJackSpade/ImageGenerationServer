@@ -1,0 +1,8 @@
+{
+  "id": "autismmixsdxl-autismmixconfetti",
+  "kind": "checkpoint",
+  "label": "AutismMix Confetti",
+  "match": [
+    "autism.*mix.*confetti"
+  ]
+}

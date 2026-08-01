@@ -1,0 +1,62 @@
+{
+  "id": "flux1-schnell-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "FLUX.1-schnell",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-schnell",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 4,
+    "cfg": 1,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Rectified-flow DiT (T5-XXL + CLIP-L), LADD-distilled 1-4 step, whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through FLUX.1-schnell using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn in FLUX's style at 4 steps. The fast, Apache-licensed member of the family — lower peak fidelity than dev, but a few-step redraw.",
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "yes",
+    "pick_when": "You want a FAST whole-image redraw and can accept slightly lower fidelity than FLUX.1-dev.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the finished picture in a sentence or two. Lower the redraw strength to stay close to the source composition; raise it to let schnell reinterpret more.",
+      "example": "A vibrant Bangkok street-food market at night, neon signs reflecting on wet pavement, steam rising from stalls, crowds, cinematic, highly detailed",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.1-schnell follows natural-language prose.\n4 steps, euler/simple, CFG 1 — LADD-distilled, so there is no guidance knob.\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the model runs at CFG 1."
+    },
+    "negative": {
+      "supported": false,
+      "note": "CFG 1; negatives inactive."
+    },
+    "ui_help": {
+      "note": "Send an image + a description; the whole frame is redrawn through FLUX.1-schnell in 4 steps. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "a fast whole-image redraw keeping the composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: fast 4-step redraw of an entire image through FLUX.1-schnell, keeping composition"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

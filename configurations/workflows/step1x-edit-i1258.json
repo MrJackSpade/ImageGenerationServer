@@ -1,0 +1,59 @@
+{
+  "id": "step1x-edit-i1258",
+  "workflow": "step1x-edit-i1258",
+  "friendly_name": "Step1X-Edit (i1258)",
+  "default": false,
+  "params": {
+    "steps": 28,
+    "cfg": 6.0,
+    "width": 1024,
+    "diffusion_model": "step1x-edit-i1258",
+    "step1x_vae": "step1x-edit-vae"
+  },
+  "card": {
+    "architecture": "Step1X-Edit i1258 (StepFun) — DiT fp8 + Flux AE + Qwen2.5-VL-7B encoder, run via the raykindle ComfyUI node (int8 + offload; flash-attn patched to PyTorch SDPA). The original Step1X-Edit release (superseded by v1p2).",
+    "summary": "StepFun's original instruction editor (i1258), fp8. 11 edit operations (add/remove, style, text). Runs at size_level 1024, 28 steps, CFG 6. Older/weaker than v1p2 but lightweight.",
+    "use_cases": [
+      "instruction editing (add/remove/replace, style transfer, text edits)",
+      "lightweight edits when v1p2 is overkill"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want the original Step1X-Edit; it's lighter than v1p2 but lower quality.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "Remove the watermark and brighten the photo",
+      "overview": "Plain natural-language edit instructions; 11 supported operations.",
+      "source": "https://github.com/stepfun-ai/Step1X-Edit"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Has a negative prompt input; default empty at CFG 6."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "fp8 DiT + Qwen2.5-VL via the node's int8/offload; 28 steps."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction (original Step1X-Edit).",
+      "good_for": "lightweight instruction editing"
+    },
+    "edit_use_cases": [
+      "original Step1X-Edit instruction editing: add/remove/replace, style transfer, text editing"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1024,
+    "max_h": 1024,
+    "step": 64
+  },
+  "requirements": {
+    "extra": [
+      "step1x-edit-i1258",
+      "step1x-edit-vae"
+    ]
+  }
+}

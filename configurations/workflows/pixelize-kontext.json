@@ -1,0 +1,72 @@
+{
+  "id": "pixelize-kontext",
+  "effect_type": "Pixelize",
+  "workflow": "pixelize-kontext",
+  "friendly_name": "FLUX.1-Kontext",
+  "default": false,
+  "requirements": {
+    "checkpoint": "flux1-dev-kontext",
+    "text_encoders": [
+      "clip-l",
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "snap_resolution": {
+      "value": true,
+      "exposed": true
+    },
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "loader": "unet",
+    "clip_type": "flux",
+    "dual": true,
+    "steps": 20,
+    "cfg": 1.0,
+    "guidance": 2.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "style_prompt": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+    "virtual_resolution": {
+      "value": 256,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "FLUX.1-Kontext edit graph with per-step pixel-manifold projection + final PixelQuantize",
+    "summary": "Pixel art via FLUX.1-Kontext: the source conditions a reference-latent edit while the projection clamps the x0 estimate onto a fixed grid+palette every step. Virtual resolution sets the sprite's pixel count.",
+    "use_cases": [
+      "pixel art from a reference via Kontext"
+    ],
+    "pick_when": "You want Kontext's in-context editing to drive the pixel-art conversion."
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 1440,
+    "max_h": 1440,
+    "step": 16
+  }
+}

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImageGen.Domain\ImageGen.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- The core application layer stays free of ASP.NET Core and the generic host: it needs only logging + DI
+       abstractions (for constructor-injected ILogger and the AddApplication registration extension). The render
+       orchestrator is a plain singleton exposing RunAsync; the Web host adapts it to a hosted service, so
+       Hosting.Abstractions never reaches the core. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ImageGen.Tests" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

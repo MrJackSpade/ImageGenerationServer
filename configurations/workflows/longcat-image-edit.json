@@ -1,0 +1,72 @@
+{
+  "id": "longcat-image-edit",
+  "workflow": "qwen-image-edit",
+  "friendly_name": "LongCat-Image-Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "longcat-image-edit",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "longcat_image",
+    "dual": false,
+    "steps": 24,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 2,
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ]
+  },
+  "card": {
+    "architecture": "LongCat-Image (Meituan) Flux-family MMDiT edit model; Qwen2.5-VL encoder + Flux VAE. Runs the Qwen-Image-Edit topology (TextEncodeQwenImageEditPlus) via clip_type longcat_image. Q5_K_M GGUF.",
+    "summary": "Meituan's instruction editor on a Flux-class backbone, fp8/GGUF-light (transformer ~4.7GB). Strong identity/scene consistency and text rendering; reuses the Qwen2.5-VL encoder and Flux VAE already installed.",
+    "use_cases": [
+      "instruction editing (add/remove/replace, recolour, background swap)",
+      "identity-preserving edits and viewpoint/style changes",
+      "text edits with strong glyph fidelity"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "pick_when": "You want a fast, light instruction editor that runs comfortably on 24GB and reuses the Qwen encoder/VAE.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Put a red baseball cap on her and change the background to a beach",
+      "overview": "Plain natural-language edit instructions. Supports semantic (high-level, identity-preserving) and appearance (precise local) edits; phrase to match intent. Multi-image references supported via image2/image3.",
+      "source": "https://huggingface.co/meituan-longcat/LongCat-Image-Edit"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Runs true CFG ~4 with an empty negative (guidance_embeds false)."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "Q5_K_M GGUF transformer ~4.7GB; light on a 3090."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction.",
+      "good_for": "fast, light instruction editing"
+    },
+    "edit_use_cases": [
+      "instruction editing on a Flux-class backbone: add/remove/replace, recolour, background, relight; strong consistency and text"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1024,
+    "max_h": 1024,
+    "step": 16
+  }
+}

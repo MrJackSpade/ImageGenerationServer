@@ -1,0 +1,22 @@
+@model ImageDetailViewModel
+@{
+    ViewData["Title"] = "Image";
+}
+
+<div class="detail-stage">
+@if (Model.NewerId != null)
+{
+    <a class="detail-nav prev" href="/image/@Uri.EscapeDataString(Model.NewerId)" aria-label="Previous image">‹</a>
+}
+@if (Model.OlderId != null)
+{
+    <a class="detail-nav next" href="/image/@Uri.EscapeDataString(Model.OlderId)" aria-label="Next image">›</a>
+}
+@await Html.PartialAsync("_Card", Model)
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+}

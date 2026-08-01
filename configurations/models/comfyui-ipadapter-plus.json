@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-ipadapter-plus",
+  "kind": "custom_node",
+  "label": "IPAdapter Plus",
+  "node": "IPAdapterAdvanced"
+}

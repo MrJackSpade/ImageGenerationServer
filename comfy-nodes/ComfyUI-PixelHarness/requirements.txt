@@ -1,0 +1,6 @@
+# colour-science provides the CIE colour-space conversions (sRGB<->XYZ, Lab, DIN99) that pixelize_fp.py
+# quantises in, so a palette match happens in a perceptually-uniform space rather than raw RGB. It imports
+# as `colour`; without it the whole pack fails to import and the ~15 workflows built on PixelQuantize /
+# PixelManifoldProjection vanish. The patch installer runs this through ComfyUI's interpreter on apply, so
+# the Docker build and a Settings -> Renderer patches install both pick it up.
+colour-science>=0.4.0

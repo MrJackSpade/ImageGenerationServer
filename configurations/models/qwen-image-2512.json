@@ -1,0 +1,5 @@
+{
+  "id": "qwen-image-2512",
+  "kind": "unet",
+  "label": "Qwen-Image 2512"
+}

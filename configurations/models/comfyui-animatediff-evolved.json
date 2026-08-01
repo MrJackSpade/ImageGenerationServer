@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-animatediff-evolved",
+  "kind": "custom_node",
+  "label": "AnimateDiff Evolved",
+  "node": "ADE_AnimateDiffLoaderGen1"
+}

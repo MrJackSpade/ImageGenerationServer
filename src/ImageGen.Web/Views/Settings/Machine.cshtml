@@ -1,0 +1,33 @@
+@{
+    ViewData["Title"] = "This machine";
+}
+
+<div class="hist-head"><h2 id="machineHead">This machine</h2></div>
+
+<div class="settings">
+    <p class="settings-desc settings-warn">These are properties of the box, not of your account — everyone signed in here gets what you set.</p>
+
+    <section class="settings-card">
+        <h3>Configuration</h3>
+        <div id="machineFields"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="settings-card">
+        <h3>VRAM</h3>
+        <button id="freeVramBtn" type="button" class="settings-btn"
+                title="Unloads the renderer's loaded models. Applied between renders, so a running generation isn't disturbed.">Free VRAM</button>
+        @if (ViewData["CanRestartComfy"] is true)
+        {
+            <div style="margin-top:.5rem">
+                <button id="restartComfyBtn" type="button" class="settings-btn"
+                        title="Restarts ComfyUI so it re-reads patches and clears a stuck VRAM state. Available only where this deployment supervises the renderer (the Docker image).">Restart ComfyUI</button>
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/settings.js" asp-append-version="true"></script>
+    <script src="~/js/machine.js" asp-append-version="true"></script>
+}

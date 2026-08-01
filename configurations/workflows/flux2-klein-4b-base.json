@@ -1,0 +1,102 @@
+{
+  "id": "flux2-klein-4b-base",
+  "workflow": "flux2-klein-4b",
+  "friendly_name": "FLUX.2-Klein 4B Base",
+  "default": true,
+  "requirements": {
+    "checkpoint": "flux-2-klein-base-4b",
+    "text_encoders": [
+      "qwen-3-4b"
+    ],
+    "vae": "flux2-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "flux2",
+    "dual": false,
+    "latent": "flux2",
+    "clip_skip": 0,
+    "steps": 20,
+    "cfg": 5.0,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1408,
+    "height": 1408,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1408,
+        1408
+      ],
+      "landscape": [
+        1872,
+        1056
+      ],
+      "portrait": [
+        1056,
+        1872
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Flux.2 rectified-flow DiT (Qwen3 encoder), NON-distilled base (bf16)",
+    "summary": "FLUX.2-Klein 4B at full quality — the NON-distilled base (bf16) on 24 GB: 20 steps at real CFG 5 with negative prompts, higher fidelity than the 4-step distilled fp8 used on smaller cards. Qwen3 encoder, strong complex-prompt understanding.",
+    "use_cases": [
+      "fast modern general t2i",
+      "low-VRAM",
+      "commercial use",
+      "complex prompts"
+    ],
+    "nsfw_capable": "no (safety-aligned)",
+    "commercial_use": "yes",
+    "pick_when": "Newest fast, commercial, low-VRAM general model; good for complex prompts.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Long/complex prompts handled well by Qwen3; distilled, guidance 1.",
+      "required_prefix": null,
+      "example": "A cozy reading nook by a rain-streaked window, a tabby cat asleep on a stack of books, warm lamplight, autumn leaves outside, soft painterly style",
+      "overview": "FLUX.2 reads prompts like an LLM (Qwen3 encoder): rich natural-language prose (or JSON), most important elements first; no negative prompts.",
+      "instructions": "Structure prompts as Subject + Action + Style + Context. Word order matters -- FLUX.2 weights what comes first (Main subject > Key action > Critical style > Essential context > Secondary details). Length: short 10-30 words (quick concepts), medium 30-80 (usually ideal), long 80+ (complex scenes). Natural language and JSON work equally well. FLUX.2 does NOT support negative prompts -- describe what you want, not what you don't. Specifying lighting has the biggest impact on quality. Typography: put text in quotes (e.g. the text \"OPEN\" in red neon letters), specify font style/size/placement, and tie colors to objects with hex codes (#RRGGBB); text may still be inaccurate or distorted. Distilled: 4 steps, guidance_scale 1.0.",
+      "do": [
+        "Write rich natural-language prose (or JSON for production)",
+        "Put the most important subject/action first",
+        "Specify lighting",
+        "Quote text to render and give its style/size/placement; use hex colors tied to objects",
+        "Medium length (30-80 words) is usually ideal"
+      ],
+      "dont": [
+        "Use negative prompts (unsupported)",
+        "Make vague color references not tied to an object",
+        "Bury the key subject late in the prompt",
+        "Expect flawless text rendering"
+      ],
+      "examples": [
+        "A weathered fisherman mending a net on a wooden dock at golden hour, soft warm rim lighting, shallow depth of field, photorealistic, 35mm film look, quiet coastal village in the background",
+        "A neon-lit ramen shop sign at night, the text \"OPEN\" in red neon letters glowing above the doorway, rain-slicked street reflecting the glow, cinematic, cyberpunk mood",
+        "A minimalist product poster of a glass perfume bottle on marble, elegant serif headline reading \"AURA\" in color #1A1A1A, large headline text top-center, soft studio lighting, high-end editorial style"
+      ],
+      "negative_guidance": "FLUX.2 does not support negative prompts -- describe what you want, not what you don't.",
+      "source": "https://docs.bfl.ml/guides/prompting_guide_flux2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled (guidance 1)."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "4 steps, small model.",
+      "measured_note": "24 GB high-precision build (bf16); not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "realistic, all-purpose modern images"
+    }
+  },
+  "resolution": {
+    "min_w": 64,
+    "min_h": 64,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

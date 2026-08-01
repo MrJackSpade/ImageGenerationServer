@@ -1,0 +1,95 @@
+{
+  "id": "lumina2",
+  "workflow": "lumina2",
+  "friendly_name": "Lumina-Image 2.0",
+  "default": false,
+  "requirements": {
+    "checkpoint": "lumina-2"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 50,
+    "cfg": 4.0,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "auraflow": 6,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Flow-matching DiT (Next-DiT, Gemma-2-2B encoder)",
+    "summary": "2.6B flow DiT with a Gemma-2 LLM encoder; strong text-image alignment and a distinctive system-prompt mechanism for setting style/role. Multilingual.",
+    "use_cases": [
+      "high prompt-image alignment",
+      "multilingual prompts",
+      "style control via system prompt"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes",
+    "pick_when": "Strong text alignment, multilingual prompts, or system-prompt-driven style control.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Uses a SYSTEM PROMPT prepended to the user prompt. Default: 'You are an assistant designed to generate superior images with the superior degree of image-text alignment based on textual prompts or user prompts.' Swap it to set role/style (e.g. 'You are a professional photographer.').",
+      "required_prefix": null,
+      "example": "(system) You are a professional photographer. (user) A serene Japanese garden in autumn with a red maple, stone lantern, and koi pond reflecting the sky, soft morning light, highly detailed",
+      "overview": "~2B flow-matching Next-DiT with a Gemma-2-2B encoder: detailed natural-language prose; the official demo prepends a system prompt for best image-text alignment.",
+      "instructions": "Use descriptive natural-language prose; long, detailed prompts are supported. The official demo prepends a system prompt to your caption (cap = system_prompt + cap). The default system prompt is: 'You are an assistant designed to generate high-quality images with the highest degree of image-text alignment based on textual prompts.' -- prepend it to match official behavior (it can be customized to steer overall style/theme, or left empty). Recommended: guidance_scale ~4.0, 30-50 steps, cfg_trunc_ratio ~0.25, cfg_normalization True; default max_sequence_length 256 (raise for long prompts). Negative prompts are supported but only take effect when guidance_scale > 1 (empty by default).",
+      "do": [
+        "Use detailed natural-language prose",
+        "Prepend the official system prompt for best image-text alignment (or customize it)",
+        "Set guidance_scale ~4.0, 30-50 steps",
+        "Raise max_sequence_length for long prompts"
+      ],
+      "dont": [
+        "Rely on booru tags instead of prose",
+        "Set guidance_scale <= 1 if you want negatives to take effect"
+      ],
+      "examples": [
+        "Upper body of a young woman in a Victorian-era outfit with brass goggles and leather straps. Background shows an industrial-revolution cityscape with smoky skies and tall metal structures.",
+        "A serene photograph capturing the golden reflection of the sun on a vast expanse of water; the sun at top center casts a shimmering trail of light across the rippling surface"
+      ],
+      "negative_guidance": "Supported via negative prompt, but effective only when guidance_scale > 1 (empty by default).",
+      "source": "https://huggingface.co/Alpha-VLLM/Lumina-Image-2.0"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Supported; cfg_trunc settings matter more than heavy negatives."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "50 steps.",
+      "measured_seconds": 90.7,
+      "measured_note": "~91s for the first image at default settings (1024x1024, 50 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe it in a sentence or two. This model also understands other languages.",
+      "good_for": "following detailed instructions; other languages"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

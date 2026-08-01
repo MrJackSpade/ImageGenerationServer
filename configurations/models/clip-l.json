@@ -1,0 +1,8 @@
+{
+  "id": "clip-l",
+  "kind": "text_encoder",
+  "label": "CLIP-L",
+  "match": [
+    "^clip[-_. ]?l$"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "hunyuanimage21-full",
+  "workflow": "hunyuanimage21",
+  "friendly_name": "HunyuanImage 2.1 Full",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hunyuanimage21",
+    "text_encoders": [
+      "qwen-2-5-vl-7b",
+      "byt5-small-glyphxl"
+    ],
+    "vae": "hunyuan-image-2-1-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "hunyuan_image",
+    "dual": true,
+    "steps": 50,
+    "cfg": 3.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 5.0,
+    "width": 2048,
+    "height": 2048,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        2048,
+        2048
+      ],
+      "landscape": [
+        2560,
+        1536
+      ],
+      "portrait": [
+        1536,
+        2560
+      ]
+    }
+  },
+  "card": {
+    "architecture": "HunyuanImage 2.1 — DiT text-to-image (Qwen2.5-VL + byT5-glyph encoders, 32× VAE), standard fp8",
+    "summary": "The full (non-distilled) HunyuanImage 2.1: ~50 steps at cfg ~3.5 for maximum fidelity and prompt adherence. Slower than the distilled build. ~17 GB fp8 on 24 GB.",
+    "use_cases": [
+      "highest-fidelity 2K text-to-image",
+      "legible in-image text",
+      "complex multi-element prompts"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "check license",
+    "pick_when": "You want maximum HunyuanImage 2.1 quality and have a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose; quote literal text to render it. Native ~2048px. Standard: ~50 steps, cfg ~3.5.",
+      "required_prefix": null,
+      "example": "a serene koi pond at dawn, mist over the water, a wooden bridge, soft volumetric light, highly detailed"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~3.5; light negatives help."
+    },
+    "ui_help": {
+      "note": "Highest-quality HunyuanImage 2.1; slower, renders at 2K.",
+      "good_for": "best-quality 2K images"
+    }
+  },
+  "resolution": {
+    "min_w": 1536,
+    "min_h": 1536,
+    "max_w": 2560,
+    "max_h": 2560,
+    "step": 16
+  }
+}

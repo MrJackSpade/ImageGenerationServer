@@ -1,0 +1,62 @@
+{
+  "id": "chroma1-radiance-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "Chroma1-Radiance (pixel-space)",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "chroma1-radiance-x0",
+    "text_encoders": [
+      "t5xxl"
+    ],
+    "vae": "pixel-space-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "chroma",
+    "dual": false,
+    "sampler": "euler",
+    "scheduler": "beta",
+    "shift": 1.0,
+    "steps": 26,
+    "cfg": 3.8,
+    "native_pixels": 0,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Chroma1-Radiance 8.9B (FLUX.1-schnell-derived DiT, T5-XXL only) -- PIXEL SPACE, no VAE, whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through Chroma1-Radiance using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn with Chroma's uncensored look and no VAE round-trip. Denoises RGB directly, so the source never passes through a VAE — no compression artifacts added on the way in or out, which is exactly what a redraw wants.",
+    "nsfw_capable": "yes (uncensored)",
+    "commercial_use": "yes (Apache-2.0)",
+    "pick_when": "You want an uncensored redraw with zero VAE loss on the source (the encode is an identity pass).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Natural-language prose; T5-only, so be descriptive. Real CFG with a working negative. Lower the redraw strength to stay close to the source composition; raise it to let Chroma reinterpret more.",
+      "example": "A windswept cliff at dawn, a lone figure in a red cloak facing the sea, dramatic clouds, painterly, highly detailed",
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and Chroma1-Radiance follows natural-language prose.\n26 steps, euler/beta, real CFG 3.8, flow-shift 1.0. Pixel-space: the 'VAE' encode/decode are identity passes. Chroma's T5 min-padding is disabled automatically.\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts DO apply here — Chroma samples at real CFG, so use them to steer what to avoid."
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG; negatives work well."
+    },
+    "ui_help": {
+      "note": "Send an image + a description; the whole frame is redrawn through Chroma1-Radiance. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "an uncensored whole-image redraw keeping the composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image through Chroma1-Radiance from a prompt, keeping composition (uncensored)"
+    ]
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

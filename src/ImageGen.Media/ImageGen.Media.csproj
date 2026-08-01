@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImageGen.Application\ImageGen.Application.csproj" />
+    <ProjectReference Include="..\ImageGen.Domain\ImageGen.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- Media adapter for IMediaProcessor. ImageSharp is 3.1.x (Six Labors Split License): the 2.1.x line can't decode
+       animated webp (which video workflows save); 4.x needs a paid build-time key. Quarantined here so neither the
+       core nor the API references the imaging stack. -->
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+  </ItemGroup>
+
+  <!-- ffmpeg, in-process. It used to be an external executable this app shelled out to, which meant an undeclared
+       prerequisite, a download step in both install scripts, a path to resolve, and a failure mode ("Could not start
+       ffmpeg") that named neither the cause nor the fix.
+
+       The LGPL runtime packages are deliberate, not a default. Linking GPL ffmpeg into a proprietary application and
+       shipping the pair is what the GPL exists to prevent; the LGPL build permits it, and the native libraries stay
+       replaceable because they ship as separate .dll/.so files rather than being linked in. The one thing the LGPL
+       build gives up is libx264 — H.264 comes from Cisco's BSD-licensed OpenH264 instead. See THIRD-PARTY-NOTICES.md.
+
+       Runtime packages are per-RID and pulled for both, because a linux-x64 publish must not depend on what the
+       machine doing the publishing happens to be. -->
+  <ItemGroup>
+    <PackageReference Include="Loxifi.FFmpeg" Version="1.0.13" />
+    <PackageReference Include="Loxifi.FFmpeg.Runtime.win-x64" Version="1.0.13" />
+    <PackageReference Include="Loxifi.FFmpeg.Runtime.linux-x64" Version="1.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

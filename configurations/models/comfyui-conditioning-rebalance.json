@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-conditioning-rebalance",
+  "kind": "custom_node",
+  "label": "Conditioning Rebalance",
+  "node": "RebalanceGuider"
+}

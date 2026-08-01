@@ -1,0 +1,10 @@
+Id: node-conditioning-rebalance
+Title: Conditioning rebalance
+Does: Rescales the strength of a prompt's conditioning, so the parts you emphasised still carry weight in a
+ long prompt instead of being averaged away by everything else in it.
+Target: custom_nodes/ComfyUI-Conditioning-Rebalance
+Source: https://github.com/nova452/ComfyUI-Conditioning-Rebalance.git
+Rev: e0a9bf0741cfd21eab15c4b8c9f520c0d7025489
+Why: Rescales conditioning strength so a long prompt does not swamp its own emphasis. Run unmodified.
+Provides: comfyui-conditioning-rebalance
+---

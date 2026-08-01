@@ -1,0 +1,90 @@
+{
+  "id": "sd35-large",
+  "workflow": "sd35-large-tri",
+  "friendly_name": "Stable Diffusion 3.5 Large",
+  "default": false,
+  "requirements": {
+    "checkpoint": "sd3-5-large",
+    "text_encoders": [
+      "clip-l",
+      "clip-g",
+      "t5xxl"
+    ]
+  },
+  "params": {
+    "loader": "checkpoint",
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 20,
+    "cfg": 4.5,
+    "sampler": "euler",
+    "scheduler": "sgm_uniform",
+    "width": 1280,
+    "height": 1280,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1280,
+        1280
+      ],
+      "landscape": [
+        1712,
+        960
+      ],
+      "portrait": [
+        960,
+        1712
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SD3 (MMDiT, 8.1B) \u2014 full bf16 with external triple CLIP (clip-l + clip-g + t5-fp16)",
+    "summary": "The 8.1B SD3.5 Large flagship at full bf16 precision with the fp16 T5 encoder (24 GB). Higher fidelity and cleaner typography than the fp8 build; strong adherence on complex prompts.",
+    "use_cases": [
+      "highest-quality SD3.5",
+      "detailed / long prompts",
+      "complex scenes",
+      "typography"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes (revenue-tiered)",
+    "pick_when": "Top SD3.5 quality on a 24 GB card (full bf16 + fp16 T5).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed English; low CFG (~4-4.5). Quote short in-image text.",
+      "example": "a cinematic wide shot of a neon cyberpunk market in the rain, volumetric fog, ultra-detailed",
+      "instructions": "Specific, detailed natural-language prompts; SD3.5 Large leads the family in adherence. ~20-28 steps, cfg ~4-4.5, euler/sgm_uniform, ~1 MP. Quote in-image text and keep it short. Negatives optional/minimal.",
+      "do": [
+        "Write specific, detailed prompts",
+        "cfg ~4-4.5, ~20-28 steps",
+        "Target ~1 MP",
+        "Quote short in-image text"
+      ],
+      "dont": [
+        "Use SD1/SDXL-era high CFG",
+        "Over-stack negatives"
+      ],
+      "negative_guidance": "Optional / minimal.",
+      "source": "https://huggingface.co/stabilityai/stable-diffusion-3.5-large"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Useful, moderate."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "8.1B bf16 + fp16 T5 on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two. More detail usually looks better.",
+      "good_for": "the highest-quality SD3.5 images"
+    }
+  },
+  "resolution": {
+    "min_w": 640,
+    "min_h": 640,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

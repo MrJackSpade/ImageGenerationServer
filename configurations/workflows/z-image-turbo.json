@@ -1,0 +1,102 @@
+{
+  "id": "z-image-turbo",
+  "workflow": "z-image-turbo",
+  "friendly_name": "Z-Image Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "z-image-turbo",
+    "text_encoders": [
+      "qwen-3-4b"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "lumina2",
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 8,
+    "cfg": 1,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1536,
+    "height": 1536,
+    "negative_supported": false,
+    "auraflow": 3,
+    "aspect": {
+      "square": [
+        1536,
+        1536
+      ],
+      "landscape": [
+        1920,
+        1088
+      ],
+      "portrait": [
+        1088,
+        1920
+      ]
+    }
+  },
+  "card": {
+    "architecture": "S3-DiT single-stream (Qwen3-4B encoder, Flux VAE), distilled",
+    "summary": "8-step distilled ~6B model with near-base quality and notably STRONG instruction/prompt following -- the best model here for anatomical study (specific poses, body positioning, anatomy/figure work). Strong photorealism and bilingual (EN/ZH) text; runs without CFG.",
+    "use_cases": [
+      "anatomy & pose studies (best instruction-following here)",
+      "fast modern generation",
+      "photoreal",
+      "EN/ZH in-image text",
+      "interactive/batch"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "yes",
+    "pick_when": "Best pick when the prompt specifies particular POSES, body positioning, or ANATOMY -- it follows those instructions most faithfully of the models here. Also a great fast photoreal/general model. No negative-prompt control (cfg 1).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive LLM-style. It follows detailed pose / anatomy / composition instructions well, so be explicit about pose, limb position, and viewpoint. Can include EN/ZH text to render.",
+      "required_prefix": null,
+      "example": "Photorealistic portrait of an astronaut relaxing in a neon-lit Tokyo ramen bar at night, steam rising, shallow depth of field, 35mm",
+      "overview": "Few-step distilled (~6B): long, detailed natural-language prose, no CFG and no negative prompts; strong photorealism, instruction-following and bilingual EN/ZH text.",
+      "instructions": "Use natural-language prose, NOT tags -- it 'works best with long and detailed prompts' (you can draft, then have an LLM enhance). Cover subject, composition, lighting, materials, background. It is a few-step distilled model that does not use classifier-free guidance, so it does NOT use negative prompts at all; set guidance_scale 0.0 and num_inference_steps 9 (8 forward passes). Bilingual EN/ZH; to render literal text, name the exact string wrapped in double quotes. Token limit 512 (raise max_sequence_length to 1024 locally for very long prompts). Do not add meta quality tags like '8K' or 'masterpiece'.",
+      "do": [
+        "Write long, detailed natural-language prompts",
+        "Set guidance_scale 0.0, ~9 steps",
+        "Wrap literal on-image text in double quotes",
+        "Mix English and Chinese freely"
+      ],
+      "dont": [
+        "Use tag soup / booru tags",
+        "Supply a negative prompt",
+        "Raise guidance above 0",
+        "Add meta quality tags like '8K' / 'masterpiece'"
+      ],
+      "examples": [
+        "A young Chinese woman in red Hanfu with intricate embroidery, impeccable makeup and a red floral forehead pattern, elaborate high bun with a golden phoenix headdress, holding a round folding fan; soft-lit outdoor night background with a silhouetted tiered pagoda and blurred colorful distant lights, photorealistic"
+      ],
+      "negative_guidance": "Runs without CFG; does not use negative prompts at all.",
+      "source": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Guidance is 0 (distilled); negatives have no effect."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "Few-step; fast even with GGUF offload.",
+      "measured_seconds": 26.4,
+      "measured_note": "~26s for the first image at default settings (1024x1024, 8 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "poses, anatomy & realistic images (great instruction-following)"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

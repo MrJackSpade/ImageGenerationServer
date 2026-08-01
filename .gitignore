@@ -1,0 +1,63 @@
+# transient run logs from the validation/measurement scripts
+*.log
+*.tmp
+
+# generated test-output images / scratch results from validation runs
+model-test/
+
+# local copy of the Gelbooru dump (id,type,count,name) that build-tags-json.py converts into tags.json
+# (tags.json itself IS committed as a temporary placeholder — to be overwritten with the real dump later)
+_tags.dat
+
+# --- in-repo tag model (tagmodel/server.py) ---
+# local CPU venv (torch + flask) and bytecode; the checkpoint .pt is LFS-tracked (kept).
+tagmodel/.venv/
+# ONNX export (graph + external weight .data), regenerated from the .pt at first run -- ~700MB, don't commit
+tagmodel/*.onnx
+tagmodel/*.onnx.data
+__pycache__/
+*.pyc
+
+# --- ASP.NET Core app (ImageGen.sln) ---
+# build output
+[Bb]in/
+[Oo]bj/
+# per-machine secrets (connection string, SigningKey, Google creds) — never commit; use the .example files
+appsettings.Production.json
+src/ImageGen.Web/appsettings.Production.json
+# generated deploy secrets
+.deploy-secrets.txt
+
+# Visual Studio local state
+.vs/
+*.csproj.user
+.idea/
+.vscode/
+TestResults/
+
+# Agent state that can carry machine/infra detail (instance names, IPs, SSH commands). Covered by the
+# author's global gitignore, but the repo must not rely on a setting only one machine has.
+.claude/settings.local.json
+
+# --- machine-specific operator tooling (NOT part of installing this app) ---
+# The author's own deploy/service/schema/reverse-proxy scripts and runbook. Kept out of the public tree
+# because the product is "get the app running"; keeping it running and exposing it are the operator's own
+# business. Nothing here is needed to build, test or run the application.
+local/
+
+# runtime state and downloaded artifacts
+logs/
+# Root-anchored. Unanchored 'models/' matches a directory of that name at ANY depth, which silently swallowed
+# configurations/models/ -- 173 catalogue files that exist locally, were never committed, and were therefore
+# absent from every clone and every release archive. This rule is for downloaded WEIGHTS at the repo root.
+/models/
+.env
+
+# credentials, in case one is ever dropped in the tree
+*.pfx
+*.key
+
+# --- tag model artifacts (fetched, not committed) ---
+# The ONNX graph + its ~870 MB of weights, produced by tools/export-tagmodel-onnx.py and published to the model's
+# Hugging Face repo. The install script / container fetches them into TagModel:DataDir.
+tagmodel/artifacts/

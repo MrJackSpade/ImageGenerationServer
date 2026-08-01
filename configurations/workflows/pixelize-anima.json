@@ -1,0 +1,72 @@
+{
+  "id": "pixelize-anima",
+  "workflow": "pixelize",
+  "friendly_name": "Anima",
+  "effect_type": "Pixelize",
+  "default": false,
+  "requirements": {
+    "checkpoint": "anima-base-v1-0",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "style_prompt": {
+      "value": "",
+      "exposed": true
+    },
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "snap_resolution": false,
+    "megapixels": 1.0,
+    "virtual_resolution": {
+      "value": 384,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE) as the img2img denoiser under per-step PixelManifoldProjection + final PixelQuantize",
+    "summary": "Pixel art with ANIMA authoring under reprojection: the per-step pixel-manifold projection clamps the x0 estimate onto a fixed grid+palette every denoise step while Anima (the house-style anime model) supplies the structure. Unlike Flux/Qwen pixelizers, Anima is an authoring model, so reference=0 (full denoise) lets it draw the scene from the prompt with the grid constraint live. style_prompt blank -> the caller's instruction is the prompt. API-only.",
+    "use_cases": [
+      "test whether Anima holds a projection/composition under per-step reprojection",
+      "house-style pixel-art environments authored under the pixel-manifold constraint"
+    ],
+    "pick_when": "You want Anima to author pixel art directly, with the pixel grid+palette enforced during generation."
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "id": "pixelize-longcat",
+  "effect_type": "Pixelize",
+  "workflow": "pixelize-qwen",
+  "friendly_name": "LongCat-Image-Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "longcat-image-edit",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "snap_resolution": {
+      "value": true,
+      "exposed": true
+    },
+    "loader": "unet_gguf",
+    "clip_type": "longcat_image",
+    "dual": false,
+    "steps": 24,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 3.1,
+    "style_prompt": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "virtual_resolution": {
+      "value": 256,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "LongCat-Image-Edit (Qwen-Image-Edit topology) with per-step pixel-manifold projection + final PixelQuantize",
+    "summary": "Pixel art via LongCat-Image-Edit: instruction-conditioned redraw with the projection clamping onto a fixed grid+palette every denoise step.",
+    "use_cases": [
+      "pixel art via LongCat instruction editing"
+    ],
+    "pick_when": "You want LongCat to drive the pixel-art conversion."
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1024,
+    "max_h": 1024,
+    "step": 16
+  }
+}

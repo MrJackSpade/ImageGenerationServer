@@ -1,0 +1,24 @@
+{
+  "id": "birefnet-matte-video",
+  "workflow": "birefnet-matte-video",
+  "friendly_name": "BiRefNet Matte (video)",
+  "effect_type": "Background removal",
+  "params": {
+    "threshold": {
+      "value": 0,
+      "exposed": true,
+      "min": 0,
+      "max": 1
+    }
+  },
+  "card": {
+    "architecture": "BiRefNet per-frame matte (BiRefNetMatte node, ZhengPeng7/BiRefNet via transformers) — LoadVideo → GetVideoComponents → BiRefNetMatte → SaveAnimatedWEBP(lossless, alpha)",
+    "summary": "Removes the background from every frame of a source clip with BiRefNet and outputs a transparent-background animated WEBP (lossless, so the alpha channel survives). No checkpoint — the node loads its own model. Chosen as the sprite pipeline's background-removal method over a flood-fill key and the other matting models.",
+    "use_cases": [
+      "cut a character clip out of its (white) background into a transparent sprite clip",
+      "background removal for the sprite export pipeline"
+    ],
+    "nsfw_capable": "n/a (segmentation only)",
+    "pick_when": "You have a video clip and want its background removed (transparent alpha)."
+  }
+}

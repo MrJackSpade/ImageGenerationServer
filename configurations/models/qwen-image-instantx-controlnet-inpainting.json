@@ -1,0 +1,5 @@
+{
+  "id": "qwen-image-instantx-controlnet-inpainting",
+  "kind": "controlnet",
+  "label": "Qwen-Image InstantX Inpainting"
+}

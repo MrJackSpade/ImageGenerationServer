@@ -1,0 +1,9 @@
+{
+  "id": "z-image-turbo",
+  "kind": "unet",
+  "label": "Z-Image Turbo",
+  "match": [
+    "z[-_. ]?image[-_. ]?turbo[-_. ]?bf16",
+    "z[-_. ]?image[-_. ]?turbo[-_. ]?q4"
+  ]
+}

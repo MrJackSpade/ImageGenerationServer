@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    THROWAWAY one-time migration tool. Deliberately NOT in ImageGen.slnx and NOT referenced by the app: a backfill is
+    not a feature, and shipping migrations inside the primary app is how they end up running forever. Delete this
+    directory once it has been run against every deployment. See Program.cs for how to run it.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MarkExistingImagesViewed</RootNamespace>
+    <!-- The app's doc-comment analyzer is not worth satisfying in a file that is going to be deleted. -->
+    <NoWarn>$(NoWarn);IMGDOC001</NoWarn>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+  </ItemGroup>
+
+</Project>

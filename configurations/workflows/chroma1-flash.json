@@ -1,0 +1,86 @@
+{
+  "id": "chroma1-flash",
+  "workflow": "chroma",
+  "friendly_name": "Chroma1-Flash",
+  "default": false,
+  "requirements": {
+    "checkpoint": "chroma1-flash",
+    "text_encoders": [
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "chroma",
+    "dual": false,
+    "latent": "sd3",
+    "steps": 8,
+    "cfg": 1.5,
+    "sampler": "heun",
+    "scheduler": "beta",
+    "shift": 1.0,
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Chroma 8.9B HD-Flash (distilled, T5-only) — 8-step",
+    "summary": "The distilled Chroma1-Flash (HD-based): ~8 steps at low CFG with a 2nd-order sampler (heun) — fast uncensored generation at HD quality.",
+    "use_cases": [
+      "uncensored / NSFW general generation",
+      "Flux-quality art without alignment"
+    ],
+    "nsfw_capable": "yes (uncensored)",
+    "commercial_use": "yes (Apache-2.0)",
+    "pick_when": "You want fast (8-step) uncensored Chroma at HD quality.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Natural-language prose; T5-only. Real CFG with a negative.",
+      "example": "A windswept cliff at dawn, a lone figure in a red cloak facing the sea, dramatic clouds, painterly, highly detailed",
+      "instructions": "Descriptive natural language (T5 only, no CLIP). ~8 steps, cfg 1.5, heun, beta scheduler, shift 1. Min-padding tokenization applied for you.",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Use a negative prompt"
+      ],
+      "dont": [
+        "Expect CLIP-tag prompting to be optimal"
+      ],
+      "negative_guidance": "Supported (real CFG).",
+      "source": "https://huggingface.co/lodestones/Chroma1-Flash"
+    },
+    "negative": {
+      "supported": true,
+      "note": "real CFG"
+    },
+    "speed": {
+      "class": "fast",
+      "measured_note": "24 GB build; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Uncensored Chroma. Fast 8-step variant.",
+      "good_for": "fast uncensored images"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

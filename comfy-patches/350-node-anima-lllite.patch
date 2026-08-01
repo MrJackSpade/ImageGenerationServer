@@ -1,0 +1,11 @@
+Id: node-anima-lllite
+Title: Anima LLLite
+Does: Adds kohya-ss's LLLite control for Anima. It is what Anima's outpaint workflow runs on, and that is
+ the only inpaint or outpaint path the catalogue has for Anima -- without this the workflow is unavailable.
+Target: custom_nodes/ComfyUI-Anima-LLLite
+Source: https://github.com/kohya-ss/ComfyUI-Anima-LLLite
+Rev: 6701c8d6fc3bf1b2ed966b87c95ce609c52cebea
+Why: kohya-ss's LLLite control for Anima. A hard requirement of AnimaOutpaintWorkflow, which is the only
+ inpaint/outpaint path the catalogue has for that model -- without this pack that workflow is unavailable.
+Provides: comfyui-anima-lllite
+---

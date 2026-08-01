@@ -1,0 +1,8 @@
+{
+  "id": "chroma1-base",
+  "kind": "unet",
+  "label": "Chroma1-Base",
+  "match": [
+    "chroma1[-_. ]?base"
+  ]
+}

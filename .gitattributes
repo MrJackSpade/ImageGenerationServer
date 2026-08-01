@@ -1,0 +1,11 @@
+# Shell scripts must be LF: a CRLF shebang (`#!/usr/bin/env bash\r`) makes the Linux container's entrypoint fail
+# with "env: 'bash\r': No such file or directory". eol=lf forces LF even where core.autocrlf is on (Windows).
+# The comfy-nodes/comfy-patches rules below are LAST, so any .sh they vendor stays byte-for-byte, not this.
+*.sh text eol=lf
+
+# Patch payloads are compared BYTE FOR BYTE against a ComfyUI install: the app decides whether a patch is
+# applied by reverse-applying it and seeing whether the tree matches. An end-of-line conversion on checkout
+# would make every file differ on one platform and not the other, so a Windows clone would report patches as
+# conflicted that a Linux clone reports as applied. Check these out exactly as they are stored.
+comfy-patches/** -text
+comfy-nodes/**   -text

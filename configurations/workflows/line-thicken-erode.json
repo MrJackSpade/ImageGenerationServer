@@ -1,0 +1,25 @@
+{
+  "id": "line-thicken-erode",
+  "workflow": "line-thicken-erode",
+  "friendly_name": "Line Thicken (erode)",
+  "effect_type": "Line art",
+  "default": false,
+  "params": {
+    "thickness": {
+      "value": 2,
+      "exposed": true,
+      "min": 0,
+      "max": 32
+    }
+  },
+  "card": {
+    "architecture": "Grayscale morphological erosion / min filter (no model) — LineThicken node (ComfyUI-PixelHarness)",
+    "summary": "Boldens outlines by growing dark pixels with a per-channel 3x3 min filter (the cv2.erode / ImageMagick Erode / Photoshop Minimum algorithm). No model, no VRAM. Thickens every dark pixel (interior detail included).",
+    "use_cases": [
+      "thicken anime outlines before pixelization",
+      "bolden thin lineart deterministically"
+    ],
+    "nsfw_capable": "n/a (no model)",
+    "pick_when": "You want a fast, deterministic outline thicken and don't mind interior lines thickening too."
+  }
+}

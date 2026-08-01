@@ -1,0 +1,5 @@
+{
+  "id": "clip-vit-h-14-laion2b-s32b-b79k",
+  "kind": "clip_vision",
+  "label": "CLIP ViT-H/14"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "pixelize-dreamomni2",
+  "effect_type": "Pixelize",
+  "workflow": "pixelize-dreamomni2",
+  "friendly_name": "DreamOmni2",
+  "default": false,
+  "params": {
+    "snap_resolution": {
+      "value": true,
+      "exposed": true
+    },
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "steps": 30,
+    "cfg": 3.5,
+    "reference_max": 1,
+    "reference_inputs": [
+      "image2"
+    ],
+    "style_prompt": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+    "virtual_resolution": {
+      "value": 256,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "DreamOmni2 (quanto-int8 FLUX.1-Kontext pipeline + VLM) with per-step pixel-manifold projection injected INTO the pipeline node + final PixelQuantize",
+    "summary": "Pixel art via DreamOmni2's reference editor: the projection runs inside the self-contained pipeline (decode the x0 estimate -> grid+palette quantize -> re-encode -> blend) every denoise step. Attach one reference, or the source doubles as its own. Slow (int8 + CPU-offloaded VLM).",
+    "use_cases": [
+      "reference-guided pixel art via DreamOmni2"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want DreamOmni2's reference-based editing to drive the pixel-art conversion."
+  }
+}

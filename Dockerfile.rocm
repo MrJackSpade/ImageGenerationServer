@@ -1,0 +1,129 @@
+# ImageGen for AMD GPUs: the app, its tag model, and ComfyUI, on ROCm.
+#
+# UNTESTED ON REAL HARDWARE. This image is built in CI on every push, so it compiles, resolves and installs — but
+# nobody here owns an AMD card, so it has never rendered an image. The NVIDIA image (see Dockerfile) is the tested
+# one. Treat a failure here as a bug worth reporting rather than something you did wrong.
+#
+# Everything except the GPU stack is identical to Dockerfile, deliberately: two images that drift apart are two
+# images to debug. If you change one, change both.
+#
+# Image MODELS are never baked in — they are hundreds of GB and they are yours. Bind-mount them (see compose.yml).
+
+# --- build ------------------------------------------------------------------------------------------
+# Identical to the NVIDIA image: the app is architecture-neutral and knows nothing about the GPU. It talks HTTP to
+# ComfyUI, which is the only thing here that touches the hardware.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props ImageGen.slnx ./
+COPY src/ImageGen.Analyzers/ImageGen.Analyzers.csproj      src/ImageGen.Analyzers/
+COPY src/ImageGen.Domain/ImageGen.Domain.csproj            src/ImageGen.Domain/
+COPY src/ImageGen.Application/ImageGen.Application.csproj  src/ImageGen.Application/
+COPY src/ImageGen.Infrastructure/ImageGen.Infrastructure.csproj src/ImageGen.Infrastructure/
+COPY src/ImageGen.Comfy/ImageGen.Comfy.csproj              src/ImageGen.Comfy/
+COPY src/ImageGen.Media/ImageGen.Media.csproj              src/ImageGen.Media/
+COPY src/ImageGen.TagModel/ImageGen.TagModel.csproj        src/ImageGen.TagModel/
+COPY src/ImageGen.Api/ImageGen.Api.csproj                  src/ImageGen.Api/
+COPY src/ImageGen.Web/ImageGen.Web.csproj                  src/ImageGen.Web/
+RUN dotnet restore src/ImageGen.Web/ImageGen.Web.csproj
+
+COPY src/ src/
+COPY comfy-patches/ comfy-patches/
+COPY comfy-nodes/ comfy-nodes/
+
+# See Dockerfile: empty means "not a released build", and the update banner then says nothing.
+ARG IMAGEGEN_VERSION=
+RUN dotnet publish src/ImageGen.Web/ImageGen.Web.csproj -c Release -o /app --no-restore \
+        ${IMAGEGEN_VERSION:+-p:Version=$IMAGEGEN_VERSION}
+
+COPY tools/ComfyPatch/ tools/ComfyPatch/
+RUN dotnet publish tools/ComfyPatch/ComfyPatch.csproj -c Release -o /comfy-patch
+
+# --- final ------------------------------------------------------------------------------------------
+# AMD's own ROCm base, matched to the PyTorch wheel channel below. The two version numbers must agree: torch built
+# against ROCm 7.2 on a 6.x runtime fails at load, and the error names a missing .so rather than the mismatch.
+FROM rocm/dev-ubuntu-24.04:7.2.4 AS final
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=0
+
+# ffmpeg here is for COMFYUI, which shells out to it for video workflows. The app no longer needs it: it links
+# its own LGPL ffmpeg through Loxifi.FFmpeg. See THIRD-PARTY-NOTICES.md.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git ffmpeg \
+        python3 python3-pip python3-venv \
+        libicu74 libssl3 \
+        aspnetcore-runtime-10.0 \
+    || (curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+        && bash /tmp/dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /usr/share/dotnet \
+        && ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet) \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- ComfyUI ---
+# Pinned to a release tag rather than tracking master: an image that silently changes its backend between builds is
+# not reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately, in both Dockerfiles.
+ARG COMFYUI_REF=v0.28.0
+# The ROCm wheel channel. ComfyUI's own AMD instructions use this exact index; keep it in step with the base image.
+ARG ROCM_CHANNEL=rocm7.2
+RUN git clone --depth 1 --branch "${COMFYUI_REF}" https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \
+    && python3 -m venv /opt/comfy-venv \
+    && /opt/comfy-venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/comfy-venv/bin/pip install --no-cache-dir torch torchvision torchaudio \
+        --index-url "https://download.pytorch.org/whl/${ROCM_CHANNEL}" \
+    && /opt/comfy-venv/bin/pip install --no-cache-dir -r /opt/ComfyUI/requirements.txt \
+    && /opt/comfy-venv/bin/pip freeze | grep -E '^(torch|torchvision|torchaudio)==' > /opt/comfy-venv/torch-constraints.txt
+
+# Node packs declare loose requirements like `torch>=2.8.0`, and pip resolving one against PyPI would pull the
+# DEFAULT build over the ROCm one installed above — replacing the entire GPU stack this image is built around.
+# The constraint pins nothing of its own: it is the versions already installed, read back out of the environment.
+ENV PIP_CONSTRAINT=/opt/comfy-venv/torch-constraints.txt
+
+# --- app ---
+WORKDIR /app
+COPY --from=build /app ./
+COPY --from=build /comfy-patch /comfy-patch
+COPY configurations/ ./configurations/
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# --- patches ---
+# Identical to the NVIDIA image, deliberately: the same patch set, applied the same way, so the two images can run
+# the same workflows. This once skipped the downloaded packs here on the theory that CUDA-shaped ones would not
+# install against ROCm — which guarded the wrong step (fetching an archive is platform-neutral; only pip is not)
+# and bought green builds with a ROCm image that quietly ran far fewer workflows. If a pack's requirements truly
+# cannot resolve here, that is a real fact about ROCm support and belongs in a failed build, not in a silence.
+RUN dotnet /comfy-patch/ComfyPatch.dll apply --all \
+        --root /opt/ComfyUI \
+        --patches /app/comfy-patches \
+        --nodes /app/comfy-nodes \
+        --python /opt/comfy-venv/bin/python \
+    && dotnet /comfy-patch/ComfyPatch.dll list --root /opt/ComfyUI \
+        --patches /app/comfy-patches --nodes /app/comfy-nodes
+
+# SQLite, pinned explicitly rather than inherited: the container's paths are its own, and a deployment should not
+# have to know what the application's default happens to be this release. ComfyUI__Path/Python let the patches page
+# act on the ComfyUI in this image; ComfyUI__Supervisor is the directory shared with the entrypoint, and its
+# presence is what turns the restart button on.
+ENV Database__Provider=Sqlite \
+    ConnectionStrings__ImageGen="Data Source=/data/imagegen.db" \
+    ComfyUI__BaseUrl=http://127.0.0.1:8188 \
+    ComfyUI__Path=/opt/ComfyUI \
+    ComfyUI__Python=/opt/comfy-venv/bin/python \
+    ComfyUI__Supervisor=/run/imagegen \
+    Logging__FilePath=/data/logs/imagegen-.log \
+    ASPNETCORE_ENVIRONMENT=Production \
+    Urls=http://0.0.0.0:8080
+
+# Cards ROCm does not officially support often work once told which ISA to pretend to be — 10.3.0 for RDNA2 (6700,
+# 6600), 11.0.0 for some RDNA3 (7600). Left EMPTY because setting it wrongly is worse than not setting it: pass
+# HSA_OVERRIDE_GFX_VERSION through compose only if your card needs it.
+ENV HSA_OVERRIDE_GFX_VERSION=""
+
+# /data — the SQLite database and logs. /app/tagmodel/artifacts — the tag model, which the app fetches on first
+# run; a volume so ~900 MB is not re-downloaded every time the image is updated. ComfyUI's own image models are a
+# separate bind mount; see compose.yml.
+VOLUME ["/data", "/app/tagmodel/artifacts"]
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

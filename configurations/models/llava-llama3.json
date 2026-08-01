@@ -1,0 +1,5 @@
+{
+  "id": "llava-llama3",
+  "kind": "text_encoder",
+  "label": "LLaVA-Llama3"
+}

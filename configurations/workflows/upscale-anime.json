@@ -1,0 +1,76 @@
+{
+  "id": "upscale-anime",
+  "workflow": "upscale-model",
+  "friendly_name": "Anime",
+  "edit_group": "Upscale",
+  "default": false,
+  "requirements": {
+    "extra": [
+      "anime-sharp-v2-rplksr-sharp-2x"
+    ]
+  },
+  "params": {
+    "upscale_model": {
+      "value": "anime-sharp-v2-rplksr-sharp-2x",
+      "exposed": false
+    },
+    "model_scale": {
+      "value": 2.0,
+      "exposed": false
+    },
+    "scale": {
+      "value": 2,
+      "exposed": true,
+      "min": 1,
+      "max": 2,
+      "step": 1
+    },
+    "resample": {
+      "value": "lanczos",
+      "exposed": false
+    }
+  },
+  "card": {
+    "architecture": "AnimeSharpV2 (RealPLKSR, fixed 2x) - a feed-forward super-resolution CNN, no diffusion",
+    "summary": "Upscale anime, illustration and other 2D art through AnimeSharpV2's 'Sharp' RealPLKSR network. One deterministic pass: it resolves the lines and flats that are already there and invents nothing, so the drawing survives exactly as drawn. The network is fixed at 2x; Scale below 2 fits the 2x result down to the size you asked for.",
+    "use_cases": [
+      "enlarge anime / illustration / cel art without softening the line work",
+      "clean up compression artifacts and jaggies on a 2D source",
+      "finish an image whose content is already correct and only needs resolution"
+    ],
+    "nsfw_capable": "yes - no content model, it only resolves pixels",
+    "commercial_use": "NON-COMMERCIAL: AnimeSharpV2 is CC-BY-NC-SA-4.0. Use the Photo upscaler (CC-BY-4.0) for commercial work.",
+    "pick_when": "The source is drawn - anime, manga, illustration, cel art. Use Photo for photographic sources; the anime net will smear film grain and skin texture it was never trained on.",
+    "prompt": {
+      "format": "none",
+      "guidance": "This editor takes no prompt. Anything typed in the instruction box is ignored - there is no text encoder in the graph.",
+      "instructions": "Send a source image and set Scale. No prompt, no seed, no steps: the same source always produces the same output.",
+      "do": [
+        "Feed it a 2D / drawn source",
+        "Leave Scale at 2 for the network's native, sharpest result"
+      ],
+      "dont": [
+        "Expect it to add detail that isn't in the source - it resolves, it does not invent",
+        "Use it on photographs"
+      ],
+      "negative_guidance": "Not supported - no text encoder.",
+      "source": "https://huggingface.co/Kim2091/AnimeSharpV2"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Feed-forward SR network; there is no conditioning of any kind."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "A single convolutional pass. No sampling loop, ~30 MB of weights, tiled internally by ComfyUI.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image and pick a Scale. No prompt is used. Output is deterministic - re-running gives the identical image.",
+      "good_for": "enlarging drawn art without losing the lines"
+    },
+    "edit_use_cases": [
+      "upscale a drawn / anime image, preserving the composition exactly"
+    ]
+  }
+}

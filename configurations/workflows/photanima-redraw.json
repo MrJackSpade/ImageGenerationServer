@@ -1,0 +1,92 @@
+{
+  "id": "photanima-redraw",
+  "workflow": "img2img-redraw",
+  "friendly_name": "Photanima",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "photanima-v21-noturbo",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4,
+    "sampler": "er_sde",
+    "scheduler": "simple",
+    "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,",
+    "native_pixels": 1044480,
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "Photanima 2B photographic Anima finetune (Qwen3-0.6B encoder, Qwen-Image VAE), whole-image img2img redraw",
+    "summary": "Reinterpret an entire existing image through Photanima using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the whole frame is redrawn as a photograph. The de-turbo'd build (~40 steps, er_sde, CFG ~4). Ideal for pushing an illustrated or off-model image toward candid photorealism while keeping its layout.",
+    "use_cases": [
+      "redraw an illustration or render as a candid photograph, keeping composition",
+      "restore an off-model photo edit back to Photanima's realistic look",
+      "amateur-photo restyle (grain, natural skin, smartphone look)"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "no",
+    "pick_when": "You want to redraw the WHOLE image (not a masked region) into a realistic photo, keeping the composition. Use Anima (redraw) instead when the target look is anime.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the photo you want in plain, specific words (subject, setting, lighting, lens, mood); the quality/realism prefix is added automatically. Because it's photographic and aesthetic by default, don't pile on hype/quality words. Lower the redraw strength (denoise) to stay close to the source composition; raise it to let Photanima reinterpret more.",
+      "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,",
+      "example": "amateur smartphone photo of a young woman standing by a white van in a sunlit pine forest, dappled light, natural skin texture, visible grain, candid, medium shot",
+      "instructions": "This is the DE-TURBO'D Photanima on the redraw rails: ~40 steps, er_sde sampler, 'simple' scheduler, CFG ~4 -- NOT the Turbo few-step path.\nType the FULL photographic description; the quality/realism prefix ('masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,') is prepended AUTOMATICALLY -- do NOT type it.\nAmateur/candid language helps realism (grain, natural skin texture, smartphone photo). Do NOT add further hype tags beyond the auto prefix -- the model is photographic by default and over-driving fries the image.\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.4-0.5 keeps the source's structure, ~0.7+ substantially reinvents it. The source is downscaled to Photanima's native ~1 MP bucket before the redraw.",
+      "do": [
+        "Write a plain, specific photographic description (subject, setting, lighting, lens, mood)",
+        "Use amateur/candid photo language for realism (grain, natural skin, smartphone photo)",
+        "Let the app add the quality/realism prefix -- don't type it",
+        "Lower Redraw strength to keep the source composition; raise it to reinterpret more"
+      ],
+      "dont": [
+        "Pile on hype/quality tags beyond the auto prefix (it fries the image)",
+        "Use the Turbo settings (6-8 steps / CFG 1) -- this build is de-turbo'd",
+        "Expect a masked/local edit -- this redraws the WHOLE frame"
+      ],
+      "negative_guidance": "CFG ~4, so negatives work but keep them light (the model is aesthetic by default).",
+      "source": "https://civitai.com/models/2645333/photanima"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Works at CFG ~4; keep it light -- aesthetic by default. Uses the shared baseline negative, like Photanima's generate path."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "~40 steps at CFG 4 (de-turbo'd), scaled down by the redraw strength; same 2B architecture as Anima.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image + a photo description; the whole frame is redrawn through Photanima. 'Redraw strength' controls how far it drifts from the source.",
+      "good_for": "restyling a whole image into a realistic photograph while keeping its composition"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: redraw an entire image as a candid photograph through Photanima, keeping composition"
+    ],
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

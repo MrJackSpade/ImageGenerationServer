@@ -1,0 +1,71 @@
+{
+  "id": "pixelize-firered",
+  "effect_type": "Pixelize",
+  "workflow": "pixelize-qwen",
+  "friendly_name": "FireRed-Image-Edit 1.1",
+  "default": false,
+  "requirements": {
+    "checkpoint": "firered-image-edit-1-1",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "snap_resolution": {
+      "value": true,
+      "exposed": true
+    },
+    "loader": "unet_gguf",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 3.1,
+    "style_prompt": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "virtual_resolution": {
+      "value": 256,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "FireRed-Image-Edit 1.1 (~20B Qwen-Image-Edit topology) with per-step pixel-manifold projection + final PixelQuantize",
+    "summary": "High-quality pixel art via FireRed-Image-Edit 1.1: the ~20B Qwen-class editor redraws while the projection clamps onto a fixed grid+palette every step.",
+    "use_cases": [
+      "high-quality pixel art via FireRed instruction editing"
+    ],
+    "pick_when": "You want FireRed's ~20B editor to drive the pixel-art conversion."
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

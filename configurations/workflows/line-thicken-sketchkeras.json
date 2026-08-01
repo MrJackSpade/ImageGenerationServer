@@ -1,0 +1,30 @@
+{
+  "id": "line-thicken-sketchkeras",
+  "workflow": "line-thicken-sketchkeras",
+  "friendly_name": "Line Thicken (sketchKeras)",
+  "effect_type": "Line art",
+  "default": false,
+  "params": {
+    "thickness": {
+      "value": 2,
+      "exposed": true,
+      "min": 0,
+      "max": 32
+    },
+    "threshold": {
+      "value": 0.1,
+      "exposed": true,
+      "min": 0.0,
+      "max": 1.0
+    }
+  },
+  "card": {
+    "architecture": "sketchKeras (higumax pytorch port, fixed 512 U-Net) line extractor + thicken + multiply composite — no diffusion checkpoint",
+    "summary": "Extracts the source's lines with sketchKeras (dark-on-white), boldens them, and multiplies over the source so only the lines darken. Weights converted from lllyasviel/sketchKeras mod.h5 and present under vendor/sketchKeras-pytorch/weights/model.pth.",
+    "use_cases": [
+      "thicken outlines using the sketchKeras line extractor"
+    ],
+    "nsfw_capable": "n/a (no diffusion model)",
+    "pick_when": "You specifically want sketchKeras line extraction."
+  }
+}

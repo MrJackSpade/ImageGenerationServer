@@ -1,0 +1,72 @@
+{
+  "id": "firered-image-edit",
+  "workflow": "qwen-image-edit",
+  "friendly_name": "FireRed-Image-Edit 1.1",
+  "default": false,
+  "requirements": {
+    "checkpoint": "firered-image-edit-1-1",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 2,
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ]
+  },
+  "card": {
+    "architecture": "FireRed-Image-Edit 1.1 (FireRedTeam) — ~20B Qwen-Image-Edit-style MMDiT; Qwen2.5-VL encoder + Qwen-Image VAE. Runs the Qwen-Image-Edit topology (TextEncodeQwenImageEditPlus + ModelSamplingAuraFlow shift 3.1) via clip_type qwen_image. Q5_K_M GGUF.",
+    "summary": "FireRed's instruction editor on a ~20B Qwen-class backbone, Q5_K_M GGUF (~14.9GB) for 24GB fit. Strong identity/scene consistency and text; reuses the Qwen2.5-VL encoder and Qwen-Image VAE already installed.",
+    "use_cases": [
+      "high-quality instruction editing (add/remove/replace, recolour, background swap)",
+      "identity-preserving edits, viewpoint/style changes",
+      "text edits with strong glyph fidelity"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "pick_when": "You want a high-quality ~20B instruction editor and can spend ~40 steps for best fidelity.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Put a red baseball cap on her and change the background to a beach",
+      "overview": "Plain natural-language edit instructions. Semantic (high-level, identity-preserving) and appearance (precise local) edits; multi-image references via image2/image3. Recommended ~40 steps at CFG 4.",
+      "source": "https://huggingface.co/FireRedTeam/FireRed-Image-Edit-1.1"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Runs CFG ~4 with an empty negative."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "~20B Q5_K_M GGUF at ~40 steps; quality-first."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction.",
+      "good_for": "high-quality instruction editing"
+    },
+    "edit_use_cases": [
+      "high-quality instruction editing on a ~20B backbone: add/remove/replace, recolour, background, relight; strong consistency and text"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number."
+    }
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "id": "hunyuanvideo-t2v",
+  "workflow": "hunyuanvideo-t2v",
+  "friendly_name": "HunyuanVideo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hunyuan-video-t2v-720p",
+    "text_encoders": [
+      "clip-l",
+      "llava-llama3"
+    ],
+    "vae": "hunyuan-video-vae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "dual": true,
+    "clip_type": "hunyuan_video",
+    "steps": 20,
+    "cfg": 1,
+    "guidance": 6,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 7,
+    "length": {
+      "value": 73,
+      "exposed": true,
+      "min": 5,
+      "max": 129,
+      "step": 4
+    },
+    "fps": 24,
+    "width": 848,
+    "height": 480,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        640,
+        640
+      ],
+      "landscape": [
+        848,
+        480
+      ],
+      "portrait": [
+        480,
+        848
+      ]
+    }
+  },
+  "card": {
+    "architecture": "HunyuanVideo 13B (LLaVA-Llama3 + CLIP-L) \u2014 TEXT-TO-VIDEO, GGUF",
+    "summary": "Text\u2192video on the original HunyuanVideo 13B (Q8_0 GGUF, 24 GB). Guidance-distilled (embedded FluxGuidance ~6, no negative). The text\u2192video counterpart to the i2v GGUF editor.",
+    "use_cases": [
+      "text\u2192video clips",
+      "prompt-driven motion / camera moves"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "You want a HunyuanVideo text\u2192video clip on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene; the prompt directs the motion.",
+      "example": "a fox running through a snowy forest at dawn, tracking shot, soft morning light, cinematic",
+      "overview": "Write one flowing natural-language description (subject + action + scene + optional camera/lighting/atmosphere/style), not comma-separated tags.",
+      "instructions": "The original HunyuanVideo 13B (LLaVA-Llama3 + CLIP-L encoders) was trained on structured, rewritten natural-language captions, so prompt in descriptive English sentences rather than tags. The t2v model benefits from a richer single paragraph; the official PromptRewrite tool's Normal mode clarifies intent while Master mode adds composition/lighting/camera-movement detail for higher visual quality. The standard t2v checkpoint is CFG/guidance-distilled, so a true negative prompt has little effect - steer via the positive prompt. Decompose a complex action into a short ordered sequence of states.",
+      "do": [
+        "Write natural-language sentences/paragraphs, not tag lists or weight syntax",
+        "Order elements as Subject -> Action -> Scene/Background -> Camera, plus optional lighting/style",
+        "Use explicit camera/motion language ('the camera slowly pushes in', 'tracking shot', 'static shot')",
+        "Decompose a complex action into an ordered sequence ('they stand apart, then move closer, then embrace')",
+        "Add lighting, atmosphere, and style cues for higher visual quality",
+        "Steer with the distilled guidance scale rather than a negative prompt"
+      ],
+      "dont": [
+        "Don't use SD-style tag lists or weight syntax like (word:1.2)",
+        "Don't rely on a negative prompt; the distilled t2v checkpoint largely ignores it",
+        "Don't apply HunyuanVideo 1.5's handbook formulas to the original 13B",
+        "Don't cram multiple unrelated actions or rapid scene changes into one prompt",
+        "Don't omit the subject/scene (t2v invents everything from text)"
+      ],
+      "examples": [
+        "A lone astronaut walks across a vast orange desert under a pale alien sky, kicking up fine dust with each step; the camera slowly tracks alongside in a low-angle shot, warm late-afternoon sunlight casting long shadows, cinematic, photorealistic."
+      ],
+      "negative_guidance": "The original 13B t2v release is CFG/guidance-distilled (embedded guidance ~6.0), so a conventional negative prompt is largely ineffective - steer entirely via the positive prompt.",
+      "source": "https://github.com/Tencent-Hunyuan/HunyuanVideo ; https://huggingface.co/tencent/HunyuanVideo-PromptRewrite"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled / embedded guidance"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "24 GB video model; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Makes a video from text. Describe the action and camera.",
+      "good_for": "text\u2192video clips"
+    }
+  },
+  "resolution": {
+    "min_w": 544,
+    "min_h": 544,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

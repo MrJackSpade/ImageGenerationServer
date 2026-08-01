@@ -1,0 +1,203 @@
+@model EditViewModel
+@{
+    ViewData["Title"] = "Edit";
+    var seed = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        id = Model.ImageId,
+        prompt = Model.InitialPrompt,
+        tagPrompt = Model.InitialTagPrompt,
+        negativePrompt = Model.InitialNegativePrompt,
+    });
+}
+
+<section id="editView">
+    <div class="edit-head">
+        <div class="edit-tabs" id="editTabs" role="tablist">
+            <button type="button" class="edit-tab" data-mode="edit" role="tab">Edit</button>
+            <button type="button" class="edit-tab" data-mode="redraw" role="tab">Redraw</button>
+            <button type="button" class="edit-tab" data-mode="effects" role="tab">Effects</button>
+            <button type="button" class="edit-tab" data-mode="animate" role="tab">Animate</button>
+            <button type="button" class="edit-tab" data-mode="inpaint" role="tab">Inpaint</button>
+            <button type="button" class="edit-tab" data-mode="outpaint" role="tab">Outpaint</button>
+            @* Video-to-video (pixel quantize). Shown ONLY when the source is a clip — and then it's the only tab. *@
+            <button type="button" class="edit-tab" data-mode="video" role="tab" hidden>Pixelize</button>
+        </div>
+    </div>
+
+    @* CHAT modes — instruction image-editing (Edit) and image→video (Animate). Gen-style: source image on the
+       left, a standard prompt box + controls on the right, outputs underneath. Each "Apply" edits the SAME source;
+       to build on an output, click it and choose Edit (which re-seeds this page with that output as the source). *@
+    <div id="chatMode">
+        <form id="editComposer" class="composer composer-grid edit-grid" autocomplete="off">
+            <div class="cpane-main edit-src-pane">
+                <label class="fld-label">Editing</label>
+                <div id="editSrc" class="edit-src"></div>
+            </div>
+            <div class="cpane-side">
+                <div class="field">
+                    <label for="editModelToggle" class="fld-label">Workflow</label>
+                    <div class="model-select" id="editModelSelect">
+                        <button type="button" id="editModelToggle" class="model-toggle" aria-haspopup="listbox" aria-expanded="false">…</button>
+                        <div id="editModelMenu" class="model-menu" hidden role="listbox"></div>
+                    </div>
+                </div>
+                @* edit.js hides this whole field when no selected editor consumes a prompt (the upscalers have no
+                   text encoder) — offering a box whose text is silently discarded is worse than offering nothing. *@
+                <div class="field" id="instructionField">
+                    <label for="instruction" id="instructionLabel" class="fld-label">Change</label>
+                    <div class="prompt-wrap">
+                        <textarea id="instruction" placeholder="Describe a change… e.g. add a red party hat"></textarea>
+                        <div id="instructionTagPop" class="tag-pop hidden" role="listbox" aria-label="Tag suggestions"></div>
+                    </div>
+                    @* Optional negative — edit.js shows this only when a selected editor supports one; the text is
+                       ADDED ON TOP of the model's built-in negative, never replaces it. *@
+                    <div class="neg-wrap" id="editNegWrap" hidden>
+                        <label class="fld-label" for="editNeg">Negative prompt</label>
+                        <div class="prompt-wrap">
+                            <textarea id="editNeg" placeholder="worst quality, artist name…"></textarea>
+                            <div id="editNegTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="editRefHint" class="edit-ref-hint hidden"></div>
+                <div id="editRefs" class="edit-refs hidden"></div>
+                <button type="button" id="editRefBtn" class="edit-ref-btn hidden" title="Add a reference image">＋ ref</button>
+                @* Optional last frame — shown only for image→video editors that accept one (supportsLastFrame). The clip
+                   interpolates from the source (first frame) to this picked final frame. *@
+                <div id="editLastFrame" class="edit-refs hidden"></div>
+                <button type="button" id="editLastFrameBtn" class="edit-ref-btn hidden" title="Interpolate from the source to this final frame">＋ last frame</button>
+                <div id="editParams" class="edit-params hidden"></div>
+                <div class="gen-wrap side-gen">
+                    <button id="editSend" class="primary-btn" type="submit">Apply edit</button>
+                </div>
+                <input type="file" id="editRefFile" class="hidden" accept="image/*" />
+                <input type="file" id="editLastFrameFile" class="hidden" accept="image/*" />
+            </div>
+        </form>
+        <div class="bar" id="bar"><i></i></div>
+        <div class="eta" id="eta" hidden></div>
+        <div id="result"></div>
+    </div>
+
+    @* INPAINT mode — purpose-built: paint a region, edit the full (tag) prompt, regenerate only that region. *@
+    <div id="inpaintMode" class="hidden">
+        <div class="edit-subhead">
+            <label for="inpaintModelToggle" class="edit-head-label">Workflow</label>
+            <div class="model-select" id="inpaintModelSelect">
+                <button type="button" id="inpaintModelToggle" class="model-toggle" aria-haspopup="listbox" aria-expanded="false">…</button>
+                <div id="inpaintModelMenu" class="model-menu" hidden role="listbox"></div>
+            </div>
+        </div>
+        <div class="inpaint-tools">
+            <span class="mask-hint">Paint the area to regenerate (e.g. the face)</span>
+            <label class="mask-brush">Brush <input type="range" id="brushSize" min="6" max="220" value="56" /></label>
+            <button type="button" id="brushErase" class="mask-btn" title="Toggle eraser">Erase</button>
+            <button type="button" id="maskClear" class="mask-btn" title="Clear the mask">Clear</button>
+        </div>
+        <div id="maskStage" class="mask-stage"></div>
+        <form id="inpaintComposer" autocomplete="off">
+            <label class="fld-label">Prompt</label>
+            <div class="prompt-wrap">
+                <textarea id="inpaintPrompt" placeholder="full prompt for the picture — type # for tags, @@ for artists"></textarea>
+                <div id="inpaintTagPop" class="tag-pop hidden" role="listbox" aria-label="Tag suggestions"></div>
+            </div>
+            @* Optional negative — shown only when the inpaint model supports one; added on top of its built-in negative. *@
+            <div class="neg-wrap" id="inpaintNegWrap" hidden>
+                <label class="fld-label" for="inpaintNeg">Negative prompt</label>
+                <div class="prompt-wrap">
+                    <textarea id="inpaintNeg" placeholder="worst quality, artist name…"></textarea>
+                    <div id="inpaintNegTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                </div>
+            </div>
+            <div class="inpaint-foot">
+                <div class="inpaint-params" id="inpaintParams"></div>
+                <button id="inpaintGo" class="primary-btn" type="submit" title="Hold to make several">Generate</button>
+            </div>
+        </form>
+        <div class="bar" id="inpaintBar"><i></i></div>
+        <div class="eta" id="inpaintEta" hidden></div>
+        <div id="inpaintResult"></div>
+    </div>
+
+    @* OUTPAINT mode — purpose-built, and deliberately NOT the inpaint editor: you don't paint a region, you drag the
+       frame outward. The original sits pinned inside the enlarged canvas (the hatched margin is what gets generated),
+       the four pad amounts are source-native pixels sent as pad_left/top/right/bottom, and the prompt describes the
+       WHOLE extended picture (the workflow's promptSemantics "whole_image"), not a change to make. *@
+    <div id="outpaintMode" class="hidden">
+        <div class="edit-subhead">
+            <label for="outpaintModelToggle" class="edit-head-label">Workflow</label>
+            <div class="model-select" id="outpaintModelSelect">
+                <button type="button" id="outpaintModelToggle" class="model-toggle" aria-haspopup="listbox" aria-expanded="false">…</button>
+                <div id="outpaintModelMenu" class="model-menu" hidden role="listbox"></div>
+            </div>
+        </div>
+        <div class="outpaint-tools">
+            <span class="op-hint">Drag an edge or corner outward to extend the canvas</span>
+            <div class="op-presets" id="outPresets">
+                @* Extend-only: each preset pads the short axis to reach the target aspect, centred. Never crops. *@
+                <button type="button" class="mask-btn" data-aspect="1">1:1</button>
+                <button type="button" class="mask-btn" data-aspect="1.777778">16:9</button>
+                <button type="button" class="mask-btn" data-aspect="0.5625">9:16</button>
+                <button type="button" class="mask-btn" id="outReset">Reset</button>
+            </div>
+        </div>
+        <div id="outpaintStage" class="op-stage"></div>
+        <div class="op-sides" id="outPads">
+            <label class="op-side"><span class="fld-label">Left</span><input class="fld-input" type="number" data-side="left" min="0" max="4096" step="8" value="0" /></label>
+            <label class="op-side"><span class="fld-label">Top</span><input class="fld-input" type="number" data-side="top" min="0" max="4096" step="8" value="0" /></label>
+            <label class="op-side"><span class="fld-label">Right</span><input class="fld-input" type="number" data-side="right" min="0" max="4096" step="8" value="0" /></label>
+            <label class="op-side"><span class="fld-label">Bottom</span><input class="fld-input" type="number" data-side="bottom" min="0" max="4096" step="8" value="0" /></label>
+            <span class="op-size" id="outSize"></span>
+        </div>
+        <form id="outpaintComposer" autocomplete="off">
+            <label class="fld-label">Prompt</label>
+            <div class="prompt-wrap">
+                <textarea id="outpaintPrompt" placeholder="full prompt for the whole extended picture — type # for tags, @@ for artists"></textarea>
+                <div id="outpaintTagPop" class="tag-pop hidden" role="listbox" aria-label="Tag suggestions"></div>
+            </div>
+            @* Optional negative — shown only when the outpaint model supports one; added on top of its built-in negative. *@
+            <div class="neg-wrap" id="outpaintNegWrap" hidden>
+                <label class="fld-label" for="outpaintNeg">Negative prompt</label>
+                <div class="prompt-wrap">
+                    <textarea id="outpaintNeg" placeholder="worst quality, artist name…"></textarea>
+                    <div id="outpaintNegTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                </div>
+            </div>
+            @* No exposed-param panel here, deliberately. The editor's own controls (the pad amounts) are the only
+               per-request knobs; the rest — fill strength, seam feather, mask grow, the LLLite weights — stay at the
+               configuration's defaults. Rendering them here also fed them back as overrides through the SHARED flat
+               param map, where `denoise` means "Change amount" to inpaint but "Fill strength" to outpaint: an inpaint
+               value of 0.5 half-denoised the grey border and returned a grey box. *@
+            <div class="inpaint-foot">
+                <button id="outpaintGo" class="primary-btn" type="submit">Generate</button>
+            </div>
+        </form>
+        <div class="bar" id="outpaintBar"><i></i></div>
+        <div class="eta" id="outpaintEta" hidden></div>
+        <div id="outpaintResult"></div>
+    </div>
+
+    @* Source picker, shared by every mode: shown in the image area when the editor is opened with no source. Accepts a
+       video too — a clip source switches the editor to the pixel-quantize V2V pass. *@
+    <input type="file" id="editSrcFile" class="hidden" accept="image/*,video/*" />
+</section>
+<div class="status" id="status"></div>
+
+<section id="recent-wrap" class="hidden">
+    <div class="hist-head"><h2>Recent</h2><span class="hist-head-actions"><a href="/gallery" class="link-btn">More →</a></span></div>
+    <div id="recent"></div>
+</section>
+
+<script type="application/json" id="editSeed">@Html.Raw(seed)</script>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/modelpicker.js" asp-append-version="true"></script>
+    <script src="~/js/tagbox.js" asp-append-version="true"></script>
+    <script src="~/js/edit.js" asp-append-version="true"></script>
+    <script src="~/js/recents.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/multiselect.js" asp-append-version="true"></script>
+}

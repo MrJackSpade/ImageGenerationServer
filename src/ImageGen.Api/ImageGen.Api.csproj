@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImageGen.Application\ImageGen.Application.csproj" />
+    <ProjectReference Include="..\ImageGen.Domain\ImageGen.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- The JSON/minimal-API presentation layer: wire contracts + endpoint modules mounted under /api and /forge.
+       FrameworkReference gives it the minimal-API + WebSocket types. It depends only on the Application ports/services
+       and Domain — never on an adapter (Comfy/Media/Infrastructure). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- The endpoint modules were written under the Web SDK's implicit usings; re-supply the ASP.NET ones a plain
+       library lacks. -->
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

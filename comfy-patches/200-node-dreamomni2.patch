@@ -1,0 +1,311 @@
+Id: node-dreamomni2
+Title: DreamOmni2 -- VAE re-pin, img2img strength, render size
+Does: Keeps DreamOmni2's VAE in VRAM for a whole batch instead of only its first image, which is what
+ stops every image after the first from crawling. Also gives its Editor node an img2img strength and a
+ render size of its own, and finds every weight it needs through the renderer's configured model folders.
+Target: custom_nodes/ComfyUI_RH_DreamOmni2
+Source: https://github.com/HM-RunningHub/ComfyUI_RH_DreamOmni2.git
+Rev: 0a3e8b54c427c1b2ae18952b27c6853d5c076ff3
+Why: Five fixes to the RunningHub DreamOmni2 pack. The load-bearing one is re-pinning the VAE on
+ every call: diffusers' maybe_free_model_hooks() reinstalls the cpu-offload hook after each __call__,
+ so pinning once protects the first image and nothing after it, and the rest of a batch thrashes over
+ PCIe. The others add an img2img strength and a render_width/render_height override to the Editor
+ node, resize the source to the generation grid before encoding, and widen proj_method to the full
+ quant method list. Every weight is asked for by KIND through ComfyUI's own folder_paths -- the Kontext
+ pipeline from the diffusers folder, the instruction VLM from text_encoders, the two adapters from loras --
+ rather than the absolute paths this was written with, or a search for them.
+---
+diff --git a/pipeline_dreamomni2.py b/pipeline_dreamomni2.py
+index 5b9c4d8..e4a6c45 100644
+--- a/pipeline_dreamomni2.py
++++ b/pipeline_dreamomni2.py
+@@ -765,6 +765,8 @@ class DreamOmni2Pipeline(
+         joint_attention_kwargs: Optional[Dict[str, Any]] = None,
+         callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
+         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
++        pixel_opts: Optional[Dict] = None,
++        strength: float = 1.0,
+         max_sequence_length: int = 512,
+         max_area: int = 1024**2,
+         _auto_resize: bool = True,
+@@ -1060,7 +1062,46 @@ class DreamOmni2Pipeline(
+         # 6. Denoising loop
+         # We set the index here to remove DtoH sync, helpful especially during compilation.
+         # Check out more details here: https://github.com/huggingface/diffusers/pull/11696
+-        self.scheduler.set_begin_index(0)
++        # img2img (reference > 0 -> strength < 1.0): seed the generation latent from the SOURCE (images[0]) and run
++        # only the last `strength` fraction of the schedule. strength == 1.0 (default) is the original full
++        # generation path, untouched — so existing behaviour is unchanged unless the caller asks for a partial denoise.
++        if strength < 1.0 and images is not None and len(images) > 0:
++            init_steps = max(1, int(round(num_inference_steps * strength)))
++            t_start = max(0, num_inference_steps - init_steps)
++            self.scheduler.set_begin_index(t_start)
++            timesteps = timesteps[t_start:]
++            self._num_timesteps = len(timesteps)
++            src = images[0]
++            if isinstance(src, torch.Tensor) and src.size(1) == self.latent_channels:
++                src_lat = src.to(device=device, dtype=prompt_embeds.dtype)
++            else:
++                src_img = src.to(device=device, dtype=prompt_embeds.dtype)
++                # The img2img init latent must live on the SAME grid as `latents` (height x width). Step-3
++                # preprocessing resized images[0] to a PREFERRED_KONTEXT_RESOLUTION aspect bucket for the
++                # conditioning path, which generally differs from the generation grid — encoding it as-is
++                # packs to a different sequence length, so the (1-sigma)*src + sigma*noise blend below fails
++                # ("size of tensor a must match tensor b at dim 1"). Resize to (height, width) first.
++                if tuple(src_img.shape[-2:]) != (height, width):
++                    src_img = torch.nn.functional.interpolate(src_img, size=(height, width), mode="bilinear", align_corners=False)
++                src_lat = self._encode_vae_image(image=src_img, generator=generator)
++            src_lat = self._pack_latents(src_lat, latents.shape[0], num_channels_latents, src_lat.shape[2], src_lat.shape[3])
++            sigma0 = (timesteps[:1].to(device=latents.device, dtype=latents.dtype) / 1000.0).view(-1, 1, 1)
++            latents = (1.0 - sigma0) * src_lat + sigma0 * latents   # flow-match: noise the source at the start sigma
++        else:
++            self.scheduler.set_begin_index(0)
++        # PIXEL-ART: pin the VAE on the GPU before the loop. The per-step manifold projection below calls
++        # self.vae.decode/encode INSIDE the loop; under enable_model_cpu_offload the offload chain is
++        # ...->transformer->vae, so the VAE's own CpuOffload hook fires prev_module_hook.offload() on every
++        # vae.decode and evicts the ~12GB int8 transformer to CPU, which the next step reloads (the 14.5<->4.3GB
++        # ping-pong, and the reload is the slowdown). Dropping the VAE's offload hook keeps both resident
++        # (int8 transformer + small VAE fit a 24GB card) so the transformer is never evicted mid-loop.
++        # This MUST re-run on EVERY call, not once: maybe_free_model_hooks() at the end of __call__ re-runs
++        # enable_model_cpu_offload(), which RE-INSTALLS the VAE hook — so a one-shot guard left every image
++        # after the first thrashing again (the hook is back, so the per-step evict returns).
++        if pixel_opts is not None:
++            from accelerate.hooks import remove_hook_from_module
++            remove_hook_from_module(self.vae)
++            self.vae.to(latents.device)
+         with self.progress_bar(total=num_inference_steps) as progress_bar:
+             for i, t in enumerate(timesteps):
+                 update_func()
+@@ -1106,6 +1147,41 @@ class DreamOmni2Pipeline(
+                     neg_noise_pred = neg_noise_pred[:, : latents.size(1)]
+                     noise_pred = neg_noise_pred + true_cfg_scale * (noise_pred - neg_noise_pred)
+ 
++                # PIXEL-ART per-step manifold projection: project the flow-matching x0 estimate
++                # (x0 = x_t - sigma*v) onto a fixed grid+palette via the VAE + PixelHarness quant, then
++                # feed back a corrected velocity so the scheduler step steers toward the projected x0.
++                # Same math as the PixelManifoldProjection node; engaged only when pixel_opts is set.
++                if pixel_opts is not None:
++                    _n = len(timesteps)
++                    _frac = i / max(_n - 1, 1)
++                    if pixel_opts["start"] <= _frac <= pixel_opts["end"] and (i % pixel_opts["every"] == 0):
++                        _sigma = self.scheduler.sigmas[i].to(latents)
++                        if float(_sigma) > 1e-6:
++                            import numpy as _np
++                            from PIL import Image as _Image
++                            if not hasattr(self, "_ph_quant"):
++                                from .rh_paths import pixelharness_quant as _phq  # sibling node pack, not a model
++                                self._ph_quant = _phq()
++                            _q = self._ph_quant
++                            _w = pixel_opts["w_start"] + (pixel_opts["w_end"] - pixel_opts["w_start"]) * _frac
++                            _x0 = latents - _sigma * noise_pred
++                            _lat = self._unpack_latents(_x0, height, width, self.vae_scale_factor)
++                            _lat = (_lat / self.vae.config.scaling_factor) + self.vae.config.shift_factor
++                            _img = self.vae.decode(_lat.to(self.vae.dtype), return_dict=False)[0]
++                            _a = ((_img.float() / 2 + 0.5).clamp(0, 1)[0].permute(1, 2, 0).cpu().numpy() * 255 + 0.5).astype(_np.uint8)
++                            _H, _W = _a.shape[:2]
++                            _gw, _gh = _q.grid_for_aspect(_W, _H, pixel_opts["grid_w"], pixel_opts["grid_h"], pixel_opts["virtual_resolution"])
++                            _pal = _q.resolve_palette(pixel_opts["palette"], img_u8=_a, grid=(_gw, _gh))
++                            _g = _q.quantize(_a, _gw, _gh, _pal, method=pixel_opts["method"])
++                            _r = _q.render(_g, _pal, scale=1)
++                            if _r.shape[0] != _H or _r.shape[1] != _W:
++                                _r = _np.asarray(_Image.fromarray(_r).resize((_W, _H), _Image.NEAREST), dtype=_np.uint8)
++                            _proj = (torch.from_numpy(_r.astype(_np.float32) / 255.0).permute(2, 0, 1)[None].to(_img) * 2 - 1)
++                            _pl = self._encode_vae_image(_proj.to(self.vae.dtype), generator=None)
++                            _pp = self._pack_latents(_pl, _pl.shape[0], _pl.shape[1], _pl.shape[2], _pl.shape[3]).to(_x0)
++                            _x0b = (1.0 - _w) * _x0 + _w * _pp
++                            noise_pred = (latents - _x0b) / _sigma
++
+                 # compute the previous noisy sample x_t -> x_t-1
+                 latents_dtype = latents.dtype
+                 latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+diff --git a/rh_dreamomni2.py b/rh_dreamomni2.py
+index 335842f..15382a9 100644
+--- a/rh_dreamomni2.py
++++ b/rh_dreamomni2.py
+@@ -3,6 +3,7 @@ from optimum.quanto import freeze, qint8, quantize
+ import os
+ import torch
+ from .pipeline_dreamomni2 import *
++from . import rh_paths
+ from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+ from .utils.vprocess import process_vision_info, resizeinput
+ from PIL import Image
+@@ -78,8 +79,8 @@ class RH_DreamOmni2_Base_Pipeline:
+     CATEGORY = "Runninghub/DreamOmni2"
+ 
+     def load(self, **kwargs):
+-        base_path = os.path.join(folder_paths.models_dir, 'flux', 'FLUX.1-Kontext-dev')
+-        vlm_path = os.path.join(folder_paths.models_dir, 'DreamOmni2', 'vlm-model')
++        base_path = rh_paths.base_model()
++        vlm_path = rh_paths.vlm_model()
+         pipeline = DreamOmni2Pipeline.from_pretrained(base_path, torch_dtype=torch.bfloat16)
+         pipeline.enable_model_cpu_offload()
+         vlm_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+@@ -107,7 +108,7 @@ class RH_DreamOmni2_Gen_Pipeline(RH_DreamOmni2_Base_Pipeline):
+     OUTPUT_NODE = True
+ 
+     def load(self, **kwargs):
+-        gen_lora_path = os.path.join(folder_paths.models_dir, 'DreamOmni2', 'gen_lora')
++        gen_lora_path = rh_paths.lora(rh_paths.GEN_LORA)
+         pipeline = super().load(**kwargs)[0]
+         pipeline.load_lora_weights(
+             gen_lora_path,
+@@ -212,7 +213,7 @@ class RH_DreamOmni2_Edit_Pipeline(RH_DreamOmni2_Base_Pipeline):
+     CATEGORY = "Runninghub/DreamOmni2"
+ 
+     def load(self, **kwargs):
+-        edit_lora_path = os.path.join(folder_paths.models_dir, 'DreamOmni2', 'edit_lora')
++        edit_lora_path = rh_paths.lora(rh_paths.EDIT_LORA)
+         pipeline = super().load(**kwargs)[0]
+         pipeline.load_lora_weights(
+             edit_lora_path,
+@@ -239,6 +240,26 @@ class RH_DreamOmni2_Editor:
+                 "seed": ("INT", {"default": 20, "min": 0, "max": 0xffffffffffffffff,
+                                  "tooltip": "The random seed used for creating the noise."}),
+             },
++            "optional": {
++                # Pixel-art per-step manifold projection (all off unless pixel_art=True).
++                "pixel_art": ("BOOLEAN", {"default": False}),
++                "grid_w": ("INT", {"default": 0, "min": 0, "max": 4096}),
++                "grid_h": ("INT", {"default": 0, "min": 0, "max": 4096}),
++                "palette": ("STRING", {"default": "chroma-256"}),
++                "proj_method": (["median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode"], {"default": "median"}),
++                "virtual_resolution": ("INT", {"default": 0, "min": 0, "max": 4096}),
++                "w_start": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0}),
++                "w_end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0}),
++                "proj_start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0}),
++                "proj_end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0}),
++                "project_every": ("INT", {"default": 1, "min": 1, "max": 8}),
++                # Override the render resolution (both > 0) instead of resizeinput's aspect bucket — lets the caller
++                # pin the diffusion size to a clean integer multiple of the pixel grid (the PixelSnap size).
++                "render_width": ("INT", {"default": 0, "min": 0, "max": 4096}),
++                "render_height": ("INT", {"default": 0, "min": 0, "max": 4096}),
++                # img2img denoise: 1.0 = full generation (default, unchanged); <1.0 = init from the source (reference %).
++                "strength": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 1.0, "step": 0.01}),
++            },
+         }
+ 
+     RETURN_TYPES = ("IMAGE",)
+@@ -255,6 +276,17 @@ class RH_DreamOmni2_Editor:
+         guidance_scale = kwargs.get('guidance_scale')
+         num_inference_steps = kwargs.get('num_inference_steps')
+ 
++        pixel_opts = None
++        if kwargs.get('pixel_art', False):
++            pixel_opts = {
++                "grid_w": kwargs.get('grid_w', 0), "grid_h": kwargs.get('grid_h', 0),
++                "palette": kwargs.get('palette', 'chroma-256'), "method": kwargs.get('proj_method', 'mode'),
++                "virtual_resolution": kwargs.get('virtual_resolution', 0),
++                "w_start": kwargs.get('w_start', 0.5), "w_end": kwargs.get('w_end', 1.0),
++                "start": kwargs.get('proj_start', 0.0), "end": kwargs.get('proj_end', 1.0),
++                "every": kwargs.get('project_every', 1),
++            }
++
+         self.pbar = comfy.utils.ProgressBar(num_inference_steps + 2)
+ 
+         input_img_path = []
+@@ -267,6 +299,14 @@ class RH_DreamOmni2_Editor:
+             img = load_image(path)
+             source_imgs.append(resizeinput(img))
+ 
++        # Override the source's aspect-bucket size with an explicit render resolution (used by the pixel-art
++        # snap to pin diffusion to a clean integer multiple of the pixel grid). Only the src (index 0) drives
++        # the output size; the reference keeps its own bucketed size.
++        render_w = int(kwargs.get('render_width', 0) or 0)
++        render_h = int(kwargs.get('render_height', 0) or 0)
++        if render_w > 0 and render_h > 0:
++            source_imgs[0] = source_imgs[0].resize((render_w, render_h), Image.LANCZOS)
++
+         self.update()
+ 
+         prompt = infer_vlm(pipeline.vlm_model, pipeline.processor, input_img_path, prompt, prefix)
+@@ -282,6 +322,8 @@ class RH_DreamOmni2_Editor:
+             num_inference_steps=num_inference_steps,
+             guidance_scale=guidance_scale,
+             update_func=self.update,
++            pixel_opts=pixel_opts,
++            strength=float(kwargs.get('strength', 1.0) or 1.0),   # <1 = img2img from the source (reference %)
+         ).images[0]
+         image = np.array(image).astype(np.float32) / 255.0
+         image = torch.from_numpy(image)[None,]
+diff --git a/rh_paths.py b/rh_paths.py
+new file mode 100644
+index 0000000..625822c
+--- /dev/null
++++ b/rh_paths.py
+@@ -0,0 +1,75 @@
++"""Where DreamOmni2's weights live: whichever folder ComfyUI keeps that kind of thing in.
++
++Upstream builds every path from `folder_paths.models_dir` — ComfyUI's own `models/` and nothing else — which
++ignores `extra_model_paths.yaml`, so an install whose models are anywhere else finds none of them. That is what
++led to the absolute paths this replaces.
++
++Each asset is asked for by KIND, because each one already has a home ComfyUI understands: the Kontext pipeline
++is a diffusers model, the VLM is a text encoder, and the two adapters are LoRAs. Nothing is searched for and
++nothing is guessed at — a missing file names the folder it belongs in.
++"""
++import os
++
++#: The Kontext pipeline, under any configured `diffusers` folder.
++BASE_MODEL = "FLUX.1-Kontext-dev"
++
++#: The instruction VLM, under any configured `text_encoders` folder. It is a Qwen2.5-VL directory, the same
++#: shape as the encoder Step1X-Edit uses, and lives beside it.
++VLM_MODEL = "DreamOmni2-vlm-model"
++
++#: The two adapters, in the `loras` folder like every other LoRA.
++GEN_LORA = "DreamOmni2-gen_lora.safetensors"
++EDIT_LORA = "DreamOmni2-edit_lora.safetensors"
++
++
++def _folder(kind):
++    import folder_paths
++    return folder_paths.get_folder_paths(kind)
++
++
++def _directory(kind, name):
++    """A model that is a DIRECTORY (diffusers pipeline, transformers model), under a folder of `kind`."""
++    folders = _folder(kind)
++    for base in folders:
++        candidate = os.path.join(base, name)
++        if os.path.isdir(candidate):
++            return candidate
++    raise FileNotFoundError(
++        "DreamOmni2 needs '{}' in ComfyUI's {} folder. Looked in: {}.".format(
++            name, kind, ", ".join(folders) or "(none configured)"))
++
++
++def base_model():
++    return _directory("diffusers", BASE_MODEL)
++
++
++def vlm_model():
++    return _directory("text_encoders", VLM_MODEL)
++
++
++def lora(name):
++    """A LoRA file, resolved the way every other LoRA in ComfyUI is."""
++    import folder_paths
++    path = folder_paths.get_full_path("loras", name)
++    if path:
++        return path
++    raise FileNotFoundError(
++        "DreamOmni2 needs '{}' in ComfyUI's loras folder. Looked in: {}.".format(
++            name, ", ".join(_folder("loras")) or "(none configured)"))
++
++
++def pixelharness_quant():
++    """PixelHarness's `quant.py`, loaded by path because it is a sibling node pack rather than an importable
++    module. It sits next to this pack in `custom_nodes/`, so find it there."""
++    candidate = os.path.join(
++        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ComfyUI-PixelHarness", "quant.py")
++    if not os.path.isfile(candidate):
++        raise FileNotFoundError(
++            "Pixel projection needs the ComfyUI-PixelHarness pack installed next to this one; "
++            "its quant.py is not at {}.".format(candidate))
++
++    import importlib.util
++    spec = importlib.util.spec_from_file_location("ph_quant", candidate)
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module

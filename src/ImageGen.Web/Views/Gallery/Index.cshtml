@@ -1,0 +1,68 @@
+@model GalleryViewModel
+@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "History";
+    var gateway = "/forge";
+}
+
+<div class="hist-head">
+    <h2>History</h2>
+    @* Clears the whole unread backlog. Shown by gallery.js only while something is actually unviewed. *@
+    <button type="button" id="markAllViewed" class="link-btn" hidden
+            title="Stop outlining every image you haven't opened yet">Mark all viewed</button>
+</div>
+
+@* A GET form so Enter still works (and a filtered view is a real URL) without JS; gallery.js takes over and
+   filters live. The select has no auto-submit of its own, hence the noscript button. *@
+<form class="gal-search" role="search" method="get" action="/gallery">
+    <input id="gallerySearch" name="q" type="search" value="@Model.Search" autocomplete="off"
+           placeholder="Search prompts — an image must contain every word" aria-label="Search prompts" />
+    @if (Model.Workflows.Count > 0)
+    {
+        <select id="galleryWorkflow" name="workflow" aria-label="Filter by workflow">
+            <option value="">All workflows</option>
+            @foreach (var w in Model.Workflows)
+            {
+                @* data-name: the bare display name, so the empty-state message can say it without the count. *@
+                <option value="@w.ModelId" data-name="@w.ModelFriendly" selected="@(w.ModelId == Model.Workflow)">@w.ModelFriendly (@w.Count)</option>
+            }
+        </select>
+    }
+    @* value="true" so the no-JS GET produces ?unviewed=true, which binds to the action's bool?. *@
+    <label class="gal-unviewed" title="Only images you haven't opened yet">
+        <input type="checkbox" id="galleryUnviewed" name="unviewed" value="true" checked="@Model.UnviewedOnly" />
+        Unviewed
+    </label>
+    <noscript><button type="submit" class="pager-btn">Filter</button></noscript>
+</form>
+
+<div id="gallery" data-total="@Model.Total" data-page-size="@Model.PageSize" data-loaded-page="@Model.Page"
+     data-search="@Model.Search" data-workflow="@Model.Workflow" data-unviewed="@(Model.UnviewedOnly ? "1" : "")">
+    <div class="cardgrid">
+        @foreach (var r in Model.Items)
+        {
+            var id = Uri.EscapeDataString(r.GatewayImageId);
+            @* Outlined until the user has opened it — see .imgcard.unviewed. *@
+            <a class="imgcard @(r.Viewed ? "" : "unviewed")" href="/image/@id">
+                <div class="img"><img data-src="@gateway/image/@id?w=512" alt="@r.Prompt" /></div>
+                <div class="meta">
+                    <div class="p">@r.Prompt</div>
+                    <div class="row"><span class="tag">@r.ModelFriendly</span><span class="seed"><time data-ts="@r.Ts"></time></span></div>
+                </div>
+            </a>
+        }
+    </div>
+    @* Filled and shown by gallery.js, which knows whether the empty grid is "no images" or "nothing matched". *@
+    <p class="bm-empty hidden" id="galleryEmpty"></p>
+    <div id="gallerySentinel" aria-hidden="true"></div>
+    <div id="galleryPager"><span id="galleryStatus"></span></div>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>
+    <script src="~/js/detail.js" asp-append-version="true"></script>
+    <script src="~/js/lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/multiselect.js" asp-append-version="true"></script>
+    <script src="~/js/gallery.js" asp-append-version="true"></script>
+}

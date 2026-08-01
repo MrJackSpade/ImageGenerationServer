@@ -1,0 +1,8 @@
+{
+  "id": "flux1-krea-dev",
+  "kind": "unet",
+  "label": "FLUX.1 Krea",
+  "match": [
+    "flux1[-_. ]?krea"
+  ]
+}

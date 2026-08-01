@@ -1,0 +1,37 @@
+{
+  "id": "pixel-quantize",
+  "workflow": "pixel-quantize",
+  "friendly_name": "Pixel Quantize",
+  "effect_type": "Pixelize",
+  "default": false,
+  "params": {
+    "virtual_resolution": {
+      "value": 384,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "block": 1,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    }
+  },
+  "card": {
+    "architecture": "Deterministic OKLab palette + grid quantizer (no model) — PixelQuantize node (ComfyUI-PixelHarness)",
+    "summary": "Snaps an input image onto a fixed grid + palette in OKLab (median-per-cell by default; mode/box/nearest_present selectable). No model, no VRAM. The model-free pixelizer and authoritative final renderer for the pixel-art pipeline.",
+    "use_cases": [
+      "pixelize a still deterministically",
+      "frame-by-frame quantization for animation (temporally consistent via a locked palette)",
+      "final palette/grid render after a diffusion pass"
+    ],
+    "nsfw_capable": "n/a (no model)",
+    "pick_when": "Deterministic pixelization onto a known grid + palette, no diffusion redraw."
+  }
+}

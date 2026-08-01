@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-advanced-controlnet",
+  "kind": "custom_node",
+  "label": "Advanced ControlNet",
+  "node": "ACN_AdvancedControlNetApply"
+}

@@ -1,0 +1,5 @@
+{
+  "id": "controlnet-sd15-lineart",
+  "kind": "controlnet",
+  "label": "ControlNet SD1.5 Lineart"
+}

@@ -1,0 +1,99 @@
+{
+  "id": "sd15",
+  "workflow": "sd15",
+  "friendly_name": "Stable Diffusion 1.5",
+  "default": false,
+  "requirements": {
+    "checkpoint": "v1-5-pruned-emaonly"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": null,
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 1,
+    "steps": 28,
+    "cfg": 7,
+    "sampler": "DPM++ 2M",
+    "scheduler": "karras",
+    "width": 512,
+    "height": 512,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        512,
+        512
+      ],
+      "landscape": [
+        688,
+        384
+      ],
+      "portrait": [
+        384,
+        688
+      ]
+    }
+  },
+  "card": {
+    "architecture": "SD1 (latent diffusion, CLIP ViT-L)",
+    "summary": "Lightweight, fast workhorse with the biggest LoRA/ControlNet ecosystem; lower native resolution and weaker prompt adherence than modern models. Its older, grittier look and huge style ecosystem make it a strong pick for heavily stylized art, intentionally low-fi/poor-quality aesthetics, and horror.",
+    "use_cases": [
+      "fast iteration",
+      "low-VRAM generation",
+      "when a specific SD1.5 LoRA/ControlNet is needed",
+      "512px work",
+      "heavily stylized art",
+      "intentionally low-fi / gritty / poor-quality aesthetics",
+      "horror and unsettling imagery"
+    ],
+    "nsfw_capable": "limited (base; explicit needs finetunes)",
+    "commercial_use": "yes",
+    "pick_when": "Speed/VRAM matters, quick drafts, or a specific SD1.5 asset is required.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Plain English or loose comma keywords; 77-token chunks.",
+      "required_prefix": null,
+      "example": "a photograph of an astronaut riding a horse on mars, highly detailed, dramatic lighting, 50mm photo",
+      "overview": "Classic CLIP-era model (512 native): short comma-separated keyword/quality tags plus a negative prompt; English only.",
+      "instructions": "Lead with the subject, then append comma-separated descriptor/quality tags (e.g. `detailed, 8k`, color-palette terms). Prompts are short and English-only (CLIP truncates at ~77 tokens). Native resolution 512x512 -- straying far hurts coherence. Guidance scale ~5-8 (diffusers default 7.5). Known weaknesses to prompt around: cannot render legible text, weak spatial composition, imperfect faces -- keep compositional relationships simple. Negative prompts are the standard quality lever.",
+      "do": [
+        "Lead with subject then comma-separated descriptor/quality tags",
+        "Keep prompts English and short",
+        "Render at ~512x512",
+        "Use a quality/anatomy negative prompt"
+      ],
+      "dont": [
+        "Expect legible in-image text",
+        "Rely on complex spatial composition",
+        "Write long narrative paragraphs (77-token CLIP limit)"
+      ],
+      "examples": [
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
+        "a photo of an astronaut riding a horse on mars, highly detailed, sharp focus"
+      ],
+      "negative_guidance": "High value in practice. Typical: 'lowres, bad anatomy, bad hands, extra digits, blurry, text, watermark, jpeg artifacts'.",
+      "source": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Helpful. e.g. 'lowres, bad anatomy, bad hands, text, watermark, blurry, worst quality'."
+    },
+    "speed": {
+      "class": "very_fast",
+      "note": "Fastest model here.",
+      "measured_seconds": 6.1,
+      "measured_note": "~6s for the first image at default settings (512x512, 28 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe it in plain words. Best at smaller, simpler scenes — one subject works better than a busy scene. Also a strong pick for heavily stylized art, intentionally rough/low-fi looks, and horror or unsettling imagery.",
+      "good_for": "quick simple pictures, heavily stylized art, low-fi/gritty looks, and horror"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 768,
+    "max_h": 768,
+    "step": 8
+  }
+}

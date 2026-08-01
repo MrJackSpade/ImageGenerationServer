@@ -1,0 +1,88 @@
+{
+  "id": "qwen-image-inpaint",
+  "workflow": "qwen-image-inpaint",
+  "friendly_name": "Qwen-Image (inpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-2512",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae",
+    "controlnet": "qwen-image-instantx-controlnet-inpainting"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 20,
+    "cfg": 2.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "auraflow": 3.1,
+    "cn_start": 0.0,
+    "cn_end": 1.0,
+    "max_dimension": 1536,
+    "denoise": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    },
+    "cn_strength": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "mask_grow": {
+      "value": 16,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    },
+    "mask_blur": {
+      "value": 31,
+      "exposed": true,
+      "min": 0,
+      "max": 31
+    }
+  },
+  "card": {
+    "architecture": "Qwen-Image 20B MMDiT base (Qwen2.5-VL encoder) + InstantX 2B inpainting ControlNet, masked fill with paste-back composite",
+    "summary": "Regenerate a PAINTED region of an image with base Qwen-Image driven by the InstantX inpainting ControlNet. The ControlNet sees the known pixels and the hole, so the fill continues the surrounding structure instead of inventing over it, and the result is composited back so everything outside the mask is bit-identical to the source. Handles object replacement, text edits and background swaps.",
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "You want to replace or repair a masked region and keep the rest of the frame untouched. Use Qwen-Image-Edit instead when the change is instruction-shaped and should reuse what is already under the region — inpaint replaces it rather than editing it.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the WHOLE resulting picture in plain prose, not just the patch — the masked region is generated to fit that description. Quote literal strings to render text into the region.",
+      "example": "A bookstore storefront at dusk, a glowing sign reading \"NIGHT OWL BOOKS\" in warm amber letters, rain-slicked pavement",
+      "instructions": "Natural language, EN or ZH. Recommended: 20 steps, cfg ~2.5, euler/simple. The ControlNet supplies the fill conditioning, so a full change amount is normal here — lower it only to keep some of what is under the mask.",
+      "negative_guidance": "Supported (real CFG ~2.5); keep it light.",
+      "source": "https://huggingface.co/InstantX/Qwen-Image-ControlNet-Inpainting"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~2.5; light negatives help."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "20B INT8 ConvRot (native Ampere tensor cores) plus a 4.2 GB BF16 ControlNet on 24 GB; the ControlNet will be offloaded. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Paint over the area to replace, describe the whole picture you want, and send. 'Fill control strength' is how hard the ControlNet holds the fill to the surrounding image.",
+      "good_for": "replacing an object, changing a background, or fixing a detail inside a painted region"
+    },
+    "edit_use_cases": [
+      "masked inpaint: replace an object, sign text, or background inside a painted region while keeping every pixel outside it"
+    ]
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "id": "hidream-fast",
+  "workflow": "hidream",
+  "friendly_name": "HiDream-I1 Fast",
+  "default": false,
+  "requirements": {
+    "checkpoint": "hidream-i1-fast",
+    "text_encoders": [
+      "clip-l-hidream",
+      "clip-g-hidream",
+      "t5xxl",
+      "llama-3-1-8b-instruct"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "dual": false,
+    "latent": "sd3",
+    "steps": 16,
+    "cfg": 1.0,
+    "sampler": "lcm",
+    "scheduler": "normal",
+    "shift": 3.0,
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "HiDream-I1 17B MoE DiT (quad encoder), step-distilled Fast",
+    "summary": "The Fast (16-step distilled) HiDream-I1 variant. Same 17B quad-encoder model as Full/Dev but the quickest — strong prompt adherence in ~16 steps at cfg 1, no negative prompt.",
+    "use_cases": [
+      "fastest HiDream generation",
+      "quick high-adherence drafts",
+      "complex prompts at speed"
+    ],
+    "nsfw_capable": "limited",
+    "commercial_use": "yes (MIT)",
+    "pick_when": "You want HiDream's prompt adherence as fast as possible on a 24 GB card.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Detailed natural-language prose; distilled (cfg 1, no negative).",
+      "example": "A paper-craft diorama of a tiny town in autumn, warm low sun, intricate folds, shallow depth of field",
+      "instructions": "Write rich natural language. Fast is step-distilled: ~16 steps, cfg 1, lcm/normal, flow-shift 3. Negative prompts have no effect.",
+      "do": [
+        "Write detailed prompts",
+        "~16 steps, cfg 1"
+      ],
+      "dont": [
+        "Supply a negative prompt (no effect at cfg 1)"
+      ],
+      "negative_guidance": "Distilled (cfg 1); negatives have no effect.",
+      "source": "https://huggingface.co/HiDream-ai/HiDream-I1-Fast"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled (cfg 1)."
+    },
+    "speed": {
+      "class": "moderate",
+      "measured_note": "17B MoE Q5_K_M, ~16 steps on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in detail. Follows instructions closely; the fastest HiDream.",
+      "good_for": "faithful prompt following (fastest)"
+    }
+  },
+  "resolution": {
+    "min_w": 768,
+    "min_h": 768,
+    "max_w": 1360,
+    "max_h": 1360,
+    "step": 16
+  }
+}

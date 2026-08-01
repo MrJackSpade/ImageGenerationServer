@@ -1,0 +1,5 @@
+{
+  "id": "hunyuanimage21-distilled",
+  "kind": "unet",
+  "label": "HunyuanImage 2.1 Distilled"
+}

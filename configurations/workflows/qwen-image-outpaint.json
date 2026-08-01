@@ -1,0 +1,92 @@
+{
+  "id": "qwen-image-outpaint",
+  "workflow": "qwen-image-outpaint",
+  "friendly_name": "Qwen-Image (outpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-2512",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae",
+    "controlnet": "qwen-image-instantx-controlnet-inpainting"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 20,
+    "cfg": 2.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "auraflow": 3.1,
+    "cn_start": 0.0,
+    "cn_end": 1.0,
+    "max_dimension": 1536,
+    "pad_left": 0,
+    "pad_top": 0,
+    "pad_right": 0,
+    "pad_bottom": 0,
+    "denoise": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.5,
+      "max": 1.0
+    },
+    "cn_strength": {
+      "value": 1.0,
+      "exposed": true,
+      "min": 0.0,
+      "max": 2.0
+    },
+    "mask_grow": {
+      "value": 16,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    },
+    "mask_blur": {
+      "value": 31,
+      "exposed": true,
+      "min": 0,
+      "max": 31
+    }
+  },
+  "card": {
+    "architecture": "Qwen-Image 20B MMDiT base (Qwen2.5-VL encoder) + InstantX 2B inpainting ControlNet, ImagePadForOutpaint canvas extension",
+    "summary": "Extend an image past its edges with base Qwen-Image. The canvas is padded by pad_left/top/right/bottom (source-native pixels) and only the new border is generated; the InstantX ControlNet conditions that border on the known pixels so it continues the existing scene rather than inventing a fresh one, and the original area is composited back untouched.",
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "You want to widen the framing or add head/foot room and have Qwen-Image fill the new margin in keeping with the scene.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the WHOLE enlarged picture in plain prose — the new border is generated to match it. The pad_* amounts (source pixels) come from the frame editor.",
+      "example": "A wide shot of a bookstore storefront at dusk, wet pavement stretching into the street, neighbouring shopfronts on either side",
+      "instructions": "Natural language, EN or ZH. Recommended: 20 steps, cfg ~2.5, euler/simple. Extend in moderate increments — a very large pad in one pass gives the ControlNet little context to continue from.",
+      "negative_guidance": "Supported (real CFG ~2.5); keep it light.",
+      "source": "https://huggingface.co/InstantX/Qwen-Image-ControlNet-Inpainting"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~2.5; light negatives help."
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "20B INT8 ConvRot (native Ampere tensor cores) plus a 4.2 GB BF16 ControlNet on 24 GB; the ControlNet will be offloaded. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Drag the frame out on the sides you want to extend, describe the whole enlarged scene, and send. 'Mask edge blur' softens the join to the original.",
+      "good_for": "extending a photo's canvas on any side while keeping the original"
+    },
+    "edit_use_cases": [
+      "outpaint: extend the canvas on any side and fill the new border in keeping with the existing scene"
+    ]
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

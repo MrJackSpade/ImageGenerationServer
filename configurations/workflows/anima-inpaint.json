@@ -1,0 +1,73 @@
+{
+  "id": "anima-inpaint",
+  "workflow": "anima-inpaint",
+  "friendly_name": "Anima (inpaint)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "anima-base-v1-0",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "required_prefix": "masterpiece, best quality, score_7,",
+    "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
+    "denoise": {
+      "value": 0.6,
+      "exposed": true,
+      "min": 0.2,
+      "max": 1.0
+    },
+    "mask_grow": {
+      "value": 6,
+      "exposed": true,
+      "min": 0,
+      "max": 64
+    }
+  },
+  "card": {
+    "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE), masked img2img inpaint",
+    "summary": "Regenerate a PAINTED region of an existing image with the Anima model — paint the area (e.g. a face), edit the prompt, and only that region is redrawn while the rest stays untouched. Partial denoise preserves the character's identity/structure, so it's ideal for changing a facial expression on an Anima-generated character without losing coherency.",
+    "nsfw_capable": "yes (via safety tags)",
+    "commercial_use": "no",
+    "pick_when": "You want to redraw ONLY a masked area (face/expression swap, fixing a detail) on an existing image using Anima's anime quality.",
+    "prompt": {
+      "format": "booru_tags",
+      "guidance": "Type the FULL prompt for the whole image (the painted region is regenerated to match it); the quality prefix is added automatically. Booru tags, lowercase with spaces; artists prefixed with '@'. Lower the change amount (denoise) to keep the original face structure; raise it for a bigger change.",
+      "required_prefix": "masterpiece, best quality, score_7,",
+      "example": "1girl, solo, brown hair, long hair, open mouth, smile, @artistname"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Default: 'worst quality, low quality, score_1, score_2, score_3, artist name'."
+    },
+    "ui_help": {
+      "note": "Paint over the area you want to regenerate (e.g. the face), tweak the prompt (try a new expression), and send. 'Change amount' controls how far the masked region drifts from the original.",
+      "good_for": "redrawing a masked area (e.g. swapping a face's expression) on an existing image"
+    },
+    "edit_use_cases": [
+      "masked inpaint: repaint only a selected region (face/expression change, detail fix) on an existing image, keeping everything outside the mask"
+    ],
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

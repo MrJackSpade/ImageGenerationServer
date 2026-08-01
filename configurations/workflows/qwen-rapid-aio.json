@@ -1,0 +1,87 @@
+{
+  "id": "qwen-rapid-aio",
+  "workflow": "qwen-rapid-aio",
+  "friendly_name": "Qwen Rapid",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-rapid-aio-nsfw-v5-3"
+  },
+  "params": {
+    "loader": "checkpoint",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": 4,
+    "cfg": 1.0,
+    "sampler": "sa_solver",
+    "scheduler": "beta",
+    "reference_max": 2,
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ]
+  },
+  "card": {
+    "architecture": "Qwen-Image-Edit 20B base + merged 4-step distillation + NSFW LoRAs (all-in-one, fp8)",
+    "summary": "Uncensored, distilled all-in-one editor on the same 20B Qwen-Image-Edit base. 4-step (~30s), bundles encoder+VAE. Use for NSFW or when safety-aligned editors silently decline.",
+    "use_cases": [
+      "uncensored / NSFW instruction editing",
+      "edits other editors refuse",
+      "fast editing (distilled 4-step)"
+    ],
+    "nsfw_capable": "yes (uncensored)",
+    "commercial_use": "no",
+    "pick_when": "Uncensored / NSFW editing, or when other editors silently decline; also the fastest editor.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction; distilled, CFG 1.",
+      "required_prefix": null,
+      "example": "(with input image) <your edit instruction>",
+      "overview": "Community all-in-one merge built on Qwen-Image-Edit 2511; it has no edit-phrasing rules of its own, so phrase edits using Qwen-Image-Edit conventions. Distilled: run at CFG 1, 4-8 steps.",
+      "instructions": "This is a distilled all-in-one merge (accelerators + VAE + CLIP) whose latest build is 100% Qwen-Image-Edit 2511. Run settings: CFG 1, 4 steps (up to 8) -- the base model's true_cfg 4.0 / 40-50-step settings do NOT apply. SFW and NSFW variants exist. Only prompt tip the source gives: adding 'Professional digital photography' helps reduce the plastic look.\nFor instruction phrasing, follow the base Qwen-Image-Edit conventions: plain natural-language add/remove/change instructions (EN or ZH); choose semantic vs appearance phrasing; add disambiguating context; quote exact text for text edits and correct iteratively; describe layout for multi-image; mention identity preservation when needed. At CFG 1, negative prompts have little or no effect.",
+      "do": [
+        "Run at CFG 1 / 4-8 steps",
+        "Pick the SFW or NSFW variant for your use",
+        "Optionally add 'Professional digital photography' to cut the plastic look",
+        "Phrase edits using base Qwen-Image-Edit conventions"
+      ],
+      "dont": [
+        "Apply the base model's high-CFG / 40-50-step settings",
+        "Rely on negative prompts at CFG 1",
+        "Expect AIO-specific edit-phrasing rules (there are none)"
+      ],
+      "examples": [
+        "Change the rabbit's color to purple, with a flash light background.",
+        "Add a signboard with reflection."
+      ],
+      "negative_guidance": "At CFG 1 a negative prompt has little or no effect; the merge gives no negative guidance.",
+      "source": "https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled, CFG 1 (negative ignored)."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "Distilled 4-step on 8GB.",
+      "measured_note": "Measured ~30s at 4 steps, ~1MP, peak 7.0GB VRAM."
+    },
+    "ui_help": {
+      "note": "Uncensored editor; edits an existing image from an instruction.",
+      "good_for": "uncensored / NSFW instruction editing"
+    },
+    "edit_use_cases": [
+      "UNCENSORED instruction image editing; use for NSFW or when safety-aligned editors decline; fastest editor (distilled 4-step)"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number. Example: 'put the dress from image 2 on the person in image 1.'"
+    }
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "id": "anima",
+  "workflow": "anima",
+  "friendly_name": "Anima",
+  "default": false,
+  "requirements": {
+    "checkpoint": "anima-base-v1-0",
+    "text_encoders": [
+      "qwen-3-06b-base"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "stable_diffusion",
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler a",
+    "scheduler": "automatic",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1280,
+        720
+      ],
+      "portrait": [
+        720,
+        1280
+      ]
+    },
+    "required_prefix": "masterpiece, best quality, score_7,",
+    "negative": "worst quality, low quality, score_1, score_2, score_3, artist name"
+  },
+  "card": {
+    "architecture": "Latent diffusion (Cosmos-Predict2-derived, Qwen3-0.6B encoder, Qwen-Image VAE)",
+    "summary": "The highest-quality anime-specific model here -- a 2B anime base with the cleanest output, the best hands/anatomy for anime characters of any model here, and strong character/artist/series knowledge. Also the SLOWEST of the anime models (40 steps, distinct architecture). Prompted primarily with danbooru tags. Non-commercial.",
+    "use_cases": [
+      "highest-quality anime art",
+      "best hands/anatomy on anime characters",
+      "anime characters / artists / series via booru tags",
+      "when anime quality matters more than speed"
+    ],
+    "nsfw_capable": "yes (via safety tags)",
+    "commercial_use": "no",
+    "pick_when": "Pick when you want the BEST anime quality and can accept the slowest generation (non-commercial use only). Booru-tag prompting.",
+    "prompt": {
+      "format": "booru_tags",
+      "guidance": "The baseline quality prefix is prepended automatically -- do NOT type it. Tags lowercase with SPACES (not underscores), score tags excepted; prefix artist names with '@'. Order (your part, after the auto prefix): [1girl/1boy] [character] [series] [@artist] [general tags].",
+      "required_prefix": "masterpiece, best quality, score_7,",
+      "example": "1girl, solo, brown hair, hat, open mouth, long hair, skirt, blunt bangs, @artistname",
+      "overview": "Danbooru-tag model (Qwen3-0.6B encoder): comma-separated lowercase tags in a defined order (the baseline quality prefix is prepended automatically). Also accepts natural language or a tag/prose mix.",
+      "instructions": "The baseline quality prefix (the required_prefix `masterpiece, best quality, score_7,`) is prepended AUTOMATICALLY -- do NOT type it.\nWrite your tags in this order: 1girl/1boy/1other (subject count) > character > series > artist > general tags.\n\nOPTIONAL extra quality/meta/time tags (only if the user asks; the baseline is already added): human-score `good quality, normal quality, low quality`; aesthetic `score_9` ... `score_1`; time `year 2025` plus `newest, recent, mid, early, old`; meta `highres, absurdres, anime screenshot, official art`; rating `safe, sensitive, nsfw, explicit`.\nArtists/styles MUST be prefixed with `@`: when the user says 'in the style of X', 'by X', or '<X> style', output that name as the tag `@x` in lowercase (e.g. 'in the style of Greg Rutkowski' -> `@greg rutkowski`). Without the @ the style is IGNORED.\nUse lowercase with SPACES, not underscores (e.g. `fur-trimmed gloves`) -- the score tags are the only exception and keep their underscores.\nWeighting works but needs higher weights than SDXL (e.g. `(chibi:2)`). Text rendering is weak (single words / short phrases). Natural language is accepted (aim for 2+ sentences).",
+      "do": [
+        "Order tags count > character > series > artist > general",
+        "Turn 'in the style of X' / 'by X' into the tag `@x` (lowercase); without @ the style is ignored",
+        "Lowercase + spaces, not underscores (keep score_ underscores)",
+        "Raise weights higher than usual SDXL values"
+      ],
+      "dont": [
+        "Type the baseline quality prefix (it is auto-prepended)",
+        "Omit the @ before artist names (effect becomes very weak)",
+        "Use underscores in general tags",
+        "Rely on long text rendering"
+      ],
+      "examples": [
+        "1girl, oomuro sakurako, yuru yuri, @nnn yryr, smile, brown hair, hat, solo, fur-trimmed gloves, open mouth, long hair, looking at viewer, santa costume, red hat, simple background",
+        "1girl, solo, long hair, brown eyes, white background, looking at viewer",
+        "@big chungus. An anime girl with long brown hair stands in a snowy field. She wears a red santa costume and smiles warmly at the viewer."
+      ],
+      "negative_guidance": "worst quality, low quality, score_1, score_2, score_3, artist name",
+      "source": "https://huggingface.co/circlestone-labs/Anima"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Recommended: 'worst quality, low quality, score_1, score_2, score_3, artist name'."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "Slowest of the anime models (40 steps), in exchange for the best quality.",
+      "measured_seconds": 54.3,
+      "measured_note": "~54s for the first image at default settings (1024x1024, 40 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "The highest-quality anime model here, and the slowest. Uses short comma tags (e.g. 1girl, brown hair, hat); put an artist's name with an @ in front. Quality tags are added for you.",
+      "link": {
+        "text": "Browse the tag list (Gelbooru)",
+        "url": "https://gelbooru.com/index.php?page=tags&s=list"
+      },
+      "good_for": "the highest-quality anime art (slowest)"
+    },
+    "tagging": {
+      "tags": true,
+      "artists": true,
+      "keep_artist_marker": true,
+      "underscores_to_spaces": true
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1536,
+    "max_h": 1536,
+    "step": 16
+  }
+}

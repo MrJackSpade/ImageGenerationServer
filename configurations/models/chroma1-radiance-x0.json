@@ -1,0 +1,8 @@
+{
+  "id": "chroma1-radiance-x0",
+  "kind": "unet",
+  "label": "Chroma1-Radiance",
+  "match": [
+    "chroma.*radiance"
+  ]
+}

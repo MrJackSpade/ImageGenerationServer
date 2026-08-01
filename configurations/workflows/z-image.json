@@ -1,0 +1,98 @@
+{
+  "id": "z-image",
+  "workflow": "z-image",
+  "friendly_name": "Z-Image",
+  "default": false,
+  "requirements": {
+    "checkpoint": "z-image",
+    "text_encoders": [
+      "qwen-3-4b"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "lumina2",
+    "dual": false,
+    "latent": "sd3",
+    "clip_skip": 0,
+    "steps": 40,
+    "cfg": 4.5,
+    "sampler": "Euler",
+    "scheduler": "simple",
+    "width": 1536,
+    "height": 1536,
+    "negative_supported": true,
+    "auraflow": 3,
+    "aspect": {
+      "square": [
+        1536,
+        1536
+      ],
+      "landscape": [
+        1920,
+        1088
+      ],
+      "portrait": [
+        1088,
+        1920
+      ]
+    }
+  },
+  "card": {
+    "architecture": "S3-DiT single-stream (Qwen3-4B encoder, Flux VAE)",
+    "summary": "Full Z-Image base supporting classifier-free guidance and negative prompts; higher diversity/control than Turbo at the cost of more steps.",
+    "use_cases": [
+      "quality general generation with CFG control",
+      "fine-tuning base",
+      "EN/ZH text"
+    ],
+    "nsfw_capable": "yes",
+    "commercial_use": "yes",
+    "pick_when": "Want Z-Image quality with negative-prompt/CFG control or more diversity than Turbo.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive LLM-style; EN/ZH text supported.",
+      "required_prefix": null,
+      "example": "A young woman in a red hanfu with gold embroidery under soft night lighting, a silhouetted pagoda blurred in the background, cinematic, highly detailed",
+      "overview": "Non-distilled base of the Z-Image family: same detailed natural-language prompting, but full CFG and negative prompts ARE supported -- use guidance ~3.0-5.0 and 28-50 steps.",
+      "instructions": "Same natural-language prose style and bilingual EN/ZH text as Turbo, but as a non-distilled base it supports full CFG and responds with high fidelity to negative prompting (use negatives to suppress artifacts / unwanted content). Recommended: guidance_scale 3.0-5.0, 28-50 steps, resolution 512-2048 (any aspect). A cfg_normalization toggle exists (False for stylized output, True for realism). Unlike Turbo, do not use guidance_scale 0.",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Set guidance_scale 3.0-5.0, 28-50 steps",
+        "Use negative prompts to remove artifacts",
+        "Toggle cfg_normalization True for realism / False for stylization"
+      ],
+      "dont": [
+        "Use guidance_scale 0 (that's the Turbo setting)",
+        "Expect Turbo's 8-step speed"
+      ],
+      "examples": [
+        "A photorealistic portrait of an elderly fisherman mending a net at dawn on a wooden dock, soft golden side-light, weathered hands, detailed wool sweater, shallow depth of field, calm harbor with moored boats in the background"
+      ],
+      "negative_guidance": "Supported and effective -- leave empty by default, populate to suppress artifacts / unwanted content (e.g. 'blurry, deformed hands, extra fingers, watermark').",
+      "source": "https://huggingface.co/Tongyi-MAI/Z-Image"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Useful (true CFG)."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "Many steps with CFG.",
+      "measured_seconds": 197.4,
+      "measured_note": "~197s for the first image at default settings (1024x1024, 40 steps, cold: includes model load); repeats with the same model are faster."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "modern realistic images with more control"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

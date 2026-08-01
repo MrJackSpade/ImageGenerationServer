@@ -1,0 +1,8 @@
+{
+  "id": "t5xxl",
+  "kind": "text_encoder",
+  "label": "T5-XXL",
+  "match": [
+    "t5xxl.*fp8"
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "id": "wan22-t2v-a14b-720p",
+  "workflow": "wan22-t2v-a14b",
+  "friendly_name": "Wan 2.2 14B 720P",
+  "default": false,
+  "requirements": {
+    "checkpoint": "wan2-2-t2v-high-noise-14b",
+    "text_encoders": [
+      "umt5-xxl"
+    ],
+    "vae": "wan-2-1-vae",
+    "extra": [
+      "wan2-2-t2v-low-noise-14b"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "wan",
+    "unet_low": "wan2-2-t2v-low-noise-14b",
+    "steps": 40,
+    "boundary": 26,
+    "cfg_high": 4.0,
+    "cfg_low": 3.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 12.0,
+    "length": {
+      "value": 81,
+      "exposed": true,
+      "min": 5,
+      "max": 81,
+      "step": 4
+    },
+    "fps": 16,
+    "width": 960,
+    "height": 960,
+    "negative_supported": true,
+    "aspect": {
+      "landscape": [
+        1280,
+        720
+      ],
+      "portrait": [
+        720,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Wan 2.2 T2V-A14B MoE (high+low noise experts, umT5) \u2014 TEXT-TO-VIDEO, 720P tier",
+    "summary": "Text\u2192video at the 14B's HIGH resolution tier (1280x720 / 720x1280, the official 720P buckets). Best per-frame detail; substantially slower than the 480P config.",
+    "use_cases": [
+      "highest-quality short text\u2192video clips",
+      "clips where per-frame sharpness matters"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "You want maximum Wan t2v frame quality and accept the slowest generation. Pick the plain Wan 2.2 14B config when iteration speed matters.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene; the prompt directs the motion.",
+      "example": "two anthropomorphic cats boxing on a spotlit stage, dynamic camera slowly pushing in, cinematic",
+      "overview": "Write a fuller natural-language prompt that establishes the subject and scene AND the motion/camera/speed/atmosphere, since the model must invent all visual content from text.",
+      "instructions": "Wan 2.2 responds best to detailed, structured natural-language prompts (target ~80-120 words) built in layers: describe the Subject and Scene first, then Motion (what moves and how), then Camera movement (pan, tilt, dolly, orbit, crane, push-in/zoom), then Speed/Intensity (slow, gentle, brisk, slow-motion), then Atmosphere/Aesthetics (lighting, color grade, lens, mood). Put the most important detail early since Wan weights the start of the prompt, and always pair with a negative prompt, which Wan 2.2 enforces more reliably than 2.1.",
+      "do": [
+        "Describe the subject and environment fully before the motion and camera layers",
+        "Use concrete motion verbs with explicit speed and direction",
+        "Specify a distinct camera move (push-in, dolly out, pan, clockwise orbit, crane, static)",
+        "State speed/intensity explicitly (gentle, gradual, rapid, slow-motion)",
+        "Add lighting, color grade, lens/shot type, weather, and mood",
+        "Put the most important detail early; keep it ~80-120 words",
+        "Always include a negative prompt"
+      ],
+      "dont": [
+        "Don't use vague generic action verbs without speed/direction",
+        "Don't overload with so many details that key motion gets ignored (avoid >120 words)",
+        "Don't omit the subject/scene description (t2v has no source image to define them)",
+        "Don't pile on contradictory camera moves or styles in one clip",
+        "Don't omit the negative prompt"
+      ],
+      "examples": [
+        "A lone astronaut in a weathered white spacesuit walks slowly across a red Martian dune at dusk, kicking up fine dust with each step. The camera tracks alongside in a smooth lateral dolly, then arcs into a slow clockwise orbit. Long shadows stretch across the sand, low golden backlight rims the suit, cinematic anamorphic lens with subtle grain, vast and lonely atmosphere, unhurried slow-motion pacing."
+      ],
+      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: \u8272\u8c03\u8273\u4e3d\uff0c\u8fc7\u66dd\uff0c\u9759\u6001\uff0c\u7ec6\u8282\u6a21\u7cca\u4e0d\u6e05\uff0c\u5b57\u5e55\uff0c\u98ce\u683c\uff0c\u4f5c\u54c1\uff0c\u753b\u4f5c\uff0c\u753b\u9762\uff0c\u9759\u6b62\uff0c\u6574\u4f53\u53d1\u7070\uff0c\u6700\u5dee\u8d28\u91cf\uff0c\u4f4e\u8d28\u91cf\uff0cJPEG\u538b\u7f29\u6b8b\u7559\uff0c\u4e11\u964b\u7684\uff0c\u6b8b\u7f3a\u7684\uff0c\u591a\u4f59\u7684\u624b\u6307\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u624b\u90e8\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u8138\u90e8\uff0c\u7578\u5f62\u7684\uff0c\u6bc1\u5bb9\u7684\uff0c\u5f62\u6001\u7578\u5f62\u7684\u80a2\u4f53\uff0c\u624b\u6307\u878d\u5408\uff0c\u9759\u6b62\u4e0d\u52a8\u7684\u753b\u9762\uff0c\u6742\u4e71\u7684\u80cc\u666f\uff0c\u4e09\u6761\u817f\uff0c\u80cc\u666f\u4eba\u5f88\u591a\uff0c\u5012\u7740\u8d70 . For video, add terms like morphing, warping, distortion, flickering, jittering.",
+      "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples"
+    },
+    "negative": {
+      "supported": true,
+      "note": "real CFG (4.0 high-noise expert / 3.0 low-noise, per the reference)"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "720P tier at the reference 40 steps; the heaviest video config on this box."
+    },
+    "ui_help": {
+      "note": "Makes a short video from text at the 14B's full 720P quality tier. Describe the action and camera.",
+      "good_for": "maximum-quality short text\u2192video clips"
+    }
+  },
+  "resolution": {
+    "min_w": 480,
+    "min_h": 480,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

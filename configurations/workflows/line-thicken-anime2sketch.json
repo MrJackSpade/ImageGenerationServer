@@ -1,0 +1,30 @@
+{
+  "id": "line-thicken-anime2sketch",
+  "workflow": "line-thicken-anime2sketch",
+  "friendly_name": "Line Thicken (anime line-extract)",
+  "effect_type": "Line art",
+  "default": false,
+  "params": {
+    "thickness": {
+      "value": 2,
+      "exposed": true,
+      "min": 0,
+      "max": 32
+    },
+    "resolution": {
+      "value": 512,
+      "exposed": true,
+      "min": 256,
+      "max": 2048
+    }
+  },
+  "card": {
+    "architecture": "Anime line-art extractor (comfyui_controlnet_aux AnimeLineArtPreprocessor) + invert + thicken + multiply composite — no diffusion checkpoint",
+    "summary": "Extracts the anime line art with a neural detector, inverts to dark-on-white, boldens the lines, and multiplies them back over the source so only the outlines darken. The detector fetches its own weights from HuggingFace on first run.",
+    "use_cases": [
+      "thicken outlines using a learned anime line extractor"
+    ],
+    "nsfw_capable": "n/a (no diffusion model)",
+    "pick_when": "A learned anime line extractor isolates outlines better than XDoG on busy art."
+  }
+}

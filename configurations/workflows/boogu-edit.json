@@ -1,0 +1,89 @@
+{
+  "id": "boogu-edit",
+  "workflow": "boogu-edit",
+  "friendly_name": "Boogu-Image Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "boogu-image-edit",
+    "text_encoders": [
+      "qwen3vl-8b-boogu"
+    ],
+    "vae": "flux1-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "boogu",
+    "dual": false,
+    "steps": 25,
+    "cfg": 3.5,
+    "sampler": "DPM++ 2M",
+    "scheduler": "simple",
+    "negative": "",
+    "megapixels": 1.0,
+    "reference_max": 0
+  },
+  "card": {
+    "architecture": "Boogu-Image-0.1 10B unified DiT edit model (Qwen3-VL encoder, FLUX.1 VAE); Apache-2.0; bf16 (full precision)",
+    "summary": "Brand-new (0.1) Apache-2.0 unified edit model. Instruction editing via the native TextEncodeBooguEdit node: vision tokens drive the change, a reference latent preserves identity. Real CFG (~5). Runs bf16 on 24 GB (encoder offloads before sampling). Single reference image in the 0.1 release.",
+    "use_cases": [
+      "instruction editing: insert/replace/remove objects, attribute & material changes",
+      "background and scene replacement, style transfer keeping subject coherence",
+      "bilingual (EN/ZH) in-image text editing"
+    ],
+    "nsfw_capable": "unknown (new 0.1 release; not yet characterized)",
+    "commercial_use": "yes (Apache-2.0)",
+    "pick_when": "You want to try the new Boogu edit model on a single-image instruction edit; commercial OK; have a 24 GB card.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Change the background to a snowy forest at dusk",
+      "overview": "Plain natural-language edit instructions (English or Chinese). The vision tower reads your image at low res for understanding while a 1K reference latent preserves identity, so describe the change clearly and let the model keep the rest.",
+      "instructions": "Write a plain add/remove/change instruction (EN or ZH). Recommended (model card): 25-50 steps, CFG (text guidance) 2.0-5.0 (5.0 is a good default), empty negative prompt. Strong on single-image edits and bilingual text editing; identity/layout preservation is 'not yet stable enough' per the authors, so keep instructions focused. The reference image is auto-resized to ~1K internally.",
+      "do": [
+        "Write a clear add/remove/change instruction (EN or ZH)",
+        "Keep to one focused edit at a time",
+        "Quote exact text for text edits",
+        "Leave the negative empty unless you need to suppress something"
+      ],
+      "dont": [
+        "Cram several unrelated edits into one instruction",
+        "Expect pixel-perfect identity/layout preservation (0.1 limitation)"
+      ],
+      "examples": [
+        "Replace the red car with a blue bicycle.",
+        "Add falling snow and change the lighting to dusk.",
+        "Change the sign text to 'OPEN' keeping the same font and color."
+      ],
+      "negative_guidance": "The model card recommends an empty negative prompt; the encode node maps an empty negative to its DROP path, leaving CFG clean.",
+      "source": "https://huggingface.co/Boogu/Boogu-Image-0.1-Edit"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Runs at real CFG ~5; empty negative recommended."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "10B bf16; the fp8 text encoder offloads before the diffusion model loads so it fits unquantized on 24 GB.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction; not used for from-scratch generation here.",
+      "good_for": "trying the new Boogu edit model on single-image instruction edits"
+    },
+    "edit_use_cases": [
+      "single-image instruction editing on the new Apache-2.0 Boogu 0.1 base: object insert/replace/remove, attribute/material, background/scene, style transfer, bilingual text"
+    ],
+    "reference": {
+      "max": 0,
+      "hint": "The 0.1 Edit release works from a single image (your photo); additional reference images are not supported yet."
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "id": "seedvr2-upscale",
+  "workflow": "seedvr2-upscale",
+  "friendly_name": "SeedVR2",
+  "edit_group": "Upscale",
+  "default": false,
+  "requirements": {
+    "extra": [
+      "seedvr2-3b",
+      "seedvr2-vae",
+      "comfyui-seedvr2-node"
+    ]
+  },
+  "params": {
+    "dit_model": {
+      "value": "seedvr2-3b",
+      "exposed": false
+    },
+    "vae_model": {
+      "value": "seedvr2-vae",
+      "exposed": false
+    },
+    "scale": {
+      "value": 2,
+      "exposed": true,
+      "min": 1,
+      "max": 4,
+      "step": 1
+    },
+    "max_resolution": {
+      "value": 0,
+      "exposed": false
+    },
+    "fallback_short_edge": {
+      "value": 1080,
+      "exposed": false
+    },
+    "color_correction": {
+      "value": "lab",
+      "exposed": true
+    },
+    "device": {
+      "value": "cuda:0",
+      "exposed": false
+    },
+    "offload_device": {
+      "value": "cpu",
+      "exposed": false
+    },
+    "attention_mode": {
+      "value": "sdpa",
+      "exposed": false
+    },
+    "blocks_to_swap": {
+      "value": 32,
+      "exposed": false
+    },
+    "swap_io_components": {
+      "value": true,
+      "exposed": false
+    },
+    "cache_model": {
+      "value": false,
+      "exposed": false
+    },
+    "vae_tiled": {
+      "value": true,
+      "exposed": false
+    },
+    "vae_tile_size": {
+      "value": 512,
+      "exposed": false
+    },
+    "vae_tile_overlap": {
+      "value": 64,
+      "exposed": false
+    },
+    "batch_size": {
+      "value": 1,
+      "exposed": false
+    }
+  },
+  "card": {
+    "architecture": "SeedVR2 3B (ByteDance) - a one-step diffusion transformer for video/image restoration, Q8_0 GGUF, with its own video VAE",
+    "summary": "Restore and upscale an image through SeedVR2's one-step diffusion transformer. Unlike the Anime and Photo upscalers - feed-forward networks that only resolve detail already present - SeedVR2 INVENTS plausible detail, so it can rebuild texture those nets can only smooth. That is also its risk: it can sharpen or fabricate things that were never in the source. SeedVR2 is natively a video restorer; a still is fed to it as a one-frame clip.",
+    "use_cases": [
+      "rebuild texture in a soft, low-resolution or over-compressed image",
+      "clean the VAE grid / smeared micro-detail left by another generative model",
+      "push an image well past what a feed-forward upscaler can recover"
+    ],
+    "nsfw_capable": "yes - no text conditioning and no content model",
+    "commercial_use": "open weights - verify the SeedVR2 license for your use",
+    "pick_when": "The Anime or Photo upscaler left the image soft because the detail simply wasn't there to resolve. Prefer those two when the source is already clean: they are far faster and they never invent. Reach for SeedVR2 when you want detail reconstructed and accept that it is reconstructed.",
+    "prompt": {
+      "format": "none",
+      "guidance": "This editor takes no prompt. SeedVR2 is a restorer, not a text-to-image model - there is no text encoder in the graph, so there is no instruction box.",
+      "instructions": "Send a source image and set Scale, exactly as for the Anime and Photo upscalers. Unlike them, SeedVR2 has no fixed native factor - it is asked for a target size directly, so any scale is native. 'Colour match' controls how the output's colour is re-matched to the source; 'lab' is the default and is usually right.",
+      "do": [
+        "Set Scale to the enlargement you actually want",
+        "Use it when the source lacks the detail you need recovered"
+      ],
+      "dont": [
+        "Expect it to be faithful the way the feed-forward upscalers are - it reconstructs",
+        "Reach for it first on an already-clean source; Anime/Photo are faster and safer"
+      ],
+      "negative_guidance": "Not supported - no text encoder.",
+      "source": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler"
+    },
+    "negative": {
+      "supported": false,
+      "note": "One-step diffusion restorer; there is no text conditioning of any kind."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "One diffusion step, but the 3B weights do not fit this 8 GB card: 32 of its transformer blocks plus the IO components stream from system RAM (BlockSwap), and the VAE encodes/decodes in 512px tiles. Memory fit is bought with wall-clock.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image and set Scale. No prompt is used. Slower than the Anime/Photo upscalers by a wide margin - it is a diffusion pass, not a single convolution.",
+      "good_for": "rebuilding detail that a plain upscaler cannot recover"
+    },
+    "edit_use_cases": [
+      "diffusion upscale/restore of an image whose detail must be reconstructed, not merely resolved"
+    ]
+  }
+}

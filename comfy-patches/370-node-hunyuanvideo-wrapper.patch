@@ -1,0 +1,9 @@
+Id: node-hunyuanvideo-wrapper
+Title: HunyuanVideo wrapper
+Does: Adds HunyuanVideo text-to-video and image-to-video. It runs the model through its own pipeline rather
+ than the renderer's usual sampler, so it brings its own loaders and sampler nodes.
+Target: custom_nodes/ComfyUI-HunyuanVideoWrapper
+Source: https://github.com/kijai/ComfyUI-HunyuanVideoWrapper.git
+Rev: fcbd6729a9b0b8ff6037c598bbada4a6bdc6d967
+Why: kijai's HunyuanVideo pipeline, which runs the model outside ComfyUI's native sampling path. Run unmodified.
+---

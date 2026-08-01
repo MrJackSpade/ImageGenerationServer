@@ -1,0 +1,99 @@
+﻿namespace ImageGen.Comfy;
+
+/// <summary>Shared schema fragments + projection/quantize node emitters for the per-model pixelizers, so the
+/// grid/palette/virtual-resolution + projection-ramp knobs stay identical across them.</summary>
+internal static class PixelizeSchema
+{
+    private static readonly ParamSpec[] Common =
+    {
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 256, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "grid_w",       Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
+        new() { Key = "grid_h",       Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
+        // Snap the render res to a clean integer multiple of VRES (exact k×k cells) within the model's range,
+        // overriding the model's own image-scale bucket. Needs width+height (the requested fixed aspect).
+        new() { Key = "width",           Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
+        new() { Key = "height",          Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
+        new() { Key = "snap_resolution", Type = ParamType.Bool, Default = true, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
+        new() { Key = "out_scale",    Type = ParamType.Int,    Default = 3, Min = 1, Max = 16, Label = "Output upscale" },
+        new() { Key = "palette",      Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
+        new() { Key = "proj_method",  Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
+        new() { Key = "final_method", Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
+        new() { Key = "w_start",       Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0 },
+        new() { Key = "w_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
+        new() { Key = "start_percent", Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0 },
+        new() { Key = "end_percent",   Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
+        new() { Key = "project_every", Type = ParamType.Int,    Default = 1, Min = 1, Max = 8 },
+    };
+
+    public static IReadOnlyList<ParamSpec> KontextLike(string defPrompt) => new ParamSpec[]
+    {
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "unet" },
+        // No default. A GENERIC workflow cannot know which CLIP family a configuration is for, and "flux"
+        // silently became the answer for any configuration that omitted it -- pixelize-hidream inherited it
+        // and handed CLIPLoader a type it does not accept. An omission must surface, not be guessed.
+        new() { Key = "clip_type", Type = ParamType.String },
+        new() { Key = "dual",      Type = ParamType.Bool,   Default = true },
+        new() { Key = "steps",     Type = ParamType.Int,    Default = 20, Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "cfg",       Type = ParamType.Double, Default = 1.0, Min = 1, Max = 30, Label = "CFG scale" },
+        new() { Key = "guidance",  Type = ParamType.Double, Default = 2.5 },
+        new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
+        new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
+        new() { Key = "style_prompt", Type = ParamType.String, Default = defPrompt, Label = "Instruction" },
+        new() { Key = "reference", Type = ParamType.Int, Default = 0, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
+    }.Concat(Common).ToArray();
+
+    public static IReadOnlyList<ParamSpec> KleinLike(string defPrompt) => new ParamSpec[]
+    {
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "unet" },
+        new() { Key = "clip_type", Type = ParamType.String, Default = "flux2" },
+        new() { Key = "dual",      Type = ParamType.Bool,   Default = false },
+        new() { Key = "steps",     Type = ParamType.Int,    Default = 4, Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "cfg",       Type = ParamType.Double, Default = 1.0, Min = 1, Max = 30, Label = "CFG scale" },
+        new() { Key = "guidance",  Type = ParamType.Double, Default = 4.0 },
+        new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
+        new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
+        new() { Key = "megapixels", Type = ParamType.Double, Default = 1.0, Min = 0.1, Max = 4.0 },
+        new() { Key = "style_prompt", Type = ParamType.String, Default = defPrompt, Label = "Instruction" },
+        new() { Key = "reference", Type = ParamType.Int, Default = 0, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
+    }.Concat(Common).ToArray();
+
+    public static IReadOnlyList<ParamSpec> DreamOmniLike(string defPrompt) => new ParamSpec[]
+    {
+        new() { Key = "steps", Type = ParamType.Int,    Default = 30, Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "cfg",   Type = ParamType.Double, Default = 3.5, Min = 1, Max = 30, Label = "Guidance scale" },
+        new() { Key = "reference_max",    Type = ParamType.Int, Default = 1 },
+        new() { Key = "reference_inputs", Type = ParamType.String },
+        new() { Key = "style_prompt", Type = ParamType.String, Default = defPrompt, Label = "Instruction" },
+        new() { Key = "reference", Type = ParamType.Int, Default = 0, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
+    }.Concat(Common).ToArray();
+
+    /// <summary>The per-step PixelManifoldProjection model patch (node "35"), identical across pixelizers.</summary>
+    public static Dictionary<string, object> Projection(object model, object vae, int gw, int gh, string palette, int vres, ParamValues p) =>
+        ComfyGraph.Node("PixelManifoldProjection", new
+        {
+            model,
+            vae,
+            grid_w = gw,
+            grid_h = gh,
+            palette,
+            method = p.Str("proj_method") ?? "median",
+            w_start = p.Dbl("w_start", 0.5),
+            w_end = p.Dbl("w_end", 1.0),
+            start_percent = p.Dbl("start_percent", 0.0),
+            end_percent = p.Dbl("end_percent", 1.0),
+            project_every = p.Int("project_every", 1),
+            virtual_resolution = vres,
+        });
+
+    /// <summary>The authoritative final PixelQuantize render (node "36").</summary>
+    public static Dictionary<string, object> FinalQuantize(object image, int gw, int gh, string palette, int vres, ParamValues p) =>
+        ComfyGraph.Node("PixelQuantize", new
+        {
+            image,
+            grid_w = gw,
+            grid_h = gh,
+            palette,
+            method = p.Str("final_method") ?? "median",
+            virtual_resolution = vres,
+        });
+}

@@ -1,0 +1,9 @@
+{
+  "id": "flux1-dev",
+  "kind": "unet",
+  "label": "FLUX.1-dev",
+  "match": [
+    "flux1[-_. ]?dev.*q4[-_. ]?k[-_. ]?s",
+    "flux1[-_. ]?dev.*q8"
+  ]
+}

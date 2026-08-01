@@ -1,0 +1,68 @@
+{
+  "id": "pixelize-chroma",
+  "workflow": "pixelize",
+  "friendly_name": "Chroma1-HD",
+  "effect_type": "Pixelize",
+  "default": false,
+  "requirements": {
+    "checkpoint": "chroma1-hd",
+    "text_encoders": [
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "chroma",
+    "dual": false,
+    "steps": 26,
+    "cfg": 3.8,
+    "sampler": "euler",
+    "scheduler": "beta",
+    "style_prompt": {
+      "value": "",
+      "exposed": true
+    },
+    "reference": {
+      "value": 0,
+      "exposed": true
+    },
+    "snap_resolution": false,
+    "megapixels": 1.0,
+    "virtual_resolution": {
+      "value": 384,
+      "exposed": true,
+      "min": 32,
+      "max": 1024
+    },
+    "grid_w": 0,
+    "grid_h": 0,
+    "out_scale": 3,
+    "palette": {
+      "value": "adaptive",
+      "exposed": true
+    },
+    "proj_method": "median",
+    "final_method": {
+      "value": "median",
+      "exposed": true
+    },
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "start_percent": 0.0,
+    "end_percent": 1.0,
+    "project_every": 1
+  },
+  "card": {
+    "architecture": "Chroma1-HD under per-step PixelManifoldProjection + PixelQuantize",
+    "summary": "Pixel art authored by Chroma1-HD under per-step reprojection. reference=0 = author under constraint; style_prompt blank -> caller instruction. API-only.",
+    "pick_when": "Reprojection pixel art via Chroma1-HD."
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "id": "chroma1-hd",
+  "workflow": "chroma",
+  "friendly_name": "Chroma1-HD",
+  "default": false,
+  "requirements": {
+    "checkpoint": "chroma1-hd",
+    "text_encoders": [
+      "t5xxl"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "chroma",
+    "dual": false,
+    "latent": "sd3",
+    "steps": 26,
+    "cfg": 3.8,
+    "sampler": "euler",
+    "scheduler": "beta",
+    "shift": 1.0,
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1360,
+        768
+      ],
+      "portrait": [
+        768,
+        1360
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Chroma 8.9B (FLUX.1-schnell-derived DiT, T5-XXL only, fully open)",
+    "summary": "Open, fully-uncensored 8.9B Flux-derived model (bf16 on 24 GB). Flux-class coherence and anatomy with no safety alignment; T5-only, real CFG + negative prompts.",
+    "use_cases": [
+      "uncensored / NSFW general generation",
+      "Flux-quality art without alignment",
+      "artistic and photoreal work with negative-prompt control"
+    ],
+    "nsfw_capable": "yes (uncensored)",
+    "commercial_use": "yes (Apache-2.0)",
+    "pick_when": "You want Flux-level quality with no content filtering and full CFG/negative control.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Natural-language prose; T5-only so be descriptive. Real CFG (~3.8) with a negative prompt.",
+      "example": "A windswept cliff at dawn, a lone figure in a red cloak facing the sea, dramatic clouds, painterly, highly detailed",
+      "instructions": "Write descriptive natural language (no CLIP, T5 only). Uses real classifier-free guidance: cfg ~3.8 with a genuine negative prompt. Recommended ~26 steps, euler, beta scheduler. Min-padding tokenization (T5TokenizerOptions) is applied for you.",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Use a negative prompt to suppress artifacts",
+        "~26 steps, cfg ~3.8"
+      ],
+      "dont": [
+        "Expect CLIP-style tag prompting to be optimal",
+        "Over-drive CFG"
+      ],
+      "negative_guidance": "Fully supported (real CFG). e.g. 'blurry, low quality, deformed, watermark, text'.",
+      "source": "https://huggingface.co/lodestones/Chroma1-HD"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Real CFG ~3.8; negatives work well."
+    },
+    "speed": {
+      "class": "moderate",
+      "measured_note": "8.9B bf16 on 24 GB; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two. Uncensored, with full control over what to avoid.",
+      "good_for": "uncensored, high-quality general images"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

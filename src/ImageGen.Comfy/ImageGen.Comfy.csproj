@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImageGen.Application\ImageGen.Application.csproj" />
+    <ProjectReference Include="..\ImageGen.Domain\ImageGen.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- ComfyUI adapter: the HTTP client, the workflow graph engine + builders, the catalog loader, and the tag stores.
+       FrameworkReference gives it IHttpClientFactory / ILogger / DI / ClientWebSocket without listing each package
+       (an infrastructure adapter, not the core). It emits ComfyUI node graphs and implements the Application render/
+       tag/catalog ports; no ASP.NET Core HTTP surface lives here. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ImageGen.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

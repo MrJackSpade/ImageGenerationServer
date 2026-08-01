@@ -1,0 +1,68 @@
+{
+  "id": "chronoedit",
+  "workflow": "chronoedit",
+  "friendly_name": "ChronoEdit-14B",
+  "default": false,
+  "requirements": {
+    "checkpoint": "chronoedit-14b",
+    "text_encoders": [
+      "umt5-xxl"
+    ],
+    "vae": "wan-2-1-vae",
+    "extra": [
+      "clip-vit-h-14-laion2b-s32b-b79k"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "wan",
+    "dual": false,
+    "steps": 20,
+    "cfg": 4.0,
+    "sampler": "uni_pc",
+    "scheduler": "simple",
+    "lora": "chronoedit-distill-lora",
+    "lora_strength": 1.0,
+    "clip_vision": "clip-vit-h-14-laion2b-s32b-b79k"
+  },
+  "card": {
+    "architecture": "ChronoEdit-14B (NVIDIA) — Wan2.1-I2V 14B backbone repurposed for editing; UMT5-XXL encoder + Wan 2.1 VAE + CLIP-ViT-H clip-vision. The source image conditions a short trajectory and the LAST frame is kept as the edit. fp8; distilled LoRA for the 20-step/CFG4 path. Native ComfyUI nodes.",
+    "summary": "NVIDIA's temporal-reasoning editor on a Wan 14B backbone (same class as your Wan 2.2). Physically-consistent edits; reuses the Wan UMT5 encoder + Wan 2.1 VAE already installed. fp8 ~16GB.",
+    "use_cases": [
+      "physically-plausible instruction edits (add/remove/move objects, lighting, materials)",
+      "scene/viewpoint changes with temporal-consistency reasoning"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want NVIDIA's ChronoEdit temporal-reasoning editor; reuses your Wan stack and runs at 20 steps with the distill LoRA.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative edit instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Remove the car from the driveway and add a parked bicycle",
+      "overview": "Plain natural-language edit instructions; ChronoEdit reasons over a short frame trajectory and returns the final edited frame.",
+      "source": "https://github.com/nv-tlabs/ChronoEdit"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Uses the Wan quality/motion negative; CFG 4 with the distill LoRA."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "14B Wan-class fp8; ~20 steps with distill LoRA."
+    },
+    "ui_help": {
+      "note": "Edits an existing image from an instruction (Wan-backbone, last-frame result).",
+      "good_for": "physically-consistent instruction editing"
+    },
+    "edit_use_cases": [
+      "temporal-reasoning instruction editing on a Wan 14B backbone: add/remove/move, relight, material changes with physical plausibility"
+    ]
+  },
+  "resolution": {
+    "min_w": 720,
+    "min_h": 720,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

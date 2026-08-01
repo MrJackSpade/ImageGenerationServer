@@ -1,0 +1,5 @@
+{
+  "id": "gemma-3-12b-it",
+  "kind": "text_encoder",
+  "label": "Gemma 3 12B"
+}

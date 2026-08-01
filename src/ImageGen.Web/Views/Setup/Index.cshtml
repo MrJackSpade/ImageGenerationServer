@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = "Set up";
+    Layout = "_Layout";
+    var detected = ViewData["Detected"] as bool? == true;
+    var probeError = ViewData["ProbeError"] as string;
+    var offerUseAnyway = ViewData["OfferUseAnyway"] as bool? == true;
+}
+
+<div class="account">
+    <div class="card">
+        <h2>Set up this machine</h2>
+        <p class="settings-desc">This machine hasn't been told where its renderer is.</p>
+
+        @if (ViewData["Error"] is string error)
+        {
+            <div class="auth-error">@error</div>
+        }
+
+        <form method="post" action="/setup">
+            @Html.AntiForgeryToken()
+            <label class="fld-label" for="baseUrl">Renderer address</label>
+            <input id="baseUrl" name="baseUrl" class="fld-input" type="text" value="@ViewData["Address"]" autocomplete="off" autofocus />
+
+            @* Say where the value in the box came from. A prefilled field that looks authoritative and is only a
+               guess invites a click-through, and the mistake then surfaces at the first render instead of here. *@
+            @if (detected)
+            {
+                <p class="setup-found">✓ A ComfyUI answered here.</p>
+            }
+            else if (probeError is not null)
+            {
+                <p class="setup-guess">Nothing answered here — this is just the usual address, not something found. @probeError.</p>
+            }
+
+            @if (offerUseAnyway)
+            {
+                <label class="opt-chk"><input type="checkbox" name="useAnyway" value="true" /> Save it anyway</label>
+            }
+
+            <button type="submit">Save</button>
+        </form>
+        <p class="settings-desc" style="margin-top:16px">ComfyUI must be started with <code>--enable-cors-header</code>.</p>
+    </div>
+</div>

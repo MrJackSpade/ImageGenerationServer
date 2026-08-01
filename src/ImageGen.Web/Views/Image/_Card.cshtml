@@ -1,0 +1,64 @@
+@model ImageDetailViewModel
+@inject IConfiguration Configuration
+@*
+    The image "card" — the picture plus its meta/prompt-chips/actions. Shared by the standalone
+    /image/{id} detail page and the in-page lightbox (GET /image/{id}/card). detail.js wires it up
+    via window.initDetail(root); it reads #detailRecord from inside this fragment.
+*@
+@{
+    var gateway = "/forge";
+    var id = Uri.EscapeDataString(Model.Entry.GatewayImageId);
+    var record = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        ts = Model.Ts,
+        id = Model.Entry.GatewayImageId,
+        prompt = Model.Entry.Prompt,
+        // The prompt in marker form ('#tag, @artist', underscores restored) — what the user would have to type to get
+        // this image back. The copy button and Reload both submit THIS, never `prompt` (which is finalized: markers
+        // stripped, underscores folded). Built server-side by PromptPresentationService so no client re-derives it.
+        markerPrompt = Model.MarkerPrompt,
+        // The negative this image was made with, verbatim. Reload resubmits it; null means none was submitted and the
+        // model's default negative stood alone, which Reload must reproduce rather than flatten to "".
+        negativePrompt = Model.MarkerNegativePrompt,
+        // What the user TYPED — before [a|b] was rolled, {a|b} was fanned out, the artist page's artist was appended
+        // and the worker added its sampled tags. Null for images made before it was recorded, and unbackfillable
+        // (the expansion happened in a browser and was never sent), so the long-press must say so, not substitute.
+        originalPrompt = Model.OriginalPrompt,
+        model = Model.Entry.ModelFriendly,
+        modelId = Model.Entry.ModelId,
+        aspect = Model.Entry.Aspect,
+        marks = Model.MarksMap.Count == 0 ? null : Model.MarksMap,
+    });
+}
+<div class="detail-card">
+    <img id="detailImg" src="@gateway/image/@id" alt="@Model.Entry.Prompt" />
+    <div class="detail-meta">
+        <p id="detailPrompt">
+            @foreach (var c in Model.Chips)
+            {
+                if (c.Kind != null)
+                {
+                    <span class="tagchip @c.Kind @(c.Category is not null ? "cat-" + c.Category : "") @(c.Banned ? "banned" : "") @(c.Bookmarked ? "on" : "")" data-token="@c.Key" data-kind="@c.Kind" data-category="@c.Category" title="Click to cycle: bookmark → ban for this workflow → off"><span class="tc-star">★</span><span class="tc-name">@c.Text</span></span>
+                }
+                else
+                {
+                    <span class="plainchip">@c.Text</span>
+                }
+            }
+        </p>
+        <p class="detail-sub">@if (!string.IsNullOrEmpty(Model.Entry.ModelId))
+            {<a class="detail-model-link" href="/settings/workflows/@Uri.EscapeDataString(Model.Entry.ModelId)" title="Open this workflow's page">@Model.Entry.ModelFriendly</a>}
+            else
+            {<text>@Model.Entry.ModelFriendly</text>} · @Model.Entry.Aspect · <time data-ts="@Model.Ts"></time></p>
+        <div class="detail-actions">
+            <button type="button" class="icon-btn @(Model.IsBookmarked ? "on" : "")" id="detailStar" title="@(Model.IsBookmarked ? "Bookmarked" : "Bookmark")" aria-label="Bookmark">@(Model.IsBookmarked ? "★" : "☆")</button>
+            <button type="button" class="icon-btn" id="detailReload" title="Reload — generate again with this prompt" aria-label="Reload" hidden>⟳</button>
+            <button type="button" class="icon-btn" id="detailEdit" data-href="/edit/@id" title="Edit this" aria-label="Edit this">✎</button>
+            <button type="button" class="icon-btn" id="detailCopy" title="Copy prompt — keeps #, @@ and underscores. Hold for the original, as typed" aria-label="Copy prompt">⧉</button>
+            <button type="button" class="icon-btn" id="detailDelete" title="Delete" aria-label="Delete">🗑</button>
+            <button type="button" class="icon-btn" id="detailDownload" title="Save image" aria-label="Save image">↓</button>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="detailRecord">@Html.Raw(record)</script>

@@ -1,0 +1,269 @@
+name: Release
+
+# Builds the compiled binaries that the install instructions lead with.
+#
+# Self-contained on purpose: the archive carries its own .NET runtime, so running it needs nothing installed but a
+# ComfyUI to talk to. The tag model (~900 MB) is NOT bundled -- it is fetched by the app on first run,
+# because putting it in every archive would make each release a gigabyte of identical bytes.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and publish (e.g. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  build:
+    name: publish ${{ matrix.rid }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            archive: zip
+          - rid: linux-x64
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        # Into bin/, not the archive root. The root used to hold the whole publish output plus the 338-file
+        # catalogue, so the one file a user actually has to find -- the launcher -- was buried among 400 others.
+        # The root now holds what a person opens: the launchers, a README, and the licences.
+        #
+        # -p:Version stamps the RELEASE TAG into the binary. Without it every build reports 1.0.0, which is the
+        # SDK's "nobody said", and an app that does not know its own version cannot tell whether a newer one
+        # exists -- the update banner reads this. The leading "v" comes off because Version must be numeric.
+        run: |
+          version="${{ inputs.tag || github.ref_name }}"
+          dotnet publish src/ImageGen.Web/ImageGen.Web.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:DebugType=none \
+            -p:Version="${version#v}" \
+            -o staging/imagegen/bin
+
+      - name: Stage the files the app needs beside it
+        # The catalogue is read relative to the content root and is NOT copied by the build, so a published app
+        # without it starts with an empty workflow list and no explanation. It goes in bin/ because that is where
+        # the launcher sets the working directory, and because it is program data, not something to read.
+        run: |
+          cp -r configurations staging/imagegen/bin/
+          cp THIRD-PARTY-NOTICES.md LICENSE staging/imagegen/
+          cat > staging/imagegen/README.md <<'EOF'
+          # ImageGen
+
+          ## Run it
+
+          - **Windows** — double-click `start.bat`
+          - **Linux** — `./start.sh`
+
+          It opens your browser when it is ready. If it does not, the address is printed in the window
+          (`http://localhost:8080` unless that port was taken). Set `IMAGEGEN_OPEN_BROWSER=0` to stop it opening one.
+
+          The first start downloads the tag model, about 900 MB, and verifies it against published checksums.
+          Later starts skip it.
+
+          ## What it needs
+
+          - A GPU.
+          - A **ComfyUI** started with `--enable-cors-header`. The first page asks for its address.
+          - **Your own image models** — checkpoints, LoRAs and VAEs. Nothing here downloads them. Until ComfyUI
+            reports the files present, the workflow list is short or empty; **Settings → Models** shows which slot
+            is waiting on what.
+
+          ## Your data
+
+          `imagegen.db`, beside this README — accounts, history and the images themselves. **That file is your
+          data; back it up.** Logs are in `logs/`.
+
+          Everything in `bin/` is the program. Nothing in there is worth editing by hand: the settings live in the
+          app, under **Settings → This machine**.
+
+          ## More
+
+          <https://github.com/MrJackSpade/ImageGenerationServer>
+          EOF
+
+      - name: Write the launcher
+        # It pins the two bootstrap keys the app needs before it can read its own settings out of the database.
+        #
+        # It does NOT pin ComfyUI__BaseUrl any more. That address is a stored machine setting with deliberately no
+        # default anywhere, because an unset address is how the app knows nobody has configured this box and shows
+        # the setup page. Supplying localhost here made every fresh install look configured and the setup page
+        # unreachable. TagModel__DataDir is gone too: the artifacts directory is now a fixed path beside the
+        # executable, not a setting.
+        run: |
+          # The working directory is bin/ -- appsettings.json and the catalogue are read from it -- but the
+          # DATABASE and the logs stay at the archive root, one level up. They are the user's, they are what gets
+          # backed up, and burying them among the program files is how they get deleted by an upgrade.
+          cat > staging/imagegen/start.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd "$(dirname "$0")/bin"
+          export Database__Provider="${Database__Provider:-Sqlite}"
+          export ConnectionStrings__ImageGen="${ConnectionStrings__ImageGen:-Data Source=../imagegen.db}"
+          export Logging__FilePath="${Logging__FilePath:-../logs/imagegen-.log}"
+          # This script IS the interactive way in, so it is what asks for a browser. Nothing else sets this, so a
+          # container or a service is unaffected. Set it to 0 to keep the browser shut.
+          export IMAGEGEN_OPEN_BROWSER="${IMAGEGEN_OPEN_BROWSER:-1}"
+          exec ./ImageGen.Web "$@"
+          EOF
+          chmod +x staging/imagegen/start.sh
+          # -NoProfile so a user's profile cannot change how this behaves; the trap and the Read-Host are there
+          # because the previous version closed its window on the same frame it wrote the error, which made every
+          # failure -- a blocked script, a failed download, a refused startup -- look identical to "nothing
+          # happened". $Host.Name test: pause only when it was launched by double-click, never in a pipeline.
+          cat > staging/imagegen/start.ps1 <<'EOF'
+          $ErrorActionPreference = 'Stop'
+          function Wait-IfInteractive {
+              if ($env:IMAGEGEN_NO_PAUSE) { return }
+              Write-Host ''
+              Read-Host 'Press Enter to close'
+          }
+          try {
+              Set-Location -Path (Join-Path $PSScriptRoot 'bin')
+              if (-not $env:Database__Provider)          { $env:Database__Provider = 'Sqlite' }
+              if (-not $env:ConnectionStrings__ImageGen) { $env:ConnectionStrings__ImageGen = 'Data Source=../imagegen.db' }
+              if (-not $env:Logging__FilePath)           { $env:Logging__FilePath = '../logs/imagegen-.log' }
+              # This script IS the interactive way in, so it is what asks for a browser. Nothing else sets this,
+              # so a container or a service is unaffected. Set it to 0 to keep the browser shut.
+              if (-not $env:IMAGEGEN_OPEN_BROWSER)       { $env:IMAGEGEN_OPEN_BROWSER = '1' }
+              & .\ImageGen.Web.exe @args
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Host ''
+                  Write-Host "ImageGen exited with code $LASTEXITCODE." -ForegroundColor Red
+                  Wait-IfInteractive
+                  exit $LASTEXITCODE
+              }
+          }
+          catch {
+              Write-Host ''
+              Write-Host "Could not start ImageGen: $($_.Exception.Message)" -ForegroundColor Red
+              Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
+              Wait-IfInteractive
+              exit 1
+          }
+          EOF
+          # The double-clickable entry point. .ps1 is not a runnable file type on Windows -- double-clicking one
+          # opens it in an editor -- and everything in a downloaded archive carries Mark-of-the-Web, which the
+          # default RemoteSigned policy refuses to run at all. Both are why start.ps1 "did nothing". This wrapper
+          # is the only thing a user has to touch; the .ps1 stays for anyone invoking it from a shell.
+          printf '%s\r\n' \
+            '@echo off' \
+            'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*' \
+            > staging/imagegen/start.bat
+
+      - name: Verify the staged payload
+        # A release that builds cleanly and ships an unusable archive is the worst outcome, and it already
+        # happened once: an unanchored `models/` line in .gitignore swallowed configurations/models/, so v0.1.0
+        # went out with 167 workflows and zero model slots. Green does not mean shipped-correct unless something
+        # checks the artefact.
+        run: |
+          set -e
+          fail() { echo "::error::staged payload is incomplete: $1"; exit 1; }
+          [ -x staging/imagegen/bin/ImageGen.Web ] || [ -f staging/imagegen/bin/ImageGen.Web.exe ] || fail "no application binary"
+          [ -f staging/imagegen/bin/appsettings.json ] || fail "no appsettings.json beside the binary"
+          [ -f staging/imagegen/start.sh ] && [ -f staging/imagegen/start.ps1 ] || fail "no launcher"
+          [ -f staging/imagegen/start.bat ] || fail "no start.bat — the only double-clickable entry point on Windows"
+          [ -f staging/imagegen/README.md ] || fail "no README at the archive root"
+          # The version has to actually be in the binary. An unstamped build silently reports 1.0.0 and then
+          # never tells anyone an update exists -- a feature that fails by staying quiet, which is the kind
+          # nobody notices is broken.
+          version="${{ inputs.tag || github.ref_name }}"
+          strings staging/imagegen/bin/ImageGen.Web.dll 2>/dev/null | grep -qF "${version#v}" \
+            || fail "ImageGen.Web.dll does not carry version ${version#v} — the update check would be dead"
+          w=$(find staging/imagegen/bin/configurations/workflows -name '*.json' 2>/dev/null | wc -l)
+          m=$(find staging/imagegen/bin/configurations/models    -name '*.json' 2>/dev/null | wc -l)
+          echo "catalogue: $w workflows, $m models"
+          [ "$w" -gt 0 ] || fail "configurations/workflows is empty or absent"
+          [ "$m" -gt 0 ] || fail "configurations/models is empty or absent"
+          # The ComfyUI patch payload. Unlike the catalogue this is copied by the BUILD (see ImageGen.Web.csproj),
+          # which is exactly why it is checked here: a payload that arrives by an MSBuild glob is a payload that can
+          # stop arriving without anything failing, and the patches page would then report a build that ships no
+          # patches as simply having none.
+          p=$(find staging/imagegen/bin/comfy-patches -name '*.patch' 2>/dev/null | wc -l)
+          echo "patches: $p authored, $(ls staging/imagegen/bin/comfy-nodes 2>/dev/null | wc -l) node-pack entries"
+          [ "$p" -gt 0 ] || fail "comfy-patches is empty or absent — the renderer patches did not ship"
+          [ -f staging/imagegen/bin/comfy-nodes/packs.json ] || fail "comfy-nodes/packs.json is absent — the node packs would not be offered as patches"
+          # The point of the layout: the root holds what a person opens, and nothing else. Checked against the
+          # EXACT set staged above rather than a count — a threshold would be a number nobody chose, and it would
+          # pass a root that had swapped the README for a stray DLL.
+          expected=$(printf '%s\n' LICENSE README.md THIRD-PARTY-NOTICES.md start.bat start.ps1 start.sh | sort)
+          actual=$(find staging/imagegen -maxdepth 1 -type f -printf '%f\n' | sort)
+          if [ "$expected" != "$actual" ]; then
+            echo "expected at the archive root:"; echo "$expected"
+            echo "actually there:"; echo "$actual"
+            fail "the archive root is not the launchers and the docs — the launcher is buried again"
+          fi
+
+      - name: Archive
+        id: archive
+        run: |
+          version="${{ inputs.tag || github.ref_name }}"
+          name="imagegen-${version}-${{ matrix.rid }}"
+          cd staging
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -qr "../${name}.zip" imagegen
+            echo "file=${name}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "../${name}.tar.gz" imagegen
+            echo "file=${name}.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: ${{ steps.archive.outputs.file }}
+          if-no-files-found: error
+
+  publish:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ inputs.tag || github.ref_name }}"
+          gh release create "$version" artifacts/* \
+            --repo "${{ github.repository }}" \
+            --title "$version" \
+            --generate-notes \
+            --notes "Self-contained builds -- nothing to install but a ComfyUI to talk to.
+
+          | Archive | For |
+          | --- | --- |
+          | \`imagegen-${version}-win-x64.zip\` | Windows |
+          | \`imagegen-${version}-linux-x64.tar.gz\` | Linux |
+
+          Unpack it and run \`start.bat\` (Windows) or \`start.sh\` (Linux). The first run downloads the tag model
+          (~900 MB), verifies it against published checksums, and starts on
+          <http://localhost:8080>.
+
+          You supply the image models -- see [INSTALL.md](INSTALL.md) and [docs/MODELS.md](docs/MODELS.md)."

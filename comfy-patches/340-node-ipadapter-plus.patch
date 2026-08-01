@@ -1,0 +1,11 @@
+Id: node-ipadapter-plus
+Title: IPAdapter Plus
+Does: Adds image prompting -- a reference picture conditions the render the way a text prompt does, so a
+ subject, a style or a face can be carried across without describing it in words.
+Target: custom_nodes/ComfyUI_IPAdapter_plus
+Source: https://github.com/cubiq/ComfyUI_IPAdapter_plus.git
+Rev: a0f451a5113cf9becb0847b92884cb10cbdec0ef
+Why: cubiq's IP-Adapter nodes -- image prompting, where a reference picture conditions the generation instead
+ of (or alongside) the text. Run unmodified.
+Provides: comfyui-ipadapter-plus
+---

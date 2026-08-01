@@ -1,0 +1,112 @@
+{
+  "id": "krea2-refine",
+  "workflow": "krea2-refine",
+  "friendly_name": "Krea 2 (Base + Turbo Polish)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "krea2-raw",
+    "motion_model": "krea2-turbo",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "krea2",
+    "dual": false,
+    "latent": "std",
+    "clip_skip": 0,
+    "steps": 28,
+    "cfg": 4.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "polish_denoise": {
+      "value": 0.35,
+      "exposed": true,
+      "min": 0.1,
+      "max": 0.9
+    },
+    "refiner_steps": {
+      "value": 8,
+      "exposed": true,
+      "min": 1,
+      "max": 30
+    },
+    "refiner_cfg": 1.0,
+    "rebalance_multiplier": {
+      "value": 4.0,
+      "exposed": false
+    },
+    "per_layer_weights": {
+      "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
+      "exposed": false
+    },
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1280,
+        768
+      ],
+      "portrait": [
+        768,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Krea 2 two-stage — RAW base (real CFG) renders structure, then Krea 2 Turbo does a partial-denoise latent polish (shared Qwen3-VL 4B encoder + Qwen-Image/Wan2.1 VAE); base is int8-ConvRot, Turbo is fp8 (bf16 is 26 GB). Models run sequentially — base offloads before Turbo loads — and both spill to system RAM, so it runs on an 8 GB GPU.",
+    "summary": "Best-of-both Krea 2: the RAW base gives strong prompt adherence and composition at real CFG, then the distilled Turbo polishes texture and aesthetic over the base latent in a few steps. Tune 'Polish strength' for how much Turbo reworks the base.",
+    "use_cases": [
+      "highest-quality Krea aesthetic (adherence of the base + polish of Turbo)",
+      "aesthetic / design-forward general generation",
+      "photographic and editorial looks"
+    ],
+    "nsfw_capable": "unknown (new release; not yet characterized)",
+    "commercial_use": "open weights — verify the Krea 2 license for your use",
+    "pick_when": "You want Krea 2's best quality and don't mind two passes: the base for adherence, Turbo for polish; runs on an 8 GB GPU (sequential load + RAM offload).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural-language prose; aesthetic/style words carry weight.",
+      "example": "an editorial photograph of a ceramic vase on a sunlit table, soft film grain, muted earth tones, shallow depth of field",
+      "instructions": "Write natural language; lean into style, lighting, and mood descriptors. Base: ~28 steps, CFG ~4, euler/simple. Polish: Turbo at cfg 1, ~8 steps, 'Polish strength' ~0.25-0.4 (higher redraws more). Native ~1K. Negative prompts affect the base pass (real CFG).",
+      "do": [
+        "Describe style, lighting, and mood",
+        "Write natural language",
+        "Lower Polish strength to keep the base composition; raise it to let Turbo redraw more"
+      ],
+      "dont": [
+        "Rely on booru tag soup",
+        "Push Polish strength near 1.0 unless you want Turbo to redraw the image"
+      ],
+      "negative_guidance": "Applies to the base pass (real CFG ~4); keep it light. Ignored by the Turbo polish (cfg 1).",
+      "source": "https://huggingface.co/Comfy-Org/Krea-2"
+    },
+    "negative": {
+      "supported": true,
+      "note": "Affects the base pass (real CFG ~4); the Turbo polish runs cfg 1 and ignores it."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "Two passes (28-step base + 8-step Turbo polish) with a base->Turbo model swap; the fp8 encoder offloads before the diffusion models load.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in plain words. 'Polish strength' controls how much the fast Turbo pass reworks the base render — low keeps the base, higher redraws more.",
+      "good_for": "highest-quality, polished, aesthetic general generation"
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

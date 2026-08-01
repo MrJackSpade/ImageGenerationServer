@@ -1,0 +1,15 @@
+@model ImageGen.Web.Help.HelpPageViewModel
+@{
+    ViewData["Title"] = "Help";
+}
+
+<div class="help">
+    <div class="help-intro">@Html.Raw(Model.IntroHtml)</div>
+    @foreach (var s in Model.Sections)
+    {
+        <details class="help-sec">
+            <summary>@s.Title</summary>
+            <div class="help-body">@Html.Raw(s.HtmlBody)</div>
+        </details>
+    }
+</div>

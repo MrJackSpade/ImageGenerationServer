@@ -1,0 +1,71 @@
+{
+  "id": "longcat-image-edit-turbo",
+  "workflow": "qwen-image-edit",
+  "friendly_name": "LongCat-Image-Edit Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "longcat-image-edit-turbo",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "ae"
+  },
+  "params": {
+    "loader": "unet_gguf",
+    "clip_type": "longcat_image",
+    "dual": false,
+    "steps": 8,
+    "cfg": 1.0,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 2,
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ]
+  },
+  "card": {
+    "architecture": "LongCat-Image-Edit Turbo (Meituan) — distilled 8-step variant of LongCat-Image-Edit. Flux-family MMDiT; Qwen2.5-VL encoder + Flux VAE; clip_type longcat_image. Q5_K_M GGUF.",
+    "summary": "Distilled LongCat editor: ~8 steps at CFG 1 for fast drafts/previews. Same topology as the full model; trade a little fidelity for ~3x speed.",
+    "use_cases": [
+      "fast instruction-edit drafts and iteration",
+      "quick previews before a full-quality pass"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "pick_when": "You want quick edit iterations; switch to the full LongCat model for final quality.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Provide an input image + imperative instruction.",
+      "required_prefix": null,
+      "example": "(with input image) Make it night time with neon signs",
+      "overview": "Same instruction format as LongCat-Image-Edit; distilled for 8-step sampling at CFG 1 (negative ignored).",
+      "source": "https://huggingface.co/meituan-longcat/LongCat-Image-Edit-Turbo"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled, runs at CFG 1 so the negative is ignored."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "8-step distilled; fastest of the LongCat pair."
+    },
+    "ui_help": {
+      "note": "Fast instruction editing; lower fidelity than the full model.",
+      "good_for": "quick edit drafts"
+    },
+    "edit_use_cases": [
+      "fast instruction editing (8-step) for drafts/iteration"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1024,
+    "max_h": 1024,
+    "step": 16
+  }
+}

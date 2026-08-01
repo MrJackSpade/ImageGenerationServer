@@ -1,0 +1,103 @@
+{
+  "id": "wan22-i2v-a14b",
+  "workflow": "wan22-i2v-a14b",
+  "friendly_name": "Wan 2.2 14B",
+  "default": false,
+  "requirements": {
+    "checkpoint": "wan2-2-i2v-high-noise-14b",
+    "text_encoders": [
+      "umt5-xxl"
+    ],
+    "vae": "wan-2-1-vae",
+    "extra": [
+      "wan2-2-i2v-low-noise-14b"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "wan",
+    "unet_low": "wan2-2-i2v-low-noise-14b",
+    "steps": 40,
+    "boundary": 15,
+    "cfg": 3.5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "shift": 5.0,
+    "refiner_steps": 25,
+    "length": {
+      "value": 81,
+      "exposed": true,
+      "min": 5,
+      "max": 81,
+      "step": 4
+    },
+    "fps": 16,
+    "width": 640,
+    "height": 640
+  },
+  "card": {
+    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) \u2014 IMAGE-TO-VIDEO",
+    "summary": "The high-quality 14B image\u2192video (two-expert MoE) \u2014 much better motion/detail than the 5B TI2V. Source image is the first frame; two-stage sampling (high-noise expert then low-noise). Self-quanted int8 ConvRot on 24 GB.",
+    "use_cases": [
+      "high-quality image\u2192video",
+      "camera moves / subject motion on a still",
+      "5s 480-720p clips"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "You want the best Wan image\u2192video quality on a 24 GB card (heavier/slower than the 5B).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion/scene; the prompt directs the motion.",
+      "example": "the camera slowly pushes in as her hair drifts in the wind, cinematic",
+      "overview": "The uploaded image is the first frame, so write a detailed natural-language prompt describing only how the visible subject and camera MOVE (motion + camera + speed + atmosphere), not what things look like.",
+      "instructions": "Wan 2.2 responds best to detailed, structured natural-language prompts (target ~80-120 words) built in layers: Subject/Scene, then Motion (what moves and how), then Camera movement (pan, tilt, dolly, orbit, crane, push-in/zoom), then Speed/Intensity (slow, gentle, brisk, whip-pan, slow-motion), then Atmosphere/Aesthetics (lighting, color grade, lens, mood). For i2v, skip or minimize subject description because the image defines appearance, and animate only elements actually visible in the frame, putting the most important motion early since Wan weights the start of the prompt more heavily.",
+      "do": [
+        "Lead with the primary motion using concrete verbs with explicit speed and direction ('slowly turns her head left')",
+        "Specify a distinct camera move (slow push-in, dolly out, pan left, clockwise orbit, crane up, static)",
+        "State speed/intensity explicitly (gentle, subtle, gradual, rapid, slow-motion)",
+        "Add atmosphere and aesthetic control: lighting, color grade, lens/shot type, weather, mood",
+        "Put the most important detail early; Wan 2.2 weights the beginning of the prompt",
+        "Keep it detailed but bounded, ~80-120 words",
+        "Describe only motion of elements visible in the source image"
+      ],
+      "dont": [
+        "Don't re-describe the subject's static appearance in i2v (the image already defines it)",
+        "Don't introduce objects, characters, or scenery not present in the source frame",
+        "Don't use vague generic action verbs without speed/direction ('it moves', 'things happen')",
+        "Don't overload with so many details that key motion gets ignored (avoid >120 words)"
+      ],
+      "examples": [
+        "The woman slowly turns her head to the left while maintaining eye contact with the camera, her hair drifting gently in a light breeze. Slow push-in on her face, shallow depth of field. Soft window light shifts subtly across her skin, warm color grade, calm and intimate mood, gentle pacing throughout.",
+        "The mech's chest panels hiss open and steam vents to the sides as it raises one arm toward the camera. The camera slowly dollies out and tilts up to reveal its full height. Sparks fall in the foreground, harsh industrial overhead lighting, cool blue-grey color grade, deliberate and weighty motion."
+      ],
+      "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples ; https://www.veed.io/learn/wan-2-2-prompting-guide"
+    },
+    "negative": {
+      "supported": false,
+      "note": "real CFG (3.5/3.5 per the reference)"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "24 GB video model; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Animate the current picture into a higher-quality clip (14B). Describe the motion.",
+      "good_for": "high-quality image\u2192video (14B)"
+    },
+    "edit_use_cases": [
+      "image-to-video: animate the current picture into a high-quality 14B clip"
+    ],
+    "reference": {
+      "max": 0,
+      "hint": "Animate the current picture: describe the motion you want."
+    }
+  },
+  "resolution": {
+    "min_w": 480,
+    "min_h": 480,
+    "max_w": 1280,
+    "max_h": 1280,
+    "step": 16
+  }
+}

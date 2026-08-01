@@ -1,0 +1,82 @@
+@model ImageGen.Web.ViewModels.ComposerOptions
+@{
+    var artistMode = !string.IsNullOrEmpty(Model.LockedArtist);
+}
+@*
+    The shared generation box, used by the compose page and the artist page so they stay in sync. In artist
+    mode (LockedArtist set) compose.js reads data-artist and: hides the Random-artist option and the '@@'
+    artist autocomplete, and locks every generation to that artist. All elements stay in the DOM (CSS hides
+    the artist-irrelevant bits) so compose.js binds the same way on both pages.
+*@
+<div id="composeView" class="@(artistMode ? "mode-artist" : "")" data-artist="@Model.LockedArtist">
+    <form class="composer composer-grid" id="composer" autocomplete="off">
+        <div class="cpane-main">
+            @if (artistMode)
+            {
+                <div class="locked-artist">🎨 Locked to <b>@("@" + Model.LockedArtist!.Replace('_', ' '))</b> — every generation uses this artist's style.</div>
+            }
+            <label class="fld-label">Prompt</label>
+            <div class="prompt-wrap">
+                <textarea id="prompt" placeholder="a cozy cabin in a snowy forest at dusk, warm light in the windows…" @(artistMode ? "" : "autofocus")></textarea>
+                <div id="tagPop" class="tag-pop hidden" role="listbox" aria-label="Tag suggestions"></div>
+            </div>
+            @* Optional negative prompt — compose.js shows this only for models whose card declares negative support.
+               Whatever's typed here is ADDED ON TOP of the model's built-in negative, never replaces it. *@
+            <div class="neg-wrap" id="negWrap" hidden>
+                <label class="fld-label" for="negativePrompt">Negative prompt</label>
+                <div class="prompt-wrap">
+                    <textarea id="negativePrompt" placeholder="blurry, watermark, extra fingers… (leave blank for a sensible default)"></textarea>
+                    <div id="negTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                </div>
+            </div>
+            <div class="model-tip" id="modelTip" hidden></div>
+        </div>
+        <div class="cpane-side">
+            <div class="field">
+                <label class="fld-label" for="modelToggle">Style</label>
+                <div class="model-select" id="modelSelect">
+                    <button type="button" id="modelToggle" class="model-toggle" aria-haspopup="listbox" aria-expanded="false">Loading…</button>
+                    <div id="modelMenu" class="model-menu" hidden role="listbox" aria-multiselectable="true"></div>
+                </div>
+            </div>
+            <div class="field">
+                <label class="fld-label">Shape</label>
+                @* A tap picks one shape; a long-press ADDS one (multi-select) and each picture then rolls its own. *@
+                <div class="shape-options" id="aspect">
+                    <button type="button" data-aspect="square" class="active">◻ Square</button>
+                    <button type="button" data-aspect="landscape">▭ Landscape</button>
+                    <button type="button" data-aspect="portrait">▯ Portrait</button>
+                </div>
+                <div class="shape-note" id="aspectNote" hidden>🎲 Each picture gets one of these shapes at random.</div>
+            </div>
+            <div class="opt-bar" id="randomArtistBar" hidden>
+                <label class="opt-chk"><input type="checkbox" id="randomArtist"> 🎨 Random artist</label>
+            </div>
+            @* 0 = off; anything above it is the tag model's sampling temperature for this generation. *@
+            <div class="opt-bar" id="randomPromptBar" hidden>
+                <span class="opt-lbl" title="Off at 0. Above that it's the tag model's sampling temperature — 1 is its natural sampling, higher picks rarer, wilder tags.">🎲 Random prompt</span>
+                <input type="range" id="promptTemp" min="0" max="5" step="0.1" value="0" />
+                <span id="promptTempVal" class="temp-val">off</span>
+            </div>
+            @* The generation mask, directly under the slider it qualifies and only while that slider is up — it used to
+               sit on the Settings page, two pages from the control it modifies. Per generation like everything else on
+               this form: compose.js fills the chips, keeps them in the composer draft, and sends them with each job. *@
+            <div class="opt-sub" id="tagTypesBar" hidden>
+                <span class="opt-sub-lbl" title="Which kinds of tag Random prompt may generate. An unpicked kind is suppressed inside the model, so it completes the set with something else instead of coming back short. General is the plain content tags (1girl, long_hair). Tag autocomplete is unaffected.">Kinds it may pick</span>
+                <div class="type-options" id="genTagTypes"></div>
+            </div>
+            <div class="model-params" id="modelParams" hidden></div>
+            @* The hold-to-reveal count flyout + its custom-amount modal are built by core.js (attachCountPicker),
+               shared with the edit page's inpaint Generate — there's no markup for them here. *@
+            <div class="gen-wrap side-gen">
+                <button id="generate" class="primary-btn" type="submit" title="Hold to make several">Generate</button>
+            </div>
+        </div>
+    </form>
+
+    <div class="status" id="status"></div>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="gen-model" id="genModel" hidden></div>
+    <div class="eta" id="eta" hidden></div>
+    <div id="result"></div>
+</div>

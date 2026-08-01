@@ -1,0 +1,85 @@
+@inject IConfiguration Configuration
+@{
+    var authed = User.Identity?.IsAuthenticated == true;
+    var path = (Context.Request.Path.Value ?? "/").ToLowerInvariant();
+    string on(string p) => (p == "/" ? path == "/" : path.StartsWith(p)) ? "on" : "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>@(ViewData["Title"] is null ? "Make a Picture" : ViewData["Title"] + " · Make a Picture")</title>
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    @* Bounded-concurrency loader for grid thumbnails (img[data-src]). In <head>, not deferred, so it claims cards as
+       the body streams in rather than in one lump at DOMContentLoaded. *@
+    <script src="~/js/imgqueue.js" asp-append-version="true"></script>
+</head>
+<body class="@(authed ? "app" : "auth")">
+@if (authed)
+{
+    <nav class="rail">
+        <a class="@on("/")" href="/" title="New">✦</a>
+        <a class="@on("/edit")" href="/edit" title="Edit a photo">✎</a>
+        <a class="@on("/gallery")" href="/gallery" title="History">▦</a>
+        <a class="@on("/queue")" href="/queue" title="Active queue">⌛</a>
+        <a class="@on("/bookmarks")" href="/bookmarks" title="Bookmarks">★</a>
+        <span class="sp"></span>
+        <a class="@on("/help")" href="/help" title="Help">?</a>
+        <a class="@on("/settings")" href="/settings" title="Settings">⚙</a>
+        @* The account control. It was a persistent title bar on every page — a heading, a per-request render count,
+           and this menu — of which only this menu did anything. The rail is always on screen, so it lives here now;
+           the name that used to sit beside the avatar doesn't fit a 60px column, so it's the tooltip and the menu. *@
+        <details class="who" id="whoMenu">
+            <summary title="@User.Identity!.Name" aria-label="Account"><div class="av"></div></summary>
+            <div class="who-menu">
+                <div class="who-name">Signed in as <b>@User.Identity!.Name</b></div>
+                <form method="post" action="/account/logout">@Html.AntiForgeryToken()<button type="submit" class="who-logout">Sign out</button></form>
+            </div>
+        </details>
+    </nav>
+}
+    <div class="main">
+        <div class="page">
+            @* Inside .page so it lines up with the content's own padding rather than sitting flush against the
+               rail, and hidden until the check has actually found something — an empty strip on every page
+               would be worse than no banner at all. *@
+            @if (authed)
+            {
+                <div id="updateBanner" class="update-banner" hidden></div>
+            }
+            @RenderBody()
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script>
+        // The image-gen backend is embedded in this app, served same-origin under /forge (no mixed content).
+        window.GATEWAY = "/forge";
+    </script>
+@if (authed)
+{
+    <script>
+        // Close the account menu on an outside click.
+        document.addEventListener('click', function (e) {
+            var w = document.getElementById('whoMenu');
+            if (w && w.open && !w.contains(e.target)) w.removeAttribute('open');
+        });
+    </script>
+}
+    @await RenderSectionAsync("Scripts", required: false)
+@if (authed)
+{
+    @* Live tracker: keeps every page's grids and strips current by re-pulling on generation events, cross-device.
+       Loaded after the page's core.js (from the Scripts section above). compose.js owns the tracker on its own
+       page and this stands down there. *@
+    <script src="~/js/tracker.js" asp-append-version="true"></script>
+    @* Upgrades animated-webp video clips to looping <video> across every page that shows library images. *@
+    <script src="~/js/media.js" asp-append-version="true"></script>
+    @* The update banner. Self-contained and last, so a page that loads no other script still gets it and no
+       page waits on it. *@
+    <script src="~/js/update.js" asp-append-version="true"></script>
+}
+</body>
+</html>

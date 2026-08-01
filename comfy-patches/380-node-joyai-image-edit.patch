@@ -1,0 +1,9 @@
+Id: node-joyai-image-edit
+Title: JoyAI image edit
+Does: Adds one of the edit paths where you describe the change you want -- "make it night", "remove the
+ sign" -- and the model rewrites the picture, instead of masking a region and regenerating it.
+Target: custom_nodes/ComfyUI-JoyAI-Image-Edit
+Source: https://github.com/judian17/ComfyUI-JoyAI-Image-Edit.git
+Rev: c9347d8652ee5a841dbe3611b6abd9e69aa67dcd
+Why: judian17's instruction-driven image edit nodes, one of the edit paths the catalogue offers. Run unmodified.
+---
