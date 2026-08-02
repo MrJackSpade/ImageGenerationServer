@@ -10,7 +10,7 @@
 // server-side by the worker; the browser never writes it. To iterate on an OUTPUT, the user clicks it and
 // chooses Edit, which re-seeds this page (/edit/{outputId}) with that output as the fixed source.
 
-const $editTabs = $("editTabs"), $chatMode = $("chatMode"), $inpaintMode = $("inpaintMode"), $outpaintMode = $("outpaintMode"),
+const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMode = $("chatMode"), $inpaintMode = $("inpaintMode"), $outpaintMode = $("outpaintMode"),
       $editModelSelect = $("editModelSelect"), $editModelToggle = $("editModelToggle"), $editModelMenu = $("editModelMenu"),
       $editSrc = $("editSrc"), $bar = $("bar"), $eta = $("eta"), $result = $("result"), $editComposer = $("editComposer"),
       $instruction = $("instruction"), $instructionTagPop = $("instructionTagPop"), $editSend = $("editSend"), $status = $("status"),
@@ -78,6 +78,9 @@ const isV2V = m => !!(m && m.sourceMedia === "video");
 // a different question of the user (describe the picture, not the change) and is the natural place to fan one prompt
 // across several models. Declared by the catalog (edit_group), so a new redraw config lands here with no JS change.
 const isRedraw = m => !!(m && m.editGroup === "Redraw");
+// Upscalers (feed-forward SR + SeedVR2) are one edit_group too, promoted to their own top-level tab exactly like
+// Redraw so they aren't buried as a sub-section of the plain Edit menu. New upscale config → this tab, no JS change.
+const isUpscale = m => !!(m && m.editGroup === "Upscale");
 // Whether the current source (editCurrent) is a video clip. Decided from /forge/media for a seeded/edited source, and
 // from the file type for an upload. When true, the editor collapses to the single V2V "Pixelize" mode.
 let srcIsVideo = false;
@@ -144,7 +147,7 @@ function restoreParams(box) { applyParamPrefs(box, editParamPrefs); }
 // keys that only appear on other panels/workflows survive.
 function persistParams(box) { collectParamPrefs(box, editParamPrefs); savePrefs(); }
 
-let activeMode = "edit", chatBucket = "edit";          // chatBucket ∈ {edit, redraw, effects (image), animate, video}
+let activeMode = "edit", chatBucket = "edit";          // chatBucket ∈ {edit, redraw, upscale, effects (image), animate, video}
 // Chat (Edit/Redraw/Effects/Animate) is a MULTI-select picker (the shared createModelPicker) mirroring the gen page:
 // any number of models in the bucket can be checked, and Apply fans the SAME instruction across all of them to compare.
 // selectedEditIds persists the pick across rebuilds (bucket switches). Inpaint stays single-select (buildMenu).
@@ -294,6 +297,8 @@ const chatModels = () => visibleOf(Object.values(EDIT_MODELS).filter(m => {
   if (m.media !== "image" || isInpaint(m) || isOutpaint(m)) return false;
   if (chatBucket === "redraw") return isRedraw(m);
   if (isRedraw(m)) return false;                  // redraws have their own tab — never also in Edit/Effects
+  if (chatBucket === "upscale") return isUpscale(m);
+  if (isUpscale(m)) return false;                 // upscalers have their own tab — never also in Edit/Effects
   return chatBucket === "effects" ? !!m.effectType : !m.effectType;
 }));
 const inpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isInpaint));
@@ -344,18 +349,18 @@ editPicker = createModelPicker({
   favOf: m => editFavs.has(m.id),
   timeOf: m => m.avgSeconds,
   tagsOf: m => editTags[m.id] || [],
-  // Effects bucket → grouped by effect type. Edit bucket → plain editors render flat on top, then any edit_group
-  // sections (e.g. "Upscale"). Animate items have neither → flat. The two never collide: a config with an effectType
-  // only ever appears in the Effects bucket. The Redraw bucket is ALREADY one edit_group, so it renders flat — a
-  // lone "Redraw" header inside the Redraw tab would say nothing.
-  groupBy: m => m.effectType || (chatBucket === "redraw" ? null : m.editGroup) || null,
+  // Effects bucket → grouped by effect type. Redraw and Upscale are each ONE edit_group promoted to its own top-level
+  // tab, so inside those tabs the group renders flat — a lone "Redraw"/"Upscale" header would just repeat the tab name.
+  // Edit and Animate items have neither an effectType nor a remaining edit_group, so they render flat too. The buckets
+  // never collide: a config with an effectType only ever appears in the Effects bucket.
+  groupBy: m => m.effectType || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup) || null,
   hint: "Long-press a workflow to pick several and compare",
   onChange: ids => { selectedEditIds = ids; updateEditRefBtn(); updateEditRefHint(); renderEditLastFrame(); updateEditParams(); updateInstructionPlaceholder(); updateEditNeg(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
 });
 function populateChatMenu() {
   const models = chatModels();
-  if (!models.length) { $editModelToggle.textContent = chatBucket === "video" ? "No video pixelizer installed" : chatBucket === "animate" ? "No video editors installed" : chatBucket === "effects" ? "No effects installed" : chatBucket === "redraw" ? "No redraw models installed" : "No image editors installed"; return; }
+  if (!models.length) { $editModelToggle.textContent = chatBucket === "video" ? "No video pixelizer installed" : chatBucket === "animate" ? "No video editors installed" : chatBucket === "effects" ? "No effects installed" : chatBucket === "redraw" ? "No redraw models installed" : chatBucket === "upscale" ? "No upscalers installed" : "No image editors installed"; return; }
   editPicker.rebuild(models);
   // Keep the prior pick that's valid in THIS bucket; else fall back to the bucket's default/first.
   let ids = selectedEditIds.filter(id => models.some(m => m.id === id));
@@ -1100,7 +1105,7 @@ function enterOutpaint() {
 
 // --- tabs ---------------------------------------------------------------------------------------
 function setMode(mode) {
-  if (!["edit", "redraw", "effects", "animate", "inpaint", "outpaint", "video"].includes(mode)) mode = "edit";
+  if (!["edit", "redraw", "upscale", "effects", "animate", "inpaint", "outpaint", "video"].includes(mode)) mode = "edit";
   activeMode = mode;
   for (const t of $editTabs.querySelectorAll(".edit-tab")) t.classList.toggle("active", t.dataset.mode === mode);
   const chat = mode !== "inpaint" && mode !== "outpaint";
@@ -1110,9 +1115,10 @@ function setMode(mode) {
   // V2V (video) has no prompt — the quantize is deterministic — so hide the instruction box; only its params matter.
   const instrField = $instruction.closest(".field");
   if (instrField) instrField.hidden = (mode === "video");
-  if (chat) { chatBucket = mode; populateChatMenu(); }   // chat modes: edit | redraw | effects | animate | video
+  if (chat) { chatBucket = mode; populateChatMenu(); }   // chat modes: edit | redraw | upscale | effects | animate | video
   else if (mode === "inpaint") enterInpaint();
   else enterOutpaint();
+  refreshTabSelect();   // keep the mobile mirror's selected option on the active mode
 }
 // Reflect the source's media type in the tab bar: a clip source shows ONLY the "Pixelize" (V2V) tab; an image source
 // shows the four image-editing tabs and hides the video one. Called on boot and whenever the source changes.
@@ -1121,9 +1127,30 @@ function applySourceMediaUi() {
     const isVideoTab = t.dataset.mode === "video";
     t.hidden = srcIsVideo ? !isVideoTab : isVideoTab;
   }
+  refreshTabSelect();   // the source-media split changed which tabs exist — rebuild the mobile mirror to match
+}
+// The mobile tab select (shown in place of the pill row on a phone) is DERIVED from the tab bar: one <option> per
+// VISIBLE tab, its value tracking activeMode. Rebuilt whenever the tabs or the mode change, so there's no second list
+// to keep in sync and the source-media split (image tabs vs the lone Pixelize tab) carries over for free.
+function refreshTabSelect() {
+  if (!$editTabsSelect) return;
+  $editTabsSelect.innerHTML = "";
+  for (const t of $editTabs.querySelectorAll(".edit-tab")) {
+    if (t.hidden) continue;
+    const o = document.createElement("option");
+    o.value = t.dataset.mode; o.textContent = t.textContent;
+    $editTabsSelect.appendChild(o);
+  }
+  $editTabsSelect.value = activeMode;
 }
 // User tab switch persists the active tab (the account blob); boot's setMode is a pure restore, so it doesn't save.
 $editTabs.addEventListener("click", e => { const t = e.target.closest(".edit-tab"); if (t && !busy) { setMode(t.dataset.mode); savePrefs(); } });
+// The mobile select drives the same setMode. While a run is in flight the tab bar ignores clicks, so the select does
+// too — snap it back to the active mode rather than leave an unapplied choice showing.
+$editTabsSelect.addEventListener("change", () => {
+  if (busy) { $editTabsSelect.value = activeMode; return; }
+  setMode($editTabsSelect.value); savePrefs();
+});
 
 // --- recover an in-flight job on reload / return --------------------------------------------------
 // All three /edit flows (chat edit, inpaint, outpaint) come back from /jobs as kind==="edit" on the same source
@@ -1217,8 +1244,8 @@ async function recoverOutpaintJob() {
   } else {
     let saved = savedMode || "edit";
     // Don't land on an empty tab: fall back to one that has models.
-    const has = { edit: chatHasModels("edit"), redraw: chatHasModels("redraw"), effects: chatHasModels("effects"), animate: chatHasModels("animate"), inpaint: inpaintModelList().length > 0, outpaint: outpaintModelList().length > 0 };
-    if (!has[saved]) saved = ["edit", "redraw", "effects", "animate", "inpaint", "outpaint"].find(k => has[k]) || "edit";
+    const has = { edit: chatHasModels("edit"), redraw: chatHasModels("redraw"), upscale: chatHasModels("upscale"), effects: chatHasModels("effects"), animate: chatHasModels("animate"), inpaint: inpaintModelList().length > 0, outpaint: outpaintModelList().length > 0 };
+    if (!has[saved]) saved = ["edit", "redraw", "upscale", "effects", "animate", "inpaint", "outpaint"].find(k => has[k]) || "edit";
     setMode(saved);
   }
   setTimeout(() => { if (activeMode !== "inpaint" && activeMode !== "outpaint" && activeMode !== "video") $instruction.focus(); }, 50);

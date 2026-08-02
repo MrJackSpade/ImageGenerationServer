@@ -544,6 +544,15 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .edit-tab{appearance:none;background:transparent;border:none;border-radius:999px;color:var(--ink-soft);font:inherit;font-size:14px;padding:7px 16px;cursor:pointer}
 .edit-tab:hover{color:var(--ink)}
 .edit-tab.active{background:var(--accent);color:#fff}
+/* Phone: the pill row overflows once there are this many tabs, so at the edit page's narrow breakpoint (the one
+   .edit-grid collapses at) swap it for a native select — full-width, styled like the app's other selects. */
+.edit-tab-select{display:none}
+@media (max-width:680px){
+  .edit-tabs{display:none}
+  .edit-tab-select{display:block;width:100%;appearance:none;background:var(--elev);border:1px solid var(--line);
+    border-radius:10px;color:var(--ink);font:inherit;font-size:15px;padding:10px 12px;cursor:pointer}
+  .edit-tab-select:focus{outline:none;border-color:var(--accent)}
+}
 .edit-subhead{display:flex;align-items:center;gap:10px;margin:0 0 12px}
 #chatMode.hidden,#inpaintMode.hidden,#outpaintMode.hidden{display:none}
 /* inpaint */
