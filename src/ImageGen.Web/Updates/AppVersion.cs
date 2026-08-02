@@ -62,4 +62,23 @@ public static class AppVersion
         // An unstamped build is not version 1.0.0, it is a build that was never released.
         return parsed.ToString(3) == Unstamped ? null : parsed;
     }
+
+    /// <summary>
+    /// Whether a tag/version names a PRE-RELEASE build — a <c>-suffix</c> after the numeric version (a <c>-test</c>,
+    /// <c>-rc.1</c>, … tag). The update check never offers one of these as an update: a test or candidate build is not
+    /// a release, even when it is published to GitHub as a normal (non-flagged) release and even when its base version
+    /// sorts newer than what is running. <see cref="Parse"/> deliberately STRIPS the suffix so a pre-release build can
+    /// still identify its own base version; this is the separate question of whether a tag is one.
+    /// </summary>
+    public static bool IsPrerelease(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var value = text.Trim();
+        if (value.StartsWith('v') || value.StartsWith('V')) value = value[1..];
+        // Strip build metadata FIRST — it follows '+' and may itself contain '-' (e.g. a commit-ish), which is not a
+        // pre-release marker. What remains carries a '-' only when there is a genuine pre-release suffix.
+        var plus = value.IndexOf('+');
+        if (plus >= 0) value = value[..plus];
+        return value.Contains('-');
+    }
 }

@@ -101,6 +101,17 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             var tag = document.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() : null;
+
+            // A pre-release tag (a '-suffix' build: -test, -rc.1, …) is never offered as an update. GitHub's
+            // /releases/latest already skips releases FLAGGED prerelease, but a test tag published as a normal
+            // release still lands here, and its base version can sort newer than the running one. The '-' in the
+            // tag is the authoritative signal that it is not a release, so it is rejected regardless of the flag.
+            if (AppVersion.IsPrerelease(tag))
+            {
+                _log.LogInformation("Update check: latest published '{Tag}' is a pre-release; not offered as an update.", tag);
+                return new UpdateStatus(current.ToString(), null, null);
+            }
+
             var latest = AppVersion.Parse(tag);
 
             if (latest is null)

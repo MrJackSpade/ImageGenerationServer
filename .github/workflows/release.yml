@@ -251,9 +251,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ inputs.tag || github.ref_name }}"
+          # A pre-release tag (a '-suffix': v1.2.3-test, -rc.1, ...) is published as a PRERELEASE, so GitHub's
+          # /releases/latest -- what the app's update banner reads -- never returns it. Without this a test tag
+          # became the "latest" release and every install was told to "upgrade" to a throwaway build.
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease" ;; esac
           gh release create "$version" artifacts/* \
             --repo "${{ github.repository }}" \
             --title "$version" \
+            $prerelease \
             --generate-notes \
             --notes "Self-contained builds -- nothing to install but a ComfyUI to talk to.
 

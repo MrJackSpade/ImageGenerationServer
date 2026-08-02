@@ -59,6 +59,23 @@ public sealed class AppVersionTests
     }
 
     /// <summary>
+    /// A pre-release tag is not an update, however its base version sorts. <see cref="AppVersion.Parse"/> still
+    /// strips the suffix (so a pre-release build knows its own base version), but the update check asks THIS instead
+    /// and never offers a '-build'. Build metadata after '+' can contain '-' and is not a pre-release marker.
+    /// </summary>
+    [Theory]
+    [InlineData("v0.9.1-test", true)]
+    [InlineData("0.6.0-rc.1", true)]
+    [InlineData("0.6.0-beta+abc", true)]
+    [InlineData("v0.9.0", false)]
+    [InlineData("0.6.0", false)]
+    [InlineData("0.6.0+ab-cd", false)]                 // build metadata with a dash — not a pre-release
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    public void A_prerelease_tag_is_recognised_and_never_offered(string? tag, bool pre) =>
+        Assert.Equal(pre, AppVersion.IsPrerelease(tag));
+
+    /// <summary>
     /// This test suite runs from a source build, which is exactly the case that must report nothing. If this
     /// ever fails, something has started stamping a version into ordinary builds and every developer will be
     /// told to upgrade.
