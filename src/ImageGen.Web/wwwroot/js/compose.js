@@ -576,7 +576,7 @@ function promptTemp() { const t = promptTempValue(); return t > 0 ? t : null; }
 
 // --- LoRAs (stackable, per-generation) ----------------------------------------------------------
 // A collapsible list of [× name ‹ weight ›] rows below the negative prompt. The picker (loraPicker.js) adds files;
-// each carries a name (subfolder-qualified lora_name, sent verbatim) and a weight (arrows step 0.5, keyboard finer).
+// each carries a name (subfolder-qualified lora_name, sent verbatim) and a weight (chevrons step 0.05, any value by keyboard).
 // The stack rides in the composer prefs blob and in every generate/enqueue body, and Reload reproduces it exactly.
 let loras = [];   // [{ name, weight, clipCapable?, compatible? }]
 
@@ -602,14 +602,14 @@ function renderLoras() {
     const name = document.createElement("span");
     name.className = "lora-name"; name.textContent = loraLabel(lora.name);
     name.title = lora.name + (lora.clipCapable === false ? " — model-only (no CLIP effect)" : "");
-    // Weight stepper: arrows step 0.5; the number input takes finer values by keyboard.
+    // Weight stepper: the chevrons step 0.05; the number input takes any value by keyboard (native spinner hidden in CSS).
     const wrap = document.createElement("div"); wrap.className = "num-row lora-weight";
     const dec = document.createElement("button"); dec.type = "button"; dec.textContent = "‹"; dec.setAttribute("aria-label", "Less");
-    const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.5"; inp.value = fmtWeight(lora.weight);
+    const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.05"; inp.value = fmtWeight(lora.weight);
     const inc = document.createElement("button"); inc.type = "button"; inc.textContent = "›"; inc.setAttribute("aria-label", "More");
     const commit = v => { lora.weight = normWeight(v); inp.value = fmtWeight(lora.weight); savePrefs(); };
-    dec.addEventListener("click", () => commit(lora.weight - 0.5));
-    inc.addEventListener("click", () => commit(lora.weight + 0.5));
+    dec.addEventListener("click", () => commit(lora.weight - 0.05));
+    inc.addEventListener("click", () => commit(lora.weight + 0.05));
     inp.addEventListener("change", () => commit(Number(inp.value)));
     wrap.append(dec, inp, inc);
     row.append(rm, name, wrap);

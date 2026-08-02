@@ -908,7 +908,9 @@ body.auth .page{max-width:none;padding:0}
 .lora-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;color:var(--ink)}
 .lora-weight{gap:6px;margin:0}
 .lora-weight input{width:56px;text-align:center;font-size:14px;padding:5px 4px;background:var(--panel);border:1px solid var(--line);
-  border-radius:8px;color:var(--ink)}
+  border-radius:8px;color:var(--ink);appearance:textfield;-moz-appearance:textfield}
+/* No native up/down spinner — the chevrons are the stepper. */
+.lora-weight input::-webkit-outer-spin-button,.lora-weight input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .lora-weight input:focus{outline:none;border-color:var(--accent)}
 .lora-weight button{width:28px;height:28px;font-size:16px;border-radius:8px}
 .lora-add{appearance:none;background:var(--elev);border:1px dashed var(--line-2);border-radius:10px;color:var(--ink-soft);
