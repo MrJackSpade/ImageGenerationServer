@@ -238,6 +238,16 @@ CREATE TABLE IF NOT EXISTS dbo.LoraMeta
     CONSTRAINT UQ_LoraMeta_Name UNIQUE (LoraName)
 );
 
+-- Machine-level cache of a LoRA's CivitAI preview media (an image, or a short clip — some previews are mp4). Downloaded
+-- once and served from this box rather than hotlinking the CivitAI CDN. Keyed by the plain filename, like dbo.LoraMeta.
+CREATE TABLE IF NOT EXISTS dbo.LoraPreview
+(
+    LoraName     TEXT PRIMARY KEY,
+    Bytes        BLOB NOT NULL,
+    ContentType  TEXT NOT NULL,
+    FetchedAtUtc TEXT NOT NULL
+);
+
 -- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
 -- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
 CREATE TABLE IF NOT EXISTS dbo.LoraUserSetting

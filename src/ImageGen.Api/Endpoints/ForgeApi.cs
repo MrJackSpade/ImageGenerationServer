@@ -69,9 +69,43 @@ public static class ForgeApi
         if (settings.TryGetValue(name, out var us) && !string.IsNullOrWhiteSpace(us.TriggerWords))
             return us.TriggerWords;
         if (meta.TryGetValue(name, out var m) && m.TrainedWords.Count > 0)
-            return string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0));
+            return DefaultTriggers(m);
         return null;
     }
+
+    /// <summary>The CivitAI trained words as a clean comma list (trimmed, trailing commas stripped, blanks dropped).</summary>
+    private static string DefaultTriggers(LoraMeta m) =>
+        string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0));
+
+    /// <summary>A LoRA's fallback display label: the filename without its folder or a known model extension — the same
+    /// thing the client's <c>label()</c> shows, used when CivitAI hasn't supplied a model name.</summary>
+    private static string LoraLabelOf(string name)
+    {
+        var file = name[(name.LastIndexOfAny(['/', '\\']) + 1)..];
+        foreach (var ext in new[] { ".safetensors", ".ckpt", ".pt", ".gguf" })
+            if (file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                return file[..^ext.Length];
+        return file;
+    }
+
+    /// <summary>The name to show for a LoRA: CivitAI's model name once known, else the filename label.</summary>
+    private static string DisplayNameOf(string name, IReadOnlyDictionary<string, LoraMeta> meta) =>
+        meta.TryGetValue(name, out var m) && !string.IsNullOrWhiteSpace(m.ModelName) ? m.ModelName! : LoraLabelOf(name);
+
+    /// <summary>Whether a LoRA is fully populated — nothing more will change on its card, so the client can stop
+    /// polling. True when CivitAI is off (nothing to fetch), or a cache row exists AND either it promises no preview
+    /// or the preview bytes are cached. The populator writes the row LAST, after caching the preview, so this flips
+    /// true exactly when the whole card is ready.</summary>
+    private static bool LoraReady(
+        string name, bool civitaiEnabled,
+        IReadOnlyDictionary<string, LoraMeta> meta, IReadOnlyDictionary<string, string> previewTypes) =>
+        !civitaiEnabled
+        || (meta.TryGetValue(name, out var m) && (string.IsNullOrEmpty(m.PreviewUrl) || previewTypes.ContainsKey(name)));
+
+    /// <summary>Whether the cached preview for a LoRA is a video clip (mp4/webm) rather than an image — the client
+    /// renders those in a &lt;video&gt; instead of an &lt;img&gt;.</summary>
+    private static bool PreviewIsVideo(string name, IReadOnlyDictionary<string, string> previewTypes) =>
+        previewTypes.TryGetValue(name, out var ct) && ct.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The refusal for a submission the box has no memory for. 503 (not 4xx): the request is fine, the
     /// server is temporarily unable to take it — so a client knows to retry later rather than to fix its input. The
@@ -162,7 +196,8 @@ public static class ForgeApi
         // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
         // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
         app.MapGet("/loras", async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
-            ILoraMetaRepository meta, ILoraUserSettingRepository userSettings, CancellationToken ct) =>
+            ILoraMetaRepository meta, ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings,
+            ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             try
             {
@@ -171,15 +206,22 @@ public static class ForgeApi
                 var entries = await catalog.ListLorasAsync(workflow, ct);
                 var names = entries.Select(e => e.Name).ToList();
                 var covers = await loras.GetCoversAsync(userId, names, ct);
-                // CACHED CivitAI metadata + this user's overrides only — no hashing on the picker's hot path (that's
-                // the LoRA manager page's job). A LoRA whose meta hasn't been fetched yet simply carries no triggers.
+                // Cached metadata + this user's overrides — never blocking. A file that isn't cached yet comes back as
+                // a stub (ready:false), and Request() kicks its background population off; the client polls /loras/meta.
                 var metaByName = await meta.GetManyAsync(names, ct);
+                var previewTypes = await previews.GetContentTypesAsync(names, ct);
                 var settingsByName = await userSettings.GetManyAsync(userId, names, ct);
+                var enabled = civitai.IsEnabled();
+                populator.Request(names);
                 var rows = entries.Select(e => new
                 {
                     name = e.Name,
                     folder = LoraFolderOf(e.Name),
+                    displayName = DisplayNameOf(e.Name, metaByName),
                     cover = covers.GetValueOrDefault(e.Name),
+                    hasPreview = previewTypes.ContainsKey(e.Name),
+                    previewVideo = PreviewIsVideo(e.Name, previewTypes),
+                    ready = LoraReady(e.Name, enabled, metaByName, previewTypes),
                     compatible = e.Compatible,
                     clipCapable = e.ClipCapable,
                     triggers = EffectiveTriggers(e.Name, metaByName, settingsByName),
@@ -194,32 +236,37 @@ public static class ForgeApi
         });
 
         // The LoRA manager page's data: every LoRA on this box with its cover / CivitAI preview, model name, and
-        // trigger words. Unlike /loras this ENSURES CivitAI metadata is fetched (hashing new files), so it can take a
-        // moment on first visit — which is why it's here and not on the composer's picker path.
-        app.MapGet("/loras/manage", async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaCatalog metaCatalog,
-            LoraService loras, ILoraUserSettingRepository userSettings, ICivitaiClient civitai, CancellationToken ct) =>
+        // trigger words. Like /loras this is NON-BLOCKING — it returns stubs at once and Request() populates in the
+        // background; the client polls /loras/meta. Nothing here hashes or hits the network on the request thread.
+        app.MapGet("/loras/manage", async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+            ILoraPreviewRepository previews, LoraService loras, ILoraUserSettingRepository userSettings,
+            ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             try
             {
                 var userId = OwnerOf(http);
                 var entries = await catalog.ListLorasAsync(null, ct);   // all LoRAs; compatibility isn't relevant here
                 var names = entries.Select(e => e.Name).ToList();
-                var meta = await metaCatalog.EnsureAndGetAsync(names, ct);
+                var metaByName = await meta.GetManyAsync(names, ct);
+                var previewTypes = await previews.GetContentTypesAsync(names, ct);
                 var settings = await userSettings.GetManyAsync(userId, names, ct);
                 var covers = await loras.GetCoversAsync(userId, names, ct);
+                var enabled = civitai.IsEnabled();
+                populator.Request(names);
                 var rows = entries.Select(e =>
                 {
-                    meta.TryGetValue(e.Name, out var m);
+                    metaByName.TryGetValue(e.Name, out var m);
                     settings.TryGetValue(e.Name, out var us);
-                    var def = m is { TrainedWords.Count: > 0 }
-                        ? string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0))
-                        : "";
+                    var def = m is { TrainedWords.Count: > 0 } ? DefaultTriggers(m) : "";
                     return new
                     {
                         name = e.Name,
                         folder = LoraFolderOf(e.Name),
+                        displayName = DisplayNameOf(e.Name, metaByName),
                         cover = covers.GetValueOrDefault(e.Name),
-                        previewUrl = m?.PreviewUrl,
+                        hasPreview = previewTypes.ContainsKey(e.Name),
+                        previewVideo = PreviewIsVideo(e.Name, previewTypes),
+                        ready = LoraReady(e.Name, enabled, metaByName, previewTypes),
                         modelName = m?.ModelName,
                         defaultTriggers = def,
                         triggers = !string.IsNullOrWhiteSpace(us?.TriggerWords) ? us!.TriggerWords : def,
@@ -227,7 +274,67 @@ public static class ForgeApi
                         autoAttach = us?.AutoAttach ?? true,
                     };
                 }).ToList();
-                return Results.Ok(new { civitaiEnabled = civitai.IsEnabled(), loras = rows });
+                return Results.Ok(new { civitaiEnabled = enabled, loras = rows });
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
+            {
+                return Results.Json(new { error = "The image renderer isn't reachable — is ComfyUI running?" }, statusCode: 502);
+            }
+        });
+
+        // The poll the picker/manager/composer hit while any LoRA they're showing is still populating. Returns the
+        // current cached state for the named files (never blocking), (re)queues any not-yet-ready ones so a job resumes
+        // after a restart, and reports whether any are still pending so the client knows to keep polling. POST, so a
+        // long list of subfolder-qualified names travels in the body, not a capped URL (see MediaTypesRequest).
+        app.MapPost("/loras/meta", async (HttpRequest http, LoraMetaQueryRequest body, ILoraMetaRepository meta,
+            ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings, ICivitaiClient civitai,
+            ILoraMetaPopulator populator, CancellationToken ct) =>
+        {
+            var userId = OwnerOf(http);
+            var names = (body.Names ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (names.Count == 0)
+                return Results.Ok(new { items = Array.Empty<object>(), pending = false });
+
+            var metaByName = await meta.GetManyAsync(names, ct);
+            var previewTypes = await previews.GetContentTypesAsync(names, ct);
+            var settingsByName = await userSettings.GetManyAsync(userId, names, ct);
+            var enabled = civitai.IsEnabled();
+            populator.Request(names);   // idempotent: resumes anything still pending, starts nothing already cached
+
+            var items = names.Select(n => new
+            {
+                name = n,
+                displayName = DisplayNameOf(n, metaByName),
+                hasPreview = previewTypes.ContainsKey(n),
+                previewVideo = PreviewIsVideo(n, previewTypes),
+                ready = LoraReady(n, enabled, metaByName, previewTypes),
+                triggers = EffectiveTriggers(n, metaByName, settingsByName),
+                autoAttach = !settingsByName.TryGetValue(n, out var us) || us.AutoAttach,
+            }).ToList();
+            return Results.Ok(new { items, pending = items.Any(i => !i.ready) });
+        });
+
+        // Refresh: forget the cached CivitAI data (and preview bytes) for these files — or every LoRA on the box when
+        // the list is empty — then re-queue them so the populator re-fetches. A no-op when CivitAI is off (there is
+        // nothing to fetch, and wiping the cache would leave the cards blank). The client polls /loras/meta after.
+        app.MapPost("/loras/refresh", async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+            ILoraPreviewRepository previews, ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
+        {
+            try
+            {
+                if (!civitai.IsEnabled())
+                    return Results.Ok(new { refreshed = Array.Empty<string>() });
+
+                var names = body.Names is { Count: > 0 }
+                    ? body.Names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                    : (await catalog.ListLorasAsync(null, ct)).Select(e => e.Name).ToList();
+                if (names.Count == 0)
+                    return Results.Ok(new { refreshed = Array.Empty<string>() });
+
+                await previews.DeleteAsync(names, ct);
+                await meta.DeleteAsync(names, ct);
+                populator.Request(names);
+                return Results.Ok(new { refreshed = names });
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
             {
@@ -780,6 +887,20 @@ public static class ForgeApi
             if (png is null) return Results.NotFound(new { error = "image not found" });
             ctx.Response.Headers.CacheControl = "public, max-age=300";
             return Results.File(png, "image/png");
+        });
+
+        // A LoRA's cached CivitAI preview media (image or clip), served from this box so the browser never hotlinks the
+        // CivitAI CDN. The name rides in the query — it carries subfolder slashes and isn't sensitive. A short cache,
+        // not immutable: the refresh button replaces the bytes under the same name, and the client cache-busts then.
+        app.MapGet("/lora-preview", async (string? name, ILoraPreviewRepository previews, HttpContext ctx) =>
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return Results.BadRequest(new { error = "name is required" });
+            var blob = await previews.GetAsync(name, ctx.RequestAborted);
+            if (blob is null)
+                return Results.NotFound(new { error = "no cached preview for this LoRA" });
+            ctx.Response.Headers.CacheControl = "public, max-age=300";
+            return Results.File(blob.Bytes, blob.ContentType);
         });
 
         app.MapGet("/image/{id}/info", async (string id, IUploadStore uploads, IImageBlobRepository blobs,

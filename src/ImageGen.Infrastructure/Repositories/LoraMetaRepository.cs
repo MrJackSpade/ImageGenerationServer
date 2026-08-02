@@ -62,6 +62,19 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
         }
     }
 
+    public async Task DeleteAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
+    {
+        if (loraNames.Count == 0) return;
+        var names = loraNames.ToList();
+        var ps = new string[names.Count];
+        for (var i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+
+        await using var conn = await _connectionFactory.OpenAsync(ct);
+        await using var cmd = conn.Command($"DELETE FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
+        for (var i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private static void AddAll(System.Data.Common.DbCommand cmd, LoraMeta meta, string words)
     {
         cmd.AddParam("@name", meta.LoraName);

@@ -4,6 +4,7 @@
 (function () {
   const THUMB = (typeof THUMB_W !== "undefined" && THUMB_W) || 220;
   let overlay = null;
+  let pollCancel = null;
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -22,6 +23,7 @@
   }
 
   function close() {
+    if (pollCancel) { pollCancel(); pollCancel = null; }
     if (!overlay) return;
     overlay.remove(); overlay = null;
     document.removeEventListener("keydown", onKey);
@@ -90,19 +92,39 @@
       return t;
     }
 
+    // Name shown on the tile: CivitAI's model name once populated, else the filename.
+    function displayLabel(l) { return l.displayName || label(l.name); }
+
+    // Tile thumbnail: the user's own cover wins; else the CivitAI preview cached on this box (a clip renders in a
+    // <video>, since some previews are mp4); else a two-letter placeholder. Never hotlinks CivitAI.
+    function thumbHtml(l) {
+      if (l.cover)
+        return `<img class="lp-thumb" src="${GATEWAY}/image/${encodeURIComponent(l.cover)}?w=${THUMB}" alt="" loading="lazy">`;
+      if (l.hasPreview) {
+        const src = loraPreviewUrl(l.name);
+        return l.previewVideo
+          ? `<video class="lp-thumb" src="${esc(src)}" muted loop autoplay playsinline></video>`
+          : `<img class="lp-thumb" src="${esc(src)}" alt="" loading="lazy">`;
+      }
+      return `<div class="lp-thumb lp-noimg">${esc(displayLabel(l).slice(0, 2).toUpperCase())}</div>`;
+    }
+
+    function tileInner(l) {
+      const badges = (l.compatible === false ? '<span class="lp-badge warn" title="May not fit the selected model">!</span>' : '')
+        + (l.clipCapable === false ? '<span class="lp-badge" title="Model-only (no CLIP effect)">M</span>' : '');
+      const loading = l.ready === false ? '<span class="lp-loading" title="Fetching details from CivitAI…"></span>' : '';
+      return `${thumbHtml(l)}<div class="lp-name">${esc(displayLabel(l))}</div><div class="lp-badges">${badges}</div>${loading}`;
+    }
+
     function loraTile(l) {
       const t = document.createElement("div");
       t.className = "lp-tile lp-lora"
         + (l.compatible === false ? " incompatible" : "")
+        + (l.ready === false ? " loading" : "")
         + (picked.has(l.name) ? " picked" : "")
         + (already.has(l.name) ? " already" : "");
-      const nm = label(l.name);
-      const thumb = l.cover
-        ? `<img class="lp-thumb" src="${GATEWAY}/image/${encodeURIComponent(l.cover)}?w=${THUMB}" alt="" loading="lazy">`
-        : `<div class="lp-thumb lp-noimg">${esc(nm.slice(0, 2).toUpperCase())}</div>`;
-      const badges = (l.compatible === false ? '<span class="lp-badge warn" title="May not fit the selected model">!</span>' : '')
-        + (l.clipCapable === false ? '<span class="lp-badge" title="Model-only (no CLIP effect)">M</span>' : '');
-      t.innerHTML = `${thumb}<div class="lp-name">${esc(nm)}</div><div class="lp-badges">${badges}</div>`;
+      t.dataset.lora = l.name;
+      t.innerHTML = tileInner(l);
       t.title = l.name
         + (l.compatible === false ? " — may not fit the selected model" : "")
         + (already.has(l.name) ? " (already added)" : "");
@@ -114,6 +136,23 @@
       });
       return t;
     }
+
+    // Fold a poll update into the `all` list and patch any tile currently rendered for that name — the metadata
+    // arriving (name, preview) shouldn't disturb the folder/search view or the user's picks.
+    function applyMeta(map) {
+      let changed = false;
+      for (const l of all) {
+        const m = map[l.name];
+        if (!m) continue;
+        l.displayName = m.displayName; l.triggers = m.triggers; l.autoAttach = m.autoAttach;
+        l.ready = m.ready; l.hasPreview = m.hasPreview; l.previewVideo = m.previewVideo;
+        changed = true;
+        const tile = grid.querySelector(`.lp-tile[data-lora="${cssEsc(l.name)}"]`);
+        if (tile) { tile.classList.toggle("loading", l.ready === false); tile.innerHTML = tileInner(l); }
+      }
+      return changed;
+    }
+    function cssEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, "\\$&"); }
 
     // Incompatible LoRAs are hidden unless the toggle is on. (Unknown compatibility — compatible !== false — always shows.)
     const showable = l => showIncompatible || l.compatible !== false;
@@ -183,5 +222,11 @@
       if (hit) folder = hit.folder.split("/")[0];
     }
     render();
+
+    // Any file still populating gets polled; each round patches the affected tiles in place (name + preview) without
+    // disturbing the current view. Stops itself when the server reports nothing pending.
+    const pending = all.filter(l => l.ready === false).map(l => l.name);
+    if (pending.length && typeof pollLoraMeta === "function")
+      pollCancel = pollLoraMeta(pending, applyMeta);
   };
 })();

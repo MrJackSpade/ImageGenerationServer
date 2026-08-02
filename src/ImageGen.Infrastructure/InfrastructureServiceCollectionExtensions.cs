@@ -57,6 +57,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ILoraDisplayRepository, LoraDisplayRepository>();
         services.AddScoped<ITagDisplayRepository, TagDisplayRepository>();
         services.AddScoped<ILoraMetaRepository, LoraMetaRepository>();
+        // Stateless byte store (a fresh connection per call), so a singleton — the singleton populator resolves it directly.
+        services.AddSingleton<ILoraPreviewRepository, LoraPreviewRepository>();
         services.AddScoped<ILoraUserSettingRepository, LoraUserSettingRepository>();
         services.AddScoped<IImageViewRepository, ImageViewRepository>();
 

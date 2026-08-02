@@ -604,7 +604,7 @@ function renderLoras() {
       renderLoras(); savePrefs();
     });
     const name = document.createElement("span");
-    name.className = "lora-name"; name.textContent = loraLabel(lora.name);
+    name.className = "lora-name"; name.textContent = lora.displayName || loraLabel(lora.name);
     name.title = lora.name + (lora.clipCapable === false ? " — model-only (no CLIP effect)" : "");
     // Weight stepper: the chevrons step 0.05; the number input takes any value by keyboard (native spinner hidden in CSS).
     const wrap = document.createElement("div"); wrap.className = "num-row lora-weight";
@@ -632,10 +632,38 @@ function addLoras(picked) {
     have.add(nm);
     const triggers = (p && p.triggers) || "";
     const autoAttach = !p || p.autoAttach !== false;
-    loras.push({ name: nm, weight: 1.0, clipCapable: p && p.clipCapable, compatible: p && p.compatible, triggers, autoAttach });
+    loras.push({ name: nm, weight: 1.0, clipCapable: p && p.clipCapable, compatible: p && p.compatible, triggers, autoAttach, displayName: p && p.displayName });
     if (autoAttach && triggers) insertTriggers(triggers);
   }
   renderLoras(); savePrefs();
+  refreshLoraMeta();
+}
+
+// Keep the composer's LoRA rows in step with the server's background CivitAI population (requirement: this fires on
+// the gen screen too). Polls /forge/loras/meta for the stacked files — which also KICKS OFF population server-side for
+// any not seen yet — and, as each resolves, adopts its CivitAI display name and (for a LoRA added before its trigger
+// words were known) backfills + inserts the triggers when auto-attach is on. Non-blocking; nothing here gates a generate.
+let loraMetaPoll = null;
+function refreshLoraMeta() {
+  if (loraMetaPoll) { loraMetaPoll(); loraMetaPoll = null; }
+  const names = loras.map(l => l.name);
+  if (!names.length || typeof pollLoraMeta !== "function") return;
+  loraMetaPoll = pollLoraMeta(names, map => {
+    let changed = false;
+    for (const l of loras) {
+      const m = map[l.name];
+      if (!m) continue;
+      if (m.displayName && l.displayName !== m.displayName) { l.displayName = m.displayName; changed = true; }
+      // Triggers discovered after the LoRA was already in the stack: adopt them, and if auto-attach is on and they
+      // were never inserted (it had none at add time), drop them into the prompt now.
+      if (m.triggers && !l.triggers) {
+        l.triggers = m.triggers;
+        if (l.autoAttach) insertTriggers(m.triggers);
+        changed = true;
+      }
+    }
+    if (changed) { renderLoras(); savePrefs(); }
+  });
 }
 
 // The prompt box, as comma-separated segments (trimmed), for inserting/removing a LoRA's trigger words.
@@ -824,7 +852,7 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach })) });
+  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
   clearTimeout(prefsTimer);
   // A failed save was `.catch(() => {})`. This blob holds the user's draft PROMPT, so a silent failure means they
   // keep typing into a composer that is no longer being kept, and find an older draft on the next load.
@@ -861,7 +889,7 @@ function restorePrefs(p) {
   // Held for buildTagTypes (which runs after this, once the options are known). Absent = never set from a composer,
   // so the chips seed from the account's stored mask instead.
   if (Array.isArray(p.tagTypes)) tagTypesFromPrefs = p.tagTypes;
-  if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight), triggers: l.triggers || "", autoAttach: l.autoAttach !== false })); renderLoras(); }
+  if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight), triggers: l.triggers || "", autoAttach: l.autoAttach !== false, displayName: l.displayName })); renderLoras(); refreshLoraMeta(); }
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
 // Shape gestures, mirroring the style picker: a tap picks exactly ONE (collapsing any multi-pick back down), a

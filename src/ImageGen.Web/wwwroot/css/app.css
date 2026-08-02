@@ -969,6 +969,12 @@ body.auth .page{max-width:none;padding:0}
 .lp-incompat{display:flex;align-items:center;gap:6px;color:var(--ink-soft);font-size:13px;cursor:pointer}
 .lp-incompat input{accent-color:var(--accent);cursor:pointer}
 .lp-add{padding:9px 22px;font-size:14px}
+/* A clip preview (some CivitAI previews are mp4) fills the tile exactly like an image. */
+video.lp-thumb{object-fit:cover}
+/* A tile still being populated from CivitAI shows a small corner spinner; the card is fully usable meanwhile. */
+.lp-loading{position:absolute;top:7px;left:7px;width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:lora-spin .8s linear infinite;pointer-events:none}
+@keyframes lora-spin{to{transform:rotate(360deg)}}
 
 /* --- LoRA chips on the image viewer (lead the tag chips inside #detailPrompt; distinct cyan vs tag/artist) --- */
 .lora-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:13px;
@@ -988,8 +994,17 @@ body.auth .page{max-width:none;padding:0}
 .lm-list{display:flex;flex-direction:column;gap:10px}
 .lm-row{display:flex;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
 .lm-cover{width:72px;height:72px;flex:none;border-radius:10px;overflow:hidden;background:var(--bg)}
-.lm-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.lm-cover img,.lm-cover video{width:100%;height:100%;object-fit:cover;display:block}
 .lm-noimg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink-faint)}
+.lm-loading-dot{display:inline-block;width:12px;height:12px;margin-left:8px;vertical-align:middle;border-radius:50%;
+  border:2px solid var(--line);border-top-color:var(--accent);animation:lora-spin .8s linear infinite}
+.lm-refresh{appearance:none;background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);
+  cursor:pointer;font-size:14px;width:32px;height:32px;flex:none;line-height:1}
+.lm-refresh:hover{border-color:var(--accent);color:#fff}
+.lm-refresh:disabled{opacity:.5;cursor:default}
+.lm-refresh-all{appearance:none;background:var(--elev);border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);
+  cursor:pointer;font-size:13px;padding:7px 12px}
+.lm-refresh-all:hover{border-color:var(--accent);color:#fff}
 .lm-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .lm-name{font-size:15px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lm-folder{color:var(--ink-faint);font-weight:400;font-size:13px}

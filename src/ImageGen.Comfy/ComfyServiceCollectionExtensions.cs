@@ -37,8 +37,11 @@ public static class ComfyServiceCollectionExtensions
             sp.GetRequiredService<ILogger<ComfyClient>>()));
         services.AddSingleton<IComfyClient>(sp => sp.GetRequiredService<ComfyClient>());
         services.AddSingleton<IWorkflowCatalog, WorkflowCatalogService>();
-        // LoRA CivitAI-metadata cache (hashes + looks up on demand). Scoped: it uses the scoped LoRA-meta repository.
-        services.AddScoped<ImageGen.Application.Civitai.ILoraMetaCatalog, LoraMetaCatalog>();
+        // Background filler of the LoRA CivitAI cache (hash → look up → cache preview). One instance is both the queue
+        // surfaces post to (ILoraMetaPopulator) and the hosted worker that drains it, so registrations share it.
+        services.AddSingleton<LoraMetaPopulator>();
+        services.AddSingleton<ImageGen.Application.Civitai.ILoraMetaPopulator>(sp => sp.GetRequiredService<LoraMetaPopulator>());
+        services.AddHostedService(sp => sp.GetRequiredService<LoraMetaPopulator>());
 
         // ITagCatalog and ITagModelClient are NOT registered here any more. Both are served in-process by
         // ImageGen.TagModel over the model's own vocabulary (AddTagModel), which replaced the tags.json store and the

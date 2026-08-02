@@ -10,4 +10,8 @@ public interface ILoraMetaRepository
 
     /// <summary>Insert or replace the cached metadata for one LoRA file.</summary>
     Task UpsertAsync(LoraMeta meta, CancellationToken ct);
+
+    /// <summary>Drop the cached metadata for these LoRA files, so a subsequent lookup re-fetches from CivitAI (the
+    /// "refresh" action). Silently ignores names that aren't cached.</summary>
+    Task DeleteAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct);
 }

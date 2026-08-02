@@ -77,6 +77,21 @@ public sealed record TagDisplayRequest
     public required string Id { get; init; }
 }
 
+/// <summary>Poll the CivitAI-cache state of the named LoRA files (POST /forge/loras/meta). A BODY, not a query string:
+/// the caller asks about every file currently on the page — many long subfolder-qualified names — which would overrun
+/// the URL, exactly like <see cref="MediaTypesRequest"/>.</summary>
+public sealed record LoraMetaQueryRequest
+{
+    public IReadOnlyList<string>? Names { get; init; }
+}
+
+/// <summary>Re-fetch CivitAI data for the named LoRA files (POST /forge/loras/refresh), or every LoRA on the box when
+/// the list is null/empty. Drops the cache for them and re-queues population.</summary>
+public sealed record LoraRefreshRequest
+{
+    public IReadOnlyList<string>? Names { get; init; }
+}
+
 /// <summary>Set a user's LoRA preferences (POST /api/lora/settings): a trigger-word override (blank = use the CivitAI
 /// default) and whether those words auto-attach to the prompt.</summary>
 public sealed record LoraSettingsRequest

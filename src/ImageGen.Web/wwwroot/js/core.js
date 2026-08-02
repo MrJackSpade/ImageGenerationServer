@@ -554,6 +554,41 @@ window.postTagDisplay = postTagDisplay;
 const deleteTagDisplay = tag => Api.send("/api/tag/display?tag=" + encodeURIComponent(tag), "DELETE");
 // Per-LoRA trigger-word override + auto-attach (the LoRA manager page).
 const postLoraSettings = (lora, triggers, autoAttach) => Api.send("/api/lora/settings", "POST", { lora, triggers, autoAttach });
+
+// LoRA CivitAI metadata (name/triggers/preview) is populated in the background: a surface renders stubs at once, then
+// polls until each file is `ready`. The preview media is served from THIS box (never hotlinked); it may be a clip, so
+// callers check previewVideo. All JSON in/out — the media is only ever an <img>/<video> src, never fetched as HTML.
+const loraPreviewUrl = (name, bust) =>
+  `${GATEWAY}/lora-preview?name=${encodeURIComponent(name)}` + (bust ? `&v=${encodeURIComponent(bust)}` : "");
+const postLoraMeta = names => Api.send("/forge/loras/meta", "POST", { names });          // -> { items:[…], pending }
+const postLoraRefresh = names => Api.send("/forge/loras/refresh", "POST", { names: names || [] });
+window.loraPreviewUrl = loraPreviewUrl;
+window.postLoraRefresh = postLoraRefresh;
+
+// Poll /forge/loras/meta until nothing in `names` is still populating. onUpdate(map) fires each round with a
+// name -> { displayName, triggers, autoAttach, ready, hasPreview, previewVideo } map. Stops when the server reports
+// nothing pending (or a round fails — the next page visit resumes it). The interval is the polling cadence the feature
+// calls for, not a deadline on work; returns a canceller. Exposed for the picker/manager/composer.
+function pollLoraMeta(names, onUpdate, intervalMs) {
+  names = (names || []).filter(Boolean);
+  if (!names.length) return () => {};
+  let stopped = false;
+  const gap = intervalMs || 1500;
+  async function tick() {
+    if (stopped) return;
+    let data;
+    try { const r = await postLoraMeta(names); if (!r.ok) throw 0; data = await r.json(); }
+    catch (_) { return; }
+    if (stopped) return;
+    const map = {};
+    (data.items || []).forEach(it => { map[it.name] = it; });
+    try { onUpdate(map); } catch (_) {}
+    if (data.pending) setTimeout(tick, gap);
+  }
+  setTimeout(tick, gap);
+  return () => { stopped = true; };
+}
+window.pollLoraMeta = pollLoraMeta;
 // Per-model banned tags/artists (excluded from auto-gen for that model). The generate path does NOT read these — the
 // worker resolves the user's bans server-side — so this is purely the settings manager's view of them.
 const fetchAllBans = () => Api.json("/api/bans/all");

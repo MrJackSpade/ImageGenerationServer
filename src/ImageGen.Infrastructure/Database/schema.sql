@@ -414,6 +414,18 @@ CREATE TABLE dbo.LoraMeta
 );
 GO
 
+-- Machine-level cache of a LoRA's CivitAI preview media (an image, or a short clip — some previews are mp4). Downloaded
+-- once and served from this box rather than hotlinking the CivitAI CDN. Keyed by the plain filename, like dbo.LoraMeta.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraPreview' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.LoraPreview
+(
+    LoraName     NVARCHAR(512)  NOT NULL CONSTRAINT PK_LoraPreview PRIMARY KEY,
+    Bytes        VARBINARY(MAX) NOT NULL,
+    ContentType  NVARCHAR(64)   NOT NULL,
+    FetchedAtUtc DATETIME2(3)   NOT NULL
+);
+GO
+
 -- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
 -- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraUserSetting' AND schema_id = SCHEMA_ID('dbo'))

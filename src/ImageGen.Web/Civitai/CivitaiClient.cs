@@ -55,4 +55,49 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             return null;
         }
     }
+
+    public async Task<CivitaiPreview?> DownloadPreviewAsync(string url, CancellationToken ct)
+    {
+        if (!config.IsOn(EnabledKey) || string.IsNullOrWhiteSpace(url))
+            return null;
+
+        try
+        {
+            var http = httpFactory.CreateClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+            using var resp = await http.GetAsync(url, ct);
+            if (!resp.IsSuccessStatusCode)
+                return null;
+
+            var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+            if (bytes.Length == 0)
+                return null;
+            // Trust the CDN's declared type; fall back to the URL's extension (some CivitAI clips are .mp4). The
+            // browser needs this to decide <img> vs <video>, so a wrong guess would render an mp4 as a broken image.
+            var contentType = resp.Content.Headers.ContentType?.MediaType;
+            if (string.IsNullOrWhiteSpace(contentType) || contentType == "application/octet-stream")
+                contentType = GuessContentType(url);
+            return new CivitaiPreview(bytes, contentType);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogInformation("CivitAI preview {Url} could not be fetched: {Reason}", url, ex.Message);
+            return null;
+        }
+    }
+
+    private static string GuessContentType(string url)
+    {
+        var path = Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.AbsolutePath : url;
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext switch
+        {
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "image/jpeg",
+        };
+    }
 }
