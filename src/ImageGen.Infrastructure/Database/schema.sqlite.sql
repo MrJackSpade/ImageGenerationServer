@@ -212,6 +212,33 @@ CREATE TABLE IF NOT EXISTS dbo.LoraDisplay
     CONSTRAINT UQ_LoraDisplay_User_Lora UNIQUE (UserId, LoraName)
 );
 
+-- Machine-level cache of what CivitAI knows about a LoRA file (looked up by hash). Not per-user; LoraName is the
+-- plain subfolder-qualified filename (a shared machine asset, like dbo.ModelBinding.FileName).
+CREATE TABLE IF NOT EXISTS dbo.LoraMeta
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    LoraName     TEXT NOT NULL,
+    Sha256       TEXT NULL,
+    TrainedWords TEXT NULL,          -- JSON array of CivitAI trigger words (may be [])
+    ModelName    TEXT NULL,
+    PreviewUrl   TEXT NULL,
+    FetchedAtUtc TEXT NOT NULL,
+    CONSTRAINT UQ_LoraMeta_Name UNIQUE (LoraName)
+);
+
+-- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
+-- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
+CREATE TABLE IF NOT EXISTS dbo.LoraUserSetting
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId       INTEGER NOT NULL,
+    LoraName     TEXT NOT NULL,
+    TriggerWords TEXT NULL,
+    AutoAttach   INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT FK_LoraUserSetting_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraUserSetting_User_Lora UNIQUE (UserId, LoraName)
+);
+
 CREATE TABLE IF NOT EXISTS dbo.ImageBlob
 (
     ImageId         TEXT PRIMARY KEY,

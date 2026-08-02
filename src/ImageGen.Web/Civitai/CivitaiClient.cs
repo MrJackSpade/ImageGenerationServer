@@ -1,0 +1,58 @@
+using System.Text.Json;
+using ImageGen.Application.Civitai;
+using ImageGen.Web.Configuration;
+
+namespace ImageGen.Web.Civitai;
+
+/// <summary>
+/// Looks a LoRA up on CivitAI by its file hash to recover its trigger words + a preview image. Mirrors
+/// <see cref="Updates.UpdateCheck"/>: an outbound HTTP call gated by a machine setting, degrading to null (never an
+/// error) when it can't run. The by-hash endpoint is public — no API key needed for public models.
+/// </summary>
+public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration config, ILogger<CivitaiClient> log) : ICivitaiClient
+{
+    /// <summary>Opt-out (default on): turning this off stops the box contacting CivitAI at all.</summary>
+    public const string EnabledKey = "Civitai:Enabled";
+
+    private const string ByHash = "https://civitai.com/api/v1/model-versions/by-hash/";
+
+    public bool IsEnabled() => config.IsOn(EnabledKey);
+
+    public async Task<CivitaiLoraInfo?> LookupByHashAsync(string sha256, CancellationToken ct)
+    {
+        if (!config.IsOn(EnabledKey) || string.IsNullOrWhiteSpace(sha256))
+            return null;
+
+        try
+        {
+            var http = httpFactory.CreateClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+            using var resp = await http.GetAsync(ByHash + Uri.EscapeDataString(sha256), ct);
+            if (!resp.IsSuccessStatusCode)
+                return null;   // 404 = not published on CivitAI; anything else = nothing to add this run
+
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            var root = doc.RootElement;
+
+            var model = root.TryGetProperty("model", out var m) && m.TryGetProperty("name", out var mn)
+                ? mn.GetString() : null;
+
+            var words = new List<string>();
+            if (root.TryGetProperty("trainedWords", out var tw) && tw.ValueKind == JsonValueKind.Array)
+                foreach (var w in tw.EnumerateArray())
+                    if (w.GetString() is { Length: > 0 } s) words.Add(s);
+
+            string? preview = null;
+            if (root.TryGetProperty("images", out var imgs) && imgs.ValueKind == JsonValueKind.Array)
+                foreach (var img in imgs.EnumerateArray())
+                    if (img.TryGetProperty("url", out var u) && u.GetString() is { Length: > 0 } url) { preview = url; break; }
+
+            return new CivitaiLoraInfo(model ?? "", words, preview);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogInformation("CivitAI lookup for {Hash} could not run: {Reason}", sha256, ex.Message);
+            return null;
+        }
+    }
+}

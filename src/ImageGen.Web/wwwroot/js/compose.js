@@ -598,7 +598,11 @@ function renderLoras() {
     // Remove on the far LEFT (before the name), so tweaking the weight can't trigger an accidental delete.
     const rm = document.createElement("button");
     rm.type = "button"; rm.className = "lora-remove"; rm.textContent = "×"; rm.title = "Remove this LoRA";
-    rm.addEventListener("click", () => { loras.splice(i, 1); renderLoras(); savePrefs(); });
+    rm.addEventListener("click", () => {
+      const removed = loras.splice(i, 1)[0];
+      if (removed && removed.autoAttach && removed.triggers) removeTriggers(removed.triggers);   // pull its words back out
+      renderLoras(); savePrefs();
+    });
     const name = document.createElement("span");
     name.className = "lora-name"; name.textContent = loraLabel(lora.name);
     name.title = lora.name + (lora.clipCapable === false ? " — model-only (no CLIP effect)" : "");
@@ -618,16 +622,39 @@ function renderLoras() {
   if ($loraCount) $loraCount.textContent = loras.length ? `(${loras.length})` : "";
 }
 
-// Add picked files to the stack (default weight 1.0), skipping any already present, then persist.
+// Add picked files to the stack (default weight 1.0), skipping any already present, then persist. A LoRA whose
+// auto-attach is on drops its trigger words into the prompt box on add (visible + editable).
 function addLoras(picked) {
   const have = new Set(loras.map(l => l.name));
   for (const p of (picked || [])) {
     const nm = typeof p === "string" ? p : p.name;
     if (!nm || have.has(nm)) continue;
     have.add(nm);
-    loras.push({ name: nm, weight: 1.0, clipCapable: p && p.clipCapable, compatible: p && p.compatible });
+    const triggers = (p && p.triggers) || "";
+    const autoAttach = !p || p.autoAttach !== false;
+    loras.push({ name: nm, weight: 1.0, clipCapable: p && p.clipCapable, compatible: p && p.compatible, triggers, autoAttach });
+    if (autoAttach && triggers) insertTriggers(triggers);
   }
   renderLoras(); savePrefs();
+}
+
+// The prompt box, as comma-separated segments (trimmed), for inserting/removing a LoRA's trigger words.
+function promptSegments() { return $prompt.value.split(",").map(s => s.trim()).filter(Boolean); }
+function insertTriggers(text) {
+  if (!$prompt || !text) return;
+  const have = new Set(promptSegments().map(s => s.toLowerCase()));
+  const add = text.split(",").map(s => s.trim()).filter(s => s && !have.has(s.toLowerCase()));
+  if (!add.length) return;
+  const cur = $prompt.value.replace(/,\s*$/, "").trimEnd();
+  $prompt.value = (cur ? cur + ", " : "") + add.join(", ");
+  $prompt.dispatchEvent(new Event("change"));   // persists the draft + updates any listeners
+}
+function removeTriggers(text) {
+  if (!$prompt || !text) return;
+  const drop = new Set(text.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+  const kept = promptSegments().filter(s => !drop.has(s.toLowerCase()));
+  $prompt.value = kept.join(", ");
+  $prompt.dispatchEvent(new Event("change"));
 }
 
 // The LoRA accordion is offered ONLY for a single selected image model — a LoRA is model-specific, so stacking one
@@ -797,7 +824,7 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight })) });
+  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach })) });
   clearTimeout(prefsTimer);
   // A failed save was `.catch(() => {})`. This blob holds the user's draft PROMPT, so a silent failure means they
   // keep typing into a composer that is no longer being kept, and find an older draft on the next load.
@@ -834,7 +861,7 @@ function restorePrefs(p) {
   // Held for buildTagTypes (which runs after this, once the options are known). Absent = never set from a composer,
   // so the chips seed from the account's stored mask instead.
   if (Array.isArray(p.tagTypes)) tagTypesFromPrefs = p.tagTypes;
-  if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight) })); renderLoras(); }
+  if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight), triggers: l.triggers || "", autoAttach: l.autoAttach !== false })); renderLoras(); }
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
 // Shape gestures, mirroring the style picker: a tap picks exactly ONE (collapsing any multi-pick back down), a

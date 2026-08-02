@@ -548,6 +548,8 @@ const deleteArtistDisplay = artist => Api.send("/api/artist/display?artist=" + e
 // pages that may not share module scope) can reach it.
 const postLoraDisplay = (lora, id) => Api.send("/api/lora/display", "POST", { lora, id });
 window.postLoraDisplay = postLoraDisplay;
+// Per-LoRA trigger-word override + auto-attach (the LoRA manager page).
+const postLoraSettings = (lora, triggers, autoAttach) => Api.send("/api/lora/settings", "POST", { lora, triggers, autoAttach });
 // Per-model banned tags/artists (excluded from auto-gen for that model). The generate path does NOT read these — the
 // worker resolves the user's bans server-side — so this is purely the settings manager's view of them.
 const fetchAllBans = () => Api.json("/api/bans/all");

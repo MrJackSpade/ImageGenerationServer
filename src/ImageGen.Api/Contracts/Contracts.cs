@@ -70,6 +70,15 @@ public sealed record LoraDisplayRequest
     public required string Id { get; init; }
 }
 
+/// <summary>Set a user's LoRA preferences (POST /api/lora/settings): a trigger-word override (blank = use the CivitAI
+/// default) and whether those words auto-attach to the prompt.</summary>
+public sealed record LoraSettingsRequest
+{
+    public required string Lora { get; init; }
+    public string? Triggers { get; init; }
+    public bool AutoAttach { get; init; }
+}
+
 public sealed record TokenBookmarkRequest
 {
     public required string Name { get; init; }

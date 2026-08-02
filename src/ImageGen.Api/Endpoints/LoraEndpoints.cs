@@ -1,6 +1,8 @@
 using ImageGen.Application.Services;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Domain.Entities;
+using ImageGen.Domain.Repositories;
 
 namespace ImageGen.Api.Endpoints;
 
@@ -8,6 +10,23 @@ public static class LoraEndpoints
 {
     public static void MapLoraEndpoints(this RouteGroupBuilder api)
     {
+        // Save a LoRA's trigger-word override + auto-attach preference (the LoRA manager page).
+        api.MapPost("/lora/settings", async (HttpContext context, ILoraUserSettingRepository settings) =>
+        {
+            var req = await Json.ReadAsync<LoraSettingsRequest>(context);
+            if (req is null || string.IsNullOrWhiteSpace(req.Lora))
+                return Results.BadRequest();
+            var userId = context.User.GetUserId()!.Value;
+            await settings.SetAsync(new LoraUserSetting
+            {
+                UserId = userId,
+                LoraName = req.Lora,
+                TriggerWords = string.IsNullOrWhiteSpace(req.Triggers) ? null : req.Triggers.Trim(),
+                AutoAttach = req.AutoAttach,
+            }, context.RequestAborted);
+            return Results.Ok(new { ok = true });
+        });
+
         // Pick the image that represents a LoRA for this user (must be one of their own generations).
         api.MapPost("/lora/display", async (HttpContext context, LoraService loras, TimeProvider clock) =>
         {

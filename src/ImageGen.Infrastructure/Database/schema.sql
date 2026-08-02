@@ -384,6 +384,37 @@ CREATE TABLE dbo.LoraDisplay
 );
 GO
 
+-- Machine-level cache of what CivitAI knows about a LoRA file (looked up by hash). Not per-user; LoraName is the
+-- plain subfolder-qualified filename (a shared machine asset, like dbo.ModelBinding.FileName).
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraMeta' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.LoraMeta
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LoraMeta PRIMARY KEY,
+    LoraName     NVARCHAR(512)  NOT NULL,
+    Sha256       NVARCHAR(64)   NULL,
+    TrainedWords NVARCHAR(MAX)  NULL,   -- JSON array of CivitAI trigger words (may be [])
+    ModelName    NVARCHAR(256)  NULL,
+    PreviewUrl   NVARCHAR(1024) NULL,
+    FetchedAtUtc DATETIME2(3)   NOT NULL,
+    CONSTRAINT UQ_LoraMeta_Name UNIQUE (LoraName)
+);
+GO
+
+-- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
+-- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraUserSetting' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.LoraUserSetting
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LoraUserSetting PRIMARY KEY,
+    UserId       BIGINT         NOT NULL,
+    LoraName     NVARCHAR(512)  NOT NULL,
+    TriggerWords NVARCHAR(MAX)  NULL,
+    AutoAttach   BIT            NOT NULL CONSTRAINT DF_LoraUserSetting_AutoAttach DEFAULT 1,
+    CONSTRAINT FK_LoraUserSetting_User FOREIGN KEY (UserId) REFERENCES dbo.AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraUserSetting_User_Lora UNIQUE (UserId, LoraName)
+);
+GO
+
 -- Durable image storage. Image bytes live here keyed by a globally-unique opaque id (a GUID), replacing the
 -- old scheme where a GatewayImageId was a ComfyUI view-ref served by proxy -- which collided when ComfyUI's
 -- per-prefix filename counter reset (the app and the MCP submit under the same prefix to one ComfyUI) and

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Civitai;
 using ImageGen.Application.Images;
 using ImageGen.Application.Media;
 using ImageGen.Application.Platform;
@@ -58,6 +59,18 @@ public static class ForgeApi
     {
         var idx = name.LastIndexOfAny(['/', '\\']);
         return idx <= 0 ? "" : name[..idx].Replace('\\', '/');
+    }
+
+    /// <summary>The trigger words that attach to the prompt for a LoRA: the user's override if set, else the CivitAI
+    /// trained words joined into a comma list, else null (nothing to attach).</summary>
+    private static string? EffectiveTriggers(
+        string name, IReadOnlyDictionary<string, LoraMeta> meta, IReadOnlyDictionary<string, LoraUserSetting> settings)
+    {
+        if (settings.TryGetValue(name, out var us) && !string.IsNullOrWhiteSpace(us.TriggerWords))
+            return us.TriggerWords;
+        if (meta.TryGetValue(name, out var m) && m.TrainedWords.Count > 0)
+            return string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0));
+        return null;
     }
 
     /// <summary>The refusal for a submission the box has no memory for. 503 (not 4xx): the request is fine, the
@@ -148,14 +161,20 @@ public static class ForgeApi
         // The LoRA files this machine offers, for the composer's picker: each file's subfolder-qualified name, the
         // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
         // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
-        app.MapGet("/loras", async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras, CancellationToken ct) =>
+        app.MapGet("/loras", async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
+            ILoraMetaRepository meta, ILoraUserSettingRepository userSettings, CancellationToken ct) =>
         {
             try
             {
                 var userId = OwnerOf(http);
                 // The picker is offered only for a single selected model, so compatibility is judged against that one.
                 var entries = await catalog.ListLorasAsync(workflow, ct);
-                var covers = await loras.GetCoversAsync(userId, entries.Select(e => e.Name).ToList(), ct);
+                var names = entries.Select(e => e.Name).ToList();
+                var covers = await loras.GetCoversAsync(userId, names, ct);
+                // CACHED CivitAI metadata + this user's overrides only — no hashing on the picker's hot path (that's
+                // the LoRA manager page's job). A LoRA whose meta hasn't been fetched yet simply carries no triggers.
+                var metaByName = await meta.GetManyAsync(names, ct);
+                var settingsByName = await userSettings.GetManyAsync(userId, names, ct);
                 var rows = entries.Select(e => new
                 {
                     name = e.Name,
@@ -163,8 +182,52 @@ public static class ForgeApi
                     cover = covers.GetValueOrDefault(e.Name),
                     compatible = e.Compatible,
                     clipCapable = e.ClipCapable,
+                    triggers = EffectiveTriggers(e.Name, metaByName, settingsByName),
+                    autoAttach = !settingsByName.TryGetValue(e.Name, out var us) || us.AutoAttach,
                 });
                 return Results.Ok(rows);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
+            {
+                return Results.Json(new { error = "The image renderer isn't reachable — is ComfyUI running?" }, statusCode: 502);
+            }
+        });
+
+        // The LoRA manager page's data: every LoRA on this box with its cover / CivitAI preview, model name, and
+        // trigger words. Unlike /loras this ENSURES CivitAI metadata is fetched (hashing new files), so it can take a
+        // moment on first visit — which is why it's here and not on the composer's picker path.
+        app.MapGet("/loras/manage", async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaCatalog metaCatalog,
+            LoraService loras, ILoraUserSettingRepository userSettings, ICivitaiClient civitai, CancellationToken ct) =>
+        {
+            try
+            {
+                var userId = OwnerOf(http);
+                var entries = await catalog.ListLorasAsync(null, ct);   // all LoRAs; compatibility isn't relevant here
+                var names = entries.Select(e => e.Name).ToList();
+                var meta = await metaCatalog.EnsureAndGetAsync(names, ct);
+                var settings = await userSettings.GetManyAsync(userId, names, ct);
+                var covers = await loras.GetCoversAsync(userId, names, ct);
+                var rows = entries.Select(e =>
+                {
+                    meta.TryGetValue(e.Name, out var m);
+                    settings.TryGetValue(e.Name, out var us);
+                    var def = m is { TrainedWords.Count: > 0 }
+                        ? string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0))
+                        : "";
+                    return new
+                    {
+                        name = e.Name,
+                        folder = LoraFolderOf(e.Name),
+                        cover = covers.GetValueOrDefault(e.Name),
+                        previewUrl = m?.PreviewUrl,
+                        modelName = m?.ModelName,
+                        defaultTriggers = def,
+                        triggers = !string.IsNullOrWhiteSpace(us?.TriggerWords) ? us!.TriggerWords : def,
+                        hasOverride = !string.IsNullOrWhiteSpace(us?.TriggerWords),
+                        autoAttach = us?.AutoAttach ?? true,
+                    };
+                }).ToList();
+                return Results.Ok(new { civitaiEnabled = civitai.IsEnabled(), loras = rows });
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
             {

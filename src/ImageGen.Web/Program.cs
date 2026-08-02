@@ -167,6 +167,9 @@ builder.Services.AddSingleton(sp => new UpdateCheck(
     sp.GetRequiredService<ILogger<UpdateCheck>>(),
     AppVersion.Current));
 
+// LoRA trigger-word / preview lookup against CivitAI by file hash. Opt-out (Civitai:Enabled), like the update check.
+builder.Services.AddSingleton<ImageGen.Application.Civitai.ICivitaiClient, ImageGen.Web.Civitai.CivitaiClient>();
+
 // Only the composition root knows what a configuration key is called, so the live endpoint lives here rather than
 // in the Comfy adapter. Nothing is cached: a read is a dictionary lookup against the current configuration.
 builder.Services.AddSingleton<IComfyEndpoint>(sp => new ConfiguredComfyEndpoint(sp.GetRequiredService<IConfiguration>()));

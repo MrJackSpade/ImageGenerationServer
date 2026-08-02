@@ -25,6 +25,11 @@ public sealed class WorkflowsController : Controller
     [HttpGet("/settings/models")]
     public IActionResult Models() => View();
 
+    /// <summary>The LoRA manager: every LoRA on this box with its cover, CivitAI-fetched trigger words (editable), and
+    /// whether those words auto-attach to the prompt. A JS shell over /forge/loras/manage + /api/lora/*.</summary>
+    [HttpGet("/settings/loras")]
+    public IActionResult Loras() => View();
+
     [HttpGet("/settings/workflows/{id}")]
     public IActionResult Detail(string id)
     {

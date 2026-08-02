@@ -102,6 +102,12 @@ public static class MachineSettingSpecs
             + "release archive — never checks and never shows the banner.",
             SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: "true"),
 
+        new("Civitai:Enabled", "CivitAI lookups",
+            "Looks a LoRA up on civitai.com by its file hash — once per file — to fill in its trigger words and a "
+            + "preview image on the LoRAs page. Turn it off to stop this box contacting CivitAI at all; trigger "
+            + "words then stay whatever you type on the LoRAs page.",
+            SettingKind.Bool, SettingStore.Database, SettingApply.Live, Default: "true"),
+
         new("Diagnostics:ExposeStackTraces", "Expose stack traces",
             "Puts the full exception in the 500 JSON body, which is what makes a failure readable in the UI. Turn "
             + "off where untrusted people can reach the app: the body keeps its shape and carries the message "
