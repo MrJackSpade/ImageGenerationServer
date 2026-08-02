@@ -66,9 +66,16 @@
     flushTimer = null;
     const ids = Array.from(pending.keys()).filter(id => !verdict.has(id));
     if (!ids.length) { resolvePending(); return; }
-    const q = ids.map(encodeURIComponent).join(",");
-    fetch(`${GW}/media?ids=${q}`, { credentials: "same-origin" })
-      .then(r => { if (!r.ok) throw new Error(`GET ${GW}/media -> ${r.status}`); return r.json(); })
+    // POST the ids in the body, not the query string. This is one lookup for EVERY image on the page — hundreds of
+    // ids — and a GET stuffed them all into the URL, which sailed past Kestrel's ~8 KB request line and got the
+    // connection aborted before the server saw it (ERR_CONNECTION_ABORTED), the more so the more thumbnails loaded.
+    fetch(`${GW}/media`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    })
+      .then(r => { if (!r.ok) throw new Error(`POST ${GW}/media -> ${r.status}`); return r.json(); })
       .then(map => {
         // A MISSING key is not a verdict. The endpoint answers for every id it is asked about, so an absent id
         // means the answer was incomplete — recording it as false would assert "not a video" on no evidence.

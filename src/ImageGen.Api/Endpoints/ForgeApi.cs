@@ -800,16 +800,20 @@ public static class ForgeApi
             return Results.File(ms, "application/zip");
         });
 
-        app.MapGet("/media", async (string? ids, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct) =>
+        app.MapPost("/media", async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct) =>
         {
+            // ids arrive in the request BODY, not the query string (see MediaTypesRequest): the caller asks about
+            // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
+            // limit -- a GET was aborted at the connection before this handler ever ran.
+            //
             // Every id asked about is answered for. This used to .Take(200), which was silent AND unrecoverable:
             // the client reads the response as authoritative (media.js: `verdict.set(id, !!map[id])`), so an id the
             // server dropped is absent from the map, cached as false, and rendered as "not a video" for the life of
-            // the page -- no loop, no scrubber, no poster. The caller sends one unbatched request for everything
-            // pending, and the Recent strip's window has no ceiling, so a batch over 200 hit this for real.
-            var list = (ids ?? "")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(Uri.UnescapeDataString)
+            // the page -- no loop, no scrubber, no poster. The blob lookup chunks its parameters, so an id list of any
+            // size is answered in full (SQL Server caps a command at 2100 parameters).
+            var list = (body?.Ids ?? Array.Empty<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
             if (list.Count == 0) return Results.Ok(new Dictionary<string, bool>());

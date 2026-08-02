@@ -99,19 +99,28 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
             return result;
 
         var ids = imageIds.ToList();
-        var ps = new string[ids.Count];
-        for (var i = 0; i < ids.Count; i++)
-            ps[i] = "@i" + i;
-
         await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
-            $"SELECT ImageId, ContentType FROM dbo.ImageBlob WHERE ImageId IN ({string.Join(',', ps)});");
-        for (var i = 0; i < ids.Count; i++)
-            cmd.AddParam(ps[i], ids[i]);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result[reader.GetString(0)] = reader.GetString(1);
+        // Chunked so the id list can be any length: the caller asks about every image on the page at once, and one
+        // IN (...) with a parameter per id would blow SQL Server's 2100-parameter ceiling on a large page. One
+        // connection, reused per chunk.
+        const int chunkSize = 1000;
+        for (var start = 0; start < ids.Count; start += chunkSize)
+        {
+            var chunk = ids.GetRange(start, Math.Min(chunkSize, ids.Count - start));
+            var ps = new string[chunk.Count];
+            for (var i = 0; i < chunk.Count; i++)
+                ps[i] = "@i" + i;
+
+            await using var cmd = conn.Command(
+                $"SELECT ImageId, ContentType FROM dbo.ImageBlob WHERE ImageId IN ({string.Join(',', ps)});");
+            for (var i = 0; i < chunk.Count; i++)
+                cmd.AddParam(ps[i], chunk[i]);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                result[reader.GetString(0)] = reader.GetString(1);
+        }
         return result;
     }
 }

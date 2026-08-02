@@ -154,6 +154,15 @@ public sealed record TagQueryRequest(string? Q, string? Kind, int? Limit, string
 public sealed record HistoryQueryRequest(
     int? Page, int? PageSize, string? Artist, string? Tag, string? Workflow, string? Search, bool? UnviewedOnly);
 
+/// <summary>The ids the media-type lookup should answer about. In a BODY, not the query string: the caller asks about
+/// every gateway image currently on the page at once — hundreds of 32-char ids — and that URL runs well past the ~8 KB
+/// request line Kestrel accepts, so a GET was aborted at the connection (ERR_CONNECTION_ABORTED) before any handler ran,
+/// and the more thumbnails had loaded the more reliably it failed. A body has no such ceiling.</summary>
+public sealed record MediaTypesRequest
+{
+    public IReadOnlyList<string>? Ids { get; init; }
+}
+
 /// <summary>The bookmarks page's per-user state, an opaque JSON string the server stores verbatim. Null/blank clears it.</summary>
 public sealed record BookmarkPrefsRequest
 {

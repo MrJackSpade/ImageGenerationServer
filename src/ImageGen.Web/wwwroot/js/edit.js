@@ -89,7 +89,12 @@ async function detectSrcVideo(id) {
   if (!id) return false;
   const key = imageId(id);
   try {
-    const r = await fetch(`${GATEWAY}/media?ids=${encodeURIComponent(key)}`, { credentials: "same-origin" });
+    const r = await fetch(`${GATEWAY}/media`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [key] }),
+    });
     if (!r.ok) return false;
     const map = await r.json();
     return !!map[key];
