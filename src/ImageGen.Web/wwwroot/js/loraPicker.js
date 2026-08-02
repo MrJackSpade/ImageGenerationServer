@@ -1,0 +1,170 @@
+// LoRA picker: a modal grid over GET /forge/loras. Folder navigation, global search across the whole tree, batch
+// checkbox-style selection, cover thumbnails, and compatibility dimming. Pure JSON in — the DOM is built here — and
+// the picked LoRAs are handed back to the composer via opts.onAdd. Consumes JSON, never HTML.
+(function () {
+  const THUMB = (typeof THUMB_W !== "undefined" && THUMB_W) || 220;
+  let overlay = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+  function label(name) { return String(name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, ""); }
+  function parentFolder(f) { const i = f.lastIndexOf("/"); return i < 0 ? "" : f.slice(0, i); }
+  function relFolder(itemFolder, folder) {
+    itemFolder = itemFolder || "";
+    if (!folder) return itemFolder;
+    if (itemFolder === folder) return "";
+    return itemFolder.startsWith(folder + "/") ? itemFolder.slice(folder.length + 1) : "";
+  }
+  function inFolder(itemFolder, folder) {
+    itemFolder = itemFolder || "";
+    return folder ? (itemFolder === folder || itemFolder.startsWith(folder + "/")) : true;
+  }
+
+  function close() {
+    if (!overlay) return;
+    overlay.remove(); overlay = null;
+    document.removeEventListener("keydown", onKey);
+  }
+  function onKey(e) { if (e.key === "Escape") close(); }
+
+  window.openLoraPicker = async function (opts) {
+    opts = opts || {};
+    close();
+    const picked = new Set();
+    const already = new Set(opts.current || []);
+    let all = [];
+    let folder = "";   // current folder ("" = root)
+    let search = "";
+
+    overlay = document.createElement("div");
+    overlay.className = "lora-picker-overlay";
+    overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement("div"); modal.className = "lora-picker";
+    overlay.appendChild(modal);
+
+    const head = document.createElement("div"); head.className = "lp-head";
+    const title = document.createElement("div"); title.className = "lp-title"; title.textContent = "Add LoRAs";
+    const searchInput = document.createElement("input");
+    searchInput.type = "search"; searchInput.className = "lp-search"; searchInput.placeholder = "Search all LoRAs…";
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button"; closeBtn.className = "lp-close"; closeBtn.textContent = "×"; closeBtn.title = "Close";
+    closeBtn.addEventListener("click", close);
+    head.append(title, searchInput, closeBtn);
+
+    const crumb = document.createElement("div"); crumb.className = "lp-crumb";
+    const grid = document.createElement("div"); grid.className = "lp-grid";
+    const foot = document.createElement("div"); foot.className = "lp-foot";
+    const addBtn = document.createElement("button");
+    addBtn.type = "button"; addBtn.className = "lp-add primary-btn"; addBtn.textContent = "Add"; addBtn.disabled = true;
+    addBtn.addEventListener("click", () => {
+      const chosen = all.filter(l => picked.has(l.name));
+      if (opts.onAdd) opts.onAdd(chosen);
+      close();
+    });
+    foot.appendChild(addBtn);
+
+    modal.append(head, crumb, grid, foot);
+    document.body.appendChild(overlay);
+    document.addEventListener("keydown", onKey);
+    searchInput.focus();
+
+    function updateAdd() {
+      addBtn.disabled = picked.size === 0;
+      addBtn.textContent = picked.size ? `Add ${picked.size}` : "Add";
+    }
+    function empty(msg) { const d = document.createElement("div"); d.className = "lp-empty"; d.textContent = msg; return d; }
+
+    function folderTile(sub) {
+      const t = document.createElement("button"); t.type = "button"; t.className = "lp-tile lp-folder";
+      t.innerHTML = `<div class="lp-thumb lp-folder-ic">📁</div><div class="lp-name">${esc(sub)}</div>`;
+      t.addEventListener("click", () => { folder = folder ? folder + "/" + sub : sub; render(); });
+      return t;
+    }
+
+    function loraTile(l) {
+      const t = document.createElement("div");
+      t.className = "lp-tile lp-lora"
+        + (l.compatible === false ? " incompatible" : "")
+        + (picked.has(l.name) ? " picked" : "")
+        + (already.has(l.name) ? " already" : "");
+      const nm = label(l.name);
+      const thumb = l.cover
+        ? `<img class="lp-thumb" src="${GATEWAY}/image/${encodeURIComponent(l.cover)}?w=${THUMB}" alt="" loading="lazy">`
+        : `<div class="lp-thumb lp-noimg">${esc(nm.slice(0, 2).toUpperCase())}</div>`;
+      const badges = (l.compatible === false ? '<span class="lp-badge warn" title="May not fit the selected model">!</span>' : '')
+        + (l.clipCapable === false ? '<span class="lp-badge" title="Model-only (no CLIP effect)">M</span>' : '');
+      t.innerHTML = `${thumb}<div class="lp-name">${esc(nm)}</div><div class="lp-badges">${badges}</div>`;
+      t.title = l.name
+        + (l.compatible === false ? " — may not fit the selected model" : "")
+        + (already.has(l.name) ? " (already added)" : "");
+      t.addEventListener("click", () => {
+        if (already.has(l.name)) return;   // can't re-add what's already in the stack
+        if (picked.has(l.name)) picked.delete(l.name); else picked.add(l.name);
+        t.classList.toggle("picked", picked.has(l.name));
+        updateAdd();
+      });
+      return t;
+    }
+
+    function render() {
+      grid.innerHTML = ""; crumb.innerHTML = "";
+      const q = search.trim().toLowerCase();
+
+      // Global search: a flat list across the WHOLE tree, regardless of the current folder.
+      if (q) {
+        crumb.textContent = `Search: “${search}”`;
+        const matches = all.filter(l => l.name.toLowerCase().includes(q));
+        matches.forEach(l => grid.appendChild(loraTile(l)));
+        if (!matches.length) grid.appendChild(empty("No LoRAs match."));
+        return;
+      }
+
+      if (folder) {
+        const back = document.createElement("button");
+        back.type = "button"; back.className = "lp-back"; back.textContent = "↑ " + folder;
+        back.addEventListener("click", () => { folder = parentFolder(folder); render(); });
+        crumb.appendChild(back);
+      } else {
+        crumb.textContent = "All LoRAs";
+      }
+
+      // Subfolders directly under the current folder.
+      const subs = new Set();
+      for (const l of all) {
+        if (!inFolder(l.folder, folder)) continue;
+        const rest = relFolder(l.folder, folder);
+        if (rest) subs.add(rest.split("/")[0]);
+      }
+      [...subs].sort((a, b) => a.localeCompare(b)).forEach(sub => grid.appendChild(folderTile(sub)));
+
+      // Files directly in the current folder.
+      const files = all.filter(l => (l.folder || "") === folder);
+      files.forEach(l => grid.appendChild(loraTile(l)));
+
+      if (!subs.size && !files.length) grid.appendChild(empty("No LoRAs here."));
+    }
+
+    searchInput.addEventListener("input", () => { search = searchInput.value; render(); });
+
+    grid.appendChild(empty("Loading…"));
+    try {
+      const url = `${GATEWAY}/loras` + (opts.workflow ? `?workflow=${encodeURIComponent(opts.workflow)}` : "");
+      const r = await fetch(url);
+      if (!r.ok) throw new Error("load failed");
+      all = (await r.json()) || [];
+    } catch (e) {
+      grid.innerHTML = ""; grid.appendChild(empty("Couldn't load LoRAs."));
+      return;
+    }
+
+    // Smart routing: open the top-level folder matching the workflow, when there is one.
+    if (opts.defaultFolder) {
+      const df = String(opts.defaultFolder).toLowerCase();
+      const hit = all.find(l => { const f = (l.folder || "").toLowerCase(); return f === df || f.split("/")[0] === df; });
+      if (hit) folder = hit.folder.split("/")[0];
+    }
+    render();
+  };
+})();

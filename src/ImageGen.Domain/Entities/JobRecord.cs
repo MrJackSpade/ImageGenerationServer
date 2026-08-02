@@ -114,6 +114,10 @@ public sealed class JobSlotRecord
     /// <summary>The workflow's exposed parameter values as a JSON map. An arbitrary bag keyed by parameter name, not
     /// a relation to anything, and not protected — stored plain so it is readable without a key.</summary>
     public string? OverridesJson { get; set; }
+    /// <summary>The user's LoRA stack for this slot as a JSON array of <c>{name,weight}</c>. A value bag, not a
+    /// relation — stored plain and per-slot like <see cref="OverridesJson"/>, so a batch resumed after a restart
+    /// re-renders with its LoRAs intact. Null when the slot used none.</summary>
+    public string? LorasJson { get; set; }
     /// <summary>Edits: the source image. A real, joinable id.</summary>
     public string? SourceImageId { get; set; }
     /// <summary>Inpaint: the mask image. A real, joinable id.</summary>

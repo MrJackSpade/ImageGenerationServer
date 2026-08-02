@@ -14,6 +14,8 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
 {
     private const string MarkTable = "dbo.HistoryMark";
     private const string MarkParent = "HistoryEntryId";
+    private const string LoraTable = "dbo.HistoryLora";
+    private const string LoraParent = "HistoryEntryId";
 
     /// <summary>Positional: MapEntry reads by ordinal, so append — never insert — a column here.</summary>
     private const string EntryColumns =
@@ -64,11 +66,12 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
             ? await OffsetPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, page, pageSize, ct)
             : await SearchPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, terms, page, pageSize, ct);
 
-        var marks = await MarkIo.LoadAsync(
-            conn, MarkTable, MarkParent, rows.Select(r => r.Id).ToList(), userId, _cipher, ct);
+        var ids = rows.Select(r => r.Id).ToList();
+        var marks = await MarkIo.LoadAsync(conn, MarkTable, MarkParent, ids, userId, _cipher, ct);
+        var loras = await LoraIo.LoadAsync(conn, LoraTable, LoraParent, ids, userId, _cipher, ct);
         var items = new List<HistoryEntry>(rows.Count);
         foreach (var e in rows)
-            items.Add(await WithMarksAsync(e, marks, ct));
+            items.Add(await WithChildrenAsync(e, marks, loras, ct));
         return new PagedResult<HistoryEntry>(items, total, page, pageSize);
     }
 
@@ -151,7 +154,8 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
             return null;
 
         var marks = await MarkIo.LoadAsync(conn, MarkTable, MarkParent, [entry.Id], userId, _cipher, ct);
-        return await WithMarksAsync(entry, marks, ct);
+        var loras = await LoraIo.LoadAsync(conn, LoraTable, LoraParent, [entry.Id], userId, _cipher, ct);
+        return await WithChildrenAsync(entry, marks, loras, ct);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsForArtistsAsync(
@@ -316,6 +320,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
             return false;   // duplicate — (UserId, GatewayImageId) already present
 
         await MarkIo.InsertAsync(conn, tx, MarkTable, MarkParent, newId.Value, e.Marks, e.UserId, _cipher, ct);
+        await LoraIo.InsertAsync(conn, tx, LoraTable, LoraParent, newId.Value, e.Loras, e.UserId, _cipher, ct);
         return true;
     }
 
@@ -351,8 +356,9 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
         OriginalPrompt = r.IsDBNull(10) ? null : r.GetString(10),    // ciphertext; null on rows the client never sent one for
     };
 
-    private async Task<HistoryEntry> WithMarksAsync(
-        HistoryEntry e, IReadOnlyDictionary<long, List<Mark>> marks, CancellationToken ct) => new()
+    private async Task<HistoryEntry> WithChildrenAsync(
+        HistoryEntry e, IReadOnlyDictionary<long, List<Mark>> marks,
+        IReadOnlyDictionary<long, List<HistoryLora>> loras, CancellationToken ct) => new()
     {
         Id = e.Id,
         UserId = e.UserId,
@@ -366,5 +372,6 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
         Aspect = e.Aspect,
         CreatedAtUtc = e.CreatedAtUtc,
         Marks = marks.TryGetValue(e.Id, out var list) ? list : [],
+        Loras = loras.TryGetValue(e.Id, out var loraList) ? loraList : [],
     };
 }

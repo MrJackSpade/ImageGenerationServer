@@ -39,15 +39,15 @@ WHEN MATCHED THEN UPDATE SET
     RawNegativePrompt = @rawNeg, GenStartedAtUtc = @started, ExpectedGenSeconds = @expected,
     Workflow = @workflow, Prompt = @specPrompt, NegativePrompt = @specNegative, Aspect = @aspect,
     RandomArtist = @randomArtist, RandomPrompt = @randomPrompt, Temperature = @temperature,
-    TagTypesJson = @tagTypes, OverridesJson = @overrides, SourceImageId = @source, MaskImageId = @mask,
+    TagTypesJson = @tagTypes, OverridesJson = @overrides, LorasJson = @loras, SourceImageId = @source, MaskImageId = @mask,
     LastFrameImageId = @lastFrame
 WHEN NOT MATCHED THEN
     INSERT (JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, Error,
             EffectivePrompt, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
             Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson,
-            OverridesJson, SourceImageId, MaskImageId, LastFrameImageId)
+            OverridesJson, LorasJson, SourceImageId, MaskImageId, LastFrameImageId)
     VALUES (@jobId, @idx, @isEdit, @state, @comfy, @imageId, @width, @height, @changed, @score, @error,
             @effective, @raw, @rawNeg, @started, @expected,
             @workflow, @specPrompt, @specNegative, @aspect, @randomArtist, @randomPrompt, @temperature, @tagTypes,
-            @overrides, @source, @mask, @lastFrame);";
+            @overrides, @loras, @source, @mask, @lastFrame);";
 }

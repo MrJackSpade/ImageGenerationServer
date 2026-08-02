@@ -699,7 +699,7 @@ public sealed class RenderOrchestrator
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
                 var genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
-                promptId = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, ct);
+                promptId = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
             }
 
             if (!resuming)
@@ -975,6 +975,11 @@ public sealed class RenderOrchestrator
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
                 : slot.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList();
+            // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
+            // and Reload reproduces the exact stack; empty for edits and for generations that used none.
+            IReadOnlyList<HistoryLora> loras = slot.IsEdit || slot.Gen!.Loras is not { Count: > 0 }
+                ? Array.Empty<HistoryLora>()
+                : slot.Gen.Loras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
 
             var entry = new HistoryEntry
             {
@@ -989,6 +994,7 @@ public sealed class RenderOrchestrator
                 Aspect = aspect,
                 CreatedAtUtc = DateTime.UtcNow,
                 Marks = marks,
+                Loras = loras,
             };
 
             // A fresh scope per ATTEMPT: the repository is scoped, and a scope built before an outage would be reused
@@ -1118,6 +1124,7 @@ public sealed class RenderOrchestrator
                 Temperature = s.IsEdit ? null : s.Gen!.Temperature,
                 TagTypesJson = s.IsEdit || s.Gen!.TagTypes is null ? null : JsonSerializer.Serialize(s.Gen!.TagTypes),
                 OverridesJson = OverridesJsonOf(s),
+                LorasJson = LorasJsonOf(s),
                 SourceImageId = s.IsEdit ? s.Edit!.ImageId : null,
                 MaskImageId = s.IsEdit ? s.Edit!.MaskImageId : null,
                 LastFrameImageId = s.IsEdit ? s.Edit!.LastFrameImageId : null,
@@ -1134,6 +1141,15 @@ public sealed class RenderOrchestrator
         return overrides is null ? null : JsonSerializer.Serialize(overrides);
     }
 
+    /// <summary>The slot's user LoRA stack as stored JSON, or null when it used none (generates only — an edit has no
+    /// LoRA stack). A plain per-slot value bag, like <see cref="OverridesJsonOf"/>, so a resumed batch keeps its LoRAs.</summary>
+    private static string? LorasJsonOf(RenderSlot s)
+    {
+        if (s.IsEdit) return null;
+        var loras = s.Gen!.Loras;
+        return loras is not { Count: > 0 } ? null : JsonSerializer.Serialize(loras);
+    }
+
     /// <summary>Rebuild a slot's generate spec from its typed columns. No deserialization contract to get wrong: a
     /// column that went missing is a database error, not a silently-null property.</summary>
     private static GenerateSpec GenerateSpecOf(JobSlotRecord sr) => new(
@@ -1145,7 +1161,8 @@ public sealed class RenderOrchestrator
         sr.RandomPrompt,
         sr.Temperature,
         Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
-        Deser<List<string>>(sr.TagTypesJson));
+        Deser<List<string>>(sr.TagTypesJson),
+        Loras: Deser<List<LoraSelection>>(sr.LorasJson));
 
     /// <summary>Rebuild a slot's edit spec from its typed columns and its reference child rows.</summary>
     private static EditSpec EditSpecOf(JobSlotRecord sr) => new(

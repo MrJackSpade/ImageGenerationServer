@@ -37,6 +37,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             Temperature = 0.85,
             TagTypesJson = """["character","meta"]""",
             OverridesJson = """{"seed":1234,"steps":28}""",
+            LorasJson = """[{"Name":"anime/foo.safetensors","Weight":0.8}]""",
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
@@ -51,6 +52,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal(0.85, back.Temperature);
         Assert.Equal("""["character","meta"]""", back.TagTypesJson);
         Assert.Equal("""{"seed":1234,"steps":28}""", back.OverridesJson);
+        Assert.Equal("""[{"Name":"anime/foo.safetensors","Weight":0.8}]""", back.LorasJson);
     }
 
     /// <summary>

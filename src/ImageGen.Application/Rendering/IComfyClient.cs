@@ -10,9 +10,11 @@ namespace ImageGen.Application.Rendering;
 /// </summary>
 public interface IComfyClient
 {
-    /// <summary>Build the generate graph for a configuration and POST it; return the backend prompt id (no polling).</summary>
+    /// <summary>Build the generate graph for a configuration and POST it; return the backend prompt id (no polling).
+    /// <paramref name="loras"/> is the user's LoRA stack (null/empty for none), chained through <c>LoraLoader</c>
+    /// (model + CLIP) on top of any preset LoRA; each name is validated against the backend's LoRA list.</summary>
     Task<string> SubmitGenerateAsync(string prompt, string? negativePrompt, string? configId, string? aspect,
-        IReadOnlyDictionary<string, JsonElement>? overrides, CancellationToken ct);
+        IReadOnlyDictionary<string, JsonElement>? overrides, IReadOnlyList<LoraSelection>? loras, CancellationToken ct);
 
     /// <summary>Upload the source (and any references/mask/last-frame), build the edit graph, and POST it; return the
     /// backend prompt id (no polling). <paramref name="negativePrompt"/> is the optional UI negative appended to the

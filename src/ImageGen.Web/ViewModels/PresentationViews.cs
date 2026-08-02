@@ -51,4 +51,10 @@ public sealed record ImageDetailView(
     string ModelId,
     string Aspect,
     DateTime CreatedAtUtc,
-    IReadOnlyDictionary<string, string> Marks);
+    IReadOnlyDictionary<string, string> Marks,
+    IReadOnlyList<LoraView>? Loras = null);
+
+/// <summary>One LoRA an image was generated with (name + weight), for the viewer's LoRA list and its Reload.</summary>
+/// <param name="Name">The subfolder-qualified <c>lora_name</c>.</param>
+/// <param name="Weight">The strength it was applied at.</param>
+public sealed record LoraView(string Name, double Weight);

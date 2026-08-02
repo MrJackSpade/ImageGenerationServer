@@ -8,7 +8,9 @@ const $prompt = $("prompt"), $tagPop = $("tagPop"), $generate = $("generate"),
       $composer = $("composer"), $modelTip = $("modelTip"), $aspect = $("aspect"), $aspectNote = $("aspectNote"),
       $randomArtist = $("randomArtist"), $randomArtistBar = $("randomArtistBar"),
       $promptTemp = $("promptTemp"), $promptTempVal = $("promptTempVal"), $randomPromptBar = $("randomPromptBar"),
-      $negWrap = $("negWrap"), $negPrompt = $("negativePrompt"), $negTagPop = $("negTagPop");
+      $negWrap = $("negWrap"), $negPrompt = $("negativePrompt"), $negTagPop = $("negTagPop"),
+      $loraSection = $("loraSection"), $loraToggle = $("loraToggle"), $loraBody = $("loraBody"),
+      $loraList = $("loraList"), $loraAdd = $("loraAdd"), $loraCount = $("loraCount");
 
 let CATALOG = null;
 const MODELS = {};
@@ -108,6 +110,7 @@ function updatePlaceholder() {
   if ($randomPromptBar) $randomPromptBar.hidden = !(m && m.tagging && m.tagging.tags);
   syncTagTypesBar();   // the mask hides with the slider when the model can't take random tags
   updateNegativeField();   // reveal the negative field iff any checked model supports one (independent of primary)
+  updateLoraSection();     // the LoRA accordion shows only when a selected model produces images
   const ex = m && exampleFor(m);
   $prompt.placeholder = ex || "Describe the picture you'd like to make…";
   const help = m && m.ui_help;
@@ -135,6 +138,7 @@ function adaptWorkflow(r) {
   return {
     id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, default: !!r.default, avgSeconds: r.avgSeconds,
     kind: r.kind, media: r.media === "video" ? "video" : "image", exposedParams: r.exposedParams || [],
+    loraFolder: r.loraFolder || "",   // the workflow's default LoRA-picker folder (Part H); "" = smart-route by id
     negativeSupported: c.negativeSupported === true,   // model's card declares it uses a negative prompt
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,
     prompt: { example: c.example, required_prefix: c.requiredPrefix },
@@ -273,7 +277,7 @@ function composeItems(model, prompt, n) {
   const base = {
     workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model),
     randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(),
-    overrides: currentOverrides(),
+    overrides: currentOverrides(), loras: lorasPayload(),
   };
   const items = [];
   for (const variant of explodePrompts(prompt))
@@ -298,7 +302,7 @@ async function submitItems(items, meta) {
   } catch (e) { if (cancelRequested || (e && e.name === "AbortError")) setStatus("Cancelled."); else setStatus(friendlyError(e), { error: true }); hideBar(); }
   finally { setBusy(false); }
 }
-async function generateBatch(prompt, model, n, exact, aspect, negative) {
+async function generateBatch(prompt, model, n, exact, aspect, negative, loras) {
   setBusy(true);   // lock before the await so a second click can't double-fire (submitItems re-affirms + clears it)
   // No explicit aspect (the composer's own Generate) -> every slot rolls its own from the picked set, so a batch
   // comes back mixed when several shapes are selected. Reload passes the image's shape, and every slot keeps it.
@@ -310,11 +314,12 @@ async function generateBatch(prompt, model, n, exact, aspect, negative) {
   const ov = currentOverrides();
   let items;
   if (exact) {
-    const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov };
+    // exact (Reload): the image's OWN LoRA stack verbatim, never the composer's current one.
+    const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: loras || [] };
     items = Array.from({ length: n }, () => { const asp = rollAspect(); slotAspects.push(asp); return { ...one, aspect: asp }; });
   } else {
     // Every slot shares these; the prompt is re-rolled per slot so [a|b|…] randomization varies across the batch.
-    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), overrides: ov };
+    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), overrides: ov, loras: lorasPayload() };
     // Fan across explode variants ({a|b} sets), n slots each — so a batch of n makes n of every combination.
     items = [];
     for (const variant of explodePrompts(prompt))
@@ -333,7 +338,7 @@ async function generateMulti(prompt, models, n) {
   const ov = currentOverrides();   // the intersection params the user set, applied to every model
   const items = [], slotModels = [], slotAspects = [];   // [i] = friendly name / shape for slot i, in submission order (= slot.index)
   for (const model of models) {
-    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, overrides: ov };
+    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: lorasPayload() };
     // Fan across explode variants ({a|b} sets), n slots each; re-roll [a|b|…] randomization per slot so slots differ.
     for (const variant of explodePrompts(prompt))
       for (let i = 0; i < n; i++) {
@@ -416,7 +421,7 @@ function trackBatch() {
 // `originalPrompt` is what the user TYPED, before this file resolved [a|b], {a|b} and the artist lock into `prompt`
 // — recorded with the image, never rendered from, and passed explicitly rather than defaulted so a caller can't
 // silently record a resolved string as the original.
-async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, temperature, negative, originalPrompt) {
+async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, temperature, negative, originalPrompt, loras = lorasPayload()) {
   const heavy = model.speed && (model.speed.class === "slow" || model.speed.class === "very_slow");
   cancelRequested = false; setBusy(true);
   setStatus(heavy ? "Generating… this is a large workflow and may take a few minutes. Press Cancel to stop." : "Generating… this usually takes 10–60 seconds.");
@@ -424,7 +429,7 @@ async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, 
   try {
     // The mask goes only with a random-prompt render: Reload passes randomPrompt=false and must reproduce the picture
     // as it was made, not re-mask it.
-    const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides() }) });
+    const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides(), loras }) });
     if (!r.ok) throw new Error(await gwError(r));
     const promptId = (await r.json()).promptId;
     postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect }).catch(() => {});
@@ -486,10 +491,12 @@ function regenerate(rec, n) {
   const prompt = ((rec.markerPrompt || rec.prompt) || "").trim();
   if (!prompt) { toast("Can't reload — this image has no stored prompt."); return false; }
   const negative = rec.negativePrompt ?? null;   // null = none was submitted; do NOT flatten to ""
+  // The image's OWN LoRA stack, so Reload reproduces it exactly rather than using whatever the composer shows now.
+  const recLoras = Array.isArray(rec.loras) ? rec.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: l.weight })) : [];
   n = Math.max(1, n || 1);
   // Reload reproduces a picture, so it never re-rolls: the image's own shape, or the primary pick if it has none.
-  if (n > 1) generateBatch(prompt, model, n, true, rec.aspect || primaryAspect(), negative);
-  else runGeneration(model, prompt, rec.aspect || primaryAspect(), false, false, null, negative, prompt);
+  if (n > 1) generateBatch(prompt, model, n, true, rec.aspect || primaryAspect(), negative, recLoras);
+  else runGeneration(model, prompt, rec.aspect || primaryAspect(), false, false, null, negative, prompt, recLoras);
   return true;
 }
 window.composerRegenerate = regenerate;   // kept for compatibility / presence checks
@@ -566,6 +573,88 @@ function showPromptTemp() {
 // Null when off, so a non-random generate never pins a temperature server-side (the gateway then leaves the tag
 // model on its own default).
 function promptTemp() { const t = promptTempValue(); return t > 0 ? t : null; }
+
+// --- LoRAs (stackable, per-generation) ----------------------------------------------------------
+// A collapsible list of [× name ‹ weight ›] rows below the negative prompt. The picker (loraPicker.js) adds files;
+// each carries a name (subfolder-qualified lora_name, sent verbatim) and a weight (arrows step 0.5, keyboard finer).
+// The stack rides in the composer prefs blob and in every generate/enqueue body, and Reload reproduces it exactly.
+let loras = [];   // [{ name, weight, clipCapable?, compatible? }]
+
+// The wire shape: name + weight only (the server validates names against the machine's LoRA list and applies them).
+function lorasPayload() { return loras.map(l => ({ name: l.name, weight: l.weight })); }
+
+// A LoRA's short label: its filename without folder or extension.
+function loraLabel(name) { return String(name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, ""); }
+function normWeight(v) { return Number.isFinite(v) ? Math.round(v * 100) / 100 : 1.0; }
+function fmtWeight(v) { return normWeight(v).toString(); }
+
+function renderLoras() {
+  if (!$loraList) return;
+  $loraList.innerHTML = "";
+  loras.forEach((lora, i) => {
+    const row = document.createElement("div");
+    row.className = "lora-row" + (lora.compatible === false ? " incompatible" : "");
+    // Remove on the far LEFT (before the name), so tweaking the weight can't trigger an accidental delete.
+    const rm = document.createElement("button");
+    rm.type = "button"; rm.className = "lora-remove"; rm.textContent = "×"; rm.title = "Remove this LoRA";
+    rm.addEventListener("click", () => { loras.splice(i, 1); renderLoras(); savePrefs(); });
+    const name = document.createElement("span");
+    name.className = "lora-name"; name.textContent = loraLabel(lora.name);
+    name.title = lora.name + (lora.clipCapable === false ? " — model-only (no CLIP effect)" : "");
+    // Weight stepper: arrows step 0.5; the number input takes finer values by keyboard.
+    const wrap = document.createElement("div"); wrap.className = "num-row lora-weight";
+    const dec = document.createElement("button"); dec.type = "button"; dec.textContent = "‹"; dec.setAttribute("aria-label", "Less");
+    const inp = document.createElement("input"); inp.type = "number"; inp.step = "0.5"; inp.value = fmtWeight(lora.weight);
+    const inc = document.createElement("button"); inc.type = "button"; inc.textContent = "›"; inc.setAttribute("aria-label", "More");
+    const commit = v => { lora.weight = normWeight(v); inp.value = fmtWeight(lora.weight); savePrefs(); };
+    dec.addEventListener("click", () => commit(lora.weight - 0.5));
+    inc.addEventListener("click", () => commit(lora.weight + 0.5));
+    inp.addEventListener("change", () => commit(Number(inp.value)));
+    wrap.append(dec, inp, inc);
+    row.append(rm, name, wrap);
+    $loraList.appendChild(row);
+  });
+  if ($loraCount) $loraCount.textContent = loras.length ? `(${loras.length})` : "";
+}
+
+// Add picked files to the stack (default weight 1.0), skipping any already present, then persist.
+function addLoras(picked) {
+  const have = new Set(loras.map(l => l.name));
+  for (const p of (picked || [])) {
+    const nm = typeof p === "string" ? p : p.name;
+    if (!nm || have.has(nm)) continue;
+    have.add(nm);
+    loras.push({ name: nm, weight: 1.0, clipCapable: p && p.clipCapable, compatible: p && p.compatible });
+  }
+  renderLoras(); savePrefs();
+}
+
+// Show the LoRA accordion only when a selected model produces images (video/edit models don't take a LoRA stack here).
+function updateLoraSection() {
+  if (!$loraSection) return;
+  $loraSection.hidden = !selectedModels().some(m => m && m.media === "image");
+}
+
+if ($loraToggle && $loraBody) {
+  $loraToggle.addEventListener("click", () => {
+    const open = $loraBody.hidden;
+    $loraBody.hidden = !open;
+    $loraToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    $loraToggle.classList.toggle("open", open);
+  });
+}
+if ($loraAdd) {
+  $loraAdd.addEventListener("click", () => {
+    if (typeof window.openLoraPicker !== "function") { toast("LoRA picker unavailable"); return; }
+    const pm = primaryModel() || selectedModels()[0] || null;
+    window.openLoraPicker({
+      workflow: pm ? pm._gw : "",
+      defaultFolder: pm ? (pm.loraFolder || pm.id) : "",
+      current: loras.map(l => l.name),
+      onAdd: addLoras,
+    });
+  });
+}
 
 // --- the generation mask: which kinds of tag Random prompt may emit -----------------------------
 // A PER-GENERATION control, exactly like the slider it sits under and the rest of the composer: the picked kinds ride
@@ -702,7 +791,7 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs });
+  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight })) });
   clearTimeout(prefsTimer);
   // A failed save was `.catch(() => {})`. This blob holds the user's draft PROMPT, so a silent failure means they
   // keep typing into a composer that is no longer being kept, and find an older draft on the next load.
@@ -739,6 +828,7 @@ function restorePrefs(p) {
   // Held for buildTagTypes (which runs after this, once the options are known). Absent = never set from a composer,
   // so the chips seed from the account's stored mask instead.
   if (Array.isArray(p.tagTypes)) tagTypesFromPrefs = p.tagTypes;
+  if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight) })); renderLoras(); }
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
 // Shape gestures, mirroring the style picker: a tap picks exactly ONE (collapsing any multi-pick back down), a

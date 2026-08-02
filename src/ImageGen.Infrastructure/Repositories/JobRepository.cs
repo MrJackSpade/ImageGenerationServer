@@ -36,7 +36,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
         "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
         "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
         "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
-        "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId";
+        "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson";
 
     public async Task UpsertAsync(JobRecord job, CancellationToken ct)
     {
@@ -96,6 +96,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             cmd.AddParam("@temperature", (object?)slot.Temperature ?? DBNull.Value);
             cmd.AddParam("@tagTypes", (object?)slot.TagTypesJson ?? DBNull.Value);
             cmd.AddParam("@overrides", (object?)slot.OverridesJson ?? DBNull.Value);
+            cmd.AddParam("@loras", (object?)slot.LorasJson ?? DBNull.Value);
             cmd.AddParam("@source", (object?)slot.SourceImageId ?? DBNull.Value);
             cmd.AddParam("@mask", (object?)slot.MaskImageId ?? DBNull.Value);
             cmd.AddParam("@lastFrame", (object?)slot.LastFrameImageId ?? DBNull.Value);
@@ -345,13 +346,13 @@ WHERE JobId = @jobId
         string jobId;
         int slotIndex;
         bool isEdit;
-        string? workflow, prompt, negative, aspect, tagTypes, overrides, source, mask, lastFrame;
+        string? workflow, prompt, negative, aspect, tagTypes, overrides, loras, source, mask, lastFrame;
         bool? randomArtist, randomPrompt;
         double? temperature;
         await using (var cmd = conn.Command(
             "SELECT j.UserId, s.JobId, s.SlotIndex, s.IsEdit, s.Workflow, s.Prompt, s.NegativePrompt, s.Aspect, " +
             "       s.RandomArtist, s.RandomPrompt, s.Temperature, s.TagTypesJson, s.OverridesJson, " +
-            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId " +
+            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson " +
             "FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId WHERE s.ImageId = @id;"))
         {
             cmd.AddParam("@id", imageId);
@@ -373,6 +374,7 @@ WHERE JobId = @jobId
             source = reader.IsDBNull(13) ? null : reader.GetString(13);
             mask = reader.IsDBNull(14) ? null : reader.GetString(14);
             lastFrame = reader.IsDBNull(15) ? null : reader.GetString(15);
+            loras = reader.IsDBNull(16) ? null : reader.GetString(16);
         }
         if (workflow is null) return null;   // a slot written before the spec had columns
 
@@ -400,6 +402,7 @@ WHERE JobId = @jobId
             temperature,
             tagTypes = Raw(tagTypes),
             overrides = Raw(overrides),
+            loras = Raw(loras),
             sourceImageId = source,
             maskImageId = mask,
             lastFrameImageId = lastFrame,
@@ -548,5 +551,6 @@ WHERE JobId = @jobId
         SourceImageId = r.IsDBNull(25) ? null : r.GetString(25),
         MaskImageId = r.IsDBNull(26) ? null : r.GetString(26),
         LastFrameImageId = r.IsDBNull(27) ? null : r.GetString(27),
+        LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
     };
 }

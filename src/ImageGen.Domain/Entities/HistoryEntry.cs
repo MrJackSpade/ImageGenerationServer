@@ -66,4 +66,8 @@ public sealed class HistoryEntry
 
     /// <summary>Prompt-token metadata for this image. Empty when the gateway returned none.</summary>
     public IReadOnlyList<Mark> Marks { get; init; } = [];
+
+    /// <summary>The user LoRA stack this image was generated with (name + weight), in apply order. Empty when none
+    /// were used. Drives the viewer's LoRA list and a faithful Reload.</summary>
+    public IReadOnlyList<HistoryLora> Loras { get; init; } = [];
 }

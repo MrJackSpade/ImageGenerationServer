@@ -1,3 +1,5 @@
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -74,6 +76,33 @@ public static class ComfyGraph
         if (string.IsNullOrWhiteSpace(lora)) return model;
         wf[nodeId] = Node("LoraLoaderModelOnly", new { model, lora_name = lora, strength_model = p.Dbl("lora_strength", 1.0) });
         return Ref(nodeId, 0);
+    }
+
+    /// <summary>Chain the user's LoRA stack on top of a base model/clip — one <c>LoraLoader</c> per entry, starting at
+    /// <paramref name="startNodeId"/> (91, 92, …). BOTH the model and the CLIP are routed through every LoRA (each at
+    /// its own strength), so a style/character LoRA reaches the text encoder too. Returns the final (model, clip);
+    /// an empty stack returns them unchanged and emits nothing. Node id 90 is the preset model-only LoRA
+    /// (<see cref="ApplyLora"/>), so the user stack begins at 91 to avoid colliding with it or the reserved 13/35/36.</summary>
+    public static (object model, object clip) ApplyLoraStack(
+        Dictionary<string, object> wf, object model, object clip, IReadOnlyList<LoraSelection>? loras, int startNodeId = 91)
+    {
+        if (loras is not { Count: > 0 }) return (model, clip);
+        var nodeId = startNodeId;
+        foreach (var lora in loras)
+        {
+            var id = nodeId++.ToString();
+            wf[id] = Node("LoraLoader", new
+            {
+                model,
+                clip,
+                lora_name = lora.Name,
+                strength_model = lora.Weight,
+                strength_clip = lora.Weight,
+            });
+            model = Ref(id, 0);
+            clip = Ref(id, 1);
+        }
+        return (model, clip);
     }
 
     /// <summary>The standard quality/anatomy negative used by the txt2img workflows when a model supports negatives

@@ -24,7 +24,8 @@ public static class PresentationMappers
 
     /// <summary>Project a history entry to the detail/card view (marks flattened to the SPA's token→kind shape).</summary>
     public static ImageDetailView ToDetailView(this HistoryEntry e) => new(
-        e.GatewayImageId, e.Prompt, e.ModelFriendly, e.ModelId, e.Aspect, e.CreatedAtUtc, MarksToMap(e.Marks));
+        e.GatewayImageId, e.Prompt, e.ModelFriendly, e.ModelId, e.Aspect, e.CreatedAtUtc, MarksToMap(e.Marks),
+        e.Loras.Count == 0 ? null : e.Loras.Select(l => new LoraView(l.Name, l.Weight)).ToList());
 
     private static IReadOnlyDictionary<string, string> MarksToMap(IReadOnlyList<Mark> marks) =>
         marks.ToDictionary(m => m.Token, m => m.Kind.ToWire());

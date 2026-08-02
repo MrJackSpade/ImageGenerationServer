@@ -63,6 +63,13 @@ public sealed record ArtistDisplayRequest
     public required string Id { get; init; }
 }
 
+/// <summary>Set a user's cover image for a LoRA (POST /api/lora/display).</summary>
+public sealed record LoraDisplayRequest
+{
+    public required string Lora { get; init; }
+    public required string Id { get; init; }
+}
+
 public sealed record TokenBookmarkRequest
 {
     public required string Name { get; init; }

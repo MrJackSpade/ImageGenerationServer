@@ -28,6 +28,8 @@
         modelId = Model.Entry.ModelId,
         aspect = Model.Entry.Aspect,
         marks = Model.MarksMap.Count == 0 ? null : Model.MarksMap,
+        // The LoRAs this image was made with (name + weight): the viewer lists them and Reload reapplies them.
+        loras = Model.Entry.Loras is { Count: > 0 } ls ? ls.Select(l => new { name = l.Name, weight = l.Weight }) : null,
     });
 }
 <div class="detail-card">

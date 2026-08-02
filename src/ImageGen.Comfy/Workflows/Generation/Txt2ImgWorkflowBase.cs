@@ -81,6 +81,11 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
             wf["10"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clipSrc, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clipSrc = ComfyGraph.Ref("10", 0);
         }
+
+        // The user's LoRA stack (model + CLIP), chained on top of the preset LoRA and clip-skip so a style/character
+        // LoRA reaches the text encoders below. Nodes 91+; an empty stack is a no-op and the graph stays byte-identical.
+        (modelSrc, clipSrc) = ComfyGraph.ApplyLoraStack(wf, modelSrc, clipSrc, inputs.Loras);
+
         if (p.DblOrNull("auraflow") is double shift)
         {
             wf["11"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = modelSrc, shift });

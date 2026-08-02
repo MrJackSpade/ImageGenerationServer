@@ -264,6 +264,10 @@ public sealed class WorkflowInputs
     /// by the WAN i2v workflow (which swaps to <c>WanFirstLastFrameToVideo</c> when set); ignored by workflows that
     /// don't support an end frame.</summary>
     public string? EndImageName { get; init; }
+    /// <summary>The user's LoRA stack for THIS generation (empty for none): each a subfolder-qualified <c>lora_name</c>
+    /// + strength, chained through <c>LoraLoader</c> (model + CLIP) on top of any preset LoRA. Consumed by
+    /// <c>Txt2ImgWorkflowBase.Build</c>; edit workflows ignore it.</summary>
+    public IReadOnlyList<LoraSelection> Loras { get; init; } = Array.Empty<LoraSelection>();
 }
 
 /// <summary>The concrete on-disk filenames a workflow loads, resolved from a configuration's requirement-id links

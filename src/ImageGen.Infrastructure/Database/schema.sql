@@ -185,6 +185,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_HistoryMark_Token')
 CREATE INDEX IX_HistoryMark_Token ON dbo.HistoryMark (Token, Kind);
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'HistoryLora' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.HistoryLora
+(
+    Id             BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_HistoryLora PRIMARY KEY,
+    HistoryEntryId BIGINT        NOT NULL,
+    Name           NVARCHAR(512) NOT NULL,   -- the subfolder-qualified lora_name's deterministic ciphertext
+    Weight         FLOAT         NOT NULL,
+    CONSTRAINT FK_HistoryLora_Entry FOREIGN KEY (HistoryEntryId) REFERENCES dbo.HistoryEntry(Id) ON DELETE CASCADE
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_HistoryLora_Entry')
+CREATE INDEX IX_HistoryLora_Entry ON dbo.HistoryLora (HistoryEntryId);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_HistoryLora_Name')
+CREATE INDEX IX_HistoryLora_Name ON dbo.HistoryLora (Name);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'TokenBookmark' AND schema_id = SCHEMA_ID('dbo'))
 CREATE TABLE dbo.TokenBookmark
 (
@@ -347,6 +366,22 @@ GO
 
 IF EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ArtistName' AND Object_ID = Object_ID('dbo.ArtistDisplay') AND max_length = 512)
     ALTER TABLE dbo.ArtistDisplay ALTER COLUMN ArtistName NVARCHAR(512) NOT NULL;
+GO
+
+-- A user's chosen cover image for a LoRA (the picker grid). Mirrors dbo.ArtistDisplay: per-user, references one of
+-- the user's own generations by id, LoraName deterministically encrypted. LoraName is the subfolder-qualified
+-- lora_name exactly as ComfyUI reports it.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraDisplay' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.LoraDisplay
+(
+    Id             BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_LoraDisplay PRIMARY KEY,
+    UserId         BIGINT         NOT NULL,
+    LoraName       NVARCHAR(512)  NOT NULL,   -- subfolder-qualified lora_name's deterministic ciphertext
+    GatewayImageId NVARCHAR(256)  NOT NULL,
+    SetAtUtc       DATETIME2(3)   NOT NULL,
+    CONSTRAINT FK_LoraDisplay_User FOREIGN KEY (UserId) REFERENCES dbo.AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraDisplay_User_Lora UNIQUE (UserId, LoraName)
+);
 GO
 
 -- Durable image storage. Image bytes live here keyed by a globally-unique opaque id (a GUID), replacing the
@@ -518,6 +553,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Workflow' AND Object_ID =
         SourceImageId      NVARCHAR(64)  NULL,   -- edits: the source image (plain, joinable)
         MaskImageId        NVARCHAR(64)  NULL,   -- inpaint mask (plain, joinable)
         LastFrameImageId   NVARCHAR(64)  NULL;   -- i2v end frame (plain, joinable)
+GO
+
+-- The user's LoRA stack for the slot: [{name,weight}] as JSON. A value bag, not a relation — the same plain,
+-- per-slot treatment OverridesJson gets — so a batch resumed after a restart re-renders with its LoRAs intact.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'LorasJson' AND Object_ID = Object_ID('dbo.JobSlot'))
+    ALTER TABLE dbo.JobSlot ADD LorasJson NVARCHAR(MAX) NULL;
 GO
 
 -- The edit's reference images: an ordered many-to-many, so a real child table rather than an array inside a blob.

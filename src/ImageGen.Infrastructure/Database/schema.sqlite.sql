@@ -92,6 +92,17 @@ CREATE TABLE IF NOT EXISTS dbo.HistoryMark
 CREATE INDEX IF NOT EXISTS dbo.IX_HistoryMark_Entry ON HistoryMark (HistoryEntryId);
 CREATE INDEX IF NOT EXISTS dbo.IX_HistoryMark_Token ON HistoryMark (Token, Kind);
 
+CREATE TABLE IF NOT EXISTS dbo.HistoryLora
+(
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    HistoryEntryId INTEGER NOT NULL,
+    Name           TEXT NOT NULL,   -- the subfolder-qualified lora_name's deterministic ciphertext
+    Weight         REAL NOT NULL,
+    CONSTRAINT FK_HistoryLora_Entry FOREIGN KEY (HistoryEntryId) REFERENCES HistoryEntry(Id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Entry ON HistoryLora (HistoryEntryId);
+CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Name ON HistoryLora (Name);
+
 CREATE TABLE IF NOT EXISTS dbo.TokenBookmark
 (
     Id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -190,6 +201,17 @@ CREATE TABLE IF NOT EXISTS dbo.ArtistDisplay
     CONSTRAINT UQ_ArtistDisplay_User_Artist UNIQUE (UserId, ArtistName)
 );
 
+CREATE TABLE IF NOT EXISTS dbo.LoraDisplay
+(
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId         INTEGER NOT NULL,
+    LoraName       TEXT NOT NULL,   -- subfolder-qualified lora_name's deterministic ciphertext
+    GatewayImageId TEXT NOT NULL,
+    SetAtUtc       TEXT NOT NULL,
+    CONSTRAINT FK_LoraDisplay_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraDisplay_User_Lora UNIQUE (UserId, LoraName)
+);
+
 CREATE TABLE IF NOT EXISTS dbo.ImageBlob
 (
     ImageId         TEXT PRIMARY KEY,
@@ -271,6 +293,7 @@ CREATE TABLE IF NOT EXISTS dbo.JobSlot
     Temperature        REAL NULL,
     TagTypesJson       TEXT NULL,
     OverridesJson      TEXT NULL,
+    LorasJson          TEXT NULL,          -- user LoRA stack for this slot: [{name,weight}] (plain, per-slot durable)
     SourceImageId      TEXT NULL,
     MaskImageId        TEXT NULL,
     LastFrameImageId   TEXT NULL,

@@ -20,7 +20,8 @@ public sealed record GenerateRequest(
     double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
-    string? OriginalPrompt = null);
+    string? OriginalPrompt = null,
+    List<LoraSelection>? Loras = null);
 
 /// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.</summary>
 public sealed record EditRequest(
@@ -38,7 +39,8 @@ public sealed record EnqueueItem(
     Dictionary<string, JsonElement>? Overrides = null,
     string? LastFrameImageId = null,
     List<string>? TagTypes = null,
-    string? OriginalPrompt = null);
+    string? OriginalPrompt = null,
+    List<LoraSelection>? Loras = null);
 
 /// <summary>Batch enqueue payload: a mixed list of generate and edit items.</summary>
 public sealed record EnqueueRequest(List<EnqueueItem>? Jobs);
@@ -49,7 +51,7 @@ public static class RenderContractMapping
     /// <summary>Map a generate request body to the orchestration spec (an empty prompt is valid).</summary>
     public static GenerateSpec ToSpec(this GenerateRequest r) => new(
         r.Workflow, r.Prompt ?? "", r.NegativePrompt, r.Aspect,
-        r.RandomArtist, r.RandomPrompt, r.Temperature, r.Overrides, r.TagTypes, r.OriginalPrompt);
+        r.RandomArtist, r.RandomPrompt, r.Temperature, r.Overrides, r.TagTypes, r.OriginalPrompt, r.Loras);
 
     /// <summary>Map an edit request body to the orchestration spec.</summary>
     public static EditSpec ToSpec(this EditRequest r) => new(
@@ -66,6 +68,6 @@ public static class RenderContractMapping
         }
         if (string.IsNullOrWhiteSpace(it.Workflow)) return null;   // empty prompt allowed
         return RenderItem.ForGenerate(new GenerateSpec(it.Workflow!, it.Prompt ?? "", it.NegativePrompt, it.Aspect,
-            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt));
+            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras));
     }
 }

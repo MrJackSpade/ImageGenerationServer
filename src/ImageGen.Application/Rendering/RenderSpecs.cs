@@ -2,6 +2,11 @@ using System.Text.Json;
 
 namespace ImageGen.Application.Rendering;
 
+/// <summary>One user-selected LoRA for a generation: <see cref="Name"/> is the subfolder-qualified filename ComfyUI
+/// reports (e.g. <c>anime/foo.safetensors</c>), passed verbatim as <c>lora_name</c>; <see cref="Weight"/> is the
+/// strength applied to BOTH the diffusion model and CLIP. User LoRAs stack additively on top of a preset LoRA.</summary>
+public sealed record LoraSelection(string Name, double Weight);
+
 /// <summary>
 /// One image-generation request as the orchestrator renders and persists it. <see cref="Workflow"/> is the workflow
 /// configuration id; <see cref="Overrides"/> are optional values for its UI-exposed parameters. The spec carries no ban
@@ -24,6 +29,11 @@ namespace ImageGen.Application.Rendering;
 /// an artist page's locked artist appended — and none of that is recoverable from the result. Purely a record: nothing
 /// renders from it. Null when the caller sent none (an API-key client, or a slot queued before this field existed).
 /// </param>
+/// <param name="Loras">
+/// The user's LoRA stack for THIS render (empty/null for none): each a subfolder-qualified <c>lora_name</c> + weight,
+/// chained through <c>LoraLoader</c> (model + CLIP) on top of any preset LoRA. Per-slot like <paramref name="Overrides"/>,
+/// so a queued batch keeps the LoRAs it was submitted under. Recorded with the image so Reload can reproduce it.
+/// </param>
 public sealed record GenerateSpec(
     string Workflow,
     string Prompt,
@@ -34,7 +44,8 @@ public sealed record GenerateSpec(
     double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
-    string? OriginalPrompt = null);
+    string? OriginalPrompt = null,
+    IReadOnlyList<LoraSelection>? Loras = null);
 
 /// <summary>
 /// One image-edit request as the orchestrator renders and persists it. <see cref="Workflow"/> is the edit workflow

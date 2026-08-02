@@ -185,6 +185,33 @@ function initDetail(root, opts) {
       actions.appendChild(b);
     });
   }
+
+  // The LoRAs this image was generated with: name + strength, each with a "set as display image" button that makes
+  // the current picture that LoRA's cover in the composer's picker. One image can be a cover for several LoRAs.
+  const meta = root.querySelector(".detail-meta");
+  if (meta && Array.isArray(rec.loras) && rec.loras.length && typeof window.postLoraDisplay === "function") {
+    const box = document.createElement("div"); box.className = "detail-loras";
+    const head = document.createElement("div"); head.className = "detail-loras-head"; head.textContent = "LoRAs";
+    box.appendChild(head);
+    rec.loras.forEach(l => {
+      const row = document.createElement("div"); row.className = "detail-lora";
+      const nm = document.createElement("span"); nm.className = "detail-lora-name";
+      nm.textContent = String(l.name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, "");
+      nm.title = l.name;
+      const wt = document.createElement("span"); wt.className = "detail-lora-weight"; wt.textContent = "×" + l.weight;
+      const set = document.createElement("button");
+      set.type = "button"; set.className = "icon-btn detail-lora-set"; set.textContent = "🖼";
+      set.title = "Set as this LoRA's display image";
+      set.setAttribute("aria-label", set.title);
+      set.addEventListener("click", async () => {
+        try { const r = await postLoraDisplay(l.name, id); if (!r.ok) throw 0; toast("Display image set for " + nm.textContent); }
+        catch (_) { toast("Couldn't set display image"); }
+      });
+      row.append(nm, wt, set);
+      box.appendChild(row);
+    });
+    meta.appendChild(box);
+  }
 }
 
 window.initDetail = initDetail;

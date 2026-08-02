@@ -54,6 +54,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IBannedTokenRepository, BannedTokenRepository>();
         services.AddScoped<IPendingJobRepository, PendingJobRepository>();
         services.AddScoped<IArtistDisplayRepository, ArtistDisplayRepository>();
+        services.AddScoped<ILoraDisplayRepository, LoraDisplayRepository>();
         services.AddScoped<IImageViewRepository, ImageViewRepository>();
 
         // Stateless (fresh connection per call) → singletons, so the singleton render orchestrator can resolve them

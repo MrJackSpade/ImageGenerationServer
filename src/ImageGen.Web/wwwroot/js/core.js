@@ -544,6 +544,10 @@ const postImageCategories = (image, categories) => Api.send("/api/bookmarks/imag
 // Per-artist display image (what represents the artist on the bookmarks/artist pages).
 const postArtistDisplay = (artist, id) => Api.send("/api/artist/display", "POST", { artist, id });
 const deleteArtistDisplay = artist => Api.send("/api/artist/display?artist=" + encodeURIComponent(artist), "DELETE");
+// Per-LoRA cover image (what represents a LoRA in the composer's picker). Exposed on window so detail.js (loaded on
+// pages that may not share module scope) can reach it.
+const postLoraDisplay = (lora, id) => Api.send("/api/lora/display", "POST", { lora, id });
+window.postLoraDisplay = postLoraDisplay;
 // Per-model banned tags/artists (excluded from auto-gen for that model). The generate path does NOT read these — the
 // worker resolves the user's bans server-side — so this is purely the settings manager's view of them.
 const fetchAllBans = () => Api.json("/api/bans/all");

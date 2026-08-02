@@ -52,6 +52,14 @@ public static class ForgeApi
     /// <summary>The authenticated user that owns this request's jobs (stashed by the /forge auth filter).</summary>
     private static long OwnerOf(HttpRequest r) => (long)r.HttpContext.Items["ForgeOwnerUserId"]!;
 
+    /// <summary>The subfolder a LoRA lives in — everything before the final path separator — or "" for a root-level
+    /// file. ComfyUI reports names with the OS separator, so both '/' and '\' count, and the result is normalized to '/'.</summary>
+    private static string LoraFolderOf(string name)
+    {
+        var idx = name.LastIndexOfAny(['/', '\\']);
+        return idx <= 0 ? "" : name[..idx].Replace('\\', '/');
+    }
+
     /// <summary>The refusal for a submission the box has no memory for. 503 (not 4xx): the request is fine, the
     /// server is temporarily unable to take it — so a client knows to retry later rather than to fix its input. The
     /// body carries <c>error</c> like every other failure here, so existing callers surface it unchanged.</summary>
@@ -130,6 +138,32 @@ public static class ForgeApi
             try
             {
                 return Results.Ok(await catalog.GetStatusAsync(ct));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
+            {
+                return Results.Json(new { error = "The image renderer isn't reachable — is ComfyUI running?" }, statusCode: 502);
+            }
+        });
+
+        // The LoRA files this machine offers, for the composer's picker: each file's subfolder-qualified name, the
+        // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
+        // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
+        app.MapGet("/loras", async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras, CancellationToken ct) =>
+        {
+            try
+            {
+                var userId = OwnerOf(http);
+                var entries = await catalog.ListLorasAsync(workflow, ct);
+                var covers = await loras.GetCoversAsync(userId, entries.Select(e => e.Name).ToList(), ct);
+                var rows = entries.Select(e => new
+                {
+                    name = e.Name,
+                    folder = LoraFolderOf(e.Name),
+                    cover = covers.GetValueOrDefault(e.Name),
+                    compatible = e.Compatible,
+                    clipCapable = e.ClipCapable,
+                });
+                return Results.Ok(rows);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
             {

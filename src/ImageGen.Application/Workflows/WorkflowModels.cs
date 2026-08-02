@@ -89,7 +89,8 @@ public sealed record WorkflowDescriptor(
     IReadOnlyList<WorkflowExposedParam> ExposedParams,
     bool CanEdit,
     WorkflowReference? Reference,
-    WorkflowCardSummary Card);
+    WorkflowCardSummary Card,
+    string? LoraFolder = null);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(
@@ -127,6 +128,13 @@ public sealed record PromptingGuide(
 public sealed record ModelSlotStatus(
     string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
     IReadOnlyList<string> Candidates, IReadOnlyList<string> Available);
+
+/// <summary>One LoRA file present on this machine, for the composer's LoRA picker.</summary>
+/// <param name="Name">The subfolder-qualified <c>lora_name</c> exactly as ComfyUI reports it (e.g. <c>anime/foo.safetensors</c>).</param>
+/// <param name="Compatible">Whether it will actually apply to the given workflow's base model (its keys resolve). True
+/// when no workflow was named (compatibility not evaluated), so the picker shows everything.</param>
+/// <param name="ClipCapable">Whether it carries text-encoder keys — false means model-only, so its CLIP strength no-ops.</param>
+public sealed record LoraCatalogEntry(string Name, bool Compatible, bool ClipCapable);
 
 /// <summary>Why one workflow is or is not offered on this machine.</summary>
 /// <param name="Id">Configuration id.</param>

@@ -176,6 +176,28 @@ public sealed class ComfyClient : IComfyClient
             kv => (IReadOnlyList<string>)kv.Value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
     }
 
+    /// <summary>ComfyUI's on-disk model roots by category, from <c>/internal/folder_paths</c> — e.g. "loras",
+    /// "checkpoints", "diffusion_models" → the absolute directories it searches (the first is primary; extra roots come
+    /// from <c>extra_model_paths.yaml</c>). Used to locate a file on THIS disk for header inspection. Empty when the
+    /// endpoint is absent (older build) or the renderer is another machine, which the caller reads as "cannot resolve".</summary>
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetFolderPathsAsync(CancellationToken ct = default)
+    {
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        using var resp = await Http.GetAsync("internal/folder_paths", ct);
+        if (!resp.IsSuccessStatusCode) return result;
+        using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
+        foreach (var prop in doc.RootElement.EnumerateObject())
+        {
+            if (prop.Value.ValueKind != JsonValueKind.Array) continue;
+            var paths = new List<string>();
+            foreach (var e in prop.Value.EnumerateArray())
+                if (e.GetString() is { Length: > 0 } p) paths.Add(p);
+            if (paths.Count > 0) result[prop.Name] = paths;
+        }
+        return result;
+    }
+
     /// <summary>Every loadable filename across the loaders a workflow might use, for presence-gating a configuration.</summary>
     public async Task<IReadOnlySet<string>> GetPresentFilesAsync(CancellationToken ct = default)
     {
@@ -345,7 +367,7 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>Resolve the configuration + workflow, build the generate graph, POST it to <c>/prompt</c> under this
     /// client's <c>client_id</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
     public async Task<string> SubmitGenerateAsync(string prompt, string? negativePrompt, string? configId, string? aspect,
-        IReadOnlyDictionary<string, JsonElement>? overrides, CancellationToken ct)
+        IReadOnlyDictionary<string, JsonElement>? overrides, IReadOnlyList<LoraSelection>? loras, CancellationToken ct)
     {
         var (cfg, wf) = ResolveGenerate(configId);
         var dict = MergeParamsDict(wf, cfg, overrides);
@@ -353,9 +375,25 @@ public sealed class ComfyClient : IComfyClient
         wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         var values = new ParamValues(dict);
         var (pos, neg) = ApplyGenPromptRules(values, prompt ?? "", negativePrompt);
-        var inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect) };
+        var loraStack = await ValidateLorasAsync(loras, ct);
+        var inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect), Loras = loraStack };
         var graph = wf.Build(values, resolved, inputs);
         return await SubmitAsync(graph, ct);
+    }
+
+    /// <summary>Validate a user LoRA stack against the LoRAs ComfyUI actually offers, failing fast on any unknown name
+    /// (never silently dropping one). Skips the backend probe entirely when the stack is empty — the common case.</summary>
+    private async Task<IReadOnlyList<LoraSelection>> ValidateLorasAsync(IReadOnlyList<LoraSelection>? loras, CancellationToken ct)
+    {
+        if (loras is not { Count: > 0 }) return Array.Empty<LoraSelection>();
+        var present = await GetPresentFilesByKindAsync(ct);
+        var available = present.TryGetValue(RequirementKind.Lora, out var l)
+            ? new HashSet<string>(l, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lo in loras)
+            if (string.IsNullOrWhiteSpace(lo.Name) || !available.Contains(lo.Name))
+                throw new RenderValidationException($"Unknown LoRA '{lo.Name}' — it is not available on this machine.");
+        return loras;
     }
 
     /// <summary>Upload the source PNG (and any references) to ComfyUI's input folder, build the configuration's edit

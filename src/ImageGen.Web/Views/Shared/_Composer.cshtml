@@ -29,6 +29,17 @@
                     <div id="negTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
                 </div>
             </div>
+            @* Optional stackable LoRAs. compose.js shows this only for image models; the picker (loraPicker.js) opens
+               from the add button, and each row is [× name ‹ weight ›]. *@
+            <div class="lora-section" id="loraSection" hidden>
+                <button type="button" class="lora-summary" id="loraToggle" aria-expanded="false" aria-controls="loraBody">
+                    <span class="lora-caret">▸</span> LoRAs <span class="lora-count" id="loraCount"></span>
+                </button>
+                <div class="lora-body" id="loraBody" hidden>
+                    <div class="lora-list" id="loraList"></div>
+                    <button type="button" class="lora-add" id="loraAdd">+ add lora…</button>
+                </div>
+            </div>
             <div class="model-tip" id="modelTip" hidden></div>
         </div>
         <div class="cpane-side">

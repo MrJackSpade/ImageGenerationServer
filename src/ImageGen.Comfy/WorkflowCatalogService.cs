@@ -151,6 +151,17 @@ public sealed partial class WorkflowCatalogService(
             })
             .ToList();
 
+        // A per-machine "default LoRA folder" for this workflow's composer picker. It is NOT a config/graph param, so
+        // it's surfaced here as a synthetic string setting the settings page renders and saves through the same
+        // override path (param.targetLoraFolder) as every other setting — no new settings UI needed.
+        if (wf.Kind == WorkflowKind.Generate && wf.Media == WorkflowMedia.Image)
+            settings.Add(new ConfigSetting(
+                TargetLoraFolderKey, "Default LoRA folder",
+                "The composer's LoRA picker opens to this subfolder for this workflow. Blank = a folder matching the workflow, else all LoRAs.",
+                "string", null, null, null, null,
+                Shipped: null,
+                Override: overrides.TryGetValue(TargetLoraFolderKey, out var lf) ? (object?)lf : null));
+
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
         var r = cfg.Resolution;
@@ -238,7 +249,22 @@ public sealed partial class WorkflowCatalogService(
                 ExpectedGenSeconds: c.ExpectedGenSeconds,
                 NegativeSupported: c.NegativeSupported,
                 EditUseCases: c.EditUseCases is { Length: > 0 } ? c.EditUseCases : null,
-                Tagging: ToTagging(c.Tagging)));
+                Tagging: ToTagging(c.Tagging)),
+            // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);
+            // null falls back client-side to a folder matching the workflow, else the root.
+            LoraFolder: OverrideString(machine, TargetLoraFolderKey));
+    }
+
+    /// <summary>The per-machine setting key for a workflow's default LoRA folder (a plain string override, not a graph
+    /// parameter — no workflow reads it; the composer's picker does).</summary>
+    private const string TargetLoraFolderKey = "targetLoraFolder";
+
+    /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
+    private static string? OverrideString(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)
+    {
+        if (!machine.TryGetValue(key, out var v)) return null;
+        var s = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
+        return string.IsNullOrWhiteSpace(s) ? null : s;
     }
 
     private static PromptingGuide ToGuide(ModelCard c) => new(

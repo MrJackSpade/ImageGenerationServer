@@ -21,6 +21,7 @@ public static class ApiEndpointExtensions
         api.MapBanEndpoints();
         api.MapPendingEndpoints();
         api.MapArtistEndpoints();
+        api.MapLoraEndpoints();
         api.MapSettingsEndpoints();
 
         // The render backend under /forge. Gated: the caller must be authenticated (a login cookie or a per-user
