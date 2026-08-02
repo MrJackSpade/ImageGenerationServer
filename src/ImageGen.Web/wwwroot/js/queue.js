@@ -20,12 +20,18 @@
   // Names only — a failure here degrades the queue to raw config ids, which is visible and harmless. It is logged
   // rather than swallowed so "why is the queue showing ids instead of names" has an answer.
   async function loadCatalog() {
+    // DIAGNOSTIC: /workflows is fetched serially BEFORE the first /queue, so the queue list cannot appear until this
+    // returns. It re-probes ComfyUI (object_info per loader) on every call — the suspected source of a long blank list.
+    const t = performance.now();
     try {
       const r = await fetch(`${GATEWAY}/workflows`);
+      console.log(`[queue] /workflows responded ${r.status} in ${Math.round(performance.now() - t)}ms`);
       if (!r.ok) throw new Error(`the catalog answered ${r.status}`);
-      for (const row of (await r.json()) || []) catalog[row.id] = { name: row.friendlyName || row.id, avgSeconds: row.avgSeconds };
+      const rows = (await r.json()) || [];
+      for (const row of rows) catalog[row.id] = { name: row.friendlyName || row.id, avgSeconds: row.avgSeconds };
+      console.log(`[queue] /workflows parsed ${rows.length} rows, total ${Math.round(performance.now() - t)}ms`);
     } catch (e) {
-      console.error("Workflow names could not be loaded; the queue will show raw ids:", e);
+      console.error(`[queue] /workflows FAILED after ${Math.round(performance.now() - t)}ms; queue will show raw ids:`, e);
     }
   }
 
@@ -34,15 +40,24 @@
   // Fetch a page. `live` true keeps the per-second countdown alive (signature-deduped render); false forces a fresh
   // rebuild (used when navigating, so the list always reflects the page just asked for).
   async function fetchPage(p, live) {
+    // DIAGNOSTIC: separate the network+server time (the DB page query lives behind this) from the DOM render time,
+    // and log it on every poll so a one-off slow first load is distinguishable from persistent latency.
+    const t = performance.now();
     let data;
-    try { data = await fetch(`${GATEWAY}/queue?page=${p}&pageSize=${PAGE_SIZE}`).then(r => r.ok ? r.json() : null); }
-    catch (_) { return; }
-    if (!data) return;
+    try {
+      const r = await fetch(`${GATEWAY}/queue?page=${p}&pageSize=${PAGE_SIZE}`);
+      console.log(`[queue] /queue?page=${p} responded ${r.status} in ${Math.round(performance.now() - t)}ms`);
+      data = r.ok ? await r.json() : null;
+    }
+    catch (e) { console.error(`[queue] /queue?page=${p} THREW after ${Math.round(performance.now() - t)}ms:`, e); return; }
+    if (!data) { console.warn(`[queue] /queue?page=${p} returned no data (response not ok)`); return; }
     page = data.page || p; total = data.total || 0;
     if (!live) lastSig = null;
+    const tr = performance.now();
     render(data.jobs || []);
     renderPager();
     renderOutstanding(data.outstanding);
+    console.log(`[queue] page ${page}: ${(data.jobs || []).length} rows, fetch+parse ${Math.round(tr - t)}ms, render ${Math.round(performance.now() - tr)}ms`);
   }
 
   // What's left across the WHOLE box, from the server — this page shows 25 rows and its `total` counts finished
@@ -278,6 +293,17 @@
     go(b.dataset.act === "prev" ? page - 1 : page + 1);
   });
 
-  (async () => { await loadCatalog(); await fetchPage(1, false); schedulePolling(); setInterval(tickAll, 1000); })();
+  // DIAGNOSTIC timeline. `performance.now()` is milliseconds since navigation START, so logging it here reveals how
+  // long AFTER the page began loading the queue script even runs — a large value means the HTML document/assets were
+  // slow (before any of these fetches), a small one means the delay is entirely in the two awaited fetches below.
+  (async () => {
+    const t0 = performance.now();
+    console.log(`[queue] bootstrap start at +${Math.round(t0)}ms since navigation`);
+    await loadCatalog();
+    console.log(`[queue] catalog done at +${Math.round(performance.now() - t0)}ms into bootstrap; fetching first page`);
+    await fetchPage(1, false);
+    console.log(`[queue] FIRST PAGE SHOWN at +${Math.round(performance.now() - t0)}ms into bootstrap`);
+    schedulePolling(); setInterval(tickAll, 1000);
+  })();
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchPage(page, true); });
 })();
