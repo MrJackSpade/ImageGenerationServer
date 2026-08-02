@@ -36,6 +36,7 @@
     let all = [];
     let folder = "";   // current folder ("" = root)
     let search = "";
+    let showIncompatible = false;   // incompatible LoRAs are HIDDEN by default; a toggle reveals them
 
     overlay = document.createElement("div");
     overlay.className = "lora-picker-overlay";
@@ -56,6 +57,12 @@
     const crumb = document.createElement("div"); crumb.className = "lp-crumb";
     const grid = document.createElement("div"); grid.className = "lp-grid";
     const foot = document.createElement("div"); foot.className = "lp-foot";
+    // Incompatible LoRAs are hidden by default; this reveals them (dimmed). Shown only when some exist.
+    const incompatToggle = document.createElement("label"); incompatToggle.className = "lp-incompat"; incompatToggle.hidden = true;
+    const incompatCb = document.createElement("input"); incompatCb.type = "checkbox";
+    const incompatLbl = document.createElement("span");
+    incompatToggle.append(incompatCb, incompatLbl);
+    incompatCb.addEventListener("change", () => { showIncompatible = incompatCb.checked; render(); });
     const addBtn = document.createElement("button");
     addBtn.type = "button"; addBtn.className = "lp-add primary-btn"; addBtn.textContent = "Add"; addBtn.disabled = true;
     addBtn.addEventListener("click", () => {
@@ -63,7 +70,7 @@
       if (opts.onAdd) opts.onAdd(chosen);
       close();
     });
-    foot.appendChild(addBtn);
+    foot.append(incompatToggle, addBtn);
 
     modal.append(head, crumb, grid, foot);
     document.body.appendChild(overlay);
@@ -108,6 +115,9 @@
       return t;
     }
 
+    // Incompatible LoRAs are hidden unless the toggle is on. (Unknown compatibility — compatible !== false — always shows.)
+    const showable = l => showIncompatible || l.compatible !== false;
+
     function render() {
       grid.innerHTML = ""; crumb.innerHTML = "";
       const q = search.trim().toLowerCase();
@@ -115,7 +125,7 @@
       // Global search: a flat list across the WHOLE tree, regardless of the current folder.
       if (q) {
         crumb.textContent = `Search: “${search}”`;
-        const matches = all.filter(l => l.name.toLowerCase().includes(q));
+        const matches = all.filter(l => l.name.toLowerCase().includes(q) && showable(l));
         matches.forEach(l => grid.appendChild(loraTile(l)));
         if (!matches.length) grid.appendChild(empty("No LoRAs match."));
         return;
@@ -140,10 +150,10 @@
       [...subs].sort((a, b) => a.localeCompare(b)).forEach(sub => grid.appendChild(folderTile(sub)));
 
       // Files directly in the current folder.
-      const files = all.filter(l => (l.folder || "") === folder);
+      const files = all.filter(l => (l.folder || "") === folder && showable(l));
       files.forEach(l => grid.appendChild(loraTile(l)));
 
-      if (!subs.size && !files.length) grid.appendChild(empty("No LoRAs here."));
+      if (!subs.size && !files.length) grid.appendChild(empty(showIncompatible ? "No LoRAs here." : "No compatible LoRAs here."));
     }
 
     searchInput.addEventListener("input", () => { search = searchInput.value; render(); });
@@ -157,6 +167,13 @@
     } catch (e) {
       grid.innerHTML = ""; grid.appendChild(empty("Couldn't load LoRAs."));
       return;
+    }
+
+    // Incompatible LoRAs are hidden by default; surface the toggle only when there are some to reveal.
+    const incompatCount = all.filter(l => l.compatible === false).length;
+    if (incompatCount > 0) {
+      incompatToggle.hidden = false;
+      incompatLbl.textContent = ` Show ${incompatCount} incompatible`;
     }
 
     // Smart routing: open the top-level folder matching the workflow, when there is one.

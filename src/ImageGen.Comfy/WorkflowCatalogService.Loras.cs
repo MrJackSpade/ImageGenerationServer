@@ -5,9 +5,9 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// The LoRA-catalogue half of the service: the LoRA files this machine offers to the composer's picker, each
 /// annotated (when a workflow is named) with whether it will actually apply to that workflow's base model.
-/// <para>Compatibility is computed from file headers only (no VRAM, no ComfyUI round-trip) — see
-/// <see cref="LoraCompatibility"/> — so the picker can dim what won't fit rather than let it silently no-op. It works
-/// for both <c>.safetensors</c> and <c>.gguf</c> base models (the common low-VRAM case).</para>
+/// <para>The picker is offered only for a SINGLE selected model (a LoRA is model-specific), so exactly one workflow is
+/// evaluated. Compatibility is computed from file headers only (no VRAM, no ComfyUI round-trip) — see
+/// <see cref="LoraCompatibility"/> — and works for both <c>.safetensors</c> and <c>.gguf</c> base models.</para>
 /// </summary>
 public sealed partial class WorkflowCatalogService
 {

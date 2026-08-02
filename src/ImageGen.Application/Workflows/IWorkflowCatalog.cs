@@ -43,8 +43,9 @@ public interface IWorkflowCatalog
     /// <summary>
     /// The LoRA files present on this machine, for the composer's LoRA picker. When <paramref name="workflowId"/> is
     /// given, each entry is annotated with whether it will actually apply to that workflow's base model (and whether it
-    /// affects CLIP); when null, compatibility is not evaluated and every entry is reported compatible. Throws when the
-    /// renderer is unreachable (mapped to a 502).
+    /// affects CLIP); when null, compatibility is not evaluated and every entry is reported compatible. The picker is
+    /// offered only for a single selected model, so exactly one workflow is ever evaluated. Throws when the renderer is
+    /// unreachable (mapped to a 502).
     /// </summary>
     Task<IReadOnlyList<LoraCatalogEntry>> ListLorasAsync(string? workflowId, CancellationToken ct);
 

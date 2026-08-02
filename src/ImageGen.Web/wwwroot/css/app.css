@@ -944,7 +944,9 @@ body.auth .page{max-width:none;padding:0}
   display:flex;align-items:center;justify-content:center}
 .lp-badge.warn{background:var(--danger)}
 .lp-empty{grid-column:1/-1;color:var(--ink-faint);text-align:center;padding:28px 0;font-size:14px}
-.lp-foot{display:flex;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+.lp-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.lp-incompat{display:flex;align-items:center;gap:6px;color:var(--ink-soft);font-size:13px;cursor:pointer}
+.lp-incompat input{accent-color:var(--accent);cursor:pointer}
 .lp-add{padding:9px 22px;font-size:14px}
 
 /* --- LoRA list on the image viewer --- */

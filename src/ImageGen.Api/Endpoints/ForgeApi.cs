@@ -153,6 +153,7 @@ public static class ForgeApi
             try
             {
                 var userId = OwnerOf(http);
+                // The picker is offered only for a single selected model, so compatibility is judged against that one.
                 var entries = await catalog.ListLorasAsync(workflow, ct);
                 var covers = await loras.GetCoversAsync(userId, entries.Select(e => e.Name).ToList(), ct);
                 var rows = entries.Select(e => new

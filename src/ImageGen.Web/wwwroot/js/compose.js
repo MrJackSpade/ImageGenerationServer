@@ -581,7 +581,8 @@ function promptTemp() { const t = promptTempValue(); return t > 0 ? t : null; }
 let loras = [];   // [{ name, weight, clipCapable?, compatible? }]
 
 // The wire shape: name + weight only (the server validates names against the machine's LoRA list and applies them).
-function lorasPayload() { return loras.map(l => ({ name: l.name, weight: l.weight })); }
+// LoRAs are model-specific, so they only apply to a SINGLE selected model — a multi-model generation sends none.
+function lorasPayload() { return selectedModels().length === 1 ? loras.map(l => ({ name: l.name, weight: l.weight })) : []; }
 
 // A LoRA's short label: its filename without folder or extension.
 function loraLabel(name) { return String(name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, ""); }
@@ -629,10 +630,13 @@ function addLoras(picked) {
   renderLoras(); savePrefs();
 }
 
-// Show the LoRA accordion only when a selected model produces images (video/edit models don't take a LoRA stack here).
+// The LoRA accordion is offered ONLY for a single selected image model — a LoRA is model-specific, so stacking one
+// across several (differently-architected) models is meaningless. With 0 or 2+ selected the section hides; the stack
+// stays in the draft and returns when the user is back to one model.
 function updateLoraSection() {
   if (!$loraSection) return;
-  $loraSection.hidden = !selectedModels().some(m => m && m.media === "image");
+  const sel = selectedModels();
+  $loraSection.hidden = !(sel.length === 1 && sel[0] && sel[0].media === "image");
 }
 
 if ($loraToggle && $loraBody) {
@@ -646,10 +650,12 @@ if ($loraToggle && $loraBody) {
 if ($loraAdd) {
   $loraAdd.addEventListener("click", () => {
     if (typeof window.openLoraPicker !== "function") { toast("LoRA picker unavailable"); return; }
-    const pm = primaryModel() || selectedModels()[0] || null;
+    const sel = selectedModels();
+    const pm = sel.length === 1 ? sel[0] : null;   // single-model only — compatibility is judged against this one
+    if (!pm) { toast("Pick a single model to add LoRAs."); return; }
     window.openLoraPicker({
-      workflow: pm ? pm._gw : "",
-      defaultFolder: pm ? (pm.loraFolder || pm.id) : "",
+      workflow: pm._gw,
+      defaultFolder: pm.loraFolder || pm.id,
       current: loras.map(l => l.name),
       onAdd: addLoras,
     });
