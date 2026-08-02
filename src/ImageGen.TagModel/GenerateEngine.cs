@@ -16,8 +16,13 @@ public sealed class GenerateEngine(TagModelBundle bundle)
     /// <summary>Runaway cap. One definition, used both as the limit and as the number reported alongside a truncation.</summary>
     public const int MaxSteps = 60;
 
-    /// <summary>Default tail-reach for sampling. Matches the Python server's <c>min_p</c> default.</summary>
-    public const double DefaultMinP = 0.01;
+    /// <summary>
+    /// Default nucleus width. Each step samples from the smallest set of highest-probability tags whose mass covers
+    /// this fraction. 0.90 came from an end-to-end sweep: it about doubled distinct-tag diversity over the previous
+    /// peak-relative min_p floor at the same conflicting-tag rate, where 0.95 kept adding diversity but let
+    /// contradictions climb.
+    /// </summary>
+    public const double DefaultTopP = 0.90;
 
     private readonly TagModelBundle _bundle = bundle;
 
@@ -45,14 +50,14 @@ public sealed class GenerateEngine(TagModelBundle bundle)
     /// <param name="temperature">0 = greedy. Above 0, redistributes preference within the pinned support.</param>
     /// <param name="bannedTags">Tags to suppress during sampling, so the set completes around them.</param>
     /// <param name="typeMask">Which categories may be emitted; see <see cref="TypeMask"/>.</param>
-    /// <param name="minP">Support floor as a fraction of the peak, applied before tempering.</param>
+    /// <param name="topP">Nucleus width: the fraction of probability mass the sampled support must cover, applied before tempering.</param>
     public Result Generate(
         IReadOnlyCollection<string> seedTags,
         int seed,
         double temperature = 1.0,
         IReadOnlyCollection<string>? bannedTags = null,
         int typeMask = TypeMask.NoArtist,
-        double minP = DefaultMinP)
+        double topP = DefaultTopP)
     {
         var vocab = _bundle.Vocab;
         var rng = new Random(seed);
@@ -124,18 +129,17 @@ public sealed class GenerateEngine(TagModelBundle bundle)
                 continue;
             }
 
-            // SUPPORT-PINNED SAMPLING. min_p truncates the temperature-1 distribution BEFORE tempering, so which tags
-            // MAY be sampled does not change with temperature. Rarity and incompatibility both read as small p, and
-            // truncating after tempering erases that distinction: high temperature then admits contradictory tags, the
-            // stop head correctly refuses to call those sets complete, and length runs away. Pinned, temperature only
-            // redistributes preference among tags the model already finds plausible.
-            if (minP > 0)
-            {
-                var (_, peak) = ArgMax(p);
-                var floor = (float)(minP * peak);
-                for (var i = 0; i < p.Length; i++)
-                    if (p[i] < floor) p[i] = 0f;
-            }
+            // SUPPORT-PINNED SAMPLING. Nucleus truncation runs BEFORE tempering, so which tags MAY be sampled does not
+            // change with temperature -- temperature only redistributes preference among tags the model already finds
+            // plausible. Truncating after tempering instead lets high temperature admit contradictory tags, the stop
+            // head then refuses to call those sets complete, and length runs away.
+            //
+            // Nucleus rather than a peak-relative min_p floor: the width adapts to the model's own confidence -- narrow
+            // when the set strongly implies its next tag, wide when the context is generic -- which is where the added
+            // diversity comes from, and it is measured against the mass rather than the single peak, so a confident
+            // spike no longer collapses the whole support.
+            if (topP < 1.0)
+                ApplyNucleus(p, topP);
 
             if (Math.Abs(temperature - 1.0) > double.Epsilon)
             {
@@ -165,6 +169,43 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         for (var i = 0; i < values.Length; i++)
             if (values[i] > best) { best = values[i]; index = i; }
         return (index, best);
+    }
+
+    /// <summary>
+    /// Nucleus (top-p) truncation: keep the smallest set of highest-probability tags whose combined mass covers
+    /// <paramref name="q"/> of the total and zero the rest, in place.
+    ///
+    /// <para>The cutoff is a probability, so every tag tied with the boundary weight is kept -- the nucleus is defined
+    /// by mass, and splitting equal-probability tags by array position would be arbitrary. Only the emittable tags
+    /// carry positive mass (the rest are -inf -> 0 from the softmax), so the sort is over that subset and is dwarfed by
+    /// the forward pass that produced these probabilities.</para>
+    /// </summary>
+    private static void ApplyNucleus(float[] p, double q)
+    {
+        double total = 0;
+        var positive = 0;
+        for (var i = 0; i < p.Length; i++)
+            if (p[i] > 0) { total += p[i]; positive++; }
+        if (total <= 0) return;
+
+        var values = new float[positive];
+        var j = 0;
+        for (var i = 0; i < p.Length; i++)
+            if (p[i] > 0) values[j++] = p[i];
+        Array.Sort(values);   // ascending; walk from the top for the largest-first nucleus
+
+        var target = q * total;
+        double acc = 0;
+        var cutoff = values[0];   // if q covers everything, the smallest positive weight stays in
+        for (var i = values.Length - 1; i >= 0; i--)
+        {
+            acc += values[i];
+            cutoff = values[i];
+            if (acc >= target) break;
+        }
+
+        for (var i = 0; i < p.Length; i++)
+            if (p[i] < cutoff) p[i] = 0f;
     }
 
     /// <summary>

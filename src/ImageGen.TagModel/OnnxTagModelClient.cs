@@ -86,7 +86,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         try
         {
             var result = _generate.Generate(
-                seedTags, Random.Shared.Next(), temp, bannedTags, typeMask, GenerateEngine.DefaultMinP);
+                seedTags, Random.Shared.Next(), temp, bannedTags, typeMask, GenerateEngine.DefaultTopP);
 
             return result.Tags.Count == 0 ? null : result.Tags;
         }
