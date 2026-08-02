@@ -1,7 +1,7 @@
 // The LoRA manager (/settings/loras): every LoRA on this box with its cover / CivitAI preview, model name, and trigger
 // words. You can redefine the trigger words, choose whether they auto-attach, and refresh a file's CivitAI data (or all
-// of them). Consumes JSON from /forge/loras/manage and saves via /api/lora/settings; the master toggle writes the
-// machine setting. Nothing blocks: rows render as stubs at once and fill in as the server populates them (polled).
+// of them). Consumes JSON from /forge/loras/manage and saves via /api/lora/settings. Turning CivitAI lookups on/off is a
+// machine-wide setting and lives on /settings/machine. Nothing blocks: rows render as stubs and fill in as they populate.
 (function () {
   const root = document.getElementById("loraManager");
   if (!root) return;
@@ -37,24 +37,14 @@
 
     const head = document.createElement("div"); head.className = "lm-head";
     const h = document.createElement("h2"); h.textContent = "LoRAs";
-    const toggle = document.createElement("label"); toggle.className = "lm-civitai";
-    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = civitaiEnabled;
-    const span = document.createElement("span"); span.textContent = " Fetch trigger words + previews from CivitAI";
-    toggle.append(cb, span);
-    cb.addEventListener("change", async () => {
-      try {
-        await Api.send("/api/machine-settings", "PUT", { key: "Civitai:Enabled", value: cb.checked ? "true" : "false" });
-        toast(cb.checked ? "CivitAI lookups on" : "CivitAI lookups off");
-        load();   // re-load: enabling starts population, disabling stops offering it
-      } catch (_) { cb.checked = !cb.checked; toast("Couldn't change the setting"); }
-    });
+    // The CivitAI on/off switch is a machine-wide setting and lives on the machine settings page, not here.
     // Refresh every LoRA's CivitAI data (only meaningful while lookups are on).
     const refreshAll = document.createElement("button");
     refreshAll.type = "button"; refreshAll.className = "lm-refresh-all"; refreshAll.textContent = "↻ Refresh all";
     refreshAll.title = "Re-fetch trigger words + previews from CivitAI for every LoRA";
     refreshAll.hidden = !civitaiEnabled;
     refreshAll.addEventListener("click", () => refresh(null, [...rows.keys()]));
-    head.append(h, toggle, refreshAll);
+    head.append(h, refreshAll);
     root.appendChild(head);
 
     const loras = data.loras || [];

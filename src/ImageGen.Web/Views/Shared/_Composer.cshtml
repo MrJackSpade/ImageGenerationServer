@@ -23,10 +23,14 @@
             @* Optional negative prompt — compose.js shows this only for models whose card declares negative support.
                Whatever's typed here is ADDED ON TOP of the model's built-in negative, never replaces it. *@
             <div class="neg-wrap" id="negWrap" hidden>
-                <label class="fld-label" for="negativePrompt">Negative prompt</label>
-                <div class="prompt-wrap">
-                    <textarea id="negativePrompt" placeholder="blurry, watermark, extra fingers… (leave blank for a sensible default)"></textarea>
-                    <div id="negTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                <button type="button" class="neg-summary" id="negToggle" aria-expanded="false" aria-controls="negBody">
+                    <span class="neg-caret">▸</span> Negative prompt
+                </button>
+                <div class="neg-body" id="negBody" hidden>
+                    <div class="prompt-wrap">
+                        <textarea id="negativePrompt" placeholder="blurry, watermark, extra fingers… (leave blank for a sensible default)"></textarea>
+                        <div id="negTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
+                    </div>
                 </div>
             </div>
             @* Optional stackable LoRAs. compose.js shows this only for image models; the picker (loraPicker.js) opens
@@ -37,7 +41,7 @@
                 </button>
                 <div class="lora-body" id="loraBody" hidden>
                     <div class="lora-list" id="loraList"></div>
-                    <button type="button" class="lora-add" id="loraAdd">+ add lora…</button>
+                    <button type="button" class="lora-add" id="loraAdd">+ Add LoRA…</button>
                 </div>
             </div>
             <div class="model-tip" id="modelTip" hidden></div>
@@ -58,10 +62,10 @@
                     <button type="button" data-aspect="landscape">▭ Landscape</button>
                     <button type="button" data-aspect="portrait">▯ Portrait</button>
                 </div>
-                <div class="shape-note" id="aspectNote" hidden>🎲 Each picture gets one of these shapes at random.</div>
             </div>
             <div class="opt-bar" id="randomArtistBar" hidden>
-                <label class="opt-chk"><input type="checkbox" id="randomArtist"> 🎨 Random artist</label>
+                @* Checkbox on the RIGHT (label left), so it lines up with the random-prompt slider's control below. *@
+                <label class="opt-chk opt-artist"><span>🎨 Random artist</span><input type="checkbox" id="randomArtist"></label>
             </div>
             @* 0 = off; anything above it is the tag model's sampling temperature for this generation. *@
             <div class="opt-bar" id="randomPromptBar" hidden>

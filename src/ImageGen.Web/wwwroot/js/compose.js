@@ -5,10 +5,11 @@
 const $prompt = $("prompt"), $tagPop = $("tagPop"), $generate = $("generate"),
       $modelSelect = $("modelSelect"), $modelToggle = $("modelToggle"), $modelMenu = $("modelMenu"), $status = $("status"),
       $bar = $("bar"), $barFill = $bar.querySelector("i"), $result = $("result"), $genModel = $("genModel"),
-      $composer = $("composer"), $modelTip = $("modelTip"), $aspect = $("aspect"), $aspectNote = $("aspectNote"),
+      $composer = $("composer"), $modelTip = $("modelTip"), $aspect = $("aspect"),
       $randomArtist = $("randomArtist"), $randomArtistBar = $("randomArtistBar"),
       $promptTemp = $("promptTemp"), $promptTempVal = $("promptTempVal"), $randomPromptBar = $("randomPromptBar"),
       $negWrap = $("negWrap"), $negPrompt = $("negativePrompt"), $negTagPop = $("negTagPop"),
+      $negToggle = $("negToggle"), $negBody = $("negBody"),
       $loraSection = $("loraSection"), $loraToggle = $("loraToggle"), $loraBody = $("loraBody"),
       $loraList = $("loraList"), $loraAdd = $("loraAdd"), $loraCount = $("loraCount");
 
@@ -694,14 +695,18 @@ function updateLoraSection() {
   $loraSection.hidden = !(sel.length === 1 && sel[0] && sel[0].media === "image");
 }
 
-if ($loraToggle && $loraBody) {
-  $loraToggle.addEventListener("click", () => {
-    const open = $loraBody.hidden;
-    $loraBody.hidden = !open;
-    $loraToggle.setAttribute("aria-expanded", open ? "true" : "false");
-    $loraToggle.classList.toggle("open", open);
-  });
+// Collapsible sections (negative prompt, LoRAs): the summary button flips its body and rotates its caret.
+function setAccordion(toggle, body, open) {
+  if (!toggle || !body) return;
+  body.hidden = !open;
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  toggle.classList.toggle("open", open);
 }
+function wireAccordion(toggle, body) {
+  if (toggle && body) toggle.addEventListener("click", () => setAccordion(toggle, body, body.hidden));
+}
+wireAccordion($loraToggle, $loraBody);
+wireAccordion($negToggle, $negBody);
 if ($loraAdd) {
   $loraAdd.addEventListener("click", () => {
     if (typeof window.openLoraPicker !== "function") { toast("LoRA picker unavailable"); return; }
@@ -869,7 +874,6 @@ function setAspects(list) {
   for (const a of (list || [])) if (ASPECTS.includes(a) && !next.includes(a)) next.push(a);
   aspects = next.length ? next : ["square"];
   for (const b of $aspect.children) b.classList.toggle("active", aspects.includes(b.dataset.aspect));
-  if ($aspectNote) $aspectNote.hidden = aspects.length < 2;
 }
 function addAspect(a) { setAspects(aspects.concat([a])); }
 function restorePrefs(p) {
@@ -884,6 +888,7 @@ function restorePrefs(p) {
   if (ids.length) modelPicker.setSelectedIds(ids);
   if (p.prompt && !$prompt.value) $prompt.value = p.prompt;
   if ($negPrompt && p.negativePrompt != null && !$negPrompt.value) $negPrompt.value = p.negativePrompt;
+  if ($negPrompt && $negPrompt.value.trim()) setAccordion($negToggle, $negBody, true);   // don't bury an existing negative
   if ($randomArtist) $randomArtist.checked = !!p.randomArtist;
   setPromptTemp(typeof p.randomPromptTemp === "number" ? p.randomPromptTemp : 0);
   // Held for buildTagTypes (which runs after this, once the options are known). Absent = never set from a composer,

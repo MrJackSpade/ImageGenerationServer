@@ -141,10 +141,11 @@ a{color:var(--accent-hi)}
 .shape-options button:hover,.type-options button:hover{border-color:var(--accent)}
 .shape-options button.active,.type-options button.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 /* Shown only while 2+ shapes are picked (long-press multi-select) — the shape is then rolled per picture. */
-.shape-note{margin-top:6px;font-size:12px;color:var(--ink-faint)}
 .opt-bar{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--ink-soft);font-size:13px}
 .opt-chk{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .opt-chk input{accent-color:var(--accent);width:16px;height:16px;cursor:pointer;flex:none}
+/* Random-artist row: fill the bar so the label sits left and the checkbox lines up right with the prompt slider's control. */
+.opt-chk.opt-artist{flex:1;justify-content:space-between}
 /* Random prompt: a slider in the same row shape as the checkbox bars it sits beside. */
 .opt-lbl{white-space:nowrap;user-select:none}
 /* A sub-control of the option above it (the generation mask under the Random prompt slider): label on its own line,
@@ -257,8 +258,8 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .portrait-card{width:min(340px,92vw);text-align:left}
 .portrait-card h3{text-align:left}
 .portrait-list{max-height:min(46vh,340px);overflow-y:auto;margin:0 -4px 14px;padding:0 4px;display:flex;flex-direction:column;gap:2px}
-.portrait-row{appearance:none;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;
-  padding:9px 11px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.portrait-row{appearance:none;flex:none;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;
+  padding:9px 11px;font:inherit;font-size:14px;line-height:1.4;color:var(--ink);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .portrait-row:hover{background:var(--elev);border-color:var(--line)}
 .portrait-row.pr-artist{color:var(--accent-hi)}
 .portrait-row.pr-lora{color:var(--accent-2)}
@@ -911,13 +912,13 @@ body.auth .page{max-width:none;padding:0}
 
 /* --- LoRAs: composer accordion + stackable rows --- */
 .lora-section{margin-top:10px}
-.lora-summary{appearance:none;background:transparent;border:none;color:var(--ink-soft);font:inherit;font-weight:600;font-size:13px;
+.lora-summary,.neg-summary{appearance:none;background:transparent;border:none;color:var(--ink-soft);font:inherit;font-weight:600;font-size:13px;
   cursor:pointer;display:flex;align-items:center;gap:6px;padding:2px 0}
-.lora-summary:hover{color:var(--ink)}
-.lora-summary .lora-caret{transition:transform .12s}
-.lora-summary.open .lora-caret{transform:rotate(90deg)}
+.lora-summary:hover,.neg-summary:hover{color:var(--ink)}
+.lora-summary .lora-caret,.neg-summary .neg-caret{transition:transform .12s}
+.lora-summary.open .lora-caret,.neg-summary.open .neg-caret{transform:rotate(90deg)}
 .lora-count{color:var(--ink-faint);font-weight:500}
-.lora-body{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.lora-body,.neg-body{margin-top:8px;display:flex;flex-direction:column;gap:8px}
 .lora-list{display:flex;flex-direction:column;gap:6px}
 .lora-row{display:flex;align-items:center;gap:10px;background:var(--elev);border:1px solid var(--line);border-radius:10px;padding:6px 10px}
 .lora-row.incompatible{opacity:.6}
@@ -987,8 +988,6 @@ video.lp-thumb{object-fit:cover}
 .lora-manager{max-width:920px;margin:0 auto;padding:8px 0}
 .lm-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
 .lm-head h2{margin:0;font-size:20px}
-.lm-civitai{display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:13px;cursor:pointer}
-.lm-civitai input{accent-color:var(--accent);cursor:pointer}
 .lm-loading,.lm-empty,.lm-error{color:var(--ink-faint);padding:24px 4px;font-size:14px}
 .lm-error{color:var(--danger)}
 .lm-list{display:flex;flex-direction:column;gap:10px}
