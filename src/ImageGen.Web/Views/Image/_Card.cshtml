@@ -55,6 +55,7 @@
         <div class="detail-actions">
             <button type="button" class="icon-btn @(Model.IsBookmarked ? "on" : "")" id="detailStar" title="@(Model.IsBookmarked ? "Bookmarked" : "Bookmark")" aria-label="Bookmark">@(Model.IsBookmarked ? "★" : "☆")</button>
             <button type="button" class="icon-btn" id="detailReload" title="Reload — generate again with this prompt" aria-label="Reload" hidden>⟳</button>
+            <button type="button" class="icon-btn" id="detailPortrait" title="Set as portrait" aria-label="Set as portrait" hidden>🖼</button>
             <button type="button" class="icon-btn" id="detailEdit" data-href="/edit/@id" title="Edit this" aria-label="Edit this">✎</button>
             <button type="button" class="icon-btn" id="detailCopy" title="Copy prompt — keeps #, @@ and underscores. Hold for the original, as typed" aria-label="Copy prompt">⧉</button>
             <button type="button" class="icon-btn" id="detailDelete" title="Delete" aria-label="Delete">🗑</button>

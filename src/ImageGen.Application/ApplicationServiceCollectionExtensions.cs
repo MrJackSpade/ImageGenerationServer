@@ -32,6 +32,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<PendingJobService>();
         services.AddScoped<ArtistService>();
         services.AddScoped<LoraService>();
+        services.AddScoped<TagService>();
         services.AddScoped<ImageViewService>();
 
         services.AddSingleton<IUserLogService>(sp => new UserLogService(

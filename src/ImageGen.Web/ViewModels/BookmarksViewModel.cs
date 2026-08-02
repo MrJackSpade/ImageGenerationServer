@@ -15,12 +15,14 @@ public sealed record BookmarkGroup
     public required bool IsGlobal { get; init; }
     /// <summary>Artists in this group, pinned ones first (most recently pinned first), then the rest in saved order.</summary>
     public required IReadOnlyList<ArtistCard> Artists { get; init; }
-    public required IReadOnlyList<TagChipView> Tags { get; init; }
+    public required IReadOnlyList<TagCard> Tags { get; init; }
     public required IReadOnlyList<ImageBookmarkView> Images { get; init; }
 }
 
-/// <summary>A bookmarked tag chip: its name plus the booru category slug that colors its border (null = neutral).</summary>
-public sealed record TagChipView(string Name, string? Category);
+/// <summary>A bookmarked tag: its name, the booru category slug that colors its border (null = neutral), and the user's
+/// resolved portrait image (null when they've set none). A portrait for parity with <see cref="ArtistCard"/> — the tag
+/// is still clicked to filter by it, and still carries the star/remove/categorise controls.</summary>
+public sealed record TagCard(string Name, string? Category, string? DisplayImageId);
 
 /// <summary>A bookmarked artist with its resolved display image (null when the user has no generation for it).</summary>
 public sealed record ArtistCard

@@ -32,6 +32,34 @@
         </div>
     }
 
+    async Task TagCardHtml(TagCard t)
+    {
+        var pretty = t.Name.Replace('_', ' ');
+        var catClass = t.Category is not null ? "cat-" + t.Category : "";
+        // A tag is filtered by POSTing its name (never a GET — see BookmarksController.Tag), so the card's click target
+        // is a submit button, not a link. The long-press-to-categorise trigger (bookmarks.js) rides on the whole card.
+        <div class="gen tag-card @catClass" data-name="@t.Name" data-kind="tag" data-category="@t.Category">
+            <form class="tc-go" method="post" action="/bookmarks/tag">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="tag" value="@t.Name" />
+                <button type="submit" class="imgcard">
+                    <div class="img">
+                        @if (t.DisplayImageId is not null)
+                        {
+                            <img data-src="@gateway/image/@Uri.EscapeDataString(t.DisplayImageId)?w=512" alt="@pretty" />
+                        }
+                        else
+                        {
+                            <div class="artcard-empty">no image yet</div>
+                        }
+                    </div>
+                    <div class="meta"><div class="p tag-name">@pretty</div></div>
+                </button>
+            </form>
+            <button type="button" class="card-x" title="Remove bookmark">×</button>
+        </div>
+    }
+
     void ImageCardHtml(ImageBookmarkView b)
     {
         var id = Uri.EscapeDataString(b.GatewayImageId);
@@ -100,11 +128,8 @@ else
                     <div class="bm-kind" data-group-key="@(key + "/tags")">
                         <h4 class="bm-toggle bm-kind-toggle">Tags <span class="bm-count">@group.Tags.Count</span></h4>
                         <div class="bm-body">
-                            <div class="bm-chips">
-                                @foreach (var n in group.Tags)
-                                {
-                                    <span class="tagchip tag @(n.Category is not null ? "cat-" + n.Category : "")" data-name="@n.Name" data-kind="tag" data-category="@n.Category"><span class="tc-star">★</span><form class="tc-go" method="post" action="/bookmarks/tag">@Html.AntiForgeryToken()<input type="hidden" name="tag" value="@n.Name" /><button type="submit" class="tc-name">@n.Name.Replace('_', ' ')</button></form><button type="button" class="tc-x" title="Remove bookmark">×</button></span>
-                                }
+                            <div class="cardgrid">
+                                @foreach (var t in group.Tags) { await TagCardHtml(t); }
                             </div>
                         </div>
                     </div>

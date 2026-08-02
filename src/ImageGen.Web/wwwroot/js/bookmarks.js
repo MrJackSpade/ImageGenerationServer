@@ -75,7 +75,7 @@
   // from its chip).
   document.addEventListener("DOMContentLoaded", () => {
     if (!window.attachCategoryLongPress) return;
-    document.querySelectorAll(".tagchip[data-name][data-kind]").forEach(el => {
+    document.querySelectorAll(".tag-card[data-name][data-kind]").forEach(el => {
       window.attachCategoryLongPress(el, () => ({
         scope: "token", name: el.dataset.name, kind: el.dataset.kind, onSaved: () => location.reload(),
       }));

@@ -548,6 +548,10 @@ const deleteArtistDisplay = artist => Api.send("/api/artist/display?artist=" + e
 // pages that may not share module scope) can reach it.
 const postLoraDisplay = (lora, id) => Api.send("/api/lora/display", "POST", { lora, id });
 window.postLoraDisplay = postLoraDisplay;
+// Per-tag portrait image (what represents a tag on the bookmarks page). Exposed on window for detail.js.
+const postTagDisplay = (tag, id) => Api.send("/api/tag/display", "POST", { tag, id });
+window.postTagDisplay = postTagDisplay;
+const deleteTagDisplay = tag => Api.send("/api/tag/display?tag=" + encodeURIComponent(tag), "DELETE");
 // Per-LoRA trigger-word override + auto-attach (the LoRA manager page).
 const postLoraSettings = (lora, triggers, autoAttach) => Api.send("/api/lora/settings", "POST", { lora, triggers, autoAttach });
 // Per-model banned tags/artists (excluded from auto-gen for that model). The generate path does NOT read these — the

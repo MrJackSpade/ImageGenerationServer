@@ -384,6 +384,20 @@ CREATE TABLE dbo.LoraDisplay
 );
 GO
 
+-- A user's chosen portrait image for a tag (the bookmarks page). Mirrors dbo.ArtistDisplay/LoraDisplay.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'TagDisplay' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.TagDisplay
+(
+    Id             BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TagDisplay PRIMARY KEY,
+    UserId         BIGINT         NOT NULL,
+    TagName        NVARCHAR(512)  NOT NULL,   -- canonical tag token's deterministic ciphertext
+    GatewayImageId NVARCHAR(256)  NOT NULL,
+    SetAtUtc       DATETIME2(3)   NOT NULL,
+    CONSTRAINT FK_TagDisplay_User FOREIGN KEY (UserId) REFERENCES dbo.AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_TagDisplay_User_Tag UNIQUE (UserId, TagName)
+);
+GO
+
 -- Machine-level cache of what CivitAI knows about a LoRA file (looked up by hash). Not per-user; LoraName is the
 -- plain subfolder-qualified filename (a shared machine asset, like dbo.ModelBinding.FileName).
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LoraMeta' AND schema_id = SCHEMA_ID('dbo'))

@@ -70,6 +70,13 @@ public sealed record LoraDisplayRequest
     public required string Id { get; init; }
 }
 
+/// <summary>Set a user's portrait image for a tag (POST /api/tag/display).</summary>
+public sealed record TagDisplayRequest
+{
+    public required string Tag { get; init; }
+    public required string Id { get; init; }
+}
+
 /// <summary>Set a user's LoRA preferences (POST /api/lora/settings): a trigger-word override (blank = use the CivitAI
 /// default) and whether those words auto-attach to the prompt.</summary>
 public sealed record LoraSettingsRequest

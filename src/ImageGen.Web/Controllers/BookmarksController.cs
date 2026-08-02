@@ -11,13 +11,14 @@ namespace ImageGen.Web.Controllers;
 
 [Authorize]
 public sealed class BookmarksController(
-    BookmarkService bookmarks, HistoryService history, ArtistService artists, ITagCatalog tagCatalog,
-    ImageViewService views) : Controller
+    BookmarkService bookmarks, HistoryService history, ArtistService artists, TagService tags,
+    ITagCatalog tagCatalog, ImageViewService views) : Controller
 {
     private readonly ImageViewService _views = views;
     private readonly BookmarkService _bookmarks = bookmarks;
     private readonly HistoryService _history = history;
     private readonly ArtistService _artists = artists;
+    private readonly TagService _tags = tags;
     private readonly ITagCatalog _tagCatalog = tagCatalog;
 
     /// <summary>
@@ -59,8 +60,11 @@ public sealed class BookmarksController(
         var artists = tokens.Where(t => t.Kind == TokenKind.Artist).ToList();
         var tags = tokens.Where(t => t.Kind == TokenKind.Tag).ToList();
         var displays = await _artists.ResolveManyAsync(userId, artists.Select(a => a.Name).ToList(), ct);
+        var tagDisplays = await _tags.ResolveManyAsync(userId, tags.Select(t => t.Name).ToList(), ct);
         ArtistCard Card(Domain.Entities.TokenBookmark t) =>
             new() { Name = t.Name, DisplayImageId = displays.GetValueOrDefault(t.Name), Pinned = t.PinnedAtUtc is not null };
+        TagCard TagCardOf(Domain.Entities.TokenBookmark t) =>
+            new(t.Name, TagCategory.Slug(_tagCatalog.Lookup(t.Name)?.Type ?? 0), tagDisplays.GetValueOrDefault(t.Name));
 
         // Global = bookmarks with no category; then one group per category. A multi-category bookmark appears once per
         // category (never in Global). Within a group, artists list pinned-first (stable sort keeps the saved order
@@ -81,9 +85,7 @@ public sealed class BookmarksController(
                 Title = title,
                 IsGlobal = isGlobal,
                 Artists = groupArtists,
-                Tags = tags.Where(t => pred(t.Categories))
-                    .Select(t => new TagChipView(t.Name, TagCategory.Slug(_tagCatalog.Lookup(t.Name)?.Type ?? 0)))
-                    .ToList(),
+                Tags = tags.Where(t => pred(t.Categories)).Select(TagCardOf).ToList(),
                 Images = images.Where(i => pred(i.Categories)).Select(b => b.ToBookmarkView()).ToList(),
             };
         }
