@@ -65,25 +65,6 @@ ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
         return n > 0 ? sum / n : null;
     }
 
-    public async Task<double?> RecentAverageMsAsync(string machineName, string configId, int take, CancellationToken ct)
-    {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        // CAST(... AS FLOAT) is portable: SQLite reads REAL affinity out of any type name containing "FLOA".
-        await using var cmd = conn.Command($@"
-SELECT AVG(CAST(DurationMs AS FLOAT))
-FROM (
-    SELECT {_dialect.TopPrefix("@take")}DurationMs
-    FROM dbo.GenTiming
-    WHERE MachineName = @m AND ConfigId = @c
-    ORDER BY Id DESC{_dialect.TopSuffix("@take")}
-) t;");
-        cmd.AddParam("@take", take);
-        cmd.AddParam("@m", machineName);
-        cmd.AddParam("@c", configId);
-        var result = await cmd.ExecuteScalarAsync(ct);
-        return result is null or DBNull ? null : Convert.ToDouble(result);
-    }
-
     public async Task<IReadOnlyDictionary<string, double>> RecentAveragesMsAsync(string machineName, int take, CancellationToken ct)
     {
         // One round-trip for the whole catalog: average the last @take durations PER ConfigId on this machine.

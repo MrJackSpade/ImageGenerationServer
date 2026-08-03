@@ -715,12 +715,12 @@ public sealed class RenderOrchestrator
                 double? expected = null;
                 try
                 {
-                    // Param-matched ETA when a signature was captured (resolution/steps/frames scale the recent
-                    // samples); otherwise, and when the config has no signature history yet, the flat per-model average.
+                    // Param-matched ETA ONLY: the recent signature samples scaled to this request's resolution/steps/
+                    // frames. No fallback — a config with no signature history yet shows NO ETA, rather than a flat
+                    // per-model average that would be a wrong number for these params.
                     double? avgMs = slot.EtaSignature is { } sig
                         ? await _timings.EtaAverageMsAsync(_machine, slot.Model, sig, 10, ct)
                         : null;
-                    avgMs ??= await _timings.RecentAverageMsAsync(_machine, slot.Model, 10, ct);
                     expected = avgMs is double ms ? ms / 1000.0 : null;
                 }
                 catch (Exception ex)
