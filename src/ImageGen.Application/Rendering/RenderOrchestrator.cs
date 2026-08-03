@@ -772,24 +772,31 @@ public sealed class RenderOrchestrator
                 _log.LogWarning(ex, "Render-timing sample could not be recorded for {Model}.", slot.Model);
             }
 
-            var isVideo = img.Filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
-            var contentType = isVideo ? "image/webp" : "image/png";
+            // The artifact's media type is the file ComfyUI wrote: a still (.png), the silent animated-webp clip most
+            // video models save (.webp), or a real mp4 CONTAINER — MiniMax-H3 alone saves an mp4 with a baked-in stereo
+            // AUDIO track (webp can't carry audio; see MiniMaxH3Workflows -> SaveVideo). Content type follows the
+            // container; it rides through the blob and the serve path (/image/{id}, /image/{id}/mp4 pass-through) with
+            // the audio intact and never re-transcoded.
+            var isMp4 = img.Filename.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase);
+            var isVideo = isMp4 || img.Filename.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
+            var contentType = isMp4 ? "video/mp4" : isVideo ? "image/webp" : "image/png";
 
-            // A workflow that DECLARES video must have produced one. SaveAnimatedWEBP writes a .webp whether it was
+            // A workflow that DECLARES video must have produced a clip. SaveAnimatedWEBP writes a .webp whether it was
             // handed one frame or forty, so the extension says nothing: seven LTX i2v configurations asked for nine
             // frames, stored a 2.8KB single-frame still, and reported done. The failure only surfaced three
             // configurations later, as an unreadable source in an editor that consumes clips — blamed on the
             // consumer, while the producer looked healthy. A render that did not make the thing it exists to make is
-            // a failed render.
+            // a failed render. An mp4 is a video container by construction (CreateVideo), so it counts as a clip.
             var declared = _catalog.ResolveInfo(slot.IsEdit ? slot.Edit!.Workflow : slot.Gen!.Workflow);
-            if (declared?.ProducesVideo == true && !_media.IsAnimatedWebp(img.Png))
+            if (declared?.ProducesVideo == true && !(isMp4 || _media.IsAnimatedWebp(img.Png)))
                 throw new RenderValidationException(
                     "This is a video workflow and the render came back as a single frame, not a clip. "
                     + "The frame count reaching the graph is the thing to look at.");
             // An output whose header will not read is a FAILED render, not a 0x0 image. Substituting (0, 0) here wrote
             // the fabricated size into the blob row and into history, where nothing downstream can tell it from a real
             // measurement. Let it throw: the handler at the bottom of this method fails the slot with the real reason.
-            var dims = _media.Identify(img.Png);
+            // ImageSharp reads a still/webp; an mp4 needs the container's own box tree (ImageSharp can't read it).
+            var dims = isMp4 ? _media.IdentifyVideo(img.Png) : _media.Identify(img.Png);
             var (w, h) = (dims.Width, dims.Height);
 
             if (slot.IsEdit && src is not null)

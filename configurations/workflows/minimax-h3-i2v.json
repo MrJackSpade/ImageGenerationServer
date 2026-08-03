@@ -1,0 +1,93 @@
+{
+  "id": "minimax-h3-i2v",
+  "workflow": "minimax-h3-i2v",
+  "friendly_name": "MiniMax-H3",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-fl2va",
+    "text_encoders": [
+      "qwen3vl-32b-minimax-h3"
+    ],
+    "vae": "minimax-h3-video-vae",
+    "extra": [
+      "minimax-h3-audio-vae"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "minimax",
+    "audio_vae": "minimax-h3-audio-vae",
+    "steps": 20,
+    "sampler": "res_multistep",
+    "scheduler": "simple",
+    "length": {
+      "value": 124,
+      "exposed": true,
+      "min": 5,
+      "max": 209,
+      "step": 17
+    },
+    "fps": 24
+  },
+  "card": {
+    "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) — IMAGE-TO-VIDEO with native audio",
+    "summary": "Animate a still into a clip with NATIVE stereo audio — voice, sound effects and music generated together with the motion. The uploaded image is the first frame; an optional last frame pins the ending. Output is an mp4 with a baked-in audio track.",
+    "use_cases": [
+      "image→video with synchronized sound",
+      "camera moves / subject motion on a still",
+      "first-and-last-frame clips"
+    ],
+    "nsfw_capable": "unknown",
+    "pick_when": "You want to animate the current picture into a short clip whose audio is generated along with the motion.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion AND the audio; the image defines appearance, the prompt directs motion and sound.",
+      "example": "the camera slowly pushes in as her hair drifts in the wind. Audio: a soft breeze, a low ambient hum, a gentle piano motif.",
+      "overview": "The uploaded image is the first frame, so describe only how the visible subject and camera MOVE, then add an 'Audio:' line — H3 generates the soundtrack (ambience, effects, dialogue, score) jointly with the motion.",
+      "instructions": "Lead with the primary motion using concrete verbs with explicit speed and direction, specify a distinct camera move, and add atmosphere. Then add an 'Audio:' section describing ambience, timed sound effects, any dialogue, and score. Animate only elements visible in the source frame; skip static appearance (the image defines it). Quote spoken lines. Timeline cues like [0s-2s] help place motion and audio beats.",
+      "do": [
+        "Lead with the primary motion (concrete verb + speed + direction)",
+        "Specify a camera move (slow push-in, dolly out, pan, orbit, static)",
+        "Add an explicit 'Audio:' line: ambience, timed effects, dialogue, score",
+        "Describe only motion of elements visible in the source image",
+        "Quote spoken lines; use [0s-2s] cues to time beats"
+      ],
+      "dont": [
+        "Don't re-describe the subject's static appearance (the image defines it)",
+        "Don't introduce objects or scenery not present in the source frame",
+        "Don't rely on negative prompts — this is a distilled model",
+        "Don't forget the audio: leaving it out wastes H3's main capability"
+      ],
+      "examples": [
+        "The woman slowly turns her head to the left, her hair drifting in a light breeze. Slow push-in, shallow depth of field, warm color grade, calm mood. Audio: a soft breeze, faint room tone, a gentle piano motif entering halfway."
+      ],
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/Comfy-Org/MiniMax-H3"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled (BasicGuider, no CFG)"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "large video model with a 32B text encoder; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Animate the current picture into a clip WITH sound. Describe the motion and the audio.",
+      "good_for": "image→video with native audio"
+    },
+    "edit_use_cases": [
+      "image-to-video: animate the current picture into a clip with native audio (optional last frame)"
+    ],
+    "reference": {
+      "max": 0,
+      "hint": "Animate the current picture: describe the motion and the audio you want."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1344,
+    "max_h": 1344,
+    "step": 32
+  }
+}

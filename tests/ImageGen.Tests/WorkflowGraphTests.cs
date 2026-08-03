@@ -56,6 +56,7 @@ public sealed class WorkflowGraphTests
             // 24GB-tier video models
             new WanA14bI2VWorkflow(), new WanA14bT2VWorkflow(), new HunyuanVideo15T2VWorkflow(),
             new HunyuanVideoT2VWorkflow(), new LtxV2I2VWorkflow(), new HunyuanVideo15I2VWorkflow(),
+            new MiniMaxH3T2VWorkflow(), new MiniMaxH3I2VWorkflow(),
             // Model-free pixel-quantize video-to-video.
             new PixelQuantizeVideoWorkflow(),
             // The generic diffusion pixelizer, which serves pixelize-sd35 and pixelize-hidream among others.
@@ -132,6 +133,40 @@ public sealed class WorkflowGraphTests
             .ToList();
 
         Assert.Empty(dangling);
+    }
+
+    /// <summary>
+    /// MiniMax-H3's whole reason to exist is NATIVE audio: the video latent decodes to both frames and an audio track,
+    /// which <c>CreateVideo</c> muxes into one mp4 written by <c>SaveVideo</c>. It must NOT fall back to the silent
+    /// <c>SaveAnimatedWEBP</c> every other video model uses (webp can't carry audio). Two VAEs are loaded — video and
+    /// audio — and the prompt is encoded by the single H3 node, so there is no separate CLIPTextEncode.
+    /// </summary>
+    [Fact]
+    public void MiniMaxH3_t2v_builds_the_native_audio_topology_not_a_silent_webp()
+    {
+        var json = BuildJson("minimax-h3-t2v", Gen);
+        Assert.Contains("MiniMaxH3ImageToVideo", json);      // the one H3-specific conditioning+latent node
+        Assert.Contains("UNETLoader", json);                 // int8 ConvRot loads through the plain diffusion loader
+        Assert.Contains("\"minimax\"", json);                // CLIPLoader type for the Qwen3-VL encoder
+        Assert.Contains("BasicGuider", json);                // distilled: no CFG / no negative
+        Assert.Contains("SamplerCustomAdvanced", json);
+        Assert.Contains("VAEDecodeAudio", json);             // the native audio path
+        Assert.Contains("CreateVideo", json);                // muxes frames + audio
+        Assert.Contains("SaveVideo", json);                  // a real mp4 with the audio track
+        Assert.DoesNotContain("SaveAnimatedWEBP", json);     // NEVER the silent webp
+        Assert.Equal(2, json.Split("\"VAELoader\"").Length - 1);   // video VAE + audio VAE
+    }
+
+    /// <summary>H3 image→video feeds the uploaded still as the FIRST frame of the same audio topology.</summary>
+    [Fact]
+    public void MiniMaxH3_i2v_feeds_the_source_as_the_first_frame()
+    {
+        var json = BuildJson("minimax-h3-i2v", Edit);
+        Assert.Contains("MiniMaxH3ImageToVideo", json);
+        Assert.Contains("first_frame", json);
+        Assert.Contains("LoadImage", json);
+        Assert.Contains("SaveVideo", json);
+        Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
     [Fact]

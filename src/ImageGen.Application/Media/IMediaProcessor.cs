@@ -15,6 +15,11 @@ public interface IMediaProcessor
     /// <summary>Read an image's pixel dimensions from its bytes without fully decoding the pixels.</summary>
     ImageDimensions Identify(byte[] bytes);
 
+    /// <summary>Read an MP4 clip's coded pixel dimensions from its container boxes (ImageSharp cannot read an mp4 — the
+    /// only stored clip that isn't an animated webp is the MiniMax-H3 mp4). Throws on an unreadable file, exactly like
+    /// <see cref="Identify"/>: a video whose header won't parse is a failed render, not a fabricated 0×0.</summary>
+    ImageDimensions IdentifyVideo(byte[] bytes);
+
     /// <summary>Normalized perceptual-hash (pHash) distance between two images (0 = identical structure, 1 = fully
     /// different). Used to detect a silent "no-op" edit: a re-rendered-but-unchanged scene reads near 0, a real edit
     /// crosses <see cref="NoChangeThreshold"/>.</summary>

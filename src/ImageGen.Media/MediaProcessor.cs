@@ -24,6 +24,13 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     }
 
     /// <inheritdoc/>
+    public ImageDimensions IdentifyVideo(byte[] bytes)
+    {
+        var (w, h) = Mp4Probe.GetDimensions(bytes);
+        return new ImageDimensions(w, h);
+    }
+
+    /// <inheritdoc/>
     public double Difference(byte[] a, byte[] b) => PerceptualHash.Difference(a, b);
 
     /// <inheritdoc/>

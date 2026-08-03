@@ -1,0 +1,8 @@
+{
+  "id": "minimax-h3-audio-vae",
+  "kind": "vae",
+  "label": "MiniMax-H3 Audio VAE",
+  "match": [
+    "minimax[-_]?h3[-_]?audio[-_]?vae"
+  ]
+}

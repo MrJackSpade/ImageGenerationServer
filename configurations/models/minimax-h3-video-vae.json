@@ -1,0 +1,8 @@
+{
+  "id": "minimax-h3-video-vae",
+  "kind": "vae",
+  "label": "MiniMax-H3 Video VAE",
+  "match": [
+    "minimax[-_]?h3[-_]?video[-_]?vae"
+  ]
+}

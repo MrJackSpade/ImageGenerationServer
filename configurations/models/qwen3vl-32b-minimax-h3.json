@@ -1,0 +1,8 @@
+{
+  "id": "qwen3vl-32b-minimax-h3",
+  "kind": "text_encoder",
+  "label": "Qwen3-VL 32B (MiniMax-H3)",
+  "match": [
+    "qwen3vl[-_]?32b[-_]?minimax[-_]?h3"
+  ]
+}

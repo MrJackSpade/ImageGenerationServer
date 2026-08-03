@@ -138,7 +138,7 @@ function adaptWorkflow(r) {
   const c = r.card || {};
   return {
     id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, default: !!r.default, avgSeconds: r.avgSeconds,
-    kind: r.kind, media: r.media === "video" ? "video" : "image", exposedParams: r.exposedParams || [],
+    kind: r.kind, media: r.media === "video" ? "video" : "image", hasAudio: !!r.hasAudio, exposedParams: r.exposedParams || [],
     loraFolder: r.loraFolder || "",   // the workflow's default LoRA-picker folder (Part H); "" = smart-route by id
     negativeSupported: c.negativeSupported === true,   // model's card declares it uses a negative prompt
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,
@@ -813,6 +813,9 @@ function showResult(r) {
     img.src = `${GATEWAY}/image/${encodeURIComponent(imageId(r))}/mp4`;
     img.loop = true; img.muted = true; img.autoplay = true; img.playsInline = true;
     img.setAttribute("muted", ""); img.setAttribute("playsinline", ""); img.preload = "metadata";
+    // Clips with a native audio track (H3) autoplay muted like the rest (browsers require it), but get controls so the
+    // user can unmute and hear the generated audio. Silent clips stay chrome-free.
+    if (m.hasAudio) img.controls = true;
   } else {
     img = document.createElement("img"); img.src = viewUrl(r); img.alt = r.prompt || "";
   }

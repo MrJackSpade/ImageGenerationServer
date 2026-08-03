@@ -350,8 +350,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapImageGenApi();   // /api (client actions) + /forge (render backend)
 
-// Ops/deploy drain probe (anonymous, root — like a health check). Reports how much render work is in flight so
-// _redeploy.ps1 can wait it out before stopping the app. Slots merely waiting re-hydrate and resume, so the gate keys
+// Ops/deploy drain probe (anonymous, root — like a health check). Reports how much render work is in flight so a
+// deploy can wait it out before stopping the app. Slots merely waiting re-hydrate and resume, so the gate keys
 // on work in flight, not queue depth. Exposes only counts — no prompts, no user data.
 app.MapGet("/drain-status", (RenderOrchestrator queue) =>
 {

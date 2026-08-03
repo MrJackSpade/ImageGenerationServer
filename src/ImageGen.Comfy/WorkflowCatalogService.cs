@@ -225,6 +225,7 @@ public sealed partial class WorkflowCatalogService(
             },
             TakesPrompt: wf.TakesPrompt,
             SupportsLastFrame: wf.SupportsEndFrame,
+            HasAudio: wf.HasAudio,
             FriendlyName: cfg.FriendlyName ?? c.FriendlyName,
             Default: cfg.Default,
             AvgSeconds: avgSeconds,

@@ -90,7 +90,8 @@ public sealed record WorkflowDescriptor(
     bool CanEdit,
     WorkflowReference? Reference,
     WorkflowCardSummary Card,
-    string? LoraFolder = null);
+    string? LoraFolder = null,
+    bool HasAudio = false);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(

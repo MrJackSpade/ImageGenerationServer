@@ -13,6 +13,16 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
     public virtual WorkflowMedia Media => WorkflowMedia.Image;
     public virtual bool PromptDirectsMotion => true;
 
+    /// <summary>The model's stepped frame-count rule (valid clip length = Base + k*Step), or null for stills / any
+    /// length. Declared virtual here (mirroring <see cref="EditWorkflowBase.FrameRule"/>) so a text-to-VIDEO generator
+    /// can enforce its grid at enqueue via <see cref="IWorkflow.Normalize"/>; null default keeps every existing
+    /// txt2img workflow byte-identical.</summary>
+    public virtual FrameRule? FrameRule => null;
+
+    /// <summary>Whether the output clip carries a native audio track. Null-audio default; only a real audio video model
+    /// (MiniMax-H3) sets it. Mirrors <see cref="IWorkflow.HasAudio"/>.</summary>
+    public virtual bool HasAudio => false;
+
     /// <summary>The full menu of txt2img parameters. Concrete values + which are UI-exposed come from the configuration.</summary>
     public virtual IReadOnlyList<ParamSpec> Schema => SharedSchema;
 
@@ -36,6 +46,12 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         new() { Key = "width",     Type = ParamType.Int,    Default = 1024 },
         new() { Key = "height",    Type = ParamType.Int,    Default = 1024 },
         new() { Key = "aspect",    Type = ParamType.String },   // { square/landscape/portrait: [w,h] } dims map
+        // Video shapes for the text-to-VIDEO generators (wan/hunyuan/minimax-h3): clip length (frames) and playback
+        // fps; 0 = the builder's default. Present on the shared schema so a config that exposes `length` renders it as
+        // a NUMERIC control — the control's type is read from here, and without an entry an exposed length falls back to
+        // a text box. Image models simply never expose these. Mirrors EditWorkflowBase.
+        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames" },
+        new() { Key = "fps",       Type = ParamType.Double, Default = 0 },
         new() { Key = "required_prefix",     Type = ParamType.String },
         new() { Key = "negative_supported",  Type = ParamType.Bool, Default = true },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).

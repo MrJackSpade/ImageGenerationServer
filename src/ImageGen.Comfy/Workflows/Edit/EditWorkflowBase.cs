@@ -13,6 +13,7 @@ public abstract class EditWorkflowBase : IWorkflow
     public virtual WorkflowMedia Media => WorkflowMedia.Image;
     public virtual bool PromptDirectsMotion => true;
     public virtual bool SupportsEndFrame => false;
+    public virtual bool HasAudio => false;
     public virtual bool PreservesComposition => false;
     public virtual PromptSemantics PromptSemantics => PromptSemantics.Instruction;
     public virtual bool RequiresModel => true;

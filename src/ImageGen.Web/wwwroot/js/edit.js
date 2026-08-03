@@ -254,6 +254,7 @@ async function loadEditModels() {
         media: r.media === "video" ? "video" : "image", promptDirectsMotion: r.promptDirectsMotion !== false,
         sourceMedia: r.sourceMedia === "video" ? "video" : "image",
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to
+        hasAudio: !!r.hasAudio,   // clip carries a native audio track (H3) — offer an unmute control on the result
 
         effectType: r.effectType || null,
         editGroup: r.editGroup || null,   // "Redraw" gets its own tab; any other group is a section inside Edit
@@ -510,6 +511,8 @@ function buildResultCard(id, model, instruction, notice) {
     media.src = `${GATEWAY}/image/${encodeURIComponent(imageId(id))}/mp4`;
     media.loop = true; media.muted = true; media.autoplay = true; media.playsInline = true;
     media.setAttribute("muted", ""); media.setAttribute("playsinline", ""); media.preload = "metadata";
+    // Native-audio clips (H3): autoplay muted (browsers require it) but show controls so the user can unmute.
+    if (model && model.hasAudio) media.controls = true;
   } else {
     media = document.createElement("img"); media.src = viewUrl(id); media.alt = instruction || "edited image";
   }

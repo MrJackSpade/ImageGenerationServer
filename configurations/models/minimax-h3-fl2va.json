@@ -1,0 +1,8 @@
+{
+  "id": "minimax-h3-fl2va",
+  "kind": "unet",
+  "label": "MiniMax-H3 fl2va (T2V/I2V)",
+  "match": [
+    "minimax[-_]?h3[-_]?fl2va"
+  ]
+}

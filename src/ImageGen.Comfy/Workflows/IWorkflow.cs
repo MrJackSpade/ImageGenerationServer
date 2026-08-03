@@ -45,6 +45,12 @@ public interface IWorkflow
     /// <c>/workflows</c> row (<c>supportsLastFrame</c>) so callers can discover it. Default false.</summary>
     bool SupportsEndFrame => false;
 
+    /// <summary>Video only: whether the clip carries an AUDIO track (MiniMax-H3 generates native stereo audio in the
+    /// same pass, saved as an mp4 with sound). Surfaced on the <c>/workflows</c> row (<c>hasAudio</c>) so the
+    /// composer/edit UI can offer an unmute control for a clip that actually has sound, without adding chrome to the
+    /// silent clips every other video model produces. Default false.</summary>
+    bool HasAudio => false;
+
     /// <summary>True when this workflow INTENTIONALLY preserves the source image's composition rather than performing
     /// a semantic edit — e.g. inpaint (only a masked region changes) or the pixel transforms (restyle to a fixed
     /// grid+palette). The JobQueue's no-change gate (a whole-image perceptual-hash diff built to catch instruction
