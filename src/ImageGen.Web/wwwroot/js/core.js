@@ -208,8 +208,25 @@ function applyParamPrefs(box, prefs) {
   if (!box || box.hidden || !prefs) return;
   for (const inp of box.querySelectorAll("[data-key]")) {
     const k = inp.dataset.key; if (!(k in prefs)) continue;
-    if (inp.dataset.ptype === "bool") inp.checked = prefs[k] === true || prefs[k] === "true";
-    else inp.value = prefs[k];
+    if (inp.dataset.ptype === "bool") { inp.checked = prefs[k] === true || prefs[k] === "true"; continue; }
+    let v = prefs[k];
+    // A flat by-name pref can carry a number from a DIFFERENT model whose grid differs — e.g. a Wan `length` of 81
+    // (4n+1) restored onto MiniMax-H3's field, whose valid frames are 17n+5. HTML min/step don't snap an assigned
+    // value, so 81 would be shown as-is and is invalid for H3. For a stepped numeric field (step > 1 — the frame
+    // grids) snap the restored value to THIS field's own base(min)/step, clamped to its range, rounding UP to match
+    // the server's FrameRule.Snap so the shown value is exactly what will render (81 -> 90, not 73).
+    if (inp.dataset.ptype === "int" || inp.dataset.ptype === "double") {
+      const n = Number(v);
+      const step = Number(inp.step), min = inp.min !== "" ? Number(inp.min) : null, max = inp.max !== "" ? Number(inp.max) : null;
+      if (!Number.isNaN(n)) {
+        let s = n;
+        if (step > 1 && min != null) s = min + Math.ceil((n - min) / step - 1e-9) * step;
+        if (min != null) s = Math.max(min, s);
+        if (max != null) s = Math.min(max, s);
+        v = inp.dataset.ptype === "int" ? Math.round(s) : s;
+      }
+    }
+    inp.value = v;
   }
 }
 function collectParamPrefs(box, prefs) {

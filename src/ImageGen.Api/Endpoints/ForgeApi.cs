@@ -1000,7 +1000,7 @@ public static class ForgeApi
                 .Select(id => id.Trim())
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-            if (list.Count == 0) return Results.Ok(new Dictionary<string, bool>());
+            if (list.Count == 0) return Results.Ok(new Dictionary<string, string>());
             // In-memory uploads answer for themselves; only the rest are worth a database round trip.
             var resident = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var id in list)
@@ -1008,10 +1008,15 @@ public static class ForgeApi
                     resident[id] = up.ContentType;
             var stored = await blobs.GetContentTypesAsync(list.Where(id => !resident.ContainsKey(id)).ToList(), ct);
             var types = resident.Concat(stored).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
-            var map = list.ToDictionary(id => id, id =>
-                types.TryGetValue(id, out var c)
-                && (string.Equals(c, "image/webp", StringComparison.OrdinalIgnoreCase)
-                    || c.StartsWith("video/", StringComparison.OrdinalIgnoreCase)), StringComparer.Ordinal);
+            // The media KIND per id, not just is-it-a-clip: the client renders an mp4 clip differently from a webp
+            // clip. An mp4 (e.g. MiniMax-H3) has NO server-side still poster — ImageSharp can't decode an mp4 — so the
+            // browser paints its own first frame; a webp keeps the cheap /image/{id}?still=true poster. "image" = still.
+            static string Kind(string? c) =>
+                c is null ? "image"
+                : c.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? "mp4"
+                : string.Equals(c, "image/webp", StringComparison.OrdinalIgnoreCase) ? "webp"
+                : "image";
+            var map = list.ToDictionary(id => id, id => Kind(types.TryGetValue(id, out var c) ? c : null), StringComparer.Ordinal);
             return Results.Ok(map);
         });
     }

@@ -12,9 +12,10 @@
   const GW = window.GATEWAY;
   const imgRe = new RegExp("^" + GW.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "/image/([^/?#]+)");
 
-  const verdict = new Map();   // decoded id -> true|false (cached; a clip never stops being one)
+  const verdict = new Map();   // decoded id -> "image"|"webp"|"mp4" (cached; a clip never stops being one)
   const pending = new Map();   // decoded id -> [img, ...] awaiting a verdict
   let flushTimer = null;
+  const isClip = k => k === "webp" || k === "mp4";   // /forge/media kinds that upgrade an <img> to a <video>
 
   // Grid thumbnails carry their URL in data-src until imgqueue.js releases them, so both attributes count here — the
   // clip lookup is independent of the load queue and shouldn't wait for it (nor be blinded by it).
@@ -32,7 +33,7 @@
     return m ? m[1] : null;
   }
 
-  function upgrade(img, id) {
+  function upgrade(img, id, kind) {
     if (!img.isConnected) return;
     const enc = encodeURIComponent(id);
     const w = widthParam(img);
@@ -46,9 +47,19 @@
     if (img.id === "detailImg") {
       // Opened in the big viewer: play immediately, looping, with a scrubber.
       v.controls = true; v.autoplay = true; v.preload = "metadata"; v.src = mp4;
+    } else if (kind === "mp4") {
+      // An mp4 clip (e.g. MiniMax-H3) has NO server-side still poster — ImageSharp can't decode an mp4, so
+      // /image/{id}?still=true 404s and the card would stay blank until hovered. Paint the first frame from the clip
+      // itself: load only metadata, then seek to the very start, which decodes+shows frame 0 without playing. Hover
+      // plays; leaving pauses back to that first frame.
+      v.preload = "metadata";
+      v.src = mp4;
+      v.addEventListener("loadedmetadata", () => { try { v.currentTime = 0.001; } catch (_) {} }, { once: true });
+      v.addEventListener("mouseenter", () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); });
+      v.addEventListener("mouseleave", () => { v.pause(); try { v.currentTime = 0.001; } catch (_) {} });
     } else {
-      // Grid/preview card: a STATIC first-frame poster, and the clip only loads + plays while hovered — so a page
-      // full of clips doesn't run every animation at once (choppy). Leaving the card resets it back to the poster.
+      // An animated-webp clip: the cheap server still-frame poster works (ImageSharp reads webp), so keep
+      // preload=none + the imgqueue-throttled poster; the clip only loads + plays while hovered.
       v.preload = "none";
       // data-poster, not poster: a grid of clips would otherwise burst every still-frame request at once, which is
       // exactly what imgqueue.js exists to prevent. It assigns the real poster when a slot frees.
@@ -80,7 +91,7 @@
         // A MISSING key is not a verdict. The endpoint answers for every id it is asked about, so an absent id
         // means the answer was incomplete — recording it as false would assert "not a video" on no evidence.
         for (const id of ids) {
-          if (Object.prototype.hasOwnProperty.call(map, id)) verdict.set(id, !!map[id]);
+          if (Object.prototype.hasOwnProperty.call(map, id)) verdict.set(id, map[id]);
           else console.error(`media: /media returned no answer for id ${id} — left unresolved, not assumed still`);
         }
       })
@@ -97,9 +108,9 @@
   function resolvePending() {
     for (const [id, imgs] of Array.from(pending.entries())) {
       if (!verdict.has(id)) continue;
-      const isVideo = verdict.get(id);
+      const kind = verdict.get(id);
       pending.delete(id);
-      if (isVideo) for (const img of imgs) upgrade(img, id);
+      if (isClip(kind)) for (const img of imgs) upgrade(img, id, kind);
     }
     // Anything still pending (verdict not yet known) waits for the in-flight batch's resolvePending.
   }
@@ -109,7 +120,7 @@
     const id = idOf(img);
     if (!id) return;
     img.dataset.mediaChecked = "1";
-    if (verdict.has(id)) { if (verdict.get(id)) upgrade(img, id); return; }
+    if (verdict.has(id)) { const kind = verdict.get(id); if (isClip(kind)) upgrade(img, id, kind); return; }
     const list = pending.get(id);
     if (list) list.push(img); else pending.set(id, [img]);
     if (!flushTimer) flushTimer = setTimeout(flush, 60);   // debounce a burst of cards into one lookup

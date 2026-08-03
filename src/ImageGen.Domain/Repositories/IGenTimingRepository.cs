@@ -18,4 +18,10 @@ public interface IGenTimingRepository
     /// machine, in one query. Keyed by config id; configs with no history here are absent (the catalog then shows
     /// no time for them). Used to annotate the /workflows list with a per-model average runtime.</summary>
     Task<IReadOnlyDictionary<string, double>> RecentAveragesMsAsync(string machineName, int take, CancellationToken ct);
+
+    /// <summary>Parameter-MATCHED ETA (ms) for this machine + configuration: scales the recent signature-bearing samples
+    /// by how much the current request's resolution × steps × frames differs from each sample's, then averages (a
+    /// unit-cost model). Null when there are no signature samples yet — the caller then falls back to
+    /// <see cref="RecentAverageMsAsync"/>, so nothing regresses for pre-signature rows or unmarked workflows.</summary>
+    Task<double?> EtaAverageMsAsync(string machineName, string configId, EtaSignature current, int take, CancellationToken ct);
 }

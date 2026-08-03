@@ -97,7 +97,7 @@ async function detectSrcVideo(id) {
     });
     if (!r.ok) return false;
     const map = await r.json();
-    return !!map[key];
+    return map[key] === "webp" || map[key] === "mp4";   // clip kinds; a still ("image") is not V2V-eligible
   } catch (_) { return false; }
 }
 // The inpaint/outpaint boxes seed from the source image's prompt VERBATIM — the marker form ('#'/'@' and underscores

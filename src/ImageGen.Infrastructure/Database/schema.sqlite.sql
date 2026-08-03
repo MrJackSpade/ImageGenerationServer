@@ -514,3 +514,14 @@ CREATE TABLE IF NOT EXISTS dbo.LoraPreview
     ContentType  TEXT NOT NULL,
     FetchedAtUtc TEXT NOT NULL
 );
+
+
+-- --- 0.11.0 -----------------------------------------------------------------------------------------------------
+
+-- Parameter-constrained ETA: the merged render params that drive gen time (resolution/steps/frames), captured with
+-- each timing sample so the ETA is matched to the request rather than a flat per-model average. Nullable; pre-existing
+-- rows and workflows that mark no EtaVariable params leave them NULL and fall back to the per-model average.
+ALTER TABLE dbo.GenTiming ADD COLUMN RenderWidth INTEGER NULL;
+ALTER TABLE dbo.GenTiming ADD COLUMN RenderHeight INTEGER NULL;
+ALTER TABLE dbo.GenTiming ADD COLUMN Steps INTEGER NULL;
+ALTER TABLE dbo.GenTiming ADD COLUMN Frames INTEGER NULL;

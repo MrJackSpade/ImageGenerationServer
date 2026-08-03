@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text.Json;
 using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace ImageGen.Comfy;
@@ -366,7 +367,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>Resolve the configuration + workflow, build the generate graph, POST it to <c>/prompt</c> under this
     /// client's <c>client_id</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
-    public async Task<string> SubmitGenerateAsync(string prompt, string? negativePrompt, string? configId, string? aspect,
+    public async Task<SubmitResult> SubmitGenerateAsync(string prompt, string? negativePrompt, string? configId, string? aspect,
         IReadOnlyDictionary<string, JsonElement>? overrides, IReadOnlyList<LoraSelection>? loras, CancellationToken ct)
     {
         var (cfg, wf) = ResolveGenerate(configId);
@@ -378,8 +379,18 @@ public sealed class ComfyClient : IComfyClient
         var loraStack = await ValidateLorasAsync(loras, ct);
         var inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect), Loras = loraStack };
         var graph = wf.Build(values, resolved, inputs);
-        return await SubmitAsync(graph, ct);
+        // ETA signature: the aspect-RESOLVED render size (exactly what Build sizes the latent to) + the EtaVariable
+        // time drivers, taken from the same merged/normalized values the graph was built from.
+        var (ew, eh) = values.Dims("aspect", ComfyGraph.NormalizeAspect(aspect), values.Int("width", 0), values.Int("height", 0));
+        var eta = new EtaSignature(ew, eh, EtaInt(wf, values, "steps"), EtaInt(wf, values, "length"));
+        return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
+
+    /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
+    /// this workflow does NOT declare the key a time driver — so an unmarked workflow contributes no param signature and
+    /// its ETA falls back to the flat per-model average, exactly as before.</summary>
+    private static int? EtaInt(IWorkflow wf, ParamValues values, string key) =>
+        wf.Schema.Any(s => s.Key == key && s.EtaVariable) ? values.Int(key, 0) : null;
 
     /// <summary>Validate a user LoRA stack against the LoRAs ComfyUI actually offers, failing fast on any unknown name
     /// (never silently dropping one). Skips the backend probe entirely when the stack is empty — the common case.</summary>
@@ -398,7 +409,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>Upload the source PNG (and any references) to ComfyUI's input folder, build the configuration's edit
     /// graph, POST it to <c>/prompt</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
-    public async Task<string> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
+    public async Task<SubmitResult> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
         IReadOnlyList<byte[]>? references, IReadOnlyDictionary<string, JsonElement>? overrides, byte[]? maskPng = null,
         byte[]? lastFramePng = null, CancellationToken ct = default)
     {
@@ -419,7 +430,10 @@ public sealed class ComfyClient : IComfyClient
             wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
             var values0 = new ParamValues(dict0);
             var inputs0 = new WorkflowInputs { Positive = instruction, SourceVideoName = videoName };
-            return await SubmitAsync(wf.Build(values0, resolved0, inputs0), ct);
+            // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
+            // left unset; the frame count still drives the time.
+            var eta0 = new EtaSignature(0, 0, EtaInt(wf, values0, "steps"), EtaInt(wf, values0, "length"));
+            return new SubmitResult(await SubmitAsync(wf.Build(values0, resolved0, inputs0), ct), eta0);
         }
 
         // Distinct filename per role — a fixed name for every upload made source and references clobber each other
@@ -451,7 +465,10 @@ public sealed class ComfyClient : IComfyClient
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
         var inputs = new WorkflowInputs { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
         var graph = wf.Build(values, resolved, inputs);
-        return await SubmitAsync(graph, ct);
+        // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
+        // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.
+        var eta = new EtaSignature(srcW, srcH, EtaInt(wf, values, "steps"), EtaInt(wf, values, "length"));
+        return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveGenerate(string? configId)

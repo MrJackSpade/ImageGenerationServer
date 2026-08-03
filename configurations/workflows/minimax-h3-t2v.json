@@ -54,7 +54,7 @@
       "prompt-directed motion and audio",
       "short cinematic shots (~5s, 24fps)"
     ],
-    "nsfw_capable": "unknown",
+    "nsfw_capable": "limited",
     "pick_when": "You want a short video whose audio (voice/SFX/music) is generated together with the picture from one prompt.",
     "prompt": {
       "format": "natural_language",

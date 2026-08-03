@@ -33,7 +33,7 @@ public abstract class EditWorkflowBase : IWorkflow
         new() { Key = "weight_dtype", Type = ParamType.String },
         new() { Key = "clip_type", Type = ParamType.String },
         new() { Key = "dual",      Type = ParamType.Bool,   Default = false },
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 20, Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "steps",     Type = ParamType.Int,    Default = 20, Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
         new() { Key = "cfg",       Type = ParamType.Double, Default = 1,  Min = 1, Max = 30,  Label = "CFG scale" },
         new() { Key = "guidance",  Type = ParamType.Double },
         new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
@@ -41,7 +41,7 @@ public abstract class EditWorkflowBase : IWorkflow
         // Video shapes (wan/animatediff/ltxv): frame-size budget, clip length (frames), playback fps. 0 = builder default.
         new() { Key = "width",     Type = ParamType.Int,    Default = 0 },
         new() { Key = "height",    Type = ParamType.Int,    Default = 0 },
-        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames" },
+        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames", EtaVariable = true },
         new() { Key = "fps",       Type = ParamType.Double, Default = 0 },
         new() { Key = "motion_model", Type = ParamType.String, IsModelRef = true },
         // SD1.5 AnimateDiff's SparseCtrl-RGB adapter — a slot id resolved to a bound file, exactly like

@@ -80,12 +80,21 @@ public sealed class SqliteSchemaMigrationTests
                 "SlotIndex INTEGER NOT NULL, CONSTRAINT UQ_JobSlot_Job_Index UNIQUE (JobId, SlotIndex));");
             Assert.DoesNotContain("LorasJson", await ColumnsAsync(factory, "JobSlot"));
 
+            // GenTiming as a 0.9.0 database has it: present, WITHOUT the 0.11.0 ETA columns. The 0.9.0 CREATE TABLE
+            // IF NOT EXISTS skips it, so the 0.11.0 ADD COLUMNs are the only path those columns can arrive by.
+            await ExecAsync(factory,
+                "CREATE TABLE dbo.GenTiming (Id INTEGER PRIMARY KEY AUTOINCREMENT, MachineName TEXT NOT NULL, " +
+                "ConfigId TEXT NOT NULL, IsEdit INTEGER NOT NULL, DurationMs INTEGER NOT NULL, CreatedAtUtc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);");
+            Assert.DoesNotContain("RenderWidth", await ColumnsAsync(factory, "GenTiming"));
+
             await InitAsync(factory);
 
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));   // the 0.9.1 ADD COLUMN reached it
             Assert.NotEmpty(await ColumnsAsync(factory, "LoraDisplay"));            // and every later-version table exists
             Assert.NotEmpty(await ColumnsAsync(factory, "TagDisplay"));            // 0.9.2
             Assert.NotEmpty(await ColumnsAsync(factory, "LoraPreview"));           // 0.9.3
+            Assert.Contains("RenderWidth", await ColumnsAsync(factory, "GenTiming"));   // 0.11.0 ADD COLUMN reached the pre-existing GenTiming
+            Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
         }
         finally { Cleanup(path); }
     }

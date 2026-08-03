@@ -508,6 +508,22 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_GenTiming_Machine_Conf
 CREATE INDEX IX_GenTiming_Machine_Config ON dbo.GenTiming (MachineName ASC, ConfigId ASC, Id DESC);
 GO
 
+-- Parameter-constrained ETA: the merged render params that drive gen time, captured with each timing sample so the ETA
+-- is matched to the request (resolution × steps × frames) instead of a flat per-model average. Nullable; pre-existing
+-- rows and workflows that mark no EtaVariable params leave them NULL and fall back to the per-model average.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE name = 'RenderWidth' AND object_id = OBJECT_ID('dbo.GenTiming'))
+    ALTER TABLE dbo.GenTiming ADD RenderWidth INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE name = 'RenderHeight' AND object_id = OBJECT_ID('dbo.GenTiming'))
+    ALTER TABLE dbo.GenTiming ADD RenderHeight INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE name = 'Steps' AND object_id = OBJECT_ID('dbo.GenTiming'))
+    ALTER TABLE dbo.GenTiming ADD Steps INT NULL;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE name = 'Frames' AND object_id = OBJECT_ID('dbo.GenTiming'))
+    ALTER TABLE dbo.GenTiming ADD Frames INT NULL;
+GO
+
 -- A render job: the durable, write-through home of what was once purely in-memory JobQueue state. One job owns N
 -- ordered slots (one slot = one image = one ComfyUI prompt); a lone /generate or /edit is a 1-slot job, a batch is
 -- an N-slot job. The job is a LIVE PROJECTION OF COMFYUI'S STATE: the owning instance reconciles each outstanding

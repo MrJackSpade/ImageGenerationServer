@@ -76,6 +76,10 @@ public sealed class RenderSlot
     /// <summary>Expected render seconds for the model on this machine (the ETA), or null the first time.</summary>
     public double? ExpectedGenSeconds;
 
+    /// <summary>The ETA parameter signature (resolved resolution / steps / frames) captured at submit — stored with the
+    /// timing sample and used to param-match this render's ETA. Null until the prompt is submitted.</summary>
+    public ImageGen.Domain.Repositories.EtaSignature? EtaSignature;
+
     /// <summary>Consecutive reconcile passes in which the backend did not list this slot's prompt while no result had
     /// landed — the liveness debounce before declaring the prompt lost.</summary>
     public int MissedLivenessChecks;

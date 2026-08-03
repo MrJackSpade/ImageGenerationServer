@@ -76,6 +76,12 @@ public sealed class ParamSpec
     /// id" silently rewrites any parameter whose value happens to collide.</para>
     /// </summary>
     public bool IsModelRef { get; init; }
+
+    /// <summary>True when this parameter's value materially drives render TIME, so its merged value is captured with
+    /// each timing sample and used to param-match the ETA (steps, frame count). Resolution is a time driver too but is
+    /// captured from the RESOLVED render (w,h) — it comes from the aspect map, not a single param — so it is not marked
+    /// here. Default false: the workflow's ETA then falls back to a flat per-model average, exactly as before.</summary>
+    public bool EtaVariable { get; init; }
 }
 
 /// <summary>The runtime context an <see cref="IWorkflow.Normalize"/> pass may need beyond the param bag. It's empty

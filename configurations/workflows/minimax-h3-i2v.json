@@ -37,7 +37,7 @@
       "camera moves / subject motion on a still",
       "first-and-last-frame clips"
     ],
-    "nsfw_capable": "unknown",
+    "nsfw_capable": "limited",
     "pick_when": "You want to animate the current picture into a short clip whose audio is generated along with the motion.",
     "prompt": {
       "format": "natural_language",

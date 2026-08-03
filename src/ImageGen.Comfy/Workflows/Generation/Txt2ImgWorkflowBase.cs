@@ -39,7 +39,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         new() { Key = "auraflow",  Type = ParamType.Double },
         new() { Key = "guidance",  Type = ParamType.Double },
         new() { Key = "clip_skip", Type = ParamType.Int,    Default = 0 },
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 25, Min = 1,  Max = 100, Label = "Steps" },
+        new() { Key = "steps",     Type = ParamType.Int,    Default = 25, Min = 1,  Max = 100, Label = "Steps", EtaVariable = true },
         new() { Key = "cfg",       Type = ParamType.Double, Default = 7,  Min = 1,  Max = 30,  Label = "CFG scale" },
         new() { Key = "sampler",   Type = ParamType.String, Default = "euler", Label = "Sampler" },
         new() { Key = "scheduler", Type = ParamType.String, Default = "normal" },
@@ -50,7 +50,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         // fps; 0 = the builder's default. Present on the shared schema so a config that exposes `length` renders it as
         // a NUMERIC control — the control's type is read from here, and without an entry an exposed length falls back to
         // a text box. Image models simply never expose these. Mirrors EditWorkflowBase.
-        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames" },
+        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames", EtaVariable = true },
         new() { Key = "fps",       Type = ParamType.Double, Default = 0 },
         new() { Key = "required_prefix",     Type = ParamType.String },
         new() { Key = "negative_supported",  Type = ParamType.Bool, Default = true },

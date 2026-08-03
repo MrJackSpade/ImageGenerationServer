@@ -609,7 +609,9 @@ public sealed class RenderOrchestrator
                 // those markers leak raw into the negative conditioning and degrade output. Marks aren't kept (negatives
                 // aren't bookmarkable). Comfy then appends this onto the model's default negative (ComposeNegative).
                 var editNeg = PromptFinalizer.Finalize(slot.Edit!.NegativePrompt, editInfo?.Tagging).Rendered;
-                promptId = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, slot.Edit.Workflow, references, slot.Edit.Overrides, maskBytes, lastFrameBytes, ct);
+                var editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, slot.Edit.Workflow, references, slot.Edit.Overrides, maskBytes, lastFrameBytes, ct);
+                promptId = editSubmit.PromptId;
+                slot.EtaSignature = editSubmit.Eta;
             }
             else
             {
@@ -699,7 +701,9 @@ public sealed class RenderOrchestrator
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
                 var genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
-                promptId = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
+                var submit = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
+                promptId = submit.PromptId;
+                slot.EtaSignature = submit.Eta;
             }
 
             if (!resuming)
@@ -711,7 +715,12 @@ public sealed class RenderOrchestrator
                 double? expected = null;
                 try
                 {
-                    var avgMs = await _timings.RecentAverageMsAsync(_machine, slot.Model, 10, ct);
+                    // Param-matched ETA when a signature was captured (resolution/steps/frames scale the recent
+                    // samples); otherwise, and when the config has no signature history yet, the flat per-model average.
+                    double? avgMs = slot.EtaSignature is { } sig
+                        ? await _timings.EtaAverageMsAsync(_machine, slot.Model, sig, 10, ct)
+                        : null;
+                    avgMs ??= await _timings.RecentAverageMsAsync(_machine, slot.Model, 10, ct);
                     expected = avgMs is double ms ? ms / 1000.0 : null;
                 }
                 catch (Exception ex)
@@ -762,7 +771,9 @@ public sealed class RenderOrchestrator
             try
             {
                 var ms = (int)Math.Clamp((DateTimeOffset.UtcNow - (slot.GenStartedAt ?? DateTimeOffset.UtcNow)).TotalMilliseconds, 0, int.MaxValue);
-                await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, ms), ct);
+                var etaSig = slot.EtaSignature;
+                await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, ms,
+                    etaSig?.Width, etaSig?.Height, etaSig?.Steps, etaSig?.Frames), ct);
             }
             catch (Exception ex)
             {
