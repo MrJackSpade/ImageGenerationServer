@@ -1,24 +1,59 @@
--- ImageGen schema, SQLite.
+-- ImageGen schema, SQLite.  ***APPEND-ONLY. VERSION-SEGREGATED. NOTHING BELOW IS EVER MODIFIED.***
 --
--- The SQL Server counterpart (schema.sql) is ADDITIVE and idempotent because it evolves databases that already hold
--- years of data: every column added since the first release arrives as a guarded ALTER. This file has no such history
--- to respect -- SQLite support is new -- so it states the CURRENT shape directly, with the once-added columns simply
--- present. That is a deliberate difference, not an oversight: SQLite cannot alter a column's type at all, so a
--- migration-shaped file here would be a promise it could not keep.
+-- ================================================================================================================
+--  HOW THIS FILE WORKS -- READ THIS BEFORE YOU TOUCH IT
+-- ================================================================================================================
+--  This is NOT a snapshot of the current shape. It is the ORDERED HISTORY of every schema change, split into one
+--  block per released version, and DatabaseInitializer REPLAYS IT IN FULL, top to bottom, on every startup against
+--  whatever database the user already has -- a fresh file, a 0.9 file, a 0.10 file, any of them.
 --
--- THREE THINGS ABOUT THE dbo. PREFIXES. They are real. SqliteConnectionFactory attaches the database file under the
--- name `dbo`, which is what lets ~130 hand-written statements elsewhere stay provider-agnostic. But the DDL is NOT
--- symmetric with DML, and SqliteAttachSpikeTests pins both halves:
---   * CREATE TABLE dbo.X          -- schema-qualified, fine
---   * CREATE INDEX dbo.IX ON X    -- the INDEX name carries the schema; the TABLE must not
---   * REFERENCES X(Id)            -- a foreign key can never cross databases, so no prefix is permitted
+--  The rules are not optional. An existing user's database is upgraded IN PLACE by re-running this file:
 --
--- TYPE MAPPING. NVARCHAR(n)/NVARCHAR(MAX)/DATETIME2(3) -> TEXT; BIGINT/INT/TINYINT/BIT -> INTEGER; FLOAT -> REAL;
--- VARBINARY -> BLOB. SQLite stores what it is given and converts on read, so the widths were never enforcement --
--- they were documentation, and they stay in schema.sql where they describe the real constraint.
+--    1. NEVER MODIFY A RELEASED BLOCK. Not a column, not a type, not a constraint, not a comment's meaning. The
+--       0.9.0 block is frozen forever, and so is every block once its version has shipped. Editing a released
+--       block does NOTHING to a database that already ran it (see rule 3) -- it only misleads the next reader
+--       about what that version actually shipped.
 --
--- Requires PRAGMA foreign_keys = ON (off by default) for the ON DELETE CASCADE below to do anything at all. The
--- connection factory sets it on every connection; the image-delete cascade depends on it.
+--    2. A NEW VERSION APPENDS A NEW BLOCK AT THE BOTTOM. Add a `-- --- X.Y.Z` banner and put that version's
+--       changes beneath it. That is the ONLY way the schema changes. Every change is therefore purely additive
+--       and attributable to the exact version that introduced it.
+--
+--    3. EVERY STATEMENT MUST BE IDEMPOTENT, because the whole file re-runs on every startup:
+--         * new TABLE  -> CREATE TABLE IF NOT EXISTS
+--         * new INDEX  -> CREATE [UNIQUE] INDEX IF NOT EXISTS
+--         * new COLUMN on an already-existing table -> ALTER TABLE dbo.<Table> ADD COLUMN <Name> ...
+--             SQLite has no `ADD COLUMN IF NOT EXISTS`, so DatabaseInitializer runs an ADD COLUMN only when the
+--             column is absent (it checks PRAGMA table_info first). Write the plain ALTER; the runner makes it a
+--             no-op on replay. DO NOT inline a new column into an older block's CREATE TABLE: that CREATE is
+--             skipped on every existing database (the table is already there), so the column would never arrive.
+--             That exact mistake shipped `JobSlot.LorasJson` broken; it is now an ALTER in the 0.9.1 block below.
+--
+--    4. SQLite CANNOT alter, drop, or rename a column. A change that is not expressible as "add a table / add an
+--       index / add a nullable column" is NOT a schema edit here -- stop and design a real table-rebuild
+--       migration. Do not pretend an in-place edit is possible.
+--
+--  The SQL Server counterpart (schema.sql) carries the SAME history as guarded ALTERs in GO-separated batches;
+--  this file is the SQLite expression of the same idea, one block per version. SqliteSchemaMigrationTests pins it.
+-- ================================================================================================================
+--
+--  dbo. PREFIXES ARE REAL. SqliteConnectionFactory attaches the database file under the name `dbo`, which is what
+--  lets ~130 hand-written statements elsewhere stay provider-agnostic. The DDL is NOT symmetric with DML, and
+--  SqliteAttachSpikeTests pins both halves:
+--    * CREATE TABLE dbo.X            -- schema-qualified, fine
+--    * CREATE INDEX dbo.IX ON X      -- the INDEX name carries the schema; the TABLE must not
+--    * REFERENCES X(Id)              -- a foreign key can never cross databases, so no prefix is permitted
+--    * ALTER TABLE dbo.X ADD COLUMN  -- schema-qualified table, fine
+--
+--  TYPE MAPPING. NVARCHAR(n)/NVARCHAR(MAX)/DATETIME2(3) -> TEXT; BIGINT/INT/TINYINT/BIT -> INTEGER; FLOAT -> REAL;
+--  VARBINARY -> BLOB. SQLite stores what it is given and converts on read, so the widths were never enforcement --
+--  they were documentation, and they stay in schema.sql where they describe the real constraint.
+--
+--  Requires PRAGMA foreign_keys = ON (off by default) for the ON DELETE CASCADE below to do anything at all. The
+--  connection factory sets it on every connection; the image-delete cascade depends on it.
+
+
+-- --- 0.9.0 ------------------------------------------------------------------------------------------------------
+-- First public release. Baseline: everything the schema contained up to and including 0.9.0. FROZEN -- see rule 1.
 
 CREATE TABLE IF NOT EXISTS dbo.AppUser
 (
@@ -91,17 +126,6 @@ CREATE TABLE IF NOT EXISTS dbo.HistoryMark
 );
 CREATE INDEX IF NOT EXISTS dbo.IX_HistoryMark_Entry ON HistoryMark (HistoryEntryId);
 CREATE INDEX IF NOT EXISTS dbo.IX_HistoryMark_Token ON HistoryMark (Token, Kind);
-
-CREATE TABLE IF NOT EXISTS dbo.HistoryLora
-(
-    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    HistoryEntryId INTEGER NOT NULL,
-    Name           TEXT NOT NULL,   -- the subfolder-qualified lora_name's deterministic ciphertext
-    Weight         REAL NOT NULL,
-    CONSTRAINT FK_HistoryLora_Entry FOREIGN KEY (HistoryEntryId) REFERENCES HistoryEntry(Id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Entry ON HistoryLora (HistoryEntryId);
-CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Name ON HistoryLora (Name);
 
 CREATE TABLE IF NOT EXISTS dbo.TokenBookmark
 (
@@ -201,66 +225,6 @@ CREATE TABLE IF NOT EXISTS dbo.ArtistDisplay
     CONSTRAINT UQ_ArtistDisplay_User_Artist UNIQUE (UserId, ArtistName)
 );
 
-CREATE TABLE IF NOT EXISTS dbo.LoraDisplay
-(
-    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    UserId         INTEGER NOT NULL,
-    LoraName       TEXT NOT NULL,   -- subfolder-qualified lora_name's deterministic ciphertext
-    GatewayImageId TEXT NOT NULL,
-    SetAtUtc       TEXT NOT NULL,
-    CONSTRAINT FK_LoraDisplay_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_LoraDisplay_User_Lora UNIQUE (UserId, LoraName)
-);
-
--- A user's chosen portrait image for a tag (the bookmarks page). Mirrors dbo.ArtistDisplay/LoraDisplay.
-CREATE TABLE IF NOT EXISTS dbo.TagDisplay
-(
-    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    UserId         INTEGER NOT NULL,
-    TagName        TEXT NOT NULL,   -- canonical tag token's deterministic ciphertext
-    GatewayImageId TEXT NOT NULL,
-    SetAtUtc       TEXT NOT NULL,
-    CONSTRAINT FK_TagDisplay_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_TagDisplay_User_Tag UNIQUE (UserId, TagName)
-);
-
--- Machine-level cache of what CivitAI knows about a LoRA file (looked up by hash). Not per-user; LoraName is the
--- plain subfolder-qualified filename (a shared machine asset, like dbo.ModelBinding.FileName).
-CREATE TABLE IF NOT EXISTS dbo.LoraMeta
-(
-    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    LoraName     TEXT NOT NULL,
-    Sha256       TEXT NULL,
-    TrainedWords TEXT NULL,          -- JSON array of CivitAI trigger words (may be [])
-    ModelName    TEXT NULL,
-    PreviewUrl   TEXT NULL,
-    FetchedAtUtc TEXT NOT NULL,
-    CONSTRAINT UQ_LoraMeta_Name UNIQUE (LoraName)
-);
-
--- Machine-level cache of a LoRA's CivitAI preview media (an image, or a short clip — some previews are mp4). Downloaded
--- once and served from this box rather than hotlinking the CivitAI CDN. Keyed by the plain filename, like dbo.LoraMeta.
-CREATE TABLE IF NOT EXISTS dbo.LoraPreview
-(
-    LoraName     TEXT PRIMARY KEY,
-    Bytes        BLOB NOT NULL,
-    ContentType  TEXT NOT NULL,
-    FetchedAtUtc TEXT NOT NULL
-);
-
--- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
--- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
-CREATE TABLE IF NOT EXISTS dbo.LoraUserSetting
-(
-    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    UserId       INTEGER NOT NULL,
-    LoraName     TEXT NOT NULL,
-    TriggerWords TEXT NULL,
-    AutoAttach   INTEGER NOT NULL DEFAULT 1,
-    CONSTRAINT FK_LoraUserSetting_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
-    CONSTRAINT UQ_LoraUserSetting_User_Lora UNIQUE (UserId, LoraName)
-);
-
 CREATE TABLE IF NOT EXISTS dbo.ImageBlob
 (
     ImageId         TEXT PRIMARY KEY,
@@ -342,7 +306,6 @@ CREATE TABLE IF NOT EXISTS dbo.JobSlot
     Temperature        REAL NULL,
     TagTypesJson       TEXT NULL,
     OverridesJson      TEXT NULL,
-    LorasJson          TEXT NULL,          -- user LoRA stack for this slot: [{name,weight}] (plain, per-slot durable)
     SourceImageId      TEXT NULL,
     MaskImageId        TEXT NULL,
     LastFrameImageId   TEXT NULL,
@@ -464,3 +427,90 @@ CREATE TABLE IF NOT EXISTS dbo.MachineSetting
     UpdatedAtUtc TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_MachineSetting_Machine_Key ON MachineSetting (MachineName, SettingKey);
+
+
+-- --- 0.9.1 ------------------------------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS dbo.HistoryLora
+(
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    HistoryEntryId INTEGER NOT NULL,
+    Name           TEXT NOT NULL,   -- the subfolder-qualified lora_name's deterministic ciphertext
+    Weight         REAL NOT NULL,
+    CONSTRAINT FK_HistoryLora_Entry FOREIGN KEY (HistoryEntryId) REFERENCES HistoryEntry(Id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Entry ON HistoryLora (HistoryEntryId);
+CREATE INDEX IF NOT EXISTS dbo.IX_HistoryLora_Name ON HistoryLora (Name);
+
+CREATE TABLE IF NOT EXISTS dbo.LoraDisplay
+(
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId         INTEGER NOT NULL,
+    LoraName       TEXT NOT NULL,   -- subfolder-qualified lora_name's deterministic ciphertext
+    GatewayImageId TEXT NOT NULL,
+    SetAtUtc       TEXT NOT NULL,
+    CONSTRAINT FK_LoraDisplay_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraDisplay_User_Lora UNIQUE (UserId, LoraName)
+);
+
+-- Machine-level cache of what CivitAI knows about a LoRA file (looked up by hash). Not per-user; LoraName is the
+-- plain subfolder-qualified filename (a shared machine asset, like dbo.ModelBinding.FileName).
+CREATE TABLE IF NOT EXISTS dbo.LoraMeta
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    LoraName     TEXT NOT NULL,
+    Sha256       TEXT NULL,
+    TrainedWords TEXT NULL,          -- JSON array of CivitAI trigger words (may be [])
+    ModelName    TEXT NULL,
+    PreviewUrl   TEXT NULL,
+    FetchedAtUtc TEXT NOT NULL,
+    CONSTRAINT UQ_LoraMeta_Name UNIQUE (LoraName)
+);
+
+-- Per-user LoRA preferences: a trigger-word override (NULL = use the CivitAI default) and whether to auto-attach
+-- the trigger words to the prompt. LoraName is deterministically encrypted, like dbo.LoraDisplay.
+CREATE TABLE IF NOT EXISTS dbo.LoraUserSetting
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId       INTEGER NOT NULL,
+    LoraName     TEXT NOT NULL,
+    TriggerWords TEXT NULL,
+    AutoAttach   INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT FK_LoraUserSetting_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_LoraUserSetting_User_Lora UNIQUE (UserId, LoraName)
+);
+
+-- New column on the pre-existing JobSlot table. It MUST be an ALTER, never an edit to the 0.9.0 CREATE above: an
+-- existing database skips that CREATE (the table is already there), so an inlined column would never arrive. The
+-- runner adds it only when absent (PRAGMA table_info), so replaying this is a no-op. user LoRA stack for this
+-- slot: [{name,weight}] (plain, per-slot durable).
+ALTER TABLE dbo.JobSlot ADD COLUMN LorasJson TEXT NULL;
+
+
+-- --- 0.9.2 ------------------------------------------------------------------------------------------------------
+
+-- A user's chosen portrait image for a tag (the bookmarks page). Mirrors dbo.ArtistDisplay/LoraDisplay.
+CREATE TABLE IF NOT EXISTS dbo.TagDisplay
+(
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId         INTEGER NOT NULL,
+    TagName        TEXT NOT NULL,   -- canonical tag token's deterministic ciphertext
+    GatewayImageId TEXT NOT NULL,
+    SetAtUtc       TEXT NOT NULL,
+    CONSTRAINT FK_TagDisplay_User FOREIGN KEY (UserId) REFERENCES AppUser(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_TagDisplay_User_Tag UNIQUE (UserId, TagName)
+);
+
+
+-- --- 0.9.3 ------------------------------------------------------------------------------------------------------
+
+-- Machine-level cache of a LoRA's CivitAI preview media (an image, or a short clip -- some previews are mp4).
+-- Downloaded once and served from this box rather than hotlinking the CivitAI CDN. Keyed by the plain filename,
+-- like dbo.LoraMeta.
+CREATE TABLE IF NOT EXISTS dbo.LoraPreview
+(
+    LoraName     TEXT PRIMARY KEY,
+    Bytes        BLOB NOT NULL,
+    ContentType  TEXT NOT NULL,
+    FetchedAtUtc TEXT NOT NULL
+);
