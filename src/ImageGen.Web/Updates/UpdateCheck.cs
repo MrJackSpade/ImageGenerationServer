@@ -13,16 +13,19 @@ public sealed record UpdateStatus(string? Current, string? Latest, string? Url)
 }
 
 /// <summary>
-/// Asks GitHub whether a newer release exists, ONCE per process.
+/// Asks GitHub whether a newer release exists, refreshing the cached answer whenever a request finds it older
+/// than <see cref="MaxAge"/>.
 ///
-/// <para>Once, deliberately. A poll interval or a cache lifetime would be a number nobody chose, and an app that
-/// contacts a third party on a timer of its own invention is doing something the operator did not ask for.
-/// Starting up is an event that already happens, and a deployment restarts; that is when this asks.</para>
+/// <para>The answer is held between requests and only re-fetched when a request arrives and the last check was
+/// over an hour ago, so github.com is contacted at most about once an hour however many pages ask. A release
+/// published while the process is up is therefore noticed on the first request past the hour — the app does not
+/// have to be restarted to see it. The client re-reads the stored answer on its own short timer, so the banner
+/// appears by itself once a refresh has run.</para>
 ///
-/// <para>A failure — offline, rate-limited, or a repository that answers 404 because it is private — is the
-/// answer for this process, not an error to raise. Nobody signed in to make pictures needs a banner about a
-/// failed version check, and there is nothing they could do about it. It is logged once and the page simply
-/// says nothing.</para>
+/// <para>A failure — offline, rate-limited, or GitHub simply not answering — is the answer for that refresh,
+/// not an error to raise. Nobody signed in to make pictures needs a banner about a failed version check, and
+/// there is nothing they could do about it. It is logged and the page simply says nothing until the next
+/// refresh is due.</para>
 /// </summary>
 /// <param name="running">
 /// The version this process is. Injected rather than read from <see cref="AppVersion"/> inside, so that the
@@ -37,30 +40,44 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
     private const string LatestRelease = "https://api.github.com/repos/MrJackSpade/ImageGenerationServer/releases/latest";
     private const string ReleasesPage = "https://github.com/MrJackSpade/ImageGenerationServer/releases";
 
-    /// <summary>Read when the repository is private, so the check works for whoever can already see it.</summary>
-    private static readonly string[] TokenVariables = ["IMAGEGEN_GITHUB_TOKEN", "GITHUB_TOKEN"];
-
     private readonly IHttpClientFactory _httpFactory = httpFactory;
     private readonly IConfiguration _config = config;
     private readonly ILogger<UpdateCheck> _log = log;
 
-    private readonly SemaphoreSlim _once = new(1, 1);
-    private UpdateStatus? _answer;
+    /// <summary>How long a fetched answer is served before a request triggers a fresh check. One hour: soon
+    /// enough to notice a release the day it lands, seldom enough that github.com is barely touched.</summary>
+    private static readonly TimeSpan MaxAge = TimeSpan.FromHours(1);
 
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private UpdateStatus? _answer;
+    private DateTime _checkedAtUtc;
+
+    /// <summary>
+    /// The cached answer, re-fetched in place when a request finds it older than <see cref="MaxAge"/>. Concurrent
+    /// requests that arrive during a refresh wait on the gate and then see the just-stored answer, rather than
+    /// each launching a fetch of its own.
+    /// </summary>
     public async Task<UpdateStatus> GetAsync(CancellationToken ct)
     {
-        if (_answer is not null) return _answer;
+        if (IsFresh) return _answer!;
 
-        await _once.WaitAsync(ct);
+        await _gate.WaitAsync(ct);
         try
         {
-            return _answer ??= await AskAsync(ct);
+            if (IsFresh) return _answer!;   // another request refreshed it while we waited on the gate
+
+            _answer = await AskAsync(ct);
+            _checkedAtUtc = DateTime.UtcNow;
+            return _answer;
         }
         finally
         {
-            _once.Release();
+            _gate.Release();
         }
     }
+
+    /// <summary>An answer we already have, last checked within <see cref="MaxAge"/>.</summary>
+    private bool IsFresh => _answer is not null && DateTime.UtcNow - _checkedAtUtc < MaxAge;
 
     private async Task<UpdateStatus> AskAsync(CancellationToken ct)
     {
@@ -83,19 +100,10 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
             http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-            var token = TokenVariables.Select(Environment.GetEnvironmentVariable)
-                                      .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
-            if (token is not null)
-                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
             using var response = await http.GetAsync(LatestRelease, ct);
             if (!response.IsSuccessStatusCode)
             {
-                _log.LogInformation(
-                    "Update check answered {Status}. {Hint}", (int)response.StatusCode,
-                    (int)response.StatusCode == 404 && token is null
-                        ? "The releases are not public to this machine; nothing further will be reported."
-                        : "No update will be reported this run.");
+                _log.LogInformation("Update check answered {Status}; no update will be reported this run.", (int)response.StatusCode);
                 return UpdateStatus.Nothing;
             }
 

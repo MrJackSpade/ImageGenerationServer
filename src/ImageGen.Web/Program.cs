@@ -159,8 +159,8 @@ builder.Services.AddSingleton<PackSource>();
 builder.Services.AddSingleton<PatchInstaller>();
 builder.Services.AddSingleton<ComfyPatchService>();
 
-// "Is there a newer release?", asked once per process and held for its lifetime. Singleton because that
-// once-per-process property IS the design: see UpdateCheck for why there is no interval here.
+// "Is there a newer release?" — cached and re-asked when a request finds the answer over an hour old (see
+// UpdateCheck). Singleton so the one cached answer is shared across every request, not re-fetched per call.
 builder.Services.AddSingleton(sp => new UpdateCheck(
     sp.GetRequiredService<IHttpClientFactory>(),
     sp.GetRequiredService<IConfiguration>(),

@@ -15,24 +15,9 @@ namespace ImageGen.Comfy.Patches;
 /// </summary>
 public sealed class PackSource(IHttpClientFactory httpFactory)
 {
-    /// <summary>
-    /// Where a token for a PRIVATE source repository is read from, in order of preference. A pack of one's own
-    /// kept in a private repository is a perfectly ordinary patch source, and without a token the archive fetch
-    /// comes back 404 — indistinguishable from a deleted revision unless something says so.
-    ///
-    /// <para>An environment variable rather than a machine setting: it is a credential, it belongs to the account
-    /// running the app rather than to the app's database, and nothing here should be able to read it back out
-    /// over HTTP.</para>
-    /// </summary>
-    private static readonly string[] TokenVariables = ["IMAGEGEN_GITHUB_TOKEN", "GITHUB_TOKEN"];
-
     private readonly IHttpClientFactory _httpFactory = httpFactory;
 
     public sealed class FetchException(string message, Exception? inner = null) : Exception(message, inner);
-
-    private static string? Token() => TokenVariables
-        .Select(Environment.GetEnvironmentVariable)
-        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     /// <summary>
     /// Download <paramref name="sourceUrl"/> at <paramref name="rev"/> and unpack it into
@@ -56,21 +41,10 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
             // GitHub serves codeload without authentication but requires a user agent.
             http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
 
-            var token = Token();
-            if (token is not null)
-                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
             using var response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!response.IsSuccessStatusCode)
             {
-                // 404 is what GitHub answers for "private and you are nobody" as well as for a revision that is
-                // genuinely gone. Saying only the status code sends people looking for a deleted commit.
-                var hint = (int)response.StatusCode == 404
-                    ? token is null
-                        ? " That is also what a PRIVATE repository answers when nothing authenticates: set "
-                          + $"{TokenVariables[0]} to a token that can read it."
-                        : " The token that was sent could not read it either — check the revision, and that the token has repo scope."
-                    : "";
+                var hint = (int)response.StatusCode == 404 ? " The revision or repository could not be found." : "";
                 throw new FetchException($"{archive} answered {(int)response.StatusCode}.{hint}");
             }
 

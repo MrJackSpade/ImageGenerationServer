@@ -85,8 +85,7 @@ public sealed class AppVersionTests
 
     /// <summary>
     /// Against the LIVE releases API: an older build is told what is available, and a build at or ahead of the
-    /// newest release is told nothing. Opt-in via IMAGEGEN_UPDATE_LIVE, because it needs the network and, while
-    /// the repository is private, a token that can read it.
+    /// newest release is told nothing. Opt-in via IMAGEGEN_UPDATE_LIVE, because it needs the network.
     /// </summary>
     [SkippableFact]
     public async Task Live_release_check_reports_newer_and_stays_quiet_otherwise()
