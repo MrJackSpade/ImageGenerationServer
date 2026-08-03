@@ -1,0 +1,82 @@
+{
+  "id": "mage-flow-edit",
+  "workflow": "mage-flow-edit",
+  "friendly_name": "Mage-Flow-Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "mage-flow-edit",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "mage-flow-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "mage",
+    "steps": 30,
+    "cfg": 5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "reference_max": 3
+  },
+  "card": {
+    "architecture": "Mage-Flow-Edit 4B native-resolution MMDiT (Mage-VAE + Qwen3-VL-4B encoder, rectified flow), RL-aligned",
+    "summary": "Microsoft's 4B instruction-based image editor. Background replacement, style/lighting changes, localized content edits, restoration, and multi-reference editing (1-3 refs). RL-aligned with full CFG; ~30 steps. Output follows the source size (native 512-2048).",
+    "use_cases": [
+      "background replacement",
+      "style / lighting changes",
+      "localized add / remove / recolour",
+      "image restoration",
+      "multi-reference editing (1-3 refs)"
+    ],
+    "nsfw_capable": "unknown (untested)",
+    "commercial_use": "yes (MIT weights)",
+    "pick_when": "Instruction editing on a compact model with real CFG control and optional reference images.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "State what to KEEP, then what to CHANGE, in natural language (English recommended). Refer to attachments as 'the reference image'. RL-aligned: guidance ~5, ~30 steps.",
+      "required_prefix": null,
+      "example": "Keep the woman, her pose and dress unchanged. Replace the background with a wide, flat grassland prairie under soft golden sunlight, open sky, endless green fields.",
+      "overview": "A unified image+text editor (Qwen3-VL): the instruction and the reference image(s) are encoded together, and reference content is aligned to the output by position. Output size follows the (resized ~1MP) reference by default.",
+      "instructions": "Write the instruction as: what to keep, then what to change. English recommended. Attach 1-3 reference images and name what to take from each ('the reference image'). RL-aligned, so it responds to guidance_scale ~5 and negative prompts; ~30 steps. References are resized to the output resolution before encoding.",
+      "do": [
+        "Say what to keep, then what to change",
+        "Name what to take from each reference",
+        "Attach up to 3 reference images",
+        "Use negatives to suppress artifacts"
+      ],
+      "dont": [
+        "Use tag soup / booru tags",
+        "Exceed 2048 px on a side"
+      ],
+      "negative_guidance": "Supported (true CFG at guidance ~5) -- leave empty by default; populate to suppress artifacts.",
+      "source": "https://github.com/microsoft/Mage"
+    },
+    "negative": {
+      "supported": true,
+      "note": "True CFG (guidance ~5)."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "~30 steps at native resolution."
+    },
+    "ui_help": {
+      "note": "Say what to keep, then what to change -- like giving directions to an editor. Attach the picture(s) to work from.",
+      "good_for": "instruction edits: backgrounds, style, add/remove, restoration"
+    },
+    "edit_use_cases": [
+      "instruction image editing (background replace, style/lighting, add/remove/recolour, restoration); 1-3 reference images"
+    ],
+    "reference": {
+      "max": 3,
+      "hint": "Describe the change and refer to an attached picture as 'the reference image'. Name what to take from it (e.g. 'use the jacket from the reference image; keep her face'). You can attach up to three references."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

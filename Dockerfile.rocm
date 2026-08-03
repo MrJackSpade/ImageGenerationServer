@@ -63,7 +63,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --- ComfyUI ---
 # Pinned to a release tag rather than tracking master: an image that silently changes its backend between builds is
 # not reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately, in both Dockerfiles.
-ARG COMFYUI_REF=v0.28.0
+ARG COMFYUI_REF=v0.29.2
 # The ROCm wheel channel. ComfyUI's own AMD instructions use this exact index; keep it in step with the base image.
 ARG ROCM_CHANNEL=rocm7.2
 RUN git clone --depth 1 --branch "${COMFYUI_REF}" https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \

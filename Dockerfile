@@ -73,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --- ComfyUI ---
 # Pinned to a commit rather than tracking master: an image that silently changes its backend between builds is not
 # reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately.
-ARG COMFYUI_REF=v0.28.0
+ARG COMFYUI_REF=v0.29.2
 RUN git clone --depth 1 --branch "${COMFYUI_REF}" https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \
     && python3 -m venv /opt/comfy-venv \
     && /opt/comfy-venv/bin/pip install --no-cache-dir --upgrade pip \

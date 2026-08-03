@@ -1,0 +1,90 @@
+{
+  "id": "mage-flow-turbo",
+  "workflow": "mage-flow-turbo",
+  "friendly_name": "Mage-Flow Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "mage-flow-turbo",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "mage-flow-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "mage",
+    "steps": 4,
+    "cfg": 1,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1344,
+        768
+      ],
+      "portrait": [
+        768,
+        1344
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Mage-Flow 4B native-resolution MMDiT (Mage-VAE + Qwen3-VL-4B encoder), 4-step distilled",
+    "summary": "Few-step distilled Mage-Flow: 4 steps, cfg 1, ~0.6 s/image at 1024x1024 on an A100. Near-base quality for fast iteration and interactive previews; native resolution 512-2048, any aspect. No CFG / negative prompts.",
+    "use_cases": [
+      "fast prompt iteration & previews",
+      "interactive / batch generation",
+      "native & extreme aspect ratios",
+      "portraits, landscapes, cinematic scenes"
+    ],
+    "nsfw_capable": "unknown (untested)",
+    "commercial_use": "yes (MIT weights)",
+    "pick_when": "You want the fastest Mage-Flow -- 4-step previews and iteration. Give up CFG/negative control for speed.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural-language prose (Qwen3-VL encoder); English recommended. Distilled: cfg 1, 4 steps, no negative prompts.",
+      "required_prefix": null,
+      "example": "Vintage analogue film photograph, a seated figure by a large wooden window with pale blue sky outside, soft daylight, muted retro pastel colours, subtle film grain, gentle haze, minimalist surreal photography, photorealistic",
+      "overview": "The 4-step distilled Mage-Flow. Same rich natural-language prompting as the RL model, but runs without classifier-free guidance -- do not supply a negative prompt.",
+      "instructions": "Write detailed natural-language descriptions (English recommended). Few-step distilled: set 4 steps and cfg 1, and do NOT use a negative prompt (no effect at cfg 1). Native resolution 512-2048 on any aspect ratio (multiples of 16).",
+      "do": [
+        "Write rich natural-language prose",
+        "Keep to 4 steps / cfg 1",
+        "Try wide/tall native aspect ratios (up to 4:1)"
+      ],
+      "dont": [
+        "Use tag soup / booru tags",
+        "Supply a negative prompt (no effect at cfg 1)",
+        "Raise cfg above 1 or exceed 2048 px"
+      ],
+      "negative_guidance": "Runs without CFG (cfg 1); negative prompts have no effect.",
+      "source": "https://github.com/microsoft/Mage"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled (cfg 1)."
+    },
+    "speed": {
+      "class": "fast",
+      "note": "4-step distilled."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "fast previews & everyday images at any aspect ratio"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

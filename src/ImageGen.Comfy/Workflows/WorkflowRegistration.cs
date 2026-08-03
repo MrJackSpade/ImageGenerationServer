@@ -26,6 +26,8 @@ public static class WorkflowRegistration
         services.AddSingleton<IWorkflow, PhotAnimaWorkflow>();
         services.AddSingleton<IWorkflow, ZImageTurboWorkflow>();
         services.AddSingleton<IWorkflow, ZImageWorkflow>();
+        services.AddSingleton<IWorkflow, MageFlowWorkflow>();       // Mage-Flow (RL) text-to-image (TextEncodeMageFlowEdit, text-only)
+        services.AddSingleton<IWorkflow, MageFlowTurboWorkflow>();  // Mage-Flow-Turbo (4-step) text-to-image
         services.AddSingleton<IWorkflow, Flux1DevWorkflow>();
         services.AddSingleton<IWorkflow, Flux1SchnellWorkflow>();
         services.AddSingleton<IWorkflow, Flux2Klein4bWorkflow>();
@@ -48,6 +50,8 @@ public static class WorkflowRegistration
         // Edit (image + instruction)
         services.AddSingleton<IWorkflow, QwenImageEditWorkflow>();
         services.AddSingleton<IWorkflow, QwenRapidAioWorkflow>();
+        services.AddSingleton<IWorkflow, MageFlowEditWorkflow>();       // Mage-Flow-Edit (RL) instruction editing (TextEncodeMageFlowEdit + references)
+        services.AddSingleton<IWorkflow, MageFlowEditTurboWorkflow>();  // Mage-Flow-Edit-Turbo (4-step) instruction editing
         services.AddSingleton<IWorkflow, AnimaInpaintWorkflow>();   // masked img2img inpaint on the Anima checkpoint
         services.AddSingleton<IWorkflow, AnimaOutpaintWorkflow>();  // ImagePadForOutpaint + masked img2img on the Anima checkpoint
         services.AddSingleton<IWorkflow, QwenImageInpaintWorkflow>();   // base Qwen-Image + InstantX inpainting ControlNet (NOT the Edit fine-tune)

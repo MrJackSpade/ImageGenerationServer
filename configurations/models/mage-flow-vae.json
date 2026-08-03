@@ -1,0 +1,8 @@
+{
+  "id": "mage-flow-vae",
+  "kind": "vae",
+  "label": "Mage-Flow VAE",
+  "match": [
+    "mage[-_]?flow[-_]?vae"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "mage-flow-turbo",
+  "kind": "unet",
+  "label": "Mage-Flow Turbo",
+  "match": [
+    "mage[-_]?flow[-_]turbo[-_](int8|bf16)"
+  ]
+}

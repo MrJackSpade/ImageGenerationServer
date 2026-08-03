@@ -1,5 +1,8 @@
 {
   "id": "qwen3vl-4b",
   "kind": "text_encoder",
-  "label": "Qwen3-VL 4B"
+  "label": "Qwen3-VL 4B",
+  "match": [
+    "qwen3vl[-_. ]?4b"
+  ]
 }

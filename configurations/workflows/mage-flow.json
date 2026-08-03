@@ -1,0 +1,90 @@
+{
+  "id": "mage-flow",
+  "workflow": "mage-flow",
+  "friendly_name": "Mage-Flow",
+  "default": false,
+  "requirements": {
+    "checkpoint": "mage-flow",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "mage-flow-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "mage",
+    "steps": 20,
+    "cfg": 5,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "width": 1024,
+    "height": 1024,
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1344,
+        768
+      ],
+      "portrait": [
+        768,
+        1344
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Mage-Flow 4B native-resolution MMDiT (Mage-VAE tokenizer + Qwen3-VL-4B encoder, rectified flow), RL-aligned",
+    "summary": "Microsoft's compact 4B text-to-image model at native resolution (512-2048 per side, any aspect including extreme 4:1). RL-aligned build with full CFG and negative-prompt control; ~20 steps. Punches above its size against much larger open models.",
+    "use_cases": [
+      "general text-to-image",
+      "native & extreme aspect ratios (up to 4:1)",
+      "CFG + negative-prompt control",
+      "prompt-faithful generation"
+    ],
+    "nsfw_capable": "unknown (untested)",
+    "commercial_use": "yes (MIT weights)",
+    "pick_when": "You want a small, fast, native-resolution model with real CFG / negative control and strong prompt-following.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural-language prose (Qwen3-VL encoder); English recommended. Front-load the key subject and specify lighting/style. Full CFG -- guidance ~5 with negatives to suppress artifacts.",
+      "required_prefix": null,
+      "example": "Analog film photograph, wide landscape, a lone figure in a long overcoat seen from behind on an empty snowy plain, a lone brutalist concrete canopy and a vintage fastback car beside a retro fuel pump, distant snow-capped mountains, muted earth-tone palette, soft daylight, subtle film grain",
+      "overview": "Native-resolution 4B MMDiT with a Qwen3-VL encoder: write rich natural-language prompts, not booru tags. RL-aligned so it supports classifier-free guidance and negative prompts.",
+      "instructions": "Write detailed natural-language descriptions (English recommended). As an RL-aligned CFG model it responds to guidance_scale ~5 and to negative prompts -- use negatives to remove artifacts / unwanted content. Native resolution 512-2048 on any aspect ratio (multiples of 16); ~20 steps.",
+      "do": [
+        "Write rich natural-language prose",
+        "Front-load the key subject/action and specify lighting",
+        "Use negatives to suppress artifacts",
+        "Try wide/tall native aspect ratios (up to 4:1)"
+      ],
+      "dont": [
+        "Use tag soup / booru tags",
+        "Exceed 2048 px on a side"
+      ],
+      "negative_guidance": "Supported and effective (true CFG at guidance ~5) -- leave empty by default; populate to suppress artifacts / unwanted content.",
+      "source": "https://github.com/microsoft/Mage"
+    },
+    "negative": {
+      "supported": true,
+      "note": "True CFG (guidance ~5)."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "~20 steps at native resolution."
+    },
+    "ui_help": {
+      "note": "Describe what you want in a sentence or two, like you'd tell ChatGPT. More detail usually looks better.",
+      "good_for": "compact, prompt-faithful images at any aspect ratio"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}
