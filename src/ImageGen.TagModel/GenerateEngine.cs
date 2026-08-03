@@ -16,8 +16,13 @@ public sealed class GenerateEngine(TagModelBundle bundle)
     /// <summary>Runaway cap. One definition, used both as the limit and as the number reported alongside a truncation.</summary>
     public const int MaxSteps = 60;
 
-    /// <summary>Default tail-reach for sampling. Matches the Python server's <c>min_p</c> default.</summary>
+    /// <summary>Default tail-reach for sampling (the SEEDED path). Matches the Python server's <c>min_p</c> default.</summary>
     public const double DefaultMinP = 0.01;
+
+    /// <summary>Wider tail for the SEEDLESS path — a from-scratch prompt with no user tags. A lower min_p floor admits
+    /// more of the distribution so the generated set is more varied; a seeded set stays pinned near the user's context
+    /// at <see cref="DefaultMinP"/>.</summary>
+    public const double SeedlessMinP = 0.001;
 
     private readonly TagModelBundle _bundle = bundle;
 

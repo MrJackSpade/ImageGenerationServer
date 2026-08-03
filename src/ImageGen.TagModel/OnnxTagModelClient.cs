@@ -85,8 +85,11 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         await _gate.WaitAsync(ct);
         try
         {
+            // The seedless path (no user tags — a from-scratch prompt) reaches wider into the tail so the set is more
+            // varied; a seeded set stays pinned near the user's context at the default floor.
+            var minP = seedTags.Length == 0 ? GenerateEngine.SeedlessMinP : GenerateEngine.DefaultMinP;
             var result = _generate.Generate(
-                seedTags, Random.Shared.Next(), temp, bannedTags, typeMask, GenerateEngine.DefaultMinP);
+                seedTags, Random.Shared.Next(), temp, bannedTags, typeMask, minP);
 
             return result.Tags.Count == 0 ? null : result.Tags;
         }
