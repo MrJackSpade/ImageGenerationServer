@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -21,38 +20,38 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> QwenPixelizeSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "unet" },
-        new() { Key = "clip_type", Type = ParamType.String, Default = "qwen_image" },
-        new() { Key = "dual",      Type = ParamType.Bool,   Default = false },
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 20, Min = 1, Max = 100, Label = "Steps" },
-        new() { Key = "cfg",       Type = ParamType.Double, Default = 4.0, Min = 1, Max = 30, Label = "CFG scale" },
-        new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
-        new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
-        new() { Key = "shift",     Type = ParamType.Double, Default = 3.1 },   // ModelSamplingAuraFlow shift (2511)
-        new() { Key = "style_prompt", Type = ParamType.String, Default = "Convert to pixel art, flat colors, clean crisp pixels, limited palette", Label = "Instruction" },
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = "clip_type", Type = ParamType.String },
+        new() { Key = "dual",      Type = ParamType.Bool },
+        new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "cfg",       Type = ParamType.Double, Min = 1, Max = 30, Label = "CFG scale" },
+        new() { Key = "sampler",   Type = ParamType.String },
+        new() { Key = "scheduler", Type = ParamType.String },
+        new() { Key = "shift",     Type = ParamType.Double },   // ModelSamplingAuraFlow shift (2511)
+        new() { Key = "style_prompt", Type = ParamType.String, Label = "Instruction" },
         // false (default) = GENERATE a new on-character design from the reference (semantic/vision guidance only,
         // empty init) — varies by seed. true = faithful edit-in-place (inject source latent, init from it) = pixelize
         // the same image every time.
-        new() { Key = "reference", Type = ParamType.Int, Default = 0, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
+        new() { Key = "reference", Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
         // Virtual resolution = the sprite's pixel count on its longest edge (aspect preserved), independent of the
         // model's render bucket. 0 = use explicit grid_w/grid_h instead.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 256, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w",    Type = ParamType.Int, Min = 0, Max = 4096 },
         new() { Key = "grid_h",    Type = ParamType.Int, Min = 0, Max = 4096 },
         // Snap the render res to a clean integer multiple of VRES (exact k×k cells) within the model's range,
         // overriding the FluxKontextImageScale bucket. Needs width+height (the requested fixed aspect).
-        new() { Key = "width",           Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
-        new() { Key = "height",          Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
-        new() { Key = "snap_resolution", Type = ParamType.Bool, Default = true, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
-        new() { Key = "out_scale", Type = ParamType.Int, Default = 3, Min = 1, Max = 16, Label = "Output upscale" },
-        new() { Key = "palette",   Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
-        new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
-        new() { Key = "w_start",       Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0 },
-        new() { Key = "w_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "start_percent", Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "end_percent",   Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "project_every", Type = ParamType.Int,    Default = 1, Min = 1, Max = 8 },
+        new() { Key = "width",           Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
+        new() { Key = "height",          Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
+        new() { Key = "snap_resolution", Type = ParamType.Bool, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
+        new() { Key = "out_scale", Type = ParamType.Int, Min = 1, Max = 16, Label = "Output upscale" },
+        new() { Key = "palette",   Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
+        new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
+        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
+        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "project_every", Type = ParamType.Int,    Min = 1, Max = 8 },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

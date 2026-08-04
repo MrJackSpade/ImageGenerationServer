@@ -16,7 +16,15 @@
     "engine": {
       "value": "fp",
       "exposed": true
-    }
+    },
+    "palette": "chroma-256",
+    "final_method": "median",
+    "thicken": 0.75,
+    "tau": 0.6,
+    "lam": 0.015,
+    "k": 31,
+    "beta": 0.5,
+    "step": 5.6
   },
   "card": {
     "architecture": "Deterministic OKLab/DIN99d palette + grid quantizer over a batch of stills (no model) — LoadImage×N → ImageBatch → PixelQuantizeFP → SaveImage",

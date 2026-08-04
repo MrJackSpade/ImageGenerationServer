@@ -1677,7 +1677,13 @@ public sealed class WorkflowGraphTests
         };
         var wf = new QwenPixelizeWorkflow();
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;   // schema defaults (steps/cfg/shift/palette/proj ramp…), then the test's specifics
+        // Schema no longer carries defaults (Phase B), so the test supplies every param the graph reads.
+        v["clip_type"] = "qwen_image"; v["dual"] = false;
+        v["steps"] = 20; v["cfg"] = 4.0; v["sampler"] = "euler"; v["scheduler"] = "simple"; v["shift"] = 3.1;
+        v["style_prompt"] = "Convert to pixel art, flat colors, clean crisp pixels, limited palette";
+        v["out_scale"] = 3; v["palette"] = "adaptive"; v["proj_method"] = "median"; v["final_method"] = "median";
+        v["w_start"] = 0.5; v["w_end"] = 1.0; v["start_percent"] = 0.0; v["end_percent"] = 1.0; v["project_every"] = 1;
+        v["width"] = 0; v["height"] = 0;
         v["reference"] = 80; v["virtual_resolution"] = 256; v["snap_resolution"] = true;
         v["loader"] = "unet_gguf"; v["grid_w"] = 384; v["grid_h"] = 256;                 // grid_w/h carry no schema default
         var pv = new ParamValues(v);

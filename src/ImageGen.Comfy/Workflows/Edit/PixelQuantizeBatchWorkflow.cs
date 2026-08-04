@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -27,23 +26,23 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
     /// pass); engine defaults to 'fp' because the whole reason to batch is deriving the global palette the fp engine needs.</summary>
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "chroma-256", Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method" },
-        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Default = "fp", Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
-        new() { Key = "thicken", Type = ParamType.Double, Default = 0.75, Min = 0, Max = 8, Label = "FP line thicken px" },
-        new() { Key = "tau", Type = ParamType.Double, Default = 0.6, Min = 0, Max = 2, Label = "FP de-AA tau" },
-        new() { Key = "lam", Type = ParamType.Double, Default = 0.015, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
-        new() { Key = "k", Type = ParamType.Int, Default = 31, Min = 2, Max = 128, Label = "FP palette k-means" },
-        new() { Key = "beta", Type = ParamType.Double, Default = 0.5, Min = 0, Max = 4, Label = "FP rarity bias" },
-        new() { Key = "step", Type = ParamType.Double, Default = 5.6, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
+        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
+        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method" },
+        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
+        new() { Key = "thicken", Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px" },
+        new() { Key = "tau", Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau" },
+        new() { Key = "lam", Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
+        new() { Key = "k", Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
+        new() { Key = "beta", Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
+        new() { Key = "step", Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
         // Key BEFORE pixelizing (same as the still + video paths' in-graph keying): matte the whole batch (BiRefNet)
         // and feed the RGBA straight into the quantizer, which carries the alpha through to transparent-background
         // sprites — so there's no separate downstream matte to chain. Off = the frames enter opaque.
-        new() { Key = "key_background", Type = ParamType.Bool, Default = false, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprites" },
-        new() { Key = "matte_threshold", Type = ParamType.Double, Default = 0, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
+        new() { Key = "key_background", Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprites" },
+        new() { Key = "matte_threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
