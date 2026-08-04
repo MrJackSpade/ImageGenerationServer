@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Base for the text-to-image workflows. Every generation model has its OWN workflow subclass (its own name and
@@ -29,35 +28,35 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
 
     protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "checkpoint" },
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
         new() { Key = "clip_type", Type = ParamType.String },
-        new() { Key = "dual",      Type = ParamType.Bool,   Default = false },
+        new() { Key = "dual",      Type = ParamType.Bool },
         // "pixel" = a pixel-space latent: (B,3,H,W) at spatial downscale 1, for models that diffuse
         // directly on RGB and have no VAE (PixelDiT, Chroma Radiance). Such a model is paired with the
         // identity "VAE" (pixel_space_vae.safetensors -> comfy's PixelspaceConversionVAE), so the VAEDecode
         // in the shared topology is a no-op passthrough and the graph stays byte-identical elsewhere.
-        new() { Key = "latent",    Type = ParamType.Enum,   Choices = new[] { "std", "sd3", "flux2", "pixel" }, Default = "std" },
+        new() { Key = "latent",    Type = ParamType.Enum,   Choices = new[] { "std", "sd3", "flux2", "pixel" } },
         new() { Key = "auraflow",  Type = ParamType.Double },
         new() { Key = "guidance",  Type = ParamType.Double },
-        new() { Key = "clip_skip", Type = ParamType.Int,    Default = 0 },
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 25, Min = 1,  Max = 100, Label = "Steps", EtaVariable = true },
-        new() { Key = "cfg",       Type = ParamType.Double, Default = 7,  Min = 1,  Max = 30,  Label = "CFG scale" },
-        new() { Key = "sampler",   Type = ParamType.String, Default = "euler", Label = "Sampler" },
-        new() { Key = "scheduler", Type = ParamType.String, Default = "normal" },
-        new() { Key = "width",     Type = ParamType.Int,    Default = 1024 },
-        new() { Key = "height",    Type = ParamType.Int,    Default = 1024 },
+        new() { Key = "clip_skip", Type = ParamType.Int },
+        new() { Key = "steps",     Type = ParamType.Int,    Min = 1,  Max = 100, Label = "Steps", EtaVariable = true },
+        new() { Key = "cfg",       Type = ParamType.Double, Min = 1,  Max = 30,  Label = "CFG scale" },
+        new() { Key = "sampler",   Type = ParamType.String, Label = "Sampler" },
+        new() { Key = "scheduler", Type = ParamType.String },
+        new() { Key = "width",     Type = ParamType.Int },
+        new() { Key = "height",    Type = ParamType.Int },
         new() { Key = "aspect",    Type = ParamType.String },   // { square/landscape/portrait: [w,h] } dims map
         // Video shapes for the text-to-VIDEO generators (wan/hunyuan/minimax-h3): clip length (frames) and playback
-        // fps; 0 = the builder's default. Present on the shared schema so a config that exposes `length` renders it as
-        // a NUMERIC control — the control's type is read from here, and without an entry an exposed length falls back to
-        // a text box. Image models simply never expose these. Mirrors EditWorkflowBase.
+        // fps. Present on the shared schema so a config that exposes `length` renders it as a NUMERIC control — the
+        // control's type is read from here, and without an entry an exposed length falls back to a text box. Image
+        // models simply never expose these. Mirrors EditWorkflowBase.
         new() { Key = "length",    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
         new() { Key = "fps",       Type = ParamType.Double },
         new() { Key = "required_prefix",     Type = ParamType.String },
-        new() { Key = "negative_supported",  Type = ParamType.Bool, Default = true },
+        new() { Key = "negative_supported",  Type = ParamType.Bool },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).
         new() { Key = "lora",          Type = ParamType.String, IsModelRef = true },
-        new() { Key = "lora_strength", Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 2.0, Label = "LoRA strength" },
+        new() { Key = "lora_strength", Type = ParamType.Double, Min = 0.0, Max = 2.0, Label = "LoRA strength" },
     };
 
     public virtual Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
