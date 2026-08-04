@@ -1,7 +1,6 @@
-@*TODO: CHECK FOR FALLBACKS*@
 @{
     ViewData["Title"] = "Workflow";
-    var workflowId = ViewData["WorkflowId"] as string ?? "";
+    var workflowId = ViewData["WorkflowId"] as string ?? throw new InvalidOperationException("Workflows/Detail requires ViewData[\"WorkflowId\"].");
 }
 <div id="workflowDetail" data-id="@workflowId"><p class="muted">Loading…</p></div>
 
