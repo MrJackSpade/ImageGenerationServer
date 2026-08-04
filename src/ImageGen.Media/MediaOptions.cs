@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using Loxifi.FFmpeg.Transcoding.Codecs;
 
 namespace ImageGen.Media;

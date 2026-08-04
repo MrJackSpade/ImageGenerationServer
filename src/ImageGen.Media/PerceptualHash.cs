@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 

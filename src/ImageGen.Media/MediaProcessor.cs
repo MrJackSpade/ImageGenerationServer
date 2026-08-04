@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;

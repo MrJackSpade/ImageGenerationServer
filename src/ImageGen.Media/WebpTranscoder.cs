@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using Loxifi.FFmpeg.Transcoding;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -39,7 +38,9 @@ internal static class WebpTranscoder
         return false;
     }
 
-    /// <summary>The first animation frame's duration, ms, from the webp's first ANMF chunk. Defaults to 41ms (~24fps).</summary>
+    /// <summary>The first animation frame's duration, ms, from the webp's first ANMF chunk. Throws when the chunk is
+    /// absent or carries a non-positive duration — inventing a frame rate would silently re-time the clip, the very
+    /// failure the no-upper-clamp note in <see cref="WebpToMp4"/> exists to avoid.</summary>
     private static int ReadFrameDelayMs(ReadOnlySpan<byte> b)
     {
         var i = 12;
@@ -50,13 +51,17 @@ internal static class WebpTranscoder
             if (b[i] == 'A' && b[i + 1] == 'N' && b[i + 2] == 'M' && b[i + 3] == 'F' && payload + 15 <= b.Length)
             {
                 int dur = b[payload + 12] | (b[payload + 13] << 8) | (b[payload + 14] << 16);
-                return dur > 0 ? dur : 41;
+                if (dur <= 0)
+                    throw new InvalidOperationException(
+                        "Animated webp's first ANMF frame carries a non-positive duration; its playback rate cannot be determined.");
+                return dur;
             }
             long next = (long)i + 8 + size + (size & 1);
             if (next <= i) break;
             i = (int)next;
         }
-        return 41;
+        throw new InvalidOperationException(
+            "Animated webp has no ANMF chunk; its frame duration cannot be read.");
     }
 
     /// <summary>
