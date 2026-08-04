@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Diagnostics;
 
 namespace ImageGen.Web.Hosting;
