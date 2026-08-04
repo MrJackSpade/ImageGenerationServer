@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Services;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
