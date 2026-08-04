@@ -45,8 +45,8 @@ public sealed class MachineSettingsConfigurationProvider(IMachineSettingReposito
 
     /// <summary>
     /// Write a key (null removes it), then re-read and fire the change token. Everything that reads the value
-    /// through IConfiguration sees the new one on its next read — which is why the consumers that used to snapshot
-    /// their options at startup now read per use.
+    /// through IConfiguration sees the new one on its next read — which is why the consumers read their options per
+    /// use rather than snapshotting them at startup.
     /// </summary>
     public async Task WriteAsync(string key, string? value, CancellationToken ct)
     {

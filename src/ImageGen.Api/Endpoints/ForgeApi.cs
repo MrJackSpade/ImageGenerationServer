@@ -35,7 +35,7 @@ public static class ForgeApi
 
     /// <summary>Bounds for the `w` (width) parameter on the image and mp4 endpoints. Out-of-range is REFUSED, not
     /// clamped: the response carries `Cache-Control: immutable, max-age=1y` under a key built from the width, so a
-    /// silently clamped request taught the browser to keep the wrong-sized image for a year with nothing in the
+    /// silently clamped request would teach the browser to keep the wrong-sized image for a year with nothing in the
     /// response saying the size had been changed.</summary>
     private const int MinWidth = 64;
     private const int MaxWidth = 1024;
@@ -120,7 +120,7 @@ public static class ForgeApi
     /// during an outage is fine — accepting it is not, because a job that exists only in memory renders and then
     /// vanishes with the process. Everything already accepted waits the outage out instead (see
     /// RenderOrchestrator.AwaitingDatabaseAsync). 503 says "come back shortly", which is exactly what this is,
-    /// rather than the 500 an unhandled storage error used to produce.</para>
+    /// rather than the 500 an unhandled storage error would otherwise produce.</para>
     /// </summary>
     private static async Task<IResult> AcceptAsync(Func<Task<IResult>> submit)
     {
@@ -180,7 +180,7 @@ public static class ForgeApi
         });
 
         // Everything this machine can and cannot run, and why. The picker deliberately lists only what is READY;
-        // this is the surface that explains the difference, which nothing did before.
+        // this is the surface that explains the difference.
         app.MapGet("/catalog/status", async (IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             try
@@ -416,8 +416,8 @@ public static class ForgeApi
                 var sug = await model.QueryAsync(ctx, frag, n, CancellationToken.None);
                 if (sug is { Count: > 0 })
                     // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours
-                    // it; without this the model-ranked path returned whatever the tag server sent, so the SAME
-                    // request yielded 10 or up to 100 results depending on which branch ran -- invisible to the caller.
+                    // it; without it the model-ranked path would return whatever the tag server sent, so the SAME
+                    // request would yield 10 or up to 100 results depending on which branch ran -- invisible to the caller.
                     return Results.Ok(sug.Take(n).Select(s =>
                     {
                         var meta = tags.Lookup(s.Name);
@@ -528,8 +528,8 @@ public static class ForgeApi
             // ordering JobsAhead is built on — so order by that; finalized rows keep the DB timestamp.
             //
             // Service order is ASCENDING for unfinished work and it is not cosmetic: the fair queue renders the oldest
-            // queued job next, so ordering those newest-first put the row that is actually on the GPU last, pages away
-            // from the only page the client polls.
+            // queued job next, so ordering those newest-first would put the row that is actually on the GPU last, pages
+            // away from the only page the client polls.
             DateTime SubmittedAt(JobRecord r) =>
                 live.TryGetValue(r.JobId, out var lj) ? lj.CreatedAt.UtcDateTime : r.CreatedAtUtc;
             bool Unfinished(JobRecord r) => r.Status == JobStatus.Active || live.ContainsKey(r.JobId);
@@ -787,27 +787,22 @@ public static class ForgeApi
     }
 
     /// <summary>Fetch a legacy (pre-DB) image from ComfyUI's <c>/view</c>, answering null when the backend genuinely
-    /// does not have it — the case the caller turns into a 404. Every OTHER failure propagates: this used to catch
-    /// everything and report "image not found", so a ComfyUI that was down, unreachable, or erroring told the user
-    /// their image did not exist. Those are opposite facts, and only one of them is the user's to act on.</summary>
+    /// does not have it — the case the caller turns into a 404. Every OTHER failure propagates: catching everything
+    /// and reporting "image not found" would tell the user their image did not exist when ComfyUI was down,
+    /// unreachable, or erroring. Those are opposite facts, and only one of them is the user's to act on.</summary>
     private static async Task<byte[]?> FetchLegacyOrNullAsync(IComfyClient comfy, string id, CancellationToken ct)
     {
         try { return await comfy.FetchLegacyImageAsync(id, ct); }
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) { return null; }
     }
 
-    /// <summary>Read a slot's stored marks. Null means none were stored; a malformed value THROWS, because the marks
-    /// are the tag/artist attribution shown against the image — quietly answering "this image has no marks" for a row
-    /// that has unreadable ones presents missing data as a fact about the image.</summary>
-    /// <summary>A slot's marks in the client's token-&gt;kind shape. They arrive as rows now (dbo.JobSlotMark) rather
-    /// than as a deserialized blob, so there is nothing here that can fail to parse.</summary>
+    /// <summary>A slot's marks in the client's token-&gt;kind shape. They are stored as rows (dbo.JobSlotMark), so
+    /// there is nothing here that can fail to parse.</summary>
     private static Dictionary<string, string>? MarksMap(List<Mark> marks) =>
         marks.Count == 0 ? null : marks.ToDictionary(m => m.Token, m => m.Kind.ToWire(), StringComparer.Ordinal);
 
-    /// <summary>The legacy single-image result shape. It took a raw state number, which two callers fed from two
-    /// DIFFERENT enums that happened to line up, and reported a waiting slot as "running" with a <c>queued</c> flag
-    /// beside it saying otherwise — so a client reading the status alone saw the GPU busy on work that hadn't
-    /// started. It takes the derived phase now, and a waiting slot says "queued" (the flag stays for old clients).</summary>
+    /// <summary>The legacy single-image result shape. It takes the derived phase, so a waiting slot says "queued"
+    /// (the <c>queued</c> flag stays for old clients).</summary>
     private static object LegacyResultSlot(RenderPhase phase, string? imageId, double? expectedSeconds, DateTimeOffset? startedAt,
         int width, int height, bool isEdit, bool changed, double? changeScore, string? effectivePrompt,
         Dictionary<string, string>? marks, string? error, int jobsAhead, string? notice = null) => phase switch
@@ -847,9 +842,9 @@ public static class ForgeApi
             await file.CopyToAsync(ms, ctx.RequestAborted);
             var bytes = ms.ToArray();
 
-            // An upload whose header will not read is not an image, and this endpoint takes images. It used to be
-            // stored anyway with null dimensions, so the rejection landed much later — as a failed render, or as a
-            // gallery row of unknown size — with nothing left pointing at the upload that caused it.
+            // An upload whose header will not read is not an image, and this endpoint takes images. Storing it anyway
+            // with null dimensions would push the rejection much later — to a failed render, or a gallery row of
+            // unknown size — with nothing left pointing at the upload that caused it.
             ImageDimensions dims;
             try { dims = media.Identify(bytes); }
             catch (Exception ex) { return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" }); }
@@ -875,8 +870,8 @@ public static class ForgeApi
                     source ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
                     if (source is null) return Results.NotFound(new { error = "image not found" });
                     // Thumbnailing is NOT wrapped. The image was found — that is what `source` is — so a failure here
-                    // is ours to answer for, and reporting it as "image not found" sent the client away looking for a
-                    // missing image while the real fault (a codec, a truncated blob) went unlogged and unfixed.
+                    // is ours to answer for; reporting it as "image not found" would send the client away looking for a
+                    // missing image while the real fault (a codec, a truncated blob) goes unlogged and unfixed.
                     thumb = wantStill ? media.StillThumbnail(source, width) : media.Thumbnail(source, width);
                     cache.Set(key, thumb, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
                 }
@@ -918,8 +913,8 @@ public static class ForgeApi
             bytes ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
             if (bytes is null) return Results.NotFound(new { error = "image not found" });
             // Not wrapped, for the same reason as the thumbnail above: these bytes were found. Bytes we are storing
-            // and cannot identify are a fault on this side, and "404 not an identifiable image" both denied that and
-            // discarded the only description of what was actually wrong with them.
+            // and cannot identify are a fault on this side, and answering "404 not an identifiable image" would both
+            // deny that and discard the only description of what was actually wrong with them.
             var d = media.Identify(bytes);
             return Results.Ok(new { width = d.Width, height = d.Height });
         });
@@ -998,9 +993,9 @@ public static class ForgeApi
             // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
             // limit -- a GET was aborted at the connection before this handler ever ran.
             //
-            // Every id asked about is answered for. This used to .Take(200), which was silent AND unrecoverable:
-            // the client reads the response as authoritative (media.js: `verdict.set(id, !!map[id])`), so an id the
-            // server dropped is absent from the map, cached as false, and rendered as "not a video" for the life of
+            // Every id asked about is answered for. Dropping any — e.g. a .Take(200) cap — would be silent AND
+            // unrecoverable: the client reads the response as authoritative (media.js: `verdict.set(id, !!map[id])`),
+            // so a dropped id is absent from the map, cached as false, and rendered as "not a video" for the life of
             // the page -- no loop, no scrubber, no poster. The blob lookup chunks its parameters, so an id list of any
             // size is answered in full (SQL Server caps a command at 2100 parameters).
             var list = (body?.Ids ?? Array.Empty<string>())
@@ -1049,7 +1044,7 @@ public static class ForgeApi
     private static void MapProgressSocket(RouteGroupBuilder app)
     {
         // Forward the backend's own progress WebSocket, filtered to this user's jobs and translated (backend prompt_id
-        // → our jobId). The SPA connects here exactly as it used to connect to ComfyUI's /ws.
+        // → our jobId). The SPA connects here for live progress.
         app.Map("/ws", async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
             ILogger<IComfyClient> log) =>
         {
@@ -1061,9 +1056,9 @@ public static class ForgeApi
             catch (Exception ex)
             {
                 // The downstream socket is already accepted, so there is no status code left to answer with — closing
-                // it IS the only signal available, and the client's own reconnect loop handles that. The bug was doing
-                // it mutely: a backend whose progress socket had stopped accepting connections looked exactly like an
-                // idle one, and the page just never showed progress again.
+                // it IS the only signal available, and the client's own reconnect loop handles that. Doing it mutely
+                // would be a mistake: a backend whose progress socket had stopped accepting connections would look
+                // exactly like an idle one, and the page would never show progress again.
                 log.LogWarning(ex, "Could not open the ComfyUI progress socket; closing this client's /ws.");
                 await downstream.CloseAsync(WebSocketCloseStatus.EndpointUnavailable,
                     "progress backend unavailable", CancellationToken.None);
@@ -1076,9 +1071,9 @@ public static class ForgeApi
     }
 
     /// <summary>True for the exceptions that simply mean "this socket went away" — the ordinary way a pump ends, and
-    /// the only thing the pumps' catch was ever meant to cover. Anything else is a fault in the pump itself, and gets
-    /// logged instead of disappearing: both pumps used to run under a bare catch, so a real bug in the translating
-    /// pump ended live progress for that client and looked exactly like the user closing their tab.</summary>
+    /// the only thing the pumps' catch is meant to cover. Anything else is a fault in the pump itself, and gets
+    /// logged instead of disappearing: under a bare catch a real bug in the translating pump would end live progress
+    /// for that client and look exactly like the user closing their tab.</summary>
     private static bool IsSocketShutdown(Exception ex)
         => ex is WebSocketException or OperationCanceledException or ObjectDisposedException
            or System.IO.IOException or System.Net.Sockets.SocketException;
@@ -1149,8 +1144,8 @@ public static class ForgeApi
     private static WsFrameDecision FilterFrame(string text, RenderOrchestrator queue, long me)
     {
         // Only a JsonException is caught, and ONLY around the parse. This is the gate that decides whether another
-        // user's render progress reaches this socket, and it used to run the whole body under a bare catch whose
-        // fallback was "forward as-is" — a privacy filter that failed OPEN on any exception at all, including one
+        // user's render progress reaches this socket; running the whole body under a bare catch whose fallback was
+        // "forward as-is" would make it a privacy filter that failed OPEN on any exception at all, including one
         // thrown after the frame had been identified as somebody else's. A frame that is not JSON carries no
         // prompt_id and so is not attributable to anyone; that, and only that, is the shared-status case below.
         JsonDocument doc;

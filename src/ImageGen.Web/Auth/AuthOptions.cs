@@ -3,9 +3,9 @@ namespace ImageGen.Web.Auth;
 /// <summary>
 /// Auth configuration for local accounts, read live.
 ///
-/// <para>The code used to be captured into this object at startup, so changing it meant restarting the app. It is a
-/// machine setting now (Auth:RegistrationCode), stored in the database and editable from the settings page, so this
-/// reads it on each check instead of holding a copy.</para>
+/// <para>RegistrationCode is a machine setting (Auth:RegistrationCode), stored in the database and editable from the
+/// settings page, so this reads it on each check instead of holding a copy — a change takes effect without
+/// restarting the app.</para>
 /// </summary>
 public sealed class AuthOptions(IConfiguration configuration)
 {

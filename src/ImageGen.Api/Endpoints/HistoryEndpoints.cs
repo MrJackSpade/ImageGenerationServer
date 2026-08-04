@@ -42,8 +42,8 @@ public static class HistoryEndpoints
         {
             var userId = context.User.GetRequiredUserId();
             // An out-of-range `min` is REFUSED, not clamped. The response carries no window size (see
-            // RecentsResponse), so a silently clamped request came back looking exactly like a satisfied one:
-            // ask for 500 and the 200 you got read as "that is everything there is". The server still stretches
+            // RecentsResponse), so a silently clamped request would come back looking exactly like a satisfied one:
+            // ask for 500 and the 200 you get reads as "that is everything there is". The server still stretches
             // the window past `min` on its own to cover the current batch -- that part is deliberate and uncapped.
             const int MaxRecents = 200;
             if (min is int requested && (requested < 1 || requested > MaxRecents))
@@ -65,7 +65,7 @@ public static class HistoryEndpoints
 
         // NOTE: there is intentionally NO POST /history. History is written exactly once, server-side, by the
         // JobQueue worker the moment an image is produced (the sole writer). A client-side writer + an
-        // insert-if-absent repository is what let deleted images resurrect, so the browser may only read and delete.
+        // insert-if-absent repository would let deleted images resurrect, so the browser may only read and delete.
 
         // id carried in the query string (gateway ids may contain characters awkward in a path segment).
         api.MapDelete("/history", async (HttpContext context, HistoryService history, string id) =>

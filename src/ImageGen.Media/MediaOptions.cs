@@ -6,7 +6,7 @@ namespace ImageGen.Media;
 /// Settings for the media adapter — how animated-webp clips are encoded to mp4 for in-browser
 /// &lt;video&gt; playback.
 ///
-/// <para>There is no ffmpeg path here any more. ffmpeg runs in-process, so there is no executable to find,
+/// <para>There is no ffmpeg path setting here: ffmpeg runs in-process, so there is no executable to find,
 /// nothing for an operator to install, and no setting that can point at the wrong build.</para>
 /// </summary>
 public sealed record MediaOptions

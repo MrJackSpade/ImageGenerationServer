@@ -187,8 +187,8 @@ public sealed record HistoryQueryRequest(
 
 /// <summary>The ids the media-type lookup should answer about. In a BODY, not the query string: the caller asks about
 /// every gateway image currently on the page at once — hundreds of 32-char ids — and that URL runs well past the ~8 KB
-/// request line Kestrel accepts, so a GET was aborted at the connection (ERR_CONNECTION_ABORTED) before any handler ran,
-/// and the more thumbnails had loaded the more reliably it failed. A body has no such ceiling.</summary>
+/// request line Kestrel accepts, so a GET would be aborted at the connection (ERR_CONNECTION_ABORTED) before any
+/// handler ran — the more reliably the more thumbnails have loaded. A body has no such ceiling.</summary>
 public sealed record MediaTypesRequest
 {
     public IReadOnlyList<string>? Ids { get; init; }

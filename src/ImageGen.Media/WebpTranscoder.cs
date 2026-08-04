@@ -13,10 +13,8 @@ namespace ImageGen.Media;
 /// <para>ffmpeg's native webp decoder reads only the FIRST frame of an animated webp, so ImageSharp (3.1.x) decodes
 /// every frame and they are pushed into the encoder one at a time.</para>
 ///
-/// <para>This used to launch <c>ffmpeg.exe</c> and pipe raw RGBA through its stdin. ffmpeg now runs in-process via
-/// Loxifi.FFmpeg, which removed an undeclared prerequisite, a download step in both install scripts, a path to
-/// resolve, and a failure mode that said "Could not start ffmpeg at 'ffmpeg'" without ever saying that ffmpeg was
-/// the thing missing.</para>
+/// <para>ffmpeg runs in-process via Loxifi.FFmpeg: no external prerequisite to install, no download step in the
+/// install scripts, no path to resolve, and no cryptic "Could not start ffmpeg" failure mode.</para>
 /// </summary>
 internal static class WebpTranscoder
 {
@@ -82,9 +80,10 @@ internal static class WebpTranscoder
 
         int w = image.Width, h = image.Height;
         // The source's own frame rate, floored only to keep a nonsensical delay from producing a zero/negative rate.
-        // There is deliberately no upper clamp: a 60fps ceiling silently re-timed any faster clip, so the mp4 played
-        // back SLOWER than the webp it was made from with nothing recording that the output no longer matched the
-        // input. h264 handles rates above 60 fine, and the frame delay is read from the file rather than assumed.
+        // There is deliberately no upper clamp: a 60fps ceiling would silently re-time any faster clip, so the mp4
+        // would play back SLOWER than the webp it was made from, with nothing recording that the output no longer
+        // matched the input. h264 handles rates above 60 fine, and the frame delay is read from the file rather
+        // than assumed.
         double fps = Math.Max(1000.0 / ReadFrameDelayMs(webp), 1.0);
 
         var output = new MemoryStream();

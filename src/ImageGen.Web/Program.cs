@@ -60,9 +60,9 @@ var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConne
 
 // The schema comes BEFORE the settings are read, and both come before the host is built. Under SQLite the app is
 // the only schema mechanism there is -- no server, no login, no elevated sqlcmd -- so a fresh install must create
-// its own tables before anything reads one; this used to run after Build(), which a configuration source that
-// queries the database turns into a install-can-never-start deadlock. Under SQL Server it stays off (the app's
-// login holds no DDL rights) and a box whose schema has not been applied fails on the read below, by design.
+// its own tables before anything reads one; running it after Build() would deadlock the install, because a
+// configuration source that queries the database cannot load before its tables exist. Under SQL Server it stays off
+// (the app's login holds no DDL rights) and a box whose schema has not been applied fails on the read below, by design.
 // Either way an explicit Database:EnsureSchemaOnStartup wins.
 if (config.GetValue("Database:EnsureSchemaOnStartup", databaseProvider == DatabaseProvider.Sqlite))
     await new DatabaseInitializer(bootstrapConnections, databaseProvider).EnsureSchemaAsync(CancellationToken.None);
@@ -72,23 +72,22 @@ var machineSettings = new MachineSettingsConfigurationSource(
 ((IConfigurationBuilder)config).Add(machineSettings);
 
 // --- log file ------------------------------------------------------------------------------------
-// Logs went only to the Windows Application event log, which is awkward to read and easy to lose. They go to a file
-// too now — but ONLY because the plaintext prompt sinks are gone and NoPlaintextLogTests fails the build if an
-// ILogger call so much as looks like it emits a prompt-bearing value. A file is durable, greppable and outlives the
-// process by years; that is the point of it, and the reason it had to come last.
+// Logs go to a file as well as the Windows Application event log — but ONLY because the plaintext prompt sinks are
+// gone and NoPlaintextLogTests fails the build if an ILogger call so much as looks like it emits a prompt-bearing
+// value. A file is durable, greppable and outlives the process by years; that is the point of it, and the reason it
+// comes last.
 //
 // Nothing is deleted. There is deliberately no retained-file limit and no size cap: a cap is a number nobody chose
 // that silently destroys the record you go looking for. Files roll by DAY so they stay readable, and pruning them is
 // an operator's decision made with a broom, not a policy this app invents. Set Logging:FilePath to move them.
 //
-// The LEVEL is Serilog's own, read from the same Logging:LogLevel keys the rest of the app uses. This started as
-// MinimumLevel.Verbose() on the assumption that the Logging:LogLevel filter would apply to this provider and it must
-// not filter twice. It does not apply: the first deploy wrote 438 KB of Verbose/Debug ASP.NET internals in two
-// minutes — a firehose that would fill the disk (there is deliberately no cap to stop it) and put request paths on
-// disk at Debug, which is most of what the URL work was for. One source of truth, honoured here.
-// The path is a machine setting now, so it is NOT in appsettings.json any more. The literal here is the value that
-// file used to ship -- keeping it in code means an install that has never touched the setting logs exactly where it
-// always did, rather than silently stopping. Blank the setting to turn the file sink off.
+// The LEVEL is Serilog's own, read from the same Logging:LogLevel keys the rest of the app uses. The Logging:LogLevel
+// filter does NOT apply to this provider, so it sets the level itself rather than defaulting to Verbose: a Verbose
+// file sink filters nothing and firehoses Verbose/Debug ASP.NET internals onto disk — filling it (there is
+// deliberately no cap to stop it) and putting request paths on disk at Debug. One source of truth, honoured here.
+// The path is a machine setting, not an appsettings.json key. The literal here is the shipped default, kept in code
+// so an install that has never set the path still logs — to this default location — rather than silently stopping.
+// Blank the setting to turn the file sink off.
 var logFilePath = config["Logging:FilePath"] ?? "logs/imagegen-.log";
 if (!string.IsNullOrWhiteSpace(logFilePath))
 {
@@ -123,9 +122,9 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
 // Options, bound from config into the internal option objects.
 //
 // The keys say what they configure: ComfyUI:* is the render backend, Catalog:* is the workflow catalogue, Media:* is
-// ffmpeg. They were all Forge:* -- named after a project that no longer exists, which made "which of these is the
-// ComfyUI address" a question you had to already know the history to answer. There is no compatibility read of the
-// old names: a key that is silently accepted under two spellings is a key nobody can ever remove.
+// ffmpeg -- named for what they configure, so "which of these is the ComfyUI address" needs no history to answer.
+// There is no compatibility read of any other spelling: a key that is silently accepted under two names is a key
+// nobody can ever remove.
 //
 // Logging:LogPrompts is GONE, not merely defaulted off. It wrote the user's prompt (and the whole submitted workflow
 // graph, which embeds it) to the plaintext app log; with a file sink that is one toggle from putting prompts on disk
@@ -216,9 +215,8 @@ builder.Services.AddMedia(mediaOptions);
 // Loads at startup on purpose: a missing artifact breaks autocomplete and fails every random-prompt render, so
 // refusing to start with the missing filename named beats serving a page whose tag box quietly does nothing.
 //
-// The app FETCHES the artifacts itself if they are not there. This was three copies of the same download --
-// install.ps1, install.sh and the Docker entrypoint -- that a user had to know to run, or know not to run, before
-// anything worked. All three are gone: the app knows it needs the file, so the app gets it.
+// The app FETCHES the artifacts itself if they are not there, so there is no separate download step a user has to
+// know to run (or know not to run) before anything works: the app knows it needs the file, so the app gets it.
 using var startupLoggers = LoggerFactory.Create(b => b.AddConsole());
 using (var artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
     await TagModelArtifacts.EnsureAsync(
@@ -287,9 +285,9 @@ builder.Services
         // So a cookie is a handle to a session, not a self-contained "I am user 1" assertion that keeps meaning that
         // for as long as its signature verifies. That is what closes the ghost-cookie hole: the Data Protection keys
         // that sign the cookie live in the OS user profile, not the database, so wiping the database (or reinstalling)
-        // used to leave a perfectly-signed cookie for a user that no longer exists — and checking "does a user with
-        // this id still exist" did not save it, because ids are BIGINT IDENTITY and a re-created first account retakes
-        // id 1, so the ghost authenticated as whoever now held its id. A session key names a row in the store; after a
+        // would leave a perfectly-signed cookie for a user that no longer exists — and checking "does a user with
+        // this id still exist" would not save it, because ids are BIGINT IDENTITY and a re-created first account retakes
+        // id 1, so the ghost would authenticate as whoever now holds its id. A session key names a row in the store; after a
         // restart (which a wipe or a redeploy is) there is no such row, so the request is anonymous and login runs.
     });
 
@@ -318,7 +316,7 @@ if (listenUrls != configuredUrls) config["Urls"] = listenUrls;
 
 var app = builder.Build();
 
-// (The schema is applied at the top of this file now, before the machine settings are read out of it.)
+// (The schema is applied at the top of this file, before the machine settings are read out of it.)
 
 // Warm the booru tag store at startup (it loads its large file once in the background, not on the first /forge/tags hit).
 app.Services.GetRequiredService<ITagCatalog>();

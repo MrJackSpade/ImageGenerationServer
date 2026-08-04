@@ -38,9 +38,8 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Encoding is CPU-bound and now runs in-process rather than in a child process, so it goes to the thread pool
-    /// instead of pretending to be async. Awaiting a synchronous encode on the request thread would block it for the
-    /// duration of the clip.
+    /// Encoding is CPU-bound and runs in-process, so it goes to the thread pool instead of pretending to be async.
+    /// Awaiting a synchronous encode on the request thread would block it for the duration of the clip.
     /// </remarks>
     public Task<byte[]> WebpToMp4Async(byte[] webp, int? maxEdge, CancellationToken ct) =>
         Task.Run(() => WebpTranscoder.WebpToMp4(webp, options, maxEdge, ct), ct);

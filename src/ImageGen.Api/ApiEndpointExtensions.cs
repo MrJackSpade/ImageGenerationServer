@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ImageGen.Api;
 
-/// <summary>Mounts the JSON API: the client-action endpoints under <c>/api</c> and the render (ex-Forge) endpoints
+/// <summary>Mounts the JSON API: the client-action endpoints under <c>/api</c> and the render endpoints
 /// under <c>/forge</c>. Kept out of the controllers so the API surface is isolated.</summary>
 public static class ApiEndpointExtensions
 {

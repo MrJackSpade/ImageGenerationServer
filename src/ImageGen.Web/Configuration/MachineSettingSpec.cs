@@ -40,7 +40,7 @@ public enum SettingKind { Text, Number, Bool }
 /// <param name="Default">
 /// What the key means when nothing has been stored. Declared HERE so the settings page and the code that reads the
 /// key cannot disagree: a default written only at the read site is invisible to a page that knows just what is in
-/// the store, which is how a check that was running showed as switched off.
+/// the store, so a running check would show as switched off.
 /// </param>
 public sealed record MachineSettingSpec(
     string Key,

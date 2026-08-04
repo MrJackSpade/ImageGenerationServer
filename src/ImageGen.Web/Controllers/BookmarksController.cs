@@ -23,9 +23,9 @@ public sealed class BookmarksController(
 
     /// <summary>
     /// The images made with a starred tag. POST, so the TAG travels in the request body: as <c>/bookmarks?tag=…</c>
-    /// it went into the browser's own history and address-bar autocomplete on the user's machine, where nothing
+    /// it would go into the browser's own history and address-bar autocomplete on the user's machine, where nothing
     /// server-side can reach it, as well as into request logs, proxies and Referer headers. The trade-off is
-    /// deliberate — this view is no longer a bookmarkable URL, because being one is exactly what leaked it.
+    /// deliberate — this view is not a bookmarkable URL, because being one is exactly what would leak it.
     /// <para>An ARTIST is not protected (an artist token on its own carries nothing embarrassing), which is why
     /// /artist/{name} stays a plain, linkable GET.</para>
     /// </summary>

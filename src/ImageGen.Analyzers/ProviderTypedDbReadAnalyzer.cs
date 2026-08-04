@@ -65,8 +65,8 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     ///
     /// <para><c>DateTime</c> is here for the same reason as the numeric widths and is easy to miss: SQL Server returns
     /// a <see cref="DateTime"/>, while SQLite stores timestamps as ISO-8601 TEXT and returns a <see cref="string"/>.
-    /// A <c>(DateTime)</c> unbox therefore throws on SQLite, and it slipped past the first version of this rule
-    /// because — unlike <c>int</c> — it is not a language keyword and needs the non-predefined branch below.</para>
+    /// A <c>(DateTime)</c> unbox therefore throws on SQLite, and — unlike <c>int</c> — it is not a language keyword,
+    /// so it needs the non-predefined branch below.</para>
     /// </summary>
     private static readonly Dictionary<string, string> ScalarReplacements = new()
     {
