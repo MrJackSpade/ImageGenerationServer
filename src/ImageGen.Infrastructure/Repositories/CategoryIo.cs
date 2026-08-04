@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Data.Common;
 using ImageGen.Infrastructure.Database;
 using ImageGen.Application.Security;

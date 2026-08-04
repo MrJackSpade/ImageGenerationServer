@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text.Json;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
@@ -30,7 +29,11 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
         while (await reader.ReadAsync(ct))
         {
             var name = reader.GetString(0);
-            var words = reader.IsDBNull(2) ? [] : (JsonSerializer.Deserialize<List<string>>(reader.GetString(2)) ?? []);
+            var words = reader.IsDBNull(2)
+                ? []
+                : JsonSerializer.Deserialize<List<string>>(reader.GetString(2))
+                    ?? throw new InvalidOperationException(
+                        $"LoraMeta '{name}' has TrainedWords stored as the JSON literal null; the column is only ever written a serialized array.");
             result[name] = new LoraMeta(
                 name,
                 reader.IsDBNull(1) ? null : reader.GetString(1),
