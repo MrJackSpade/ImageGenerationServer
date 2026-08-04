@@ -404,7 +404,10 @@ public static class ForgeApi
         app.MapPost("/tags", async (TagQueryRequest req, ITagCatalog tags, ITagModelClient model) =>
         {
             var artist = string.Equals(req.Kind, "artist", StringComparison.OrdinalIgnoreCase);
-            var n = Math.Clamp(req.Limit ?? 10, 1, 50);
+            // A present limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
+            // to the caller as "that's all there is". An absent limit (null) legitimately means "use the default".
+            var n = req.Limit ?? 10;
+            if (n is < 1 or > 50) return Results.BadRequest(new { error = "limit must be between 1 and 50." });
             var frag = req.Q ?? "";
             var ctx = req.Ctx;
 
@@ -510,8 +513,12 @@ public static class ForgeApi
             IGenTimingRepository timings, int? page, int? pageSize, CancellationToken ct) =>
         {
             var me = OwnerOf(http);
-            var p = Math.Max(1, page ?? 1);
-            var size = Math.Clamp(pageSize ?? 25, 1, 100);
+            // Out-of-range page/size are refused, not clamped (a clamped page silently returns a different page than
+            // asked for). Absent (null) means the default.
+            var p = page ?? 1;
+            var size = pageSize ?? 25;
+            if (p < 1) return Results.BadRequest(new { error = "page must be >= 1." });
+            if (size is < 1 or > 100) return Results.BadRequest(new { error = "pageSize must be between 1 and 100." });
             var pr = await jobs.ListPageAsync(Environment.MachineName, me, p, size, ct);
             var live = queue.AllActive().ToDictionary(j => j.JobId);
             // Same ordering as the DB page (unfinished first in SERVICE order, then finished newest-first), re-applied
