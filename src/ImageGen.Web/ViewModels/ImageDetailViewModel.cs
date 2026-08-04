@@ -46,7 +46,7 @@ public sealed class ImageDetailViewModel
     public IReadOnlySet<string> BookmarkedArtists { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>Canonical tag token → raw booru category id (see <see cref="TagCategory"/>), for coloring the chip
-    /// border and ordering the chips by type. Tags the catalog doesn't know are absent and treated as general.</summary>
+    /// border. Tags the catalog doesn't know are absent and treated as general.</summary>
     public IReadOnlyDictionary<string, int> TagTypeByToken { get; init; } =
         new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -55,53 +55,57 @@ public sealed class ImageDetailViewModel
     /// <summary>marks as the SPA's token-&gt;("tag"|"artist") map, for the client record blob.</summary>
     public IReadOnlyDictionary<string, string> MarksMap => Entry.Marks;
 
-    /// <summary>The prompt split into chips: marked tags/artists become interactive, the rest plain text. Displayed by
-    /// state (bookmarked, untouched, banned), then by type (artist, meta, copyright, character, general, deprecated,
-    /// plain text), then by name. Prompt order does not survive: every level of the sort is a property of the token, so
-    /// the same tag lands in the same place on every card it appears on.</summary>
+    /// <summary>
+    /// The prompt as display chips, IN THE ORDER THE USER TYPED IT. A comma segment whose canonical key is in the marks
+    /// map is a bookmarkable tag/artist and becomes its own interactive chip; everything else is plain natural-language
+    /// text, preserved BYTE-FOR-BYTE — consecutive plain segments stay ONE chip (their commas and spacing intact), never
+    /// split into a chip per comma and never reordered. A chip's bookmark / ban / category only STYLE it; they no longer
+    /// move it. Comma-segment management is a booru-tag operation and must never reflow a prompt's prose — the same rule
+    /// the finalizer follows for a non-tag model (see PromptFinalizerGatingTests).
+    /// </summary>
     public IReadOnlyList<PromptChip> Chips
     {
         get
         {
-            var marks = Entry.Marks;
-            var segments = PromptMarkers.Segments(Entry.Prompt);
-            if (segments.Length == 0)
-                return [new PromptChip(string.IsNullOrWhiteSpace(Entry.Prompt) ? "(no prompt)" : Entry.Prompt, null, "")];
+            if (string.IsNullOrWhiteSpace(Entry.Prompt))
+                return [new PromptChip("(no prompt)", null, "")];
 
-            var chips = new List<(PromptChip Chip, int Rank)>(segments.Length);
-            foreach (var seg in segments)
+            var marks = Entry.Marks;
+            var chips = new List<PromptChip>();
+            var plain = new List<string>();
+
+            void FlushPlain()
+            {
+                if (plain.Count == 0) return;
+                // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
+                // the run's outer edges are trimmed for display.
+                var text = string.Join(",", plain).Trim();
+                if (text.Length > 0) chips.Add(new PromptChip(text, null, ""));
+                plain.Clear();
+            }
+
+            foreach (var seg in Entry.Prompt.Split(','))
             {
                 var key = PromptMarkers.Key(seg);
-                if (marks.TryGetValue(key, out var kind))
+                if (key.Length > 0 && marks.TryGetValue(key, out var kind))
                 {
+                    FlushPlain();
                     var isArtist = kind == TokenKinds.Artist;
                     var banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
                     var bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
-                    var type = isArtist ? 1 : TagTypeByToken.GetValueOrDefault(key);
-                    var category = isArtist ? null : TagCategory.Slug(type);
-                    chips.Add((new PromptChip(seg, kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
+                    var category = isArtist ? null : TagCategory.Slug(TagTypeByToken.GetValueOrDefault(key));
+                    chips.Add(new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category));
                 }
                 else
                 {
-                    chips.Add((new PromptChip(seg, null, key), TagCategory.PlainTextRank));
+                    plain.Add(seg);
                 }
             }
-            return chips
-                .OrderBy(c => StateRank(c.Chip))
-                .ThenBy(c => c.Rank)
-                .ThenBy(c => c.Chip.Key, StringComparer.Ordinal)
-                .Select(c => c.Chip)
-                .ToList();
+            FlushPlain();
+
+            return chips.Count > 0 ? chips : [new PromptChip("(no prompt)", null, "")];
         }
     }
-
-    /// <summary>
-    /// Top-level display order: bookmarked, untouched, banned. A banned token is one the user has deliberately pushed
-    /// out of auto-gen, so it belongs at the END of the card rather than sitting among the tags it was banned from.
-    /// Bookmarked wins when a token is somehow both — the chip's click cycle makes the two exclusive, but the bookmark
-    /// and ban stores are independent and nothing stops a token being written to both.
-    /// </summary>
-    private static int StateRank(PromptChip chip) => chip.Bookmarked ? 0 : chip.Banned ? 2 : 1;
 }
 
 public sealed record PromptChip(
@@ -117,19 +121,5 @@ public static class TagCategory
         4 => "character",
         5 => "meta",
         _ => null,
-    };
-
-    /// <summary>Chips that aren't tags at all (plain prompt text) display after every tag.</summary>
-    public const int PlainTextRank = 6;
-
-    /// <summary>Display order of a tag type on the image card: artist, meta, copyright, character, general, deprecated.</summary>
-    public static int DisplayRank(int type) => type switch
-    {
-        1 => 0,  // artist
-        5 => 1,  // meta
-        3 => 2,  // copyright
-        4 => 3,  // character
-        6 => 5,  // deprecated
-        _ => 4,  // general / unknown
     };
 }
