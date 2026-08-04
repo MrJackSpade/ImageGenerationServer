@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text.Json;
 using ImageGen.Application.Civitai;
 using ImageGen.Web.Configuration;
@@ -48,7 +47,7 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
                 foreach (var img in imgs.EnumerateArray())
                     if (img.TryGetProperty("url", out var u) && u.GetString() is { Length: > 0 } url) { preview = url; break; }
 
-            return new CivitaiLoraInfo(model ?? "", words, preview);
+            return new CivitaiLoraInfo(model, words, preview);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

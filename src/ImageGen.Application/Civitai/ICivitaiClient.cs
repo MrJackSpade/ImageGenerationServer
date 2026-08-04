@@ -4,7 +4,7 @@ namespace ImageGen.Application.Civitai;
 /// <param name="ModelName">The model's display name on CivitAI (empty when unknown).</param>
 /// <param name="TrainedWords">The activation/trigger words the LoRA was trained with. May be empty (a "no trigger" LoRA).</param>
 /// <param name="PreviewImageUrl">A representative preview media URL (image or a short clip), or null.</param>
-public sealed record CivitaiLoraInfo(string ModelName, IReadOnlyList<string> TrainedWords, string? PreviewImageUrl);
+public sealed record CivitaiLoraInfo(string? ModelName, IReadOnlyList<string> TrainedWords, string? PreviewImageUrl);
 
 /// <summary>A LoRA's preview media fetched from the CivitAI CDN: the raw bytes and the content type the CDN reported
 /// (image/* or video/*). Cached on this box so the browser never hotlinks CivitAI.</summary>
