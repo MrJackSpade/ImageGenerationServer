@@ -158,44 +158,64 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         return await WithChildrenAsync(entry, marks, loras, ct);
     }
 
-    public async Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsForArtistsAsync(
-        long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct)
+    public Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsForArtistsAsync(
+        long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct) =>
+        // Single-artist only: this feeds the artist hero and the bookmarks artist cards, so without it @monet's card
+        // could be a picture that's half @picasso while @monet's own grid (GetPageAsync) excludes it.
+        GetLatestImageIdsByKindAsync(userId, artistNames, TokenKind.Artist, singleTokenOnly: true, ct);
+
+    public Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsForTagsAsync(
+        long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct) =>
+        // Additive: an image legitimately carries many tags at once, and each of them counts it as their latest — so
+        // unlike artists, a second tag on the image is not disqualifying.
+        GetLatestImageIdsByKindAsync(userId, tagNames, TokenKind.Tag, singleTokenOnly: false, ct);
+
+    /// <summary>
+    /// The newest generation per token of one kind, scoped to the user, for the bookmark card and hero display-image
+    /// fallback. When <paramref name="singleTokenOnly"/> is set, images that also carry another token of the same kind
+    /// are excluded — the artist rule, where a blend of two styles represents neither. Tokens are deterministically
+    /// encrypted, so the IN-list compares ciphertext and the returned Token is decrypted back.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsByKindAsync(
+        long userId, IReadOnlyCollection<string> names, TokenKind kind, bool singleTokenOnly, CancellationToken ct)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (artistNames.Count == 0)
+        if (names.Count == 0)
             return result;
 
-        var names = artistNames.ToList();
-        var ps = new string[names.Count];
-        for (var i = 0; i < names.Count; i++)
+        var list = names.ToList();
+        var ps = new string[list.Count];
+        for (var i = 0; i < list.Count; i++)
             ps[i] = "@a" + i;
 
-        // ARTIST kind = 1. Newest generation per artist token via ROW_NUMBER, scoped to this user. Tokens are
-        // deterministically encrypted, so the IN-list compares ciphertext and the returned Token is decrypted back.
-        // Single-artist only, same rule as the artist grid (GetPageAsync): this feeds the artist hero and the
-        // bookmarks artist cards, so without it @monet's card could be a picture that's half @picasso while
-        // @monet's own grid excludes it.
+        // Kind is a trusted enum value, inlined like the other Kind comparisons in this file (never user input).
+        var k = (int)kind;
+        var soleToken = singleTokenOnly
+            ? $@"
+    AND NOT EXISTS (SELECT 1 FROM dbo.HistoryMark mo
+                    WHERE mo.HistoryEntryId = m.HistoryEntryId AND mo.Kind = {k} AND mo.Token <> m.Token)"
+            : string.Empty;
+
+        // Newest generation per token via ROW_NUMBER, scoped to this user.
         var sql = $@"
 SELECT Token, GatewayImageId FROM (
   SELECT m.Token, h.GatewayImageId,
          ROW_NUMBER() OVER (PARTITION BY m.Token ORDER BY h.CreatedAtUtc DESC, h.Id DESC) AS rn
   FROM dbo.HistoryMark m
   JOIN dbo.HistoryEntry h ON h.Id = m.HistoryEntryId
-  WHERE h.UserId = @userId AND m.Kind = 1 AND m.Token IN ({string.Join(',', ps)})
-    AND NOT EXISTS (SELECT 1 FROM dbo.HistoryMark mo
-                    WHERE mo.HistoryEntryId = m.HistoryEntryId AND mo.Kind = 1 AND mo.Token <> m.Token)
+  WHERE h.UserId = @userId AND m.Kind = {k} AND m.Token IN ({string.Join(',', ps)}){soleToken}
 ) t WHERE rn = 1;";
 
         await using var conn = await _connectionFactory.OpenAsync(ct);
         await using var cmd = conn.Command(sql);
         cmd.AddParam("@userId", userId);
-        for (var i = 0; i < names.Count; i++)
-            cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, names[i], ct));
+        for (var i = 0; i < list.Count; i++)
+            cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, list[i], ct));
 
-        var raw = new List<ArtistImageRow>();
+        var raw = new List<TokenImageRow>();
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
-                raw.Add(new ArtistImageRow(reader.GetString(0), reader.GetString(1)));
+                raw.Add(new TokenImageRow(reader.GetString(0), reader.GetString(1)));
         foreach (var row in raw)
             result[await _cipher.DecryptDeterministicAsync(userId, row.Token, ct)] = row.ImageId;
         return result;
@@ -336,7 +356,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
     }
 
     /// <summary>A raw (still-encrypted token, image id) row buffered before deferred decryption.</summary>
-    private readonly record struct ArtistImageRow(string Token, string ImageId);
+    private readonly record struct TokenImageRow(string Token, string ImageId);
 
     private static string Prefixed(string columns, string alias) =>
         string.Join(", ", columns.Split(", ").Select(c => $"{alias}.{c}"));

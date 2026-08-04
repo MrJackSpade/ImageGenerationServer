@@ -209,6 +209,47 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     }
 
     /// <summary>
+    /// The tag display-image fallback, and the one way it differs from the artist query: it is ADDITIVE. An image
+    /// carrying two tags is the latest generation for BOTH of them — dropping the single-token rule is the whole
+    /// point, since a picture legitimately wears many tags at once. The same case, run as artists, would exclude
+    /// the blend from both (see <see cref="Latest_per_artist_skips_a_blended_image_for_the_newest_single_artist_one"/>).
+    /// </summary>
+    [Fact]
+    public async Task Latest_per_tag_claims_an_image_that_also_carries_other_tags()
+    {
+        var user = await fixture.NewUserAsync("hist-latest-tags");
+        await fixture.History.AddAsync(Entry(user.Id, "snow-only", marks: [new Mark("snow", TokenKind.Tag)],
+            created: new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)), Ct);
+        await fixture.History.AddAsync(Entry(user.Id, "snowy-forest", marks:
+        [
+            new Mark("snow", TokenKind.Tag),
+            new Mark("forest", TokenKind.Tag),
+        ], created: new DateTime(2026, 1, 2, 12, 0, 0, DateTimeKind.Utc)), Ct);
+
+        var latest = await fixture.History.GetLatestImageIdsForTagsAsync(user.Id, ["snow", "forest"], Ct);
+
+        Assert.Equal("snowy-forest", latest["snow"]);     // newest snow image, even though it also carries "forest"
+        Assert.Equal("snowy-forest", latest["forest"]);   // and that same image is forest's latest
+    }
+
+    /// <summary>An artist mark on the image is a different Kind, so it neither blocks nor supplies the tag fallback.</summary>
+    [Fact]
+    public async Task Latest_per_tag_ignores_artist_marks_on_the_image()
+    {
+        var user = await fixture.NewUserAsync("hist-latest-tag-artist");
+        await fixture.History.AddAsync(Entry(user.Id, "monet-snow", marks:
+        [
+            new Mark("monet", TokenKind.Artist),
+            new Mark("snow", TokenKind.Tag),
+        ]), Ct);
+
+        var latest = await fixture.History.GetLatestImageIdsForTagsAsync(user.Id, ["snow", "monet"], Ct);
+
+        Assert.Equal("monet-snow", latest["snow"]);   // the artist mark does not disqualify it
+        Assert.False(latest.ContainsKey("monet"));    // and an artist token is not a tag
+    }
+
+    /// <summary>
     /// The search box, end to end over the ENCRYPTED prompt column: no SQL predicate can read it, so the repository
     /// has to decrypt and match in memory. Every term must appear, and Total must count the matches (not the rows) or
     /// the page's infinite scroll stops at the wrong place.

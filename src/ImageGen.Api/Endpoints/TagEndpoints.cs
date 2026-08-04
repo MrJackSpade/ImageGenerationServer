@@ -20,7 +20,7 @@ public static class TagEndpoints
             return ok ? Results.Ok(new { ok = true }) : Results.NotFound();
         });
 
-        // Clear the portrait so the tag shows a placeholder again.
+        // Clear the manual pick so the tag falls back to the user's most recent generation carrying it (else a placeholder).
         api.MapDelete("/tag/display", async (HttpContext context, TagService tags, string tag) =>
         {
             if (string.IsNullOrWhiteSpace(tag))

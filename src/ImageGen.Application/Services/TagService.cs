@@ -5,18 +5,35 @@ namespace ImageGen.Application.Services;
 
 /// <summary>
 /// Per-user tag portrait images — the picture that represents a tag on the bookmarks page. A portrait is the user's
-/// manual pick (<see cref="ITagDisplayRepository"/>), one of their own generations. Mirrors the display-image half of
-/// <see cref="ArtistService"/>; there's no latest-generation fallback (a tag without a set portrait shows a placeholder).
+/// manual pick (<see cref="ITagDisplayRepository"/>) or, failing that, their most recent generation carrying the tag;
+/// a tag with neither shows a placeholder. Mirrors the display-image half of <see cref="ArtistService"/>, but the
+/// latest-generation fallback is NOT single-tag: tags are additive descriptors, so an image legitimately carries many
+/// at once and any of them may claim it as its latest.
 /// </summary>
 public sealed class TagService(ITagDisplayRepository displays, IHistoryRepository history)
 {
     private readonly ITagDisplayRepository _displays = displays;
     private readonly IHistoryRepository _history = history;
 
-    /// <summary>The portrait image ids the user has set for the given tag names — only those with a pick.</summary>
-    public Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
-        long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct) =>
-        _displays.GetManyAsync(userId, tagNames, ct);
+    /// <summary>Resolve a display image (manual pick else latest generation) for many tags at once — the bookmarks grid.</summary>
+    public async Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
+        long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (tagNames.Count == 0)
+            return result;
+
+        var overrides = await _displays.GetManyAsync(userId, tagNames, ct);
+        var latest = await _history.GetLatestImageIdsForTagsAsync(userId, tagNames, ct);
+        foreach (var name in tagNames)
+        {
+            if (overrides.TryGetValue(name, out var ov))
+                result[name] = ov;
+            else if (latest.TryGetValue(name, out var l))
+                result[name] = l;
+        }
+        return result;
+    }
 
     /// <summary>Set the user's portrait image for a tag. Returns false if the image isn't in the user's history.</summary>
     public async Task<bool> SetAsync(long userId, string tagName, string gatewayImageId, DateTime nowUtc, CancellationToken ct)
@@ -35,7 +52,7 @@ public sealed class TagService(ITagDisplayRepository displays, IHistoryRepositor
         return true;
     }
 
-    /// <summary>Clear the user's portrait image for a tag.</summary>
+    /// <summary>Clear the manual pick so the tag falls back to the user's most recent generation carrying it.</summary>
     public Task ClearAsync(long userId, string tagName, CancellationToken ct) =>
         _displays.DeleteAsync(userId, tagName, ct);
 }

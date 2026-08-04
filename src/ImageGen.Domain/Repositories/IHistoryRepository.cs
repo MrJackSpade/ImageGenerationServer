@@ -17,6 +17,15 @@ public interface IHistoryRepository
         long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct);
 
     /// <summary>
+    /// The gateway image id of the user's most recent generation carrying each given tag token (newest first),
+    /// for the tag display-image fallback. Unlike the artist query this does NOT require the tag to be the image's
+    /// only mark: tags are additive descriptors, so an image legitimately carries many at once and any of them may
+    /// claim it as its latest. Only tags with at least one generation are returned.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsForTagsAsync(
+        long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct);
+
+    /// <summary>
     /// Every workflow configuration the user has generated with, most-used first — the options of the history page's
     /// workflow filter. Empty when they have no history.
     /// </summary>

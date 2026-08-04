@@ -76,6 +76,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public IBookmarkRepository Bookmarks => new BookmarkRepository(ConnectionFactory, Cipher, Dialect);
     public IPendingJobRepository Pending => new PendingJobRepository(ConnectionFactory, Cipher);
     public IArtistDisplayRepository ArtistDisplays => new ArtistDisplayRepository(ConnectionFactory, Cipher);
+    public ITagDisplayRepository TagDisplays => new TagDisplayRepository(ConnectionFactory, Cipher);
     public IBannedTokenRepository Bans => new BannedTokenRepository(ConnectionFactory, Cipher);
     public IImageBlobRepository Blobs => new ImageBlobRepository(ConnectionFactory);
     public IJobRepository Jobs => new JobRepository(ConnectionFactory, Cipher, TimeProvider.System, Dialect);
