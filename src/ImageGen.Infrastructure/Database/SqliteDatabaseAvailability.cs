@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Platform;
 using Microsoft.Data.Sqlite;
 
