@@ -19,34 +19,33 @@
 /// <item>Into the ControlNet apply — this is the real <b>fill conditioning</b>. The node itself inverts the mask and
 /// zeroes the RGB inside it, handing the model the KNOWN pixels plus the hole, so the fill CONTINUES the surrounding
 /// structure. This is the piece a bare masked-denoise lacks (the same lesson as
-/// <see cref="AnimaOutpaintWorkflow"/>, where a plain checkpoint produced borders that were only stylistically
+/// <see cref="AnimaOutpaintWorkflow"/>, where a plain checkpoint produces borders that are only stylistically
 /// similar rather than a continuation).</item>
 /// <item>Into <c>SetLatentNoiseMask</c>, confining denoising to the region. This is also the <b>exposure anchor</b>:
 /// re-injecting the noised ORIGINAL latents outside the mask at every step lets attention harmonize the fill's tone
-/// with the real image. ControlNet residuals alone do NOT anchor exposure — an outpaint cut without this node
-/// produced side panels a measured ~15 RGB brighter than the frame they extended (the "color balance" halo).</item>
+/// with the real image. ControlNet residuals alone do NOT anchor exposure — without this node the side panels
+/// come out measurably brighter than the frame they extend (the "color balance" halo).</item>
 /// <item>Into a final <c>ImageCompositeMasked</c> paste-back, so pixels outside the mask are byte-for-byte the
-/// source. The VAE round-trip perturbs the whole frame otherwise — the exact "it also redraws outside the mask and
-/// softens the picture" complaint this ControlNet drew on release.</item>
+/// source. The VAE round-trip perturbs the whole frame otherwise, redrawing outside the mask and softening the
+/// picture.</item>
 /// </list>
 ///
 /// <para>ONE mask feeds all three consumers — the ControlNet apply, <c>SetLatentNoiseMask</c> and the composite —
-/// as the reference template wires it. Do not split it. An earlier cut gave the ControlNet the RAW mask and the
-/// other two the grown/blurred one (copied from <see cref="AnimaOutpaintWorkflow"/>, a different ControlNet with
-/// different semantics); that made the conditioning and the denoise disagree over a <c>mask_grow</c>-wide ring and
-/// dirtied the seam. A later cut split the COMPOSITE off instead (raw pad mask there, softened elsewhere) and put a
-/// hard switch exactly on the ring the ControlNet was blind to — the extension visibly failed to line up.</para>
+/// as the reference template wires it. Do not split it. Giving the ControlNet the RAW mask and the other two the
+/// grown/blurred one (as <see cref="AnimaOutpaintWorkflow"/> does, a different ControlNet with different semantics)
+/// makes the conditioning and the denoise disagree over a <c>mask_grow</c>-wide ring and dirties the seam. Splitting
+/// the COMPOSITE off instead (raw pad mask there, softened elsewhere) puts a hard switch exactly on the ring the
+/// ControlNet is blind to — the extension fails to line up.</para>
 ///
 /// <para><b>Where we deviate from the template.</b> Two coupled changes, both on the outpaint path. (1) The grey
 /// pad never reaches the sampler: <c>ImagePadForOutpaint</c> is kept only for its mask, and the actual canvas is
 /// pre-filled with a blurred stretch of the source so every pixel under the fill region is scene-toned — grey is
-/// the substance every "halo" ever measured here was made of, and removing it beats quarantining it with mask
+/// the substance the halos here are made of, and removing it beats quarantining it with mask
 /// geometry (see <c>QwenImageOutpaintWorkflow.ResolveCanvas</c>). (2) The template's outpaint branch drops
 /// <c>SetLatentNoiseMask</c> (VAEEncode straight into KSampler) and accepts unanchored fill exposure; we keep the
 /// latent mask in BOTH directions and defeat its known failure mode — a binary mask blends latents across ONE 8px
-/// cell and decodes as a hard 1px line (measured: a lone ~63 gradient column) — with a ramp wide enough to span
-/// several latent cells (<see cref="MaskBlurSigma"/>), held at a hard 1 over the fill region itself
-/// (<see cref="HoldFillRegionAtFull"/>).</para>
+/// cell and decodes as a hard 1px line — with a ramp wide enough to span several latent cells
+/// (<see cref="MaskBlurSigma"/>), held at a hard 1 over the fill region itself (<see cref="HoldFillRegionAtFull"/>).</para>
 /// </summary>
 public abstract class QwenInstantXInpaintBase : EditWorkflowBase
 {
@@ -137,10 +136,10 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // "add" + the node's final 0..1 clamp = max() against the raw fill mask: the ramp survives only where the
         // raw mask is 0 (over the original), and every fill pixel is restored to a hard 1. Any mask deficit over
         // the fill region mixes its flat content (grey pad / white hole) into the result through both the latent
-        // re-injection and the composite, and the leak is visible far below full amplitude — measured seam columns
-        // of 51/34/10 as the gaussian's value at the pad boundary went 0.933/0.977/0.9987, versus seam-free with a
-        // ramp held at exactly 1.0 there. The ramp is therefore ONE-SIDED: hard over the fill, descending only
-        // outward across real source pixels.
+        // re-injection and the composite, and the leak is visible far below full amplitude — even a gaussian value
+        // just under 1.0 at the pad boundary leaves a visible seam, versus seam-free with a ramp held at exactly
+        // 1.0 there. The ramp is therefore ONE-SIDED: hard over the fill, descending only outward across real
+        // source pixels.
         wf["35"] = ComfyGraph.Node("MaskComposite", new
         {
             destination = ComfyGraph.Ref("34", 0), source = rawMask, x = 0, y = 0, operation = "add",
@@ -170,8 +169,8 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // The mask has to make the same trip; MASK has no scale node, so round-trip it through IMAGE.
         wf["173"] = ComfyGraph.Node("MaskToImage", new { mask = rawMask });
         // nearest-exact, NOT bilinear: the mask must stay binary. Bilinear resampling turns its edge into a ramp,
-        // which the composite then cross-fades across — the same fade the softened mask used to cause, reintroduced
-        // through the back door on any canvas that trips the ceiling.
+        // which the composite then cross-fades across — reintroducing the seam fade through the back door on any
+        // canvas that trips the ceiling.
         wf["174"] = ComfyGraph.Node("ImageScale", new
         {
             image = ComfyGraph.Ref("173", 0), upscale_method = "nearest-exact", width = w, height = h, crop = "disabled",
@@ -203,7 +202,7 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // consumers must agree, exactly as the reference template wires them (its Grow-and-Blur output feeds
         // ControlNetInpaintingAliMamaApply, SetLatentNoiseMask and ImageCompositeMasked alike).
         //
-        // Handing this node the RAW mask instead is what dirtied the seam: the apply zeroes the control image inside
+        // Handing this node the RAW mask instead dirties the seam: the apply zeroes the control image inside
         // the mask and concatenates that mask as conditioning, so a raw mask tells the ControlNet "known pixels right
         // up to the boundary, preserve them" while SetLatentNoiseMask has the sampler regenerating `mask_grow` px
         // INSIDE that boundary. Across that ring the model is conditioned on pixels it is simultaneously being told
@@ -226,12 +225,11 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
 
         // BOTH directions sample through SetLatentNoiseMask — a deliberate deviation from the reference template,
         // whose outpaint branch wires VAEEncode straight in. Without it the fill's only tie to the original is
-        // ControlNet residuals, which anchor structure but not exposure: measured on a real outpaint, the side
-        // panels came out ~15 RGB brighter/warmer than the frame they extend (the "color balance changed" halo).
-        // Re-injecting the noised original latents every step anchors the fill's tone. The latent-space seam this
-        // node is known for (a binary mask blends across ONE 8px latent cell and decodes as a hard 1px line,
-        // measured ~63 gradient against ~3 neighbours) is defeated by the mask's ramp instead: MaskBlurSigma makes
-        // the outpaint ramp span several latent cells, over the original side only.
+        // ControlNet residuals, which anchor structure but not exposure: the side panels then come out measurably
+        // brighter/warmer than the frame they extend (the "color balance changed" halo). Re-injecting the noised
+        // original latents every step anchors the fill's tone. The latent-space seam this node is known for (a
+        // binary mask blends across ONE 8px latent cell and decodes as a hard 1px line) is defeated by the mask's
+        // ramp instead: MaskBlurSigma makes the outpaint ramp span several latent cells, over the original side only.
         wf["31"] = ComfyGraph.Node("SetLatentNoiseMask", new { samples = ComfyGraph.Ref("12", 0), mask = softMask });
         object latent = ComfyGraph.Ref("31", 0);
 
@@ -257,8 +255,8 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // rather than a VAE round-trip of them.
         //
         // The SAME softened mask as the other two consumers — see the class doc: do not split it. Compositing with
-        // the raw pad mask instead put a hard switch on pixels the ControlNet was blind to (the apply zeroes the
-        // control image inside the mask, mask_grow deep into the original) and the extension visibly failed to line
+        // the raw pad mask instead would put a hard switch on pixels the ControlNet is blind to (the apply zeroes the
+        // control image inside the mask, mask_grow deep into the original) and the extension would fail to line
         // up with the source. The blur ramp is grown inward, over real source pixels only — nowhere near the
         // 0.5-grey pad fill — so the crossfade blends generated-vs-original and can never blend in grey.
         wf["126"] = ComfyGraph.Node("ImageCompositeMasked", new

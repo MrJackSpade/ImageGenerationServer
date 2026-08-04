@@ -8,10 +8,8 @@ namespace ImageGen.TagModel;
 /// Fetches the tag model, which is the one thing the app needs and does not carry in git (~900 MB of weights that
 /// belong to the model's release cycle, not this repository's).
 ///
-/// <para>The app does this itself, at startup. It used to be three separate implementations of the same download —
-/// <c>install.ps1</c>, <c>install.sh</c> and the Docker entrypoint — which a user had to know to run, or know not
-/// to run, before anything worked. Shipping a script beside the app and then explaining when not to use it is the
-/// confusing part; the app knows it needs the file, so the app gets it.</para>
+/// <para>The app does this itself, at startup. Shipping a download script beside the app and then explaining when not
+/// to use it is the confusing part; the app knows it needs the file, so the app gets it.</para>
 ///
 /// <para>Downloads land in a <c>.part</c> file and are moved into place only after their checksum matches, so an
 /// interrupted run cannot leave a truncated artifact that looks complete on the next one. Nothing is re-downloaded

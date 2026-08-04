@@ -12,8 +12,7 @@ namespace ImageGen.Comfy;
 /// <para>Both files hot-reload when changed on disk. Failure is NOT silent at either point: the startup load throws
 /// (a catalog that will not parse is a machine that offers no models, and booting into that state hides the reason),
 /// and a failed hot-reload keeps the last-good catalog but says so at Error and does not retry the same broken
-/// version. This whole path was previously two bare <c>catch { }</c>s, which made an edit with a stray comma
-/// indistinguishable from an edit that changed nothing at all.</para>
+/// version.</para>
 /// </summary>
 public sealed class WorkflowCatalog
 {
@@ -125,13 +124,12 @@ public sealed class WorkflowCatalog
     /// Replace every <see cref="ParamSpec.IsModelRef"/> value in a merged param bag — a SLOT ID — with the file this
     /// machine has bound to it, in place.
     ///
-    /// <para>A slot that does not resolve is a HARD FAILURE naming the slot. It used to yield "" and carry on, and
-    /// each consumer then substituted its own hardcoded filename, so a configuration whose slot had been deleted
-    /// outright rendered perfectly on the one machine that happened to have that file and reported success.</para>
+    /// <para>A slot that does not resolve is a HARD FAILURE naming the slot. Yielding "" and carrying on would let
+    /// each consumer substitute its own hardcoded filename, so a configuration whose slot had been deleted outright
+    /// would render on the one machine that happens to have that file and report success.</para>
     ///
     /// <para>Lives here rather than inline in <c>ComfyClient.MergeParamsDict</c> because the test suite merges params
-    /// too, and a second copy of this loop is what let the resolution rules drift out of step with the renderer once
-    /// already.</para>
+    /// too, and a second copy of this loop would let the resolution rules drift out of step with the renderer.</para>
     /// </summary>
     public void ResolveModelRefs(IWorkflow wf, string configId, IDictionary<string, object?> v)
     {
@@ -156,8 +154,8 @@ public sealed class WorkflowCatalog
     /// the configuration's own settings under this machine's overrides, exactly the layering
     /// <see cref="ResolveModelRefs"/> sees.
     ///
-    /// <para>A configuration names models in TWO places, and only <c>requirements</c> was ever consulted for
-    /// presence-gating. A model ref set in <c>params</c> is every bit as necessary: <c>wan22-i2v-a14b</c> names its
+    /// <para>A configuration names models in TWO places, and both must be consulted for presence-gating. A model ref
+    /// set in <c>params</c> is every bit as necessary as one in <c>requirements</c>: <c>wan22-i2v-a14b</c> names its
     /// second MoE expert nowhere else. Params the configuration does NOT set are absent by choice, not unbound, so
     /// they are not here — that is what keeps an optional LoRA from hiding every configuration that has none.</para>
     /// </summary>
@@ -262,7 +260,7 @@ public sealed class WorkflowCatalog
             {
                 // Keeping the last-good catalog IN MEMORY is deliberate: tearing a running server's model list down
                 // over a half-saved edit helps nobody, and the previous catalog is still the truth about this box.
-                // Silence was the defect — the edit is not live, and that is the one thing the operator must be told.
+                // The edit is not live, and that is the one thing the operator must be told.
                 _badVersion = (wfNow, reqNow);
                 _log.LogError(ex, "Catalog changed on disk but FAILED to load — the edit is NOT live; keeping the previously "
                     + "loaded catalog ({Configurations} configuration(s)). Directories: {Workflows} + {Models}",
@@ -533,9 +531,9 @@ public sealed class WorkflowCatalog
     /// <summary>
     /// The catalogue's kind string to the loader it draws from. Every value is named; an unknown one THROWS.
     ///
-    /// <para>This used to end in <c>_ =&gt; Other</c>, so "lora", "clip_vision", "ipadapter",
-    /// "latent_upscale_model" and "other" all became one bucket and every slot among them was offered every file
-    /// of all of them. A typo did the same thing silently. Failing here means a kind that is not wired to a
+    /// <para>A catch-all <c>_ =&gt; Other</c> would pool "lora", "clip_vision", "ipadapter",
+    /// "latent_upscale_model" and "other" into one bucket and offer every slot among them every file of all of
+    /// them; a typo would do the same thing silently. Failing here means a kind that is not wired to a
     /// loader is impossible to ship rather than merely wrong at runtime.</para>
     /// </summary>
     private static RequirementKind ParseKind(string? k) => (k ?? "").ToLowerInvariant() switch

@@ -2,8 +2,7 @@
 
 /// <summary>SDXL AnimateDiff i2v via img2img motion. Uses BASE SDXL — the <c>mm_sdxl_v10_beta</c> motion module
 /// learned its temporal priors against base SDXL's feature space, so heavily-finetuned SDXL derivatives
-/// (Pony/AutismMix lineage) run but produce color-noise instead of motion. Exact lift of the old
-/// <c>animatediff_sdxl</c> branch, repointed to base SDXL.</summary>
+/// (Pony/AutismMix lineage) run but produce color-noise instead of motion.</summary>
 public sealed class SdxlAnimateDiffWorkflow : EditWorkflowBase
 {
     public override string Name => "sdxl-i2v";

@@ -3,10 +3,9 @@
 namespace ImageGen.Comfy;
 
 /// <summary>
-/// Base for the image-EDIT workflows. Each edit MODEL has its own subclass with its own self-contained graph
-/// (the genuinely-distinct topologies that used to be crammed into one <c>BuildEditWorkflow</c> if/else). The only
-/// thing shared here is the common head every edit graph emits — loading the model/CLIP/VAE and the source image —
-/// plus the parameter menu. Node ids and wiring are exact lifts so the emitted graphs stay byte-identical.
+/// Base for the image-EDIT workflows. Each edit MODEL has its own subclass with its own self-contained graph. The
+/// only thing shared here is the common head every edit graph emits — loading the model/CLIP/VAE and the source
+/// image — plus the parameter menu.
 /// </summary>
 public abstract class EditWorkflowBase : IWorkflow
 {
@@ -47,11 +46,11 @@ public abstract class EditWorkflowBase : IWorkflow
         new() { Key = "fps",       Type = ParamType.Double },
         new() { Key = "motion_model", Type = ParamType.String, IsModelRef = true },
         // SD1.5 AnimateDiff's SparseCtrl-RGB adapter — a slot id resolved to a bound file, exactly like
-        // motion_model. Without IsModelRef the raw slot id reached ACN_SparseCtrlLoaderAdvanced and ComfyUI
-        // rejected it (value_not_in_list), so animatediff-sd15 could never render.
+        // motion_model. Without IsModelRef the raw slot id reaches ACN_SparseCtrlLoaderAdvanced and ComfyUI
+        // rejects it (value_not_in_list), so animatediff-sd15 cannot render.
         new() { Key = "sparsectrl_name", Type = ParamType.String, IsModelRef = true },
         // The i2v vision encoder (CLIP-ViT-H for Wan/ChronoEdit, SigCLIP for HunyuanVideo 1.5). A slot id like every
-        // other model reference — it was a private const filename in each workflow, which is one machine's disk
+        // other model reference, not a private const filename — a hardcoded filename would be one machine's disk
         // written into the application and unreachable from the models page.
         new() { Key = "clip_vision", Type = ParamType.String, IsModelRef = true },
         // SDXL AnimateDiff img2img: how far frames drift from the source. Low = stays put (little motion); high =
@@ -87,8 +86,8 @@ public abstract class EditWorkflowBase : IWorkflow
             model0 = ComfyGraph.Ref("4", 0); vae0 = ComfyGraph.Ref("4", 2);
 
             // A checkpoint's CLIP output is only usable when the checkpoint actually carries encoders. Several do
-            // not — sd3.5_large ships without them — and taking output 1 regardless handed CLIPTextEncode a null,
-            // which surfaced as "clip input is invalid: None" long after the real mistake. Declared encoders win.
+            // not — sd3.5_large ships without them — and taking output 1 regardless would hand CLIPTextEncode a null,
+            // surfacing as "clip input is invalid: None" far from the real mistake. Declared encoders win.
             clip0 = req.TextEncoders.Count > 0
                 ? BuildClipLoader(wf, "5", req.TextEncoders, p.Str("clip_type"))
                 : ComfyGraph.Ref("4", 1);
@@ -108,10 +107,9 @@ public abstract class EditWorkflowBase : IWorkflow
     /// <summary>
     /// The CLIP loader a model's encoders call for, chosen by HOW MANY it declares.
     ///
-    /// <para>This used to key off a <c>dual</c> boolean, which could express one encoder or two and nothing else.
-    /// A configuration needing three or four had no way to say so: pixelize-sd35 declared three and got a single
-    /// loader, pixelize-hidream declared four and got the same, and both failed in different places. The count is
-    /// already in the requirements, so it decides — one CLIPLoader, two Dual, three Triple, four Quadruple.</para>
+    /// <para>A <c>dual</c> boolean could express one encoder or two and nothing else, leaving a configuration that
+    /// needs three or four no way to say so. The count is already in the requirements, so it decides — one
+    /// CLIPLoader, two Dual, three Triple, four Quadruple.</para>
     ///
     /// <para>Triple and Quadruple take no <c>type</c>: the encoder set identifies the family on its own.</para>
     /// </summary>

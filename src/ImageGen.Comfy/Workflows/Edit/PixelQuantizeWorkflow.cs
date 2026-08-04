@@ -13,7 +13,7 @@ namespace ImageGen.Comfy;
 /// appears in the UI edit dropdown; the orchestrator submits it by id via /forge/edit.
 ///
 /// The diffusion projection sibling (PixelizeWorkflow, Flux-dev + per-step PixelManifoldProjection)
-/// lands next; it reuses the same quantizer math for its projection target.
+/// reuses the same quantizer math for its projection target.
 /// </summary>
 public sealed class PixelQuantizeWorkflow : EditWorkflowBase
 {

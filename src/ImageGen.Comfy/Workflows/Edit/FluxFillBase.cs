@@ -7,7 +7,7 @@
 /// <para><b>Why this exists.</b> The Qwen + InstantX ControlNet pair (<see cref="QwenInstantXInpaintBase"/>) puts the
 /// mask outside the model: a ControlNet injects residuals and everything about the join — how the fill meets the
 /// original, how its exposure is anchored, what sits under the hole — has to be arranged by hand in the graph. That
-/// hand-arrangement is where the seam/halo failures lived. Fill takes the mask as a NATIVE input: the masked image
+/// hand-arrangement is where the seam/halo failures live. Fill takes the mask as a NATIVE input: the masked image
 /// and the mask are extra channels of the model's own conditioning, seen in training, so continuing the surrounding
 /// content is the model's job rather than the graph's.</para>
 ///
@@ -23,13 +23,13 @@
 /// −4.5/−6.0/−7.5; the same drift every Fill frontend fights, e.g. SwarmUI's "Recomposite Color Correct"), and the
 /// bit-true paste-back turns that into a visible seam (step −7.5 vs ±1.5 texture noise). The obvious cure — sample
 /// the WHOLE frame from the conditioning like diffusers' <c>FluxFillPipeline</c> (<c>noise_mask=false</c>) so the
-/// outside pixels witness the drift and a fit can invert it — was tried on 2026-07-20 and made things WORSE: the
-/// per-step latent pinning is what anchors the fill's CONTENT to the surroundings, and without it Fill freewheels
-/// (an empty-prompt sky fill hallucinated a giant moon, −27 luminance; a region prompt went −89). With pinning, the
-/// outside of the sampled latent is the original encode, so its decode is only a VAE round-trip (0.46 levels of
-/// signal) and no outside-fit can see the −6 fill drift (a Linear2 fit recovered just −6.15 → −5.02). The drift
-/// therefore has to be attacked at its source; the fp8_e4m3fn load-cast is the prime suspect (the bf16 reference
-/// pipeline does not show this magnitude) — test via a <c>weight_dtype</c> override before touching the graph.</para>
+/// outside pixels witness the drift and a fit can invert it — measures strictly WORSE: the per-step latent pinning
+/// is what anchors the fill's CONTENT to the surroundings, and without it Fill freewheels (an empty-prompt sky fill
+/// hallucinates a giant moon, −27 luminance; a region prompt goes −89). With pinning, the outside of the sampled
+/// latent is the original encode, so its decode is only a VAE round-trip (0.46 levels of signal) and no outside-fit
+/// can see the −6 fill drift (a Linear2 fit recovers just −6.15 → −5.02). The drift therefore has to be attacked at
+/// its source; the fp8_e4m3fn load-cast is the prime suspect (the bf16 reference pipeline does not show this
+/// magnitude) — test via a <c>weight_dtype</c> override before touching the graph.</para>
 ///
 /// <para><b><c>DifferentialDiffusion</c> is the seam mechanism.</b> It consumes the latent noise mask and turns the
 /// mask's grey values into a PER-PIXEL DENOISE SCHEDULE: a pixel at mask 0.3 starts denoising 30% of the way
@@ -164,9 +164,9 @@ public abstract class FluxFillBase : EditWorkflowBase
 
         // The native fill conditioning — mask and masked-image are the MODEL's inputs here, not a ControlNet's.
         // noise_mask=true is load-bearing: the per-step latent pinning is what anchors the fill's CONTENT to the
-        // surroundings. Sampling the full frame instead (noise_mask=false, the diffusers-reference shape) was tried
-        // and measured strictly worse — Fill freewheels without the anchor (moon hallucinated into an empty-prompt
-        // sky fill; −27/−89 luminance vs −6 pinned). See the class doc before touching this.
+        // surroundings. Sampling the full frame instead (noise_mask=false, the diffusers-reference shape) measures
+        // strictly worse — Fill freewheels without the anchor (a moon hallucinates into an empty-prompt sky fill;
+        // −27/−89 luminance vs −6 pinned). See the class doc before touching this.
         wf["38"] = ComfyGraph.Node("InpaintModelConditioning", new
         {
             positive = ComfyGraph.Ref("14", 0),

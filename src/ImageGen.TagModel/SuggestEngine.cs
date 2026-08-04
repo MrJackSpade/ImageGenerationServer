@@ -2,17 +2,17 @@ namespace ImageGen.TagModel;
 
 /// <summary>
 /// Context-aware tag autocomplete: given the tags already in the prompt and what the user is typing, rank what
-/// probably comes next. Ported from <c>/api/suggest</c>.
+/// probably comes next.
 ///
 /// <para>Ranking is by P(tag | set); the percentage shown beside a suggestion is the calibrated
 /// sigmoid(a·logit + b), which is a different number from the softmax and is why the logits are kept rather than
 /// normalised away. Scoring runs UNCONDITIONED (all types allowed) on purpose: this path answers what the user is
 /// typing, and typing 'sakimi' should still find the artist even though generation never emits one.</para>
 ///
-/// <para>The Python server had a candidate-only fast path that projected the pooled query against just the
-/// candidate rows of the decoder, skipping the full projection. It is not reproduced: those raw decoder weights live
-/// in the PyTorch checkpoint and are not in the exported graph, and shipping a second 240 MB tensor to save a matmul
-/// the model already performs on every generation step is a poor trade. The full forward yields identical logits.</para>
+/// <para>There is no candidate-only fast path (projecting the pooled query against just the candidate decoder rows,
+/// skipping the full projection): those raw decoder weights live in the PyTorch checkpoint, not the exported graph,
+/// and shipping a second 240 MB tensor to save a matmul the model already performs on every generation step is a poor
+/// trade. The full forward yields identical logits.</para>
 /// </summary>
 public sealed class SuggestEngine(TagModelBundle bundle)
 {

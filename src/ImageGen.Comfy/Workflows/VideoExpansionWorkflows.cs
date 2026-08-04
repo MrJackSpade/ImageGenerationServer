@@ -101,8 +101,8 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
         new() { Key = "pad_bottom_pct", Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
         // Draft/commit knob (see Vid.MoESample): motion is fixed by the structure phase; this only buys sharpness.
         new() { Key = "refiner_steps", Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
-        // The second MoE expert. A slot id, resolved to this machine's bound file — it was a literal
-        // filename, which put a model reference outside the binding system where nobody could change it.
+        // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
+        // put a model reference outside the binding system where nobody could change it.
         new() { Key = "unet_low", Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
     }).ToArray();
 
@@ -156,7 +156,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
         wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = ComfyGraph.ComposeNegative(p.Str("negative"), inputs.Negative), clip });
         // First/last-frame conditioning when the caller supplied an END frame (the source is the first frame): swap the
         // plain WanImageToVideo for WanFirstLastFrameToVideo, pinning both ends. The node resizes end_image to
-        // width/height itself, so the raw LoadImage is fine. Without an end frame the graph is byte-identical to before.
+        // width/height itself, so the raw LoadImage is fine. Without an end frame the plain WanImageToVideo path runs.
         // Both nodes re-emit the same 3 outputs (positive, negative, latent), so the downstream sampler wiring is shared.
         if (!string.IsNullOrEmpty(inputs.EndImageName))
         {
@@ -209,8 +209,8 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflowBase
     /// <inheritdoc/>
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        // The second MoE expert. A slot id, resolved to this machine's bound file — it was a literal
-        // filename, which put a model reference outside the binding system where nobody could change it.
+        // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
+        // put a model reference outside the binding system where nobody could change it.
         new() { Key = "unet_low", Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
     }).ToArray();
 

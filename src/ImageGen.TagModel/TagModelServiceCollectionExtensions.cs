@@ -13,12 +13,11 @@ public static class TagModelServiceCollectionExtensions
     /// <summary>
     /// Where the artifacts live: <c>tagmodel/artifacts</c> beside the executable, always.
     ///
-    /// <para>Not configurable, and anchored to the application rather than to the working directory. It used to be
-    /// <c>TagModel:DataDir</c>, one correct value repeated across the config key, the settings page, the install
-    /// script's <c>-DataDir</c> and both launchers — and, being a relative path with nothing anchoring it, it
-    /// resolved against the CURRENT DIRECTORY. Launching the executable from anywhere but its own folder failed to
-    /// find the model and refused to start, naming a path that did not exist. The install script writes here, the
-    /// app reads here, and there is nothing left to keep in step.</para>
+    /// <para>Not configurable, and anchored to the application rather than to the working directory. A configurable
+    /// relative path (repeated across a config key, the settings page, an install-script flag and both launchers)
+    /// would resolve against the CURRENT DIRECTORY, so launching the executable from anywhere but its own folder
+    /// would fail to find the model and refuse to start, naming a path that does not exist. The install script writes
+    /// here, the app reads here, and there is nothing to keep in step.</para>
     /// </summary>
     public static string ArtifactsDirectory => Path.Combine(AppContext.BaseDirectory, "tagmodel", "artifacts");
 

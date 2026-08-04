@@ -79,8 +79,8 @@ public sealed class LoraMetaPopulator(
         var existing = (await meta.GetManyAsync([name], ct)).GetValueOrDefault(name);
         if (existing is not null)
         {
-            // Already cached. The only thing that might still be missing is the preview BYTES — for a row written
-            // before this box cached previews locally (it kept a CDN URL, not the media). Backfill just that.
+            // Already cached. The only thing that might still be missing is the preview BYTES — a row can hold a CDN
+            // URL without the media cached locally. Backfill just that.
             if (string.IsNullOrEmpty(existing.PreviewUrl))
                 return;
             if ((await previews.GetContentTypesAsync([name], ct)).ContainsKey(name))

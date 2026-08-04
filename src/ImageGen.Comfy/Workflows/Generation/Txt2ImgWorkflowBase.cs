@@ -2,9 +2,8 @@
 
 /// <summary>
 /// Base for the text-to-image workflows. Every generation model has its OWN workflow subclass (its own name and
-/// VRAM band), but they share this one txt2img topology — the single graph that already drove all of them through
-/// the old <c>BuildWorkflow</c>, just parameterized. A model that needs to diverge overrides <see cref="Build"/>.
-/// The node ids and wiring are an exact lift of <c>BuildWorkflow</c> so the emitted graph is byte-identical.
+/// VRAM band), but they share this one parameterized txt2img topology. A model that needs to diverge overrides
+/// <see cref="Build"/>.
 /// </summary>
 public abstract class Txt2ImgWorkflowBase : IWorkflow
 {

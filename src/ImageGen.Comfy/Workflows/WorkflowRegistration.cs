@@ -100,7 +100,7 @@ public static class WorkflowRegistration
         services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new LtxvI2VWorkflow()));     // ltxv-i2v-pixel  (LTX 0.9.8 / 13b)
         services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanI2VWorkflow()));      // wan22-ti2v-5b-pixel
         services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanA14bI2VWorkflow()));  // wan22-i2v-a14b-pixel
-        // Guiding (per-step PixelManifoldProjection) is now the `guided` boolean param on these, not a separate set.
+        // Guiding (per-step PixelManifoldProjection) is the `guided` boolean param on these, not a separate set.
         // 24GB-tier video: Wan 2.2 A14B MoE (i2v + t2v) and native HunyuanVideo text-to-video
         services.AddSingleton<IWorkflow, WanA14bI2VWorkflow>();
         services.AddSingleton<IWorkflow, WanA14bT2VWorkflow>();

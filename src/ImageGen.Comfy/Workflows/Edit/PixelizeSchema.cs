@@ -28,9 +28,9 @@ internal static class PixelizeSchema
     public static IReadOnlyList<ParamSpec> KontextLike(string defPrompt) => new ParamSpec[]
     {
         new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
-        // No default. A GENERIC workflow cannot know which CLIP family a configuration is for, and "flux"
-        // silently became the answer for any configuration that omitted it -- pixelize-hidream inherited it
-        // and handed CLIPLoader a type it does not accept. An omission must surface, not be guessed.
+        // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
+        // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
+        // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.
         new() { Key = "clip_type", Type = ParamType.String },
         new() { Key = "dual",      Type = ParamType.Bool },
         new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps" },

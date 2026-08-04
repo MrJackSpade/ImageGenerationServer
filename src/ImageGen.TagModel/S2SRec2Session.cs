@@ -18,10 +18,8 @@ namespace ImageGen.TagModel;
 /// </list>
 ///
 /// <para>It returns <c>logits</c> over the ~232k EMITTABLE tags (not the full vocab) and a single <c>p_logit</c>
-/// completeness score. Python widened the logits by calling <c>model.logits_vocab()</c>; that is a scatter through
-/// the checkpoint's <c>out_ids</c>, reproduced here by <see cref="ScatterToVocab"/>, which is why <c>out_ids.bin</c>
-/// ships alongside the graph. Nothing else in the Python path touched PyTorch, which is what made this port possible
-/// at all — see <c>tools/export-tagmodel-onnx.py</c>.</para>
+/// completeness score. <see cref="ScatterToVocab"/> widens those decoder-row logits to vocab indexing — a scatter
+/// through the checkpoint's <c>out_ids</c>, which is why <c>out_ids.bin</c> ships alongside the graph.</para>
 /// </summary>
 public sealed class S2SRec2Session : IDisposable
 {

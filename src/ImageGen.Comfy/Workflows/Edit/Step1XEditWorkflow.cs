@@ -16,10 +16,10 @@ public sealed class Step1XEditWorkflow : EditWorkflowBase
     /// <summary>Self-contained loader node (manages its own VRAM: int8 + offload) — no ComfyUI loaders to presence-gate.</summary>
     public override bool RequiresModel => false;
 
-    /// <summary>The DiT and AE are slot ids on the configuration, resolved to this machine's bound files — they were
-    /// const filenames here, which is one person's disk written into the application and unreachable from the models
-    /// page. The text encoder stays a literal: it is not a file but the name of a Hugging Face folder the node
-    /// loads from its own directory, so there is nothing to bind.</summary>
+    /// <summary>The DiT and AE are slot ids on the configuration, resolved to this machine's bound files — a const
+    /// filename here would bake one person's disk into the application, unreachable from the models page. The text
+    /// encoder stays a literal: it is not a file but the name of a Hugging Face folder the node loads from its own
+    /// directory, so there is nothing to bind.</summary>
     private const string TextEncoder = "Qwen2.5-VL-7B-Instruct";
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;

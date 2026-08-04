@@ -60,7 +60,7 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
 
         // Output latent: an EMPTY latent sized to the resized source (template uses GetImageSize -> EmptyLatentImage),
         // NOT a VAEEncode of the source. Sample with SamplerCustom + KSamplerSelect(dpmpp_2m) + BasicScheduler sigmas —
-        // a plain euler KSampler (what this used to do) is what produced the soft/blurry edits.
+        // a plain euler KSampler produces soft/blurry edits.
         wf["17"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
         wf["50"] = ComfyGraph.Node("EmptyLatentImage", new { width = ComfyGraph.Ref("17", 0), height = ComfyGraph.Ref("17", 1), batch_size = 1 });
         wf["16"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });

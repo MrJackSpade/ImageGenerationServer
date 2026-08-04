@@ -1,8 +1,7 @@
 ﻿namespace ImageGen.Comfy;
 
 /// <summary>Flux.1 Kontext image edit. Single-image native; multi-image uses the verified ImageStitch method
-/// (stitch source+refs into one image, encode as the single reference latent; output stays source-sized). Exact
-/// lift of the old <c>flux_kontext</c> branch.</summary>
+/// (stitch source+refs into one image, encode as the single reference latent; output stays source-sized).</summary>
 public sealed class FluxKontextEditWorkflow : EditWorkflowBase
 {
     public override string Name => "flux1-kontext";

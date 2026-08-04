@@ -6,11 +6,9 @@ namespace ImageGen.TagModel;
 /// <summary>
 /// The model's tag vocabulary: every tag it can be conditioned on, with its gelbooru category and corpus count.
 ///
-/// <para>This is the single source of truth for tag data in the app. It replaces <c>tags.json</c> (a 54 MB file
-/// derived from a gelbooru dump by a separate script) and is a strict superset of it — same names, same counts, same
-/// categories, plus every tag the model knows that the old file omitted. Critically it is the vocabulary the
-/// checkpoint was TRAINED against, pinned to it, so the ids here cannot drift from the ids the model emits. The old
-/// arrangement re-derived categories from a file the training run never saw, and it did diverge.</para>
+/// <para>This is the single source of truth for tag data in the app. Critically it is the vocabulary the checkpoint
+/// was TRAINED against, pinned to it, so the ids here cannot drift from the ids the model emits — deriving categories
+/// from any separate file the training run never saw is exactly what would let them diverge.</para>
 /// </summary>
 public sealed class TagVocab
 {

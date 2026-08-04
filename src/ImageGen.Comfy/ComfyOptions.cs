@@ -3,9 +3,9 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// Where the renderer is and how to get past its queue guard, read FRESH on every use.
 ///
-/// <para>These two were fields on <see cref="ComfyOptions"/>, captured once at startup, which is what made the
-/// renderer's address something you could only change by restarting. They are now a port: the composition root
-/// implements it over live configuration, so a change made on the settings page takes effect on the next call.</para>
+/// <para>This is a port, not fields captured once at startup: the composition root implements it over live
+/// configuration, so a change made on the settings page takes effect on the next call rather than needing a
+/// restart.</para>
 /// </summary>
 public interface IComfyEndpoint
 {

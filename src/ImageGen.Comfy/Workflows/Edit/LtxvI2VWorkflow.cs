@@ -1,7 +1,7 @@
 ﻿namespace ImageGen.Comfy;
 
 /// <summary>LTX-Video image-to-video: fast distilled model; source conditions frame 0. LTX has no CLIP in the
-/// checkpoint — it loads an external T5. Exact lift of the old <c>ltxv_i2v</c> branch.</summary>
+/// checkpoint — it loads an external T5.</summary>
 public sealed class LtxvI2VWorkflow : EditWorkflowBase
 {
     public override string Name => "ltxv-i2v";

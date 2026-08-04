@@ -5,8 +5,8 @@
 ///
 /// <para>Its 0.5-grey pad is harmless here and deliberately left alone: <c>InpaintModelConditioning</c> re-blanks the
 /// masked region to that exact grey anyway as the model's trained fill signal, and nothing alpha-blends the pad into
-/// the output. (On the ControlNet path this same grey had to be engineered away — see
-/// <see cref="QwenImageOutpaintWorkflow"/> — because there it WAS blended.)</para>
+/// the output. (On the ControlNet path this same grey has to be engineered away — see
+/// <see cref="QwenImageOutpaintWorkflow"/> — because there it IS blended.)</para>
 /// </summary>
 public sealed class FluxFillOutpaintWorkflow : FluxFillBase
 {

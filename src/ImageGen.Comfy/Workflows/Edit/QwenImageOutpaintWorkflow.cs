@@ -10,9 +10,9 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
 {
     public override string Name => "qwen-image-outpaint";
 
-    /// <summary>Full denoise. 0.9 was tried to "lock tone to the pre-fill scaffold" and FAILED the other way:
-    /// under the AuraFlow-shifted schedule even a 0.1 denoise reduction weights the init so heavily that the pad
-    /// came back as the blur scaffold nearly verbatim (stretched-railing smear and all). At 1.0 the panels are
+    /// <summary>Full denoise. A lower denoise (even 0.9, "locking tone to the pre-fill scaffold") FAILS the other
+    /// way: under the AuraFlow-shifted schedule even a 0.1 denoise reduction weights the init so heavily that the pad
+    /// comes back as the blur scaffold nearly verbatim (stretched-railing smear and all). At 1.0 the panels are
     /// fully generated and the scaffold still does its real jobs — every soft edge blends scene tone, never grey,
     /// and the boundary latent cells encode scene colors.</summary>
     protected override double DefaultDenoise => 1.0;
@@ -62,9 +62,9 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
 
         // GREY MUST NOT EXIST. ImagePadForOutpaint fills the new area with flat 0.5 grey, and that grey is the whole
         // halo family: any mask softness anywhere — the blur ramp, the latent blend, the composite crossfade — mixes
-        // whatever is under the fill region into the picture, and if that is grey, the seam blends grey. Every
-        // attempt to fix the halo with mask geometry was quarantining the grey instead of removing it. So the grey
-        // canvas is used ONLY for its mask; the canvas the sampler actually sees is PRE-FILLED with scene-toned
+        // whatever is under the fill region into the picture, and if that is grey, the seam blends grey. Fixing the
+        // halo with mask geometry only quarantines the grey instead of removing it. So the grey canvas is used ONLY
+        // for its mask; the canvas the sampler actually sees is PRE-FILLED with scene-toned
         // content: the source stretched to the padded size, heavily blurred (a low-frequency tone scaffold — local
         // colors near each edge come from that edge's own content), with the original pasted back on top at its
         // offset. Blending can then only ever blend scene colors: the mask ramp, the latent blend and the composite

@@ -5,8 +5,7 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// Low-level ComfyUI graph-emit primitives shared by every workflow: node/edge construction and the
 /// Forge→ComfyUI sampler/scheduler name maps. These are JSON-shape utilities, not workflow logic — each
-/// workflow class builds its own topology by calling them. (Lifted verbatim from the old ComfyClient so the
-/// emitted graphs stay byte-identical.)
+/// workflow class builds its own topology by calling them.
 /// </summary>
 public static class ComfyGraph
 {
@@ -27,13 +26,12 @@ public static class ComfyGraph
     /// The diffusion-model loader for a file, chosen BY THE FILE: a <c>.gguf</c> needs <c>UnetLoaderGGUF</c>,
     /// anything else <c>UNETLoader</c>.
     ///
-    /// <para>This used to be a <c>loader</c> parameter in the configuration, which made the quantisation of the
-    /// weights part of the workflow's identity — the reason the catalogue grew a second workflow per model whose
-    /// only difference was which precision it loaded. A workflow has no business knowing: the topology either side
-    /// of the loader is identical, and which file is on the disk is the user's choice, made when they bind it.</para>
+    /// <para>The loader is chosen by the file, not by a configuration <c>loader</c> parameter: making it a parameter
+    /// would put the quantisation of the weights into the workflow's identity, growing a second workflow per model
+    /// whose only difference is which precision it loads. A workflow has no business knowing — the topology either
+    /// side of the loader is identical, and which file is on the disk is the user's choice, made when they bind it.</para>
     ///
-    /// <para>The text encoders already worked this way (<c>CLIPLoaderGGUF</c> is picked off the same extension
-    /// test); this is the diffusion loader catching up.</para>
+    /// <para>The text encoders work the same way: <c>CLIPLoaderGGUF</c> is picked off the same extension test.</para>
     /// </summary>
     public static Dictionary<string, object> DiffusionLoader(string file, string weightDtype = AutoWeightDtype) =>
         IsGguf(file)

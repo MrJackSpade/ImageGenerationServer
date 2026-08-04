@@ -3,16 +3,11 @@ using ImageGen.Application.Tags;
 namespace ImageGen.TagModel;
 
 /// <summary>
-/// <see cref="ITagCatalog"/> over the model's own vocabulary, replacing the <c>TagStore</c> that read <c>tags.json</c>.
+/// <see cref="ITagCatalog"/> over the model's own vocabulary.
 ///
-/// <para>Two vocabularies of the same data used to be loaded in two processes: a 54 MB <c>tags.json</c>, built from a
-/// gelbooru dump by a separate script, in the app; and the checkpoint's own <c>vocab_s2srec2.json</c> in Python. The
-/// model's is a strict superset — same names, counts and categories, plus every tag the old file omitted — and it is
-/// PINNED to the checkpoint, so the categories cannot drift from the ones the model was trained on. The old file could
-/// drift, and did.</para>
-///
-/// <para>Consequently <c>tags.json</c>, <c>tags.example.json</c>, <c>build-tags-json.py</c> and the <c>_tags.dat</c>
-/// dump they depended on are all gone.</para>
+/// <para>The vocabulary is PINNED to the checkpoint — the same names, counts and categories the model was trained on
+/// — so the categories cannot drift from the ones the model emits. A tag file derived independently, from a gelbooru
+/// dump by a separate script, could drift.</para>
 /// </summary>
 public sealed class VocabTagCatalog : ITagCatalog
 {
@@ -62,8 +57,8 @@ public sealed class VocabTagCatalog : ITagCatalog
     }
 
     /// <summary>
-    /// Always true. The old store loaded a large file in a background task, so callers had to cope with "not ready
-    /// yet"; the vocabulary is loaded before the app serves its first request, so there is no such window.
+    /// Always true. The vocabulary is loaded before the app serves its first request, so there is no "not ready yet"
+    /// window for callers to cope with.
     /// </summary>
     public bool Loaded => true;
 

@@ -7,8 +7,8 @@ namespace ImageGen.Comfy;
 /// The on-disk shape of the catalog files, deserialized directly by <see cref="System.Text.Json"/> instead of being
 /// pulled apart property-by-property. Every object here is <see cref="JsonUnmappedMemberHandling.Disallow"/>: a key
 /// in a catalog file that maps to no member is an error at parse time, not data that is silently dropped. That is the
-/// point of modelling the shape at all — a misspelled or unread key used to survive unnoticed (a whole
-/// <c>resolution</c> block went unread on 130 files, and a mistyped <c>kind</c> fell into a shared bucket), and the
+/// point of modelling the shape at all — a misspelled or unread key would otherwise survive unnoticed (a whole
+/// <c>resolution</c> block going unread, or a mistyped <c>kind</c> falling into a shared bucket), and the
 /// only way that becomes visible is to name every key the file is allowed to carry.
 ///
 /// <para>These are the wire types. <see cref="WorkflowCatalog"/> maps them onto the domain records

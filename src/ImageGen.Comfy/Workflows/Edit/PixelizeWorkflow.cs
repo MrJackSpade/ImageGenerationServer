@@ -24,9 +24,9 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
     {
         // model loading (consumed by EditWorkflowBase.LoadModel)
         new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
-        // No default. A GENERIC workflow cannot know which CLIP family a configuration is for, and "flux"
-        // silently became the answer for any configuration that omitted it -- pixelize-hidream inherited it
-        // and handed CLIPLoader a type it does not accept. An omission must surface, not be guessed.
+        // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
+        // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
+        // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.
         new() { Key = "clip_type", Type = ParamType.String },
         new() { Key = "dual",      Type = ParamType.Bool },
         // sampling
@@ -120,7 +120,7 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
             cfg = p.DblReq("cfg"),
             sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
             scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
-            denoise = PixelSnap.Denoise(p, 70),   // reference% -> denoise (default 70 == the old strength 0.3)
+            denoise = PixelSnap.Denoise(p, 70),   // reference% -> denoise (default 70 → denoise 0.3)
             model = ComfyGraph.Ref("35", 0),
             positive = posSrc,
             negative = ComfyGraph.Ref("37", 0),

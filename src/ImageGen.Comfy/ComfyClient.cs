@@ -106,12 +106,12 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>
     /// Which loader node/input each slot kind draws its file list from. Matching and binding are scoped by kind, so
-    /// a checkpoint slot is never offered a VAE — before this the lists were merged into one flat set, and a VAE and
-    /// a checkpoint sharing a filename satisfied each other's presence check.
+    /// a checkpoint slot is never offered a VAE — merging the lists into one flat set would let a VAE and
+    /// a checkpoint sharing a filename satisfy each other's presence check.
     ///
     /// <para>A kind may draw from SEVERAL nodes, and a diffusion slot draws from both the safetensors and the GGUF
     /// loader. Quantisation is a property of the file on the disk, not of the slot: offering only one of the two
-    /// lists is what forced the catalogue to carry a second slot — and then a second workflow — per precision.
+    /// lists would force the catalogue to carry a second slot — and then a second workflow — per precision.
     /// Which node ends up in the graph is decided from the bound filename (<see cref="ComfyGraph.DiffusionLoader"/>),
     /// exactly as the text encoders below have always done across their four loaders.</para>
     /// </summary>
@@ -237,9 +237,9 @@ public sealed class ComfyClient : IComfyClient
     /// Read the filename choices from each (node, input-key) pair's object_info. A node absent from this build, or
     /// carrying no such input, is a normal outcome and is SKIPPED — every one of those is detected by asking rather
     /// than by catching, so no exception has to be interpreted.
-    /// <para>Nothing here is swallowed. This once ran under a blanket catch, which meant a dropped connection or a
+    /// <para>Nothing here is swallowed. Running under a blanket catch would let a dropped connection or a
     /// response ComfyUI had garbled read as "that loader offers no files" — and since the catalog presence-gates on
-    /// exactly these names, every configuration behind that loader quietly disappeared from the model picker, with
+    /// exactly these names, every configuration behind that loader would quietly disappear from the model picker, with
     /// the whole set reported as the misleading "ComfyUI returned no models". A transport or parse failure is a real
     /// error about a backend we already know is up, so it propagates and the caller answers 502 with the cause.</para>
     /// </summary>
@@ -305,8 +305,8 @@ public sealed class ComfyClient : IComfyClient
     /// <para>Presence-gating is otherwise entirely file-based, and that only works for a pack whose nodes LOAD
     /// something: if a loader is gone its filenames are gone, and every configuration behind it disappears. A pack
     /// whose node loads nothing — <c>AnimaLLLiteApply</c> patches a model it is handed — contributes no filenames,
-    /// so nothing about it can be inferred from the file lists and a workflow needing it looked perfectly ready
-    /// right up until submit failed on an unregistered node.</para>
+    /// so nothing about it can be inferred from the file lists and a workflow needing it would look perfectly ready
+    /// right up until submit fails on an unregistered node.</para>
     /// </summary>
     public async Task<IReadOnlySet<string>> GetPresentNodesAsync(IEnumerable<string> nodes, CancellationToken ct = default)
     {
@@ -344,9 +344,9 @@ public sealed class ComfyClient : IComfyClient
     /// success.
     /// <para>Null means one specific thing: this backend answered, and its answer does not report device VRAM. That
     /// is a real state (an older build) and the catalog reads it as "cannot VRAM-gate", offering everything. A
-    /// transport or parse FAILURE is not that state and no longer borrows its return value — it throws. Collapsing
-    /// the two turned a hiccup into a silent claim that the box's VRAM is unknown, so configurations this 24 GB card
-    /// cannot load were listed as available and failed later at the GPU instead of being filtered out here.</para>
+    /// transport or parse FAILURE is not that state and does not borrow its return value — it throws. Collapsing
+    /// the two would turn a hiccup into a silent claim that the box's VRAM is unknown, so configurations this 24 GB
+    /// card cannot load would be listed as available and fail later at the GPU instead of being filtered out here.</para>
     /// </summary>
     public async Task<long?> GetTotalVramMbAsync(CancellationToken ct = default)
     {
@@ -393,7 +393,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
     /// this workflow does NOT declare the key a time driver — so an unmarked workflow contributes no param signature and
-    /// its ETA falls back to the flat per-model average, exactly as before.</summary>
+    /// its ETA falls back to the flat per-model average.</summary>
     private static int? EtaInt(IWorkflow wf, ParamValues values, string key) =>
         wf.Schema.Any(s => s.Key == key && s.EtaVariable) ? values.Int(key, 0) : null;
 
@@ -441,8 +441,8 @@ public sealed class ComfyClient : IComfyClient
             return new SubmitResult(await SubmitAsync(wf.Build(values0, resolved0, inputs0), ct), eta0);
         }
 
-        // Distinct filename per role — a fixed name for every upload made source and references clobber each other
-        // in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
+        // Distinct filename per role — a fixed name for every upload would make source and references clobber each
+        // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
         // serializes ComfyUI work so these fixed names can't race.
         var uploadName = await UploadImageAsync(sourcePng, "forgemcp_edit_src.png", ct);
         var refNames = new List<string>();
@@ -521,10 +521,10 @@ public sealed class ComfyClient : IComfyClient
                 if (!(cfg.Params.TryGetValue(kv.Key, out var cp) && cp.Locked))
                     v[kv.Key] = kv.Value;
 
-        // A parameter declared IsModelRef holds a SLOT ID; substitute the file this machine has bound to it. These
-        // parameters used to carry filenames directly, which put a second set of one person's filenames in the
-        // configurations, outside the binding system and beyond a user's reach. One implementation, shared with the
-        // test suite's merge — see WorkflowCatalog.ResolveModelRefs.
+        // A parameter declared IsModelRef holds a SLOT ID; substitute the file this machine has bound to it. Carrying
+        // filenames directly here would put a second set of one person's filenames in the configurations, outside the
+        // binding system and beyond a user's reach. One implementation, shared with the test suite's merge — see
+        // WorkflowCatalog.ResolveModelRefs.
         _catalog.ResolveModelRefs(wf, cfg.Id, v);
         return v;
     }
@@ -558,7 +558,7 @@ public sealed class ComfyClient : IComfyClient
         return new QueueNormalizationResult(outv, string.Join("\n", notices));
     }
 
-    /// Generation prompt rules (lifted from the old BuildGenerateWorkflow): prepend the model's required tag prefix,
+    /// Generation prompt rules: prepend the model's required tag prefix,
     /// and suppress the negative for distilled models (cfg<=1) or models declaring no negative support.
     private static (string pos, string? neg) ApplyGenPromptRules(ParamValues p, string prompt, string? negative)
     {
@@ -664,7 +664,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>What ComfyUI currently holds, from <c>GET /queue</c>, with its two lists kept APART:
     /// <c>queue_running</c> is what the GPU is executing, <c>queue_pending</c> is what waits behind it. The split is
-    /// the evidence a slot's "running" status is built on — merging them (as this once did) means calling a prompt
+    /// the evidence a slot's "running" status is built on — merging them means calling a prompt
     /// that is still queued behind someone else's render "being generated".
     /// <para>The union answers the other question: a submitted prompt in neither list nor <c>/history</c> is one
     /// ComfyUI has LOST (it restarted/crashed) — the liveness signal for failing an orphaned slot instead of polling
@@ -688,9 +688,9 @@ public sealed class ComfyClient : IComfyClient
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Null here is the ANSWER, not a swallowed failure: "unknown" is a real third state that the poller is
-            // built around, and throwing instead would fail a live slot over one blocked socket. What was missing is
-            // the reason — this used to discard the exception entirely, so a backend that had been answering garbage
-            // for an hour was indistinguishable from one that was merely busy, in the logs and everywhere else.
+            // built around, and throwing instead would fail a live slot over one blocked socket. The reason is logged:
+            // discarding the exception entirely would leave a backend that has been answering garbage for an hour
+            // indistinguishable from one that is merely busy, in the logs and everywhere else.
             _logger.LogWarning(ex, "ComfyUI GET queue failed; treating the backend queue as unknown (no prompt is presumed lost).");
             return null;
         }
@@ -711,10 +711,9 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>POST <c>/interrupt</c> (empty body) to cancel the currently-running prompt. THROWS on a transport or
     /// HTTP failure, like every other call here: an interrupt that did not land means the GPU is still rendering work
-    /// somebody cancelled, which is exactly the thing an operator needs told. This used to swallow every failure —
-    /// and each of its callers wrapped it in a second empty catch — so a backend that had stopped honouring
-    /// interrupts looked identical to one that was cancelling promptly. Callers decide whether a failed interrupt
-    /// should fail their own operation; none of them may discard the reason.</summary>
+    /// somebody cancelled, which is exactly the thing an operator needs told. Swallowing the failure would make a
+    /// backend that has stopped honouring interrupts look identical to one that is cancelling promptly. Callers
+    /// decide whether a failed interrupt should fail their own operation; none of them may discard the reason.</summary>
     public async Task InterruptAsync(CancellationToken ct = default)
     {
         using var resp = await Http.PostAsync("interrupt", new ByteArrayContent(Array.Empty<byte>()), ct);
@@ -734,10 +733,10 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>POST a built workflow to /prompt under this client's client_id; return the prompt_id (no polling).</summary>
     private async Task<string> SubmitAsync(Dictionary<string, object> workflow, CancellationToken ct)
     {
-        // The submitted graph is NOT logged. It used to be, behind Logging:LogPrompts, to inspect exactly what reached
-        // the model (artist tags, prefixes, paren escaping, weights) — but the graph embeds the user's prompt and
-        // negative in plaintext, so "off by default" meant prompts were one config toggle away from being written to
-        // disk permanently. The prompt that produced any image is recoverable from the per-user ENCRYPTED log
+        // The submitted graph is NOT logged. The graph embeds the user's prompt and negative in plaintext, so logging
+        // it — even behind an "off by default" toggle, to inspect exactly what reached the model (artist tags,
+        // prefixes, paren escaping, weights) — would leave prompts one config flip away from being written to disk
+        // permanently. The prompt that produced any image is recoverable from the per-user ENCRYPTED log
         // (Logging:AuditUserPrompts), which is the channel that exists for this; the app log gets nothing.
         using var submit = await Http.PostAsJsonAsync("prompt", new { prompt = workflow, client_id = _clientId }, ct);
         await EnsureOk(submit, "POST prompt");

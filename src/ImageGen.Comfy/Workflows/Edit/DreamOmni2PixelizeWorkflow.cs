@@ -5,7 +5,7 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// Pixelizer on DreamOmni2. DreamOmni2 runs its whole diffusion inside the self-contained
 /// <c>RunningHub DreamOmni2 Editor</c> node (a quanto-int8 FLUX.1-Kontext pipeline + a VLM), so the
-/// per-step projection is done INSIDE that node: it was extended with <c>pixel_art</c> options that
+/// per-step projection is done INSIDE that node: it carries <c>pixel_art</c> options that
 /// project the flow-matching x0 estimate onto the grid+palette every step (same math as
 /// <c>PixelManifoldProjection</c>, via PixelHarness <c>quant</c>). A final <c>PixelQuantize</c> renders the
 /// authoritative output. <see cref="RequiresModel"/> = false (the pipeline loads its own weights).

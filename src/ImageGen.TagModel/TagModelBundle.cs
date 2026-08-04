@@ -6,9 +6,9 @@ namespace ImageGen.TagModel;
 /// Everything the tag model needs, loaded once from a directory of published artifacts.
 ///
 /// <para>The directory is produced by <c>tools/export-tagmodel-onnx.py</c> and published to the model's Hugging Face
-/// repo; the install script or the container fetches it. Nothing here is generated at runtime — the old arrangement
-/// exported the ONNX lazily on first run, which meant a ~900 MB artifact appearing (or failing to) during a user's
-/// first autocomplete, and a silently stale cache after any checkpoint swap.</para>
+/// repo; the install script or the container fetches it. Nothing here is generated at runtime — generating the ONNX
+/// lazily on first run would make a ~900 MB artifact appear (or fail to) during a user's first autocomplete, and
+/// leave a silently stale cache after any checkpoint swap.</para>
 /// </summary>
 public sealed class TagModelBundle : IDisposable
 {

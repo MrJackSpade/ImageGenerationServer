@@ -7,7 +7,7 @@ namespace ImageGen.Comfy;
 /// through HF Transformers). The node is a self-contained pipeline (FLUX.1-Kontext base int8-quantized via
 /// optimum-quanto + model-cpu-offload, plus a Qwen2.5-VL VLM that rewrites the instruction), so this graph just
 /// loads the source + a reference image and drives <c>RH_DreamOmni2_Edit_Pipeline</c> → <c>RH_DreamOmni2_Editor</c>.
-/// All weights are loaded internally from E:\AI\models (the node's paths were repointed there); no ComfyUI loader
+/// All weights are loaded internally from E:\AI\models (the node's paths point there); no ComfyUI loader
 /// nodes, hence <see cref="RequiresModel"/> = false. The Editor REQUIRES a reference image — if the user attaches
 /// none, the source doubles as its own reference.
 /// </summary>

@@ -2,11 +2,11 @@ namespace ImageGen.TagModel;
 
 /// <summary>
 /// Grows a whole prompt one sampled tag at a time, conditioned on the set so far, stopping when the model's
-/// completeness head says the set is finished. Ported from <c>_generate_set</c> / <c>/api/random_prompt</c>.
+/// completeness head says the set is finished.
 ///
 /// <para>There is no imposed length: <see cref="MaxSteps"/> is a runaway cap, not a target, and a set that hits it is
-/// reported as truncated rather than complete. That distinction matters — a capped set and a finished set used to be
-/// indistinguishable in the response, so a truncated prompt read as one the model considered done.</para>
+/// reported as truncated rather than complete. That distinction matters — collapsing the two would make a capped set
+/// indistinguishable from a finished one, so a truncated prompt would read as one the model considered done.</para>
 /// </summary>
 public sealed class GenerateEngine(TagModelBundle bundle)
 {

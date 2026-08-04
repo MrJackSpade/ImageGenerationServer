@@ -1,8 +1,8 @@
 namespace ImageGen.TagModel;
 
 /// <summary>
-/// Which tag categories a generation may contain, as a bitmask. Ported from <c>s2srec2/typemask.py</c>, and the
-/// numbers are load-bearing: <b>the mask int IS the row index into the model's conditioning embedding</b>, so it is
+/// Which tag categories a generation may contain, as a bitmask. The numbers are load-bearing:
+/// <b>the mask int IS the row index into the model's conditioning embedding</b>, so it is
 /// not an app-side convention that could be renumbered. Bit <c>c</c> means "category c is allowed", using gelbooru's
 /// own category numbers so there is no remap table to get wrong. Bit 2 is simply never set — gelbooru does not use it.
 /// </summary>
@@ -71,9 +71,9 @@ public static class TypeMask
     ///
     /// <para><b>The contract that catches callers out:</b> the list names the categories that stay ALLOWED, so a
     /// droppable category the caller does not mention is switched OFF. A client that hardcoded its list against an
-    /// older, smaller droppable set therefore silently disables whatever was added since. That happened once, when
-    /// general became droppable: a standing <c>character,copyright,meta</c> started reading as no-general-no-artist
-    /// and generation collapsed to <c>[highres, original]</c>.</para>
+    /// older, smaller droppable set therefore silently disables whatever was added since: a standing
+    /// <c>character,copyright,meta</c> reads as no-general-no-artist and generation collapses to
+    /// <c>[highres, original]</c>.</para>
     ///
     /// <para>A null list means <see cref="NoArtist"/>. An unrecognised name throws rather than being dropped: a typo
     /// would otherwise read as "off" and quietly change what the model may emit.</para>

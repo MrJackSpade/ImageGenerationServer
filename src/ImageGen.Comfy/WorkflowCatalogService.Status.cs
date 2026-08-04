@@ -6,9 +6,9 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// The diagnostics half of the catalogue service: what this machine can run, what it cannot, and why.
 ///
-/// <para>Unavailability used to be silent — a workflow whose files were not recognised simply did not appear in
-/// the picker, with no surface anywhere naming the empty slot. That is the single worst part of the old
-/// filename-matching design, because the failure looked exactly like "this box cannot afford that model".</para>
+/// <para>Without this, unavailability is silent — a workflow whose files are not recognised simply does not appear
+/// in the picker, with no surface anywhere naming the empty slot, and the failure looks exactly like "this box
+/// cannot afford that model".</para>
 /// </summary>
 public sealed partial class WorkflowCatalogService
 {

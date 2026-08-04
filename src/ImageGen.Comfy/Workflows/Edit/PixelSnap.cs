@@ -23,7 +23,7 @@ internal static class PixelSnap
         // Consolidated path: the snap is computed ONCE in IWorkflow.Normalize (at submit, via WriteRenderSize) and
         // cached on the param bag as _snap_w/_snap_h. When present, every workflow's Build reads it back here rather
         // than recomputing — so the render-size snap "occurs in" Normalize. Absent (e.g. a unit test calling Build
-        // directly, no Normalize pass) → fall through and compute fresh, identical to the old inline behaviour.
+        // directly, no Normalize pass) → fall through and compute fresh.
         int cw = p.Int("_snap_w", 0), ch = p.Int("_snap_h", 0);
         if (cw > 0 && ch > 0) return (cw, ch);
         if (!p.Bool("snap_resolution")) return null;   // explicitly OFF — the ONLY no-op (snap not requested)

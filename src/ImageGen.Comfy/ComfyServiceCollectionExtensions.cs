@@ -43,9 +43,8 @@ public static class ComfyServiceCollectionExtensions
         services.AddSingleton<ImageGen.Application.Civitai.ILoraMetaPopulator>(sp => sp.GetRequiredService<LoraMetaPopulator>());
         services.AddHostedService(sp => sp.GetRequiredService<LoraMetaPopulator>());
 
-        // ITagCatalog and ITagModelClient are NOT registered here any more. Both are served in-process by
-        // ImageGen.TagModel over the model's own vocabulary (AddTagModel), which replaced the tags.json store and the
-        // HTTP client that called a separate Python service on port 8000.
+        // ITagCatalog and ITagModelClient are NOT registered here. Both are served in-process by
+        // ImageGen.TagModel over the model's own vocabulary (AddTagModel).
         return services;
     }
 }

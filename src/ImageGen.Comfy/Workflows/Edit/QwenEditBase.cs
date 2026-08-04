@@ -4,7 +4,7 @@
 /// Qwen-Image-Edit (<c>TextEncodeQwenImageEditPlus</c>). Two models run this topology — the standard split model
 /// and the all-in-one (AIO) rapid checkpoint — so they are two separate workflow classes over this shared base.
 /// The only difference is the AIO bakes its own sampling, so the standard path inserts ModelSamplingAuraFlow+CFGNorm
-/// and the AIO does not (<see cref="Aio"/>). Exact lift of the old <c>qwen_image</c>/<c>qwen_image_aio</c> branch.
+/// and the AIO does not (<see cref="Aio"/>).
 /// </summary>
 public abstract class QwenEditBase : EditWorkflowBase
 {

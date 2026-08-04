@@ -70,17 +70,17 @@ public sealed class ParamSpec
     /// True when this parameter's value is a MODEL SLOT ID, not a literal value — resolved to the filename this
     /// machine has bound to that slot before the graph is built.
     ///
-    /// <para>These used to hold filenames directly, which meant a second set of the author's filenames living in
-    /// the configurations, outside the binding system and unchangeable by a user. Declaring the reference is
-    /// deliberate rather than inferring it from the value: a rule like "resolve anything that looks like a slot
-    /// id" silently rewrites any parameter whose value happens to collide.</para>
+    /// <para>Holding filenames directly would put a second set of the author's filenames in the configurations,
+    /// outside the binding system and unchangeable by a user. Declaring the reference is deliberate rather than
+    /// inferring it from the value: a rule like "resolve anything that looks like a slot id" silently rewrites any
+    /// parameter whose value happens to collide.</para>
     /// </summary>
     public bool IsModelRef { get; init; }
 
     /// <summary>True when this parameter's value materially drives render TIME, so its merged value is captured with
     /// each timing sample and used to param-match the ETA (steps, frame count). Resolution is a time driver too but is
     /// captured from the RESOLVED render (w,h) — it comes from the aspect map, not a single param — so it is not marked
-    /// here. Default false: the workflow's ETA then falls back to a flat per-model average, exactly as before.</summary>
+    /// here. Default false: the workflow's ETA then falls back to a flat per-model average.</summary>
     public bool EtaVariable { get; init; }
 }
 
@@ -206,10 +206,10 @@ public sealed class ParamValues
     /// <summary>A model-ref parameter the graph cannot be built without — the resolved FILENAME, or a failure naming
     /// the parameter.
     ///
-    /// <para>Exists because the alternative was written six times: <c>p.Str("motion_model") ?? "v3_sd15_mm.ckpt"</c>.
-    /// A hardcoded stand-in makes an unbound or missing slot render perfectly on the one machine that happens to
-    /// have that file, and on nobody else's — which is how a configuration whose slot had been deleted outright kept
-    /// reporting success. If a graph genuinely cannot proceed without a model, say so; do not guess its name.</para></summary>
+    /// <para>A hardcoded stand-in like <c>p.Str("motion_model") ?? "v3_sd15_mm.ckpt"</c> would make an unbound or
+    /// missing slot render perfectly on the one machine that happens to have that file, and on nobody else's — so a
+    /// configuration whose slot was deleted would keep reporting success. If a graph genuinely cannot proceed without
+    /// a model, say so; do not guess its name.</para></summary>
     public string Model(string key) =>
         Str(key) is { } s && !string.IsNullOrWhiteSpace(s)
             ? s
@@ -299,7 +299,7 @@ public sealed class ParamValues
 
 /// <summary>Runtime data a workflow build consumes that is NOT a stored parameter: the finalized prompt text,
 /// the chosen aspect, and (for edits) the already-uploaded ComfyUI input-folder filenames of the source and any
-/// reference images. Replaces the loose argument lists the old <c>BuildWorkflow</c>/<c>BuildEditWorkflow</c> took.</summary>
+/// reference images.</summary>
 public sealed class WorkflowInputs
 {
     public string Positive { get; init; } = "";
@@ -396,11 +396,10 @@ public sealed class ModelResolution
 /// Which loader's file list a slot draws from. Each value maps to ONE loader input, so a kind names exactly the
 /// set of files that can fill it.
 ///
-/// <para>There is deliberately no catch-all. A single <c>Other</c> value used to absorb loras, IP-adapters,
-/// CLIP-vision models, latent upsamplers and SeedVR2 weights into one pool, which meant every slot
-/// of any of those types was offered every file of all of them — 27 unrelated files on one box, and a LoRA was a
-/// selectable answer for a ControlNet pack. An unrecognised kind now fails to load rather than quietly joining a
-/// bucket.</para>
+/// <para>There is deliberately no catch-all. A single <c>Other</c> value would pool loras, IP-adapters,
+/// CLIP-vision models, latent upsamplers and SeedVR2 weights together, so every slot of any of those types would be
+/// offered every file of all of them — a LoRA a selectable answer for a ControlNet pack. An unrecognised kind fails
+/// to load rather than quietly joining a bucket.</para>
 /// </summary>
 public enum RequirementKind
 {
@@ -416,7 +415,7 @@ public enum RequirementKind
 ///
 /// <para>Deliberately carries no filename. Which file fills a slot is a fact about a machine's disk, not about
 /// the model, and lives in <c>dbo.ModelBinding</c> where a user can correct it. Shipping one filename per slot
-/// is what made a workflow vanish silently for anyone whose copy was named differently.</para>
+/// would make a workflow vanish silently for anyone whose copy was named differently.</para>
 /// </summary>
 public sealed class Requirement
 {
@@ -441,7 +440,7 @@ public sealed class Requirement
     /// <para>Most packs are gated for free: their loaders are where their filenames come from, so an uninstalled
     /// pack takes its files with it. A pack whose node loads nothing has no filenames to disappear —
     /// <c>AnimaLLLiteApply</c> patches a model it is handed — so nothing about it can be inferred from a file
-    /// list, and a workflow needing it read as ready right up until submit failed on an unregistered node. Naming
+    /// list, and a workflow needing it would read as ready right up until submit fails on an unregistered node. Naming
     /// the node is how such a requirement becomes checkable at all.</para>
     ///
     /// <para>There is nothing to bind: it is present or it is not, so <see cref="Match"/> and the binding UI do
@@ -519,8 +518,8 @@ public sealed class WorkflowConfiguration
 
     /// <summary>
     /// The output-resolution envelope PixelSnap clamps render size to, or null to fall back to the workflow's own
-    /// <c>ResolutionEnvelope</c>. It used to hang off the checkpoint's requirement; it lives on the configuration
-    /// now that a model file carries identity only. Overriding it is a ConfigOverride, not an edit to the file.
+    /// <c>ResolutionEnvelope</c>. It lives on the configuration because a model file carries identity only.
+    /// Overriding it is a ConfigOverride, not an edit to the file.
     /// </summary>
     public ModelResolution? Resolution { get; init; }
 }

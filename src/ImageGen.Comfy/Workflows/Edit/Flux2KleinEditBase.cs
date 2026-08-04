@@ -2,7 +2,7 @@
 
 /// <summary>Flux.2 Klein custom-sampler edit pipeline. Multi-image uses the ComfyUI reference_latent method (chain
 /// one ReferenceLatent per image, source first). Two models run this (4B and 9B) → two workflow classes over this
-/// base. Exact lift of the old <c>flux2_klein</c> branch.</summary>
+/// base.</summary>
 public abstract class Flux2KleinEditBase : EditWorkflowBase
 {
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

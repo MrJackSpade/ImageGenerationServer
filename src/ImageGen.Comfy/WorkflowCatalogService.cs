@@ -44,9 +44,9 @@ public sealed partial class WorkflowCatalogService(
         // so the sync Resolve() used on every submit sees the same snapshot without a query on the render path.
         var bindings = await _overrides.BindingsAsync(Environment.MachineName, ct);
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
-        // And this machine's per-configuration settings. These were written by the settings page and read by
-        // nothing: the endpoint stored rows, the merge never looked at them, so every override silently did
-        // nothing. Pushed into the catalog alongside the bindings, for the same reason.
+        // And this machine's per-configuration settings. The settings page only stores rows; the merge reads them
+        // from the in-memory catalog, so without pushing them here every override would silently do nothing. Pushed
+        // alongside the bindings, for the same reason.
         _catalog.SetParamOverrides(await _overrides.OverridesAsync(Environment.MachineName, ct));
 
         // Which custom nodes this ComfyUI has, asked once: the file lists cannot answer it, because a pack that
@@ -69,21 +69,21 @@ public sealed partial class WorkflowCatalogService(
 
             // A model workflow with no checkpoint is misconfigured; a model-free one (quantizer) is fine.
             if (wf.RequiresModel && string.IsNullOrEmpty(cfg.Requirements.Checkpoint)) continue;
-            // A slot is satisfied when this machine has BOUND a file to it and that file is still present. The
-            // filename used to be shipped in the catalogue, so anyone whose copy was named differently failed this
-            // check and lost the workflow with no explanation.
-            // Both places a configuration names a model. `requirements` was the only one consulted, so a
-            // configuration whose params model ref was unbound still appeared in the picker and then failed at
-            // submit with an empty filename reaching a loader — wan22-i2v-a14b names its second MoE expert
-            // (unet_low) nowhere but params. One rule for both: a slot the configuration ASKS FOR must be bound to
-            // a file this renderer still has. A param it does not set is absent by choice and asks for nothing.
+            // A slot is satisfied when this machine has BOUND a file to it and that file is still present. Shipping
+            // the filename in the catalogue would make anyone whose copy is named differently fail this check and
+            // lose the workflow with no explanation.
+            // A configuration names a model in two places. Consulting only `requirements` would let a configuration
+            // whose params model ref is unbound appear in the picker and then fail at submit with an empty filename
+            // reaching a loader — wan22-i2v-a14b names its second MoE expert (unet_low) nowhere but params. One rule
+            // for both: a slot the configuration ASKS FOR must be bound to a file this renderer still has. A param it
+            // does not set is absent by choice and asks for nothing.
             bool ok = cfg.Requirements.All().Concat(_catalog.ModelRefSlots(wf, cfg)).All(id =>
             {
                 var r = _catalog.FindRequirement(id);
                 if (r is null) return false;
                 // A node requirement is met by ComfyUI having the node registered. It has no file, so it can never
-                // have a binding — demanding one excluded EVERY configuration that declares a node pack from the
-                // picker, however well installed the pack was, while /forge/catalog/status reported it ready.
+                // have a binding — demanding one would exclude EVERY configuration that declares a node pack from the
+                // picker, however well installed the pack is, while /forge/catalog/status reports it ready.
                 if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
                 return bindings.TryGetValue(id, out var bound) && present.Contains(bound.FileName);
             });
@@ -94,8 +94,8 @@ public sealed partial class WorkflowCatalogService(
 
         // Per-model average runtime (machine-specific, last 10 renders). Purely a decoration on rows that are already
         // decided — the eligibility above is what this method is FOR — so a timings hiccup must not take the model
-        // picker down with it. It is reported, though: this was a bare catch, so a permanently-broken timings table
-        // presented as "no model has ever been run here" and nothing anywhere disagreed.
+        // picker down with it. It is reported, though: swallowing it in a bare catch would present a
+        // permanently-broken timings table as "no model has ever been run here", with nothing anywhere to disagree.
         IReadOnlyDictionary<string, double> avgs;
         try { avgs = await _timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct); }
         catch (Exception ex)
@@ -104,10 +104,9 @@ public sealed partial class WorkflowCatalogService(
             avgs = new Dictionary<string, double>();
         }
 
-        // Shared display name (within a kind + effect + edit section) → keep the first. It used to keep the one with
-        // the highest VRAM floor, which is how the "-hq" sibling won on a big card; both the siblings and the floor
-        // are gone. The section is part of the identity for the same reason the effect is: "Anima" under the Redraw
-        // header and a plain "Anima" editor are different offerings, not duplicates.
+        // Shared display name (within a kind + effect + edit section) → keep the first. The section is part of the
+        // identity for the same reason the effect is: "Anima" under the Redraw header and a plain "Anima" editor are
+        // different offerings, not duplicates.
         return eligible
             .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
             .Select(g => g.First())
