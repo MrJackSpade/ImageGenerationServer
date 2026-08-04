@@ -101,17 +101,20 @@ public sealed class GenerationTagTypesPersistenceTests(TestDatabaseFixture fixtu
     {
         var svc = Service();
         var user = await svc.RegisterAsync("mask_user", "password1", "", Ct);
-        Assert.Null(user!.GenerationTagTypes);                                          // unset until it is set
+        Assert.NotNull(user);
+        Assert.Null(user.GenerationTagTypes);                                          // unset until it is set
         Assert.Equal(GenerationTagTypes.Default, GenerationTagTypes.Resolve(user.GenerationTagTypes));
 
         Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, new[] { "artist", "character" }, Ct));
         var reloaded = await svc.GetByIdAsync(user.Id, Ct);
-        Assert.Equal(new[] { "artist", "character" }, GenerationTagTypes.Resolve(reloaded!.GenerationTagTypes));
+        Assert.NotNull(reloaded);
+        Assert.Equal(new[] { "artist", "character" }, GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
 
         // ...including the empty selection, which must survive as "none of them" rather than reading as unset.
         Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, Array.Empty<string>(), Ct));
         reloaded = await svc.GetByIdAsync(user.Id, Ct);
-        Assert.Empty(GenerationTagTypes.Resolve(reloaded!.GenerationTagTypes));
+        Assert.NotNull(reloaded);
+        Assert.Empty(GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
     }
 
     [Fact]
@@ -119,11 +122,13 @@ public sealed class GenerationTagTypesPersistenceTests(TestDatabaseFixture fixtu
     {
         var svc = Service();
         var user = await svc.RegisterAsync("mask_reject_user", "password1", "", Ct);
-        Assert.Null(await svc.SetGenerationTagTypesAsync(user!.Id, new[] { "meta" }, Ct));
+        Assert.NotNull(user);
+        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, new[] { "meta" }, Ct));
 
         var error = await svc.SetGenerationTagTypesAsync(user.Id, new[] { "character", "nonsense" }, Ct);
         Assert.NotNull(error);
         var reloaded = await svc.GetByIdAsync(user.Id, Ct);
-        Assert.Equal(new[] { "meta" }, GenerationTagTypes.Resolve(reloaded!.GenerationTagTypes));
+        Assert.NotNull(reloaded);
+        Assert.Equal(new[] { "meta" }, GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
     }
 }

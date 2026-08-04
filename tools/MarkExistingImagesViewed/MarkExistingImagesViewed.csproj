@@ -11,8 +11,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MarkExistingImagesViewed</RootNamespace>
-    <!-- The app's doc-comment analyzer is not worth satisfying in a file that is going to be deleted. -->
-    <NoWarn>$(NoWarn);IMGDOC001</NoWarn>
+    <!--
+      Analyzers scoped out for this throwaway, single-provider (SqlClient-only) tool, same rationale as IMGDOC001:
+      not worth satisfying in a file slated for deletion. IMGDB002 flags the (int)ExecuteScalar unbox (safe here:
+      hardwired to SQL Server, where COUNT(*) is int), and IMGNULL001 is the null-forgiving ! that same cast uses.
+      IMGDB001 is listed for parity with the sibling tool. See issue #101.
+    -->
+    <NoWarn>$(NoWarn);IMGDOC001;IMGDB001;IMGDB002;IMGNULL001</NoWarn>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
   </PropertyGroup>
 

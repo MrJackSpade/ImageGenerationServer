@@ -12,7 +12,7 @@ public static class PendingEndpoints
         // progress polled from the gateway). The originating tab still tracks its own job directly.
         api.MapGet("/pending", async (HttpContext context, PendingJobService pending) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var jobs = await pending.ListForUserAsync(userId, context.RequestAborted);
             return Results.Ok(jobs.Select(j => j.ToView()).ToList());
         });
@@ -25,7 +25,7 @@ public static class PendingEndpoints
             if (record is null || string.IsNullOrWhiteSpace(record.JobId))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var command = record.ToRegisterPendingJobCommand(userId, clock.GetUtcNow().UtcDateTime);
             await pending.RegisterAsync(command, context.RequestAborted);
             return Results.Ok(new { ok = true });

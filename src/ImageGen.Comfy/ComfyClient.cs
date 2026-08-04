@@ -563,7 +563,7 @@ public sealed class ComfyClient : IComfyClient
     private static (string pos, string? neg) ApplyGenPromptRules(ParamValues p, string prompt, string? negative)
     {
         var rp = p.Str("required_prefix");
-        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp!.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
+        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         var pos = prefix + prompt;
         // Negative = the model's default (config `negative`, else the shared DefaultNegative) with the user's UI
         // negative APPENDED — never replaced. Suppressed entirely for distilled (cfg<=1) or negative-less models.
@@ -620,7 +620,8 @@ public sealed class ComfyClient : IComfyClient
         }
         if (resultImg is { } img)
         {
-            var file = img.GetProperty("filename").GetString()!;
+            var file = img.GetProperty("filename").GetString()
+                ?? throw new JsonException("ComfyUI history image has a null 'filename'.");
             var sub = img.TryGetProperty("subfolder", out var sf) ? sf.GetString() ?? "" : "";
             var type = img.TryGetProperty("type", out var t) ? t.GetString() ?? "output" : "output";
             var bytes = await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
@@ -631,7 +632,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>Build a ComfyUI <c>/view</c> url for a saved-output ref (filename/subfolder/type).</summary>
     private static string ViewUrl(JsonElement fileRef) => ViewUrl(
-        fileRef.GetProperty("filename").GetString()!,
+        fileRef.GetProperty("filename").GetString() ?? throw new JsonException("ComfyUI output ref has a null 'filename'."),
         fileRef.TryGetProperty("subfolder", out var s) ? s.GetString() ?? "" : "",
         fileRef.TryGetProperty("type", out var t) ? t.GetString() ?? "output" : "output");
 
@@ -741,7 +742,8 @@ public sealed class ComfyClient : IComfyClient
         using var submit = await Http.PostAsJsonAsync("prompt", new { prompt = workflow, client_id = _clientId }, ct);
         await EnsureOk(submit, "POST prompt");
         using var sdoc = await JsonDocument.ParseAsync(await submit.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return sdoc.RootElement.GetProperty("prompt_id").GetString()!;
+        return sdoc.RootElement.GetProperty("prompt_id").GetString()
+            ?? throw new JsonException("ComfyUI /prompt response has a null 'prompt_id'.");
     }
 
     /// <summary>Fetch raw bytes for a legacy image id (a ComfyUI view-ref minted before DB storage) by proxying
@@ -793,7 +795,8 @@ public sealed class ComfyClient : IComfyClient
         using var resp = await Http.PostAsync("upload/image", form, ct);
         await EnsureOk(resp, "POST upload/image");
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return doc.RootElement.GetProperty("name").GetString()!;
+        return doc.RootElement.GetProperty("name").GetString()
+            ?? throw new JsonException("ComfyUI upload response has a null 'name'.");
     }
 
     /// <summary>Upload a video-to-video source CLIP to ComfyUI's input folder so <c>LoadVideo</c> can decode it. Our

@@ -34,7 +34,7 @@ public sealed class WorkflowCatalog
 
     public WorkflowCatalog(ComfyOptions config, ILogger<WorkflowCatalog> log)
     {
-        var root = config.CatalogPath ?? "";
+        var root = config.CatalogPath;
         _workflowsDir = root.Length == 0 ? "" : Path.Combine(root, "workflows");
         _modelsDir = root.Length == 0 ? "" : Path.Combine(root, "models");
         _log = log;
@@ -117,7 +117,7 @@ public sealed class WorkflowCatalog
     {
         if (string.IsNullOrWhiteSpace(slotId)) return "";
         ReloadIfChanged();
-        lock (_lock) return _bindings.TryGetValue(slotId!, out var f) ? f : "";
+        lock (_lock) return _bindings.TryGetValue(slotId, out var f) ? f : "";
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public sealed class WorkflowCatalog
                         : null;
             var slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
                                              : raw as string;
-            if (!string.IsNullOrWhiteSpace(slot)) yield return slot!;
+            if (!string.IsNullOrWhiteSpace(slot)) yield return slot;
         }
     }
 
@@ -192,7 +192,7 @@ public sealed class WorkflowCatalog
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
         ReloadIfChanged();
-        lock (_lock) return _reqById.GetValueOrDefault(id!);
+        lock (_lock) return _reqById.GetValueOrDefault(id);
     }
 
     /// <summary>Resolve a configuration's requirement-id links into the concrete on-disk filenames a workflow
@@ -225,8 +225,7 @@ public sealed class WorkflowCatalog
         lock (_lock)
             return cfg.Requirements.All()
                       .Select(id => _reqById.GetValueOrDefault(id))
-                      .Where(r => r is not null)
-                      .Select(r => r!)
+                      .OfType<Requirement>()
                       .ToList();
     }
 
@@ -303,22 +302,23 @@ public sealed class WorkflowCatalog
         var modelStamp = _modelStamp;
         if (RequireConfiguredDirectory(_modelsDir, "models"))
         {
-            modelStamp = PresentStamp(_modelsDir)!.Value;
+            modelStamp = PresentStamp(_modelsDir)
+                ?? throw new InvalidOperationException($"The models catalog directory vanished while loading: {_modelsDir}");
             var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (path, root) in ReadAll(_modelsDir))
             {
                 var id = GetStr(root, "id");
                 if (string.IsNullOrEmpty(id))
                     throw new InvalidOperationException($"{path}: a model file must have an 'id'.");
-                RequireIdMatchesFileName(path, id!);
-                RequireUnique(seen, id!, path, "model");
+                RequireIdMatchesFileName(path, id);
+                RequireUnique(seen, id, path, "model");
 
                 var kind = GetStr(root, "kind");
-                reqById[id!] = new Requirement
+                reqById[id] = new Requirement
                 {
-                    Id = id!,
+                    Id = id,
                     Kind = ParseKind(kind),
-                    Label = GetStr(root, "label") ?? id!,
+                    Label = GetStr(root, "label") ?? id,
                     Match = GetStrArray(root, "match"),
                     Node = GetStr(root, "node"),
                 };
@@ -330,7 +330,8 @@ public sealed class WorkflowCatalog
         var wfStamp = _wfStamp;
         if (RequireConfiguredDirectory(_workflowsDir, "workflows"))
         {
-            wfStamp = PresentStamp(_workflowsDir)!.Value;
+            wfStamp = PresentStamp(_workflowsDir)
+                ?? throw new InvalidOperationException($"The workflows catalog directory vanished while loading: {_workflowsDir}");
             var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (path, root) in ReadAll(_workflowsDir))
             {
@@ -340,12 +341,12 @@ public sealed class WorkflowCatalog
                 // indistinguishable from this box not being able to afford it.
                 if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(wf))
                     throw new InvalidOperationException($"{path}: a workflow file must have 'id' and 'workflow'.");
-                RequireIdMatchesFileName(path, id!);
-                RequireUnique(seen, id!, path, "workflow");
+                RequireIdMatchesFileName(path, id);
+                RequireUnique(seen, id, path, "workflow");
 
-                var entry = BuildConfiguration(root, id!, wf!);
+                var entry = BuildConfiguration(root, id, wf);
                 all.Add(entry);
-                byId[id!] = entry;
+                byId[id] = entry;
             }
         }
 

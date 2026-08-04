@@ -24,7 +24,7 @@ public sealed class GalleryController(HistoryService history, ImageViewService v
     [HttpGet("/gallery")]
     public async Task<IActionResult> Index(string? q, string? workflow, bool? unviewed, CancellationToken ct)
     {
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
         var unviewedOnly = unviewed ?? false;
         var result = await _history.GetPageAsync(
             new HistoryQuery(userId, 1, PageSize, Model: workflow, Search: q, UnviewedOnly: unviewedOnly), ct);

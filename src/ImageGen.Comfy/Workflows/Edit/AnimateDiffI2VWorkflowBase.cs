@@ -40,7 +40,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
         double fps = p.DblReq("fps");
         double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         var beta = p.StrReq("beta_schedule");
-        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel! : p.Model("motion_model");
+        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model("motion_model");
 
         wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
         object baseModel = ComfyGraph.Ref("4", 0);

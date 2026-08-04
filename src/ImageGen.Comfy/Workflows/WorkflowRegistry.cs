@@ -16,7 +16,7 @@ public sealed class WorkflowRegistry
     }
 
     public IWorkflow? Find(string? name) =>
-        string.IsNullOrWhiteSpace(name) ? null : _byName.GetValueOrDefault(name!);
+        string.IsNullOrWhiteSpace(name) ? null : _byName.GetValueOrDefault(name);
 
     public IReadOnlyCollection<IWorkflow> All => _byName.Values;
 }

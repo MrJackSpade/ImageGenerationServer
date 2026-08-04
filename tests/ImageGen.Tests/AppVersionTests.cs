@@ -59,8 +59,10 @@ public sealed class AppVersionTests
     [InlineData("0.10.0", "0.9.0", false)]             // 10 > 9, not string order
     public void Only_a_strictly_newer_release_counts(string current, string latest, bool newer)
     {
-        var running = AppVersion.Parse(current)!;
-        var published = AppVersion.Parse(latest)!;
+        var running = AppVersion.Parse(current);
+        Assert.NotNull(running);
+        var published = AppVersion.Parse(latest);
+        Assert.NotNull(published);
         Assert.Equal(newer, published > running);
     }
 
@@ -105,7 +107,7 @@ public sealed class AppVersionTests
         var behind = await new UpdateCheck(new Factory(), config, log, new Version(0, 0, 1)).GetAsync(default);
         Assert.NotNull(behind.Latest);
         Assert.NotNull(behind.Url);
-        Assert.True(Version.Parse(behind.Latest!) > new Version(0, 0, 1));
+        Assert.True(Version.Parse(behind.Latest) > new Version(0, 0, 1));
 
         // A version nothing can be newer than. Reports the running version and no update.
         var ahead = await new UpdateCheck(new Factory(), config, log, new Version(999, 0, 0)).GetAsync(default);

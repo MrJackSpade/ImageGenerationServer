@@ -426,8 +426,8 @@ public sealed class RenderOrchestrator
         foreach (var e in edits)
         {
             inputs.Add((e.ImageId, "source image"));
-            if (!string.IsNullOrWhiteSpace(e.MaskImageId)) inputs.Add((e.MaskImageId!, "inpaint mask"));
-            if (!string.IsNullOrWhiteSpace(e.LastFrameImageId)) inputs.Add((e.LastFrameImageId!, "end frame"));
+            if (!string.IsNullOrWhiteSpace(e.MaskImageId)) inputs.Add((e.MaskImageId, "inpaint mask"));
+            if (!string.IsNullOrWhiteSpace(e.LastFrameImageId)) inputs.Add((e.LastFrameImageId, "end frame"));
             foreach (var r in e.ReferenceImageIds ?? []) if (!string.IsNullOrWhiteSpace(r)) inputs.Add((r, "reference image"));
         }
 
@@ -569,53 +569,56 @@ public sealed class RenderOrchestrator
 
             if (resuming)
             {
-                promptId = slot.ComfyPromptId!;
+                promptId = slot.ComfyPromptId ?? throw new InvalidOperationException("A resuming slot must have a prompt id.");
                 lock (_lock) _comfyToSlot[promptId] = slot;
             }
             else if (slot.IsEdit)
             {
-                try { src = await GetImageBytesAsync(slot.Edit!.ImageId, ct); }
-                catch (HttpRequestException) { FailSlot(slot, $"source image '{slot.Edit!.ImageId}' not found"); return; }
+                var edit = slot.RequireEdit();
+                try { src = await GetImageBytesAsync(edit.ImageId, ct); }
+                catch (HttpRequestException) { FailSlot(slot, $"source image '{edit.ImageId}' not found"); return; }
                 var references = new List<byte[]>();
-                foreach (var refId in slot.Edit!.ReferenceImageIds ?? new List<string>())
+                foreach (var refId in edit.ReferenceImageIds ?? new List<string>())
                 {
                     try { references.Add(await GetImageBytesAsync(refId, ct)); }
                     catch (HttpRequestException) { FailSlot(slot, $"reference image '{refId}' not found"); return; }
                 }
                 byte[]? maskBytes = null;
-                if (!string.IsNullOrEmpty(slot.Edit!.MaskImageId))
+                if (!string.IsNullOrEmpty(edit.MaskImageId))
                 {
-                    try { maskBytes = await GetImageBytesAsync(slot.Edit!.MaskImageId!, ct); }
-                    catch (HttpRequestException) { FailSlot(slot, $"mask image '{slot.Edit!.MaskImageId}' not found"); return; }
+                    try { maskBytes = await GetImageBytesAsync(edit.MaskImageId, ct); }
+                    catch (HttpRequestException) { FailSlot(slot, $"mask image '{edit.MaskImageId}' not found"); return; }
                 }
                 byte[]? lastFrameBytes = null;
-                if (!string.IsNullOrEmpty(slot.Edit!.LastFrameImageId))
+                if (!string.IsNullOrEmpty(edit.LastFrameImageId))
                 {
-                    try { lastFrameBytes = await GetImageBytesAsync(slot.Edit!.LastFrameImageId!, ct); }
-                    catch (HttpRequestException) { FailSlot(slot, $"last-frame image '{slot.Edit!.LastFrameImageId}' not found"); return; }
+                    try { lastFrameBytes = await GetImageBytesAsync(edit.LastFrameImageId, ct); }
+                    catch (HttpRequestException) { FailSlot(slot, $"last-frame image '{edit.LastFrameImageId}' not found"); return; }
                 }
                 // Finalize the instruction for tag-speaking editors (inpaint), as the generate path does. Non-tag
                 // editors have no tagging block, so Finalize passes the instruction through unchanged.
-                var editInfo = _catalog.ResolveInfo(slot.Edit!.Workflow);
-                var editFinal = PromptFinalizer.Finalize(slot.Edit!.Instruction, editInfo?.Tagging);
+                var editInfo = _catalog.ResolveInfo(edit.Workflow);
+                var editFinal = PromptFinalizer.Finalize(edit.Instruction, editInfo?.Tagging);
                 // The instruction and its negative arrive in marker form and are stored verbatim, exactly as the generate
                 // path stores its raw prompt — so an edited image's prompt comes back to the box the way it was written.
-                slot.RawPrompt = slot.Edit!.Instruction;
-                slot.RawNegativePrompt = slot.Edit!.NegativePrompt;
+                slot.RawPrompt = edit.Instruction;
+                slot.RawNegativePrompt = edit.NegativePrompt;
                 slot.EffectivePrompt = editFinal.Rendered; slot.Marks = editFinal.Marks;
                 await _userLog.LogAsync(slot.Job.Owner, "submit_edit", editFinal.Rendered, ct);
                 // Finalize the negative with the SAME rules as the instruction/positive: the negative box shares the
                 // tag/artist autocomplete, so its text arrives carrying '#'/'@' markers (and underscores). Without this
                 // those markers leak raw into the negative conditioning and degrade output. Marks aren't kept (negatives
                 // aren't bookmarkable). Comfy then appends this onto the model's default negative (ComposeNegative).
-                var editNeg = PromptFinalizer.Finalize(slot.Edit!.NegativePrompt, editInfo?.Tagging).Rendered;
-                var editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, slot.Edit.Workflow, references, slot.Edit.Overrides, maskBytes, lastFrameBytes, ct);
+                var editNeg = PromptFinalizer.Finalize(edit.NegativePrompt, editInfo?.Tagging).Rendered;
+                var editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, maskBytes, lastFrameBytes, ct);
                 promptId = editSubmit.PromptId;
                 slot.EtaSignature = editSubmit.Eta;
             }
             else
             {
-                var info = _catalog.ResolveInfo(slot.Gen!.Workflow);
+                // Guard the discriminant once so the whole generate branch reads slot.Gen without re-asserting it.
+                if (slot.Gen is null) throw new InvalidOperationException("Slot is not a generate slot.");
+                var info = _catalog.ResolveInfo(slot.Gen.Workflow);
                 // The RAW prompt is the source of truth. It is the marker-form string the user submitted ("#long_hair,
                 // @greg_rutkowski"), and the random samplers below APPEND TO IT in that same dialect — so after they run
                 // it still reads as something the user could have typed. The rendered prompt and the marks are then
@@ -685,7 +688,7 @@ public sealed class RenderOrchestrator
                     bannedArtists.UnionWith(negKeys.Artists);
                     var artist = _tags.RandomArtist(bannedArtists.Count > 0 ? bannedArtists : null);
                     if (!string.IsNullOrEmpty(artist))
-                        raw = PromptFinalizer.Append(raw, PromptMarkers.ArtistMarker + PromptFinalizer.Normalize(artist!));
+                        raw = PromptFinalizer.Append(raw, PromptMarkers.ArtistMarker + PromptFinalizer.Normalize(artist));
                 }
                 // The single derivation: the prompt the model renders and the marks that describe it both come from the
                 // raw string we are about to store, so the three can never disagree.
@@ -798,7 +801,7 @@ public sealed class RenderOrchestrator
             // configurations later, as an unreadable source in an editor that consumes clips — blamed on the
             // consumer, while the producer looked healthy. A render that did not make the thing it exists to make is
             // a failed render. An mp4 is a video container by construction (CreateVideo), so it counts as a clip.
-            var declared = _catalog.ResolveInfo(slot.IsEdit ? slot.Edit!.Workflow : slot.Gen!.Workflow);
+            var declared = _catalog.ResolveInfo(slot.IsEdit ? slot.RequireEdit().Workflow : slot.RequireGen().Workflow);
             if (declared?.ProducesVideo == true && !(isMp4 || _media.IsAnimatedWebp(img.Png)))
                 throw new RenderValidationException(
                     "This is a video workflow and the render came back as a single frame, not a clip. "
@@ -819,7 +822,7 @@ public sealed class RenderOrchestrator
                 double diff = isVideo ? 1.0 : _media.Difference(src, img.Png);
                 // Some edits intentionally preserve composition (inpaint; pixel transforms). Their whole-image pHash
                 // diff is tiny BY DESIGN and would trip the no-change gate, so those workflows opt out.
-                bool preservesComposition = _catalog.ResolveInfo(slot.Edit!.Workflow)?.PreservesComposition ?? false;
+                bool preservesComposition = _catalog.ResolveInfo(slot.RequireEdit().Workflow)?.PreservesComposition ?? false;
                 if (!preservesComposition && diff < _media.NoChangeThreshold) { SlotEditNoChange(slot, Math.Round(diff, 3)); return; }
                 var editId = await StoreImageAsync(img.Png, contentType, w, h, ct);
                 await PersistSpriteDataAsync(editId, img, ct);
@@ -982,26 +985,27 @@ public sealed class RenderOrchestrator
             var friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
             // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
             // without going through RunSlotAsync's prompt build — the same shape the EffectivePrompt line has always had.
-            var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.Edit!.Instruction : slot.Gen!.Prompt);
-            var rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.Edit!.NegativePrompt : slot.Gen!.NegativePrompt);
+            var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
+            var rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
             var prompt = slot.EffectivePrompt ?? raw;
             // What the user TYPED, which for a generate only the client knows (it resolves [a|b], {a|b} and the
             // artist lock before submitting) and so travels on the spec. An edit's instruction goes through no
             // sampler at all, so for those the submitted string IS the original.
-            var original = slot.IsEdit ? slot.Edit!.Instruction : slot.Gen!.OriginalPrompt;
+            var original = slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().OriginalPrompt;
             // A generate that reached here rendered, and a render only happens once NormalizeAspect has accepted the
             // aspect at submit (it throws on anything but square/landscape/portrait) — so a null here is not a missing
             // value to fill with "square", it is a broken invariant. Edits carry no aspect: "" is their real value.
-            var aspect = slot.IsEdit ? "" : (slot.Gen!.Aspect
+            var aspect = slot.IsEdit ? "" : (slot.RequireGen().Aspect
                 ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
                 : slot.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList();
             // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
             // and Reload reproduces the exact stack; empty for edits and for generations that used none.
-            IReadOnlyList<HistoryLora> loras = slot.IsEdit || slot.Gen!.Loras is not { Count: > 0 }
+            var genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
+            IReadOnlyList<HistoryLora> loras = genLoras is not { Count: > 0 }
                 ? Array.Empty<HistoryLora>()
-                : slot.Gen.Loras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
+                : genLoras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
 
             var entry = new HistoryEntry
             {
@@ -1138,20 +1142,20 @@ public sealed class RenderOrchestrator
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
                 // The spec, field by field. It was one serialized blob; the columns it becomes are the same values
                 // with the ids left legible so the database can join and cascade on them.
-                Workflow = s.IsEdit ? s.Edit!.Workflow : s.Gen!.Workflow,
-                Prompt = s.IsEdit ? s.Edit!.Instruction : s.Gen!.Prompt,
-                NegativePrompt = s.IsEdit ? s.Edit!.NegativePrompt : s.Gen!.NegativePrompt,
-                Aspect = s.IsEdit ? null : s.Gen!.Aspect,
-                RandomArtist = s.IsEdit ? null : s.Gen!.RandomArtist,
-                RandomPrompt = s.IsEdit ? null : s.Gen!.RandomPrompt,
-                Temperature = s.IsEdit ? null : s.Gen!.Temperature,
-                TagTypesJson = s.IsEdit || s.Gen!.TagTypes is null ? null : JsonSerializer.Serialize(s.Gen!.TagTypes),
+                Workflow = s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
+                Prompt = s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
+                NegativePrompt = s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
+                Aspect = s.IsEdit ? null : s.RequireGen().Aspect,
+                RandomArtist = s.IsEdit ? null : s.RequireGen().RandomArtist,
+                RandomPrompt = s.IsEdit ? null : s.RequireGen().RandomPrompt,
+                Temperature = s.IsEdit ? null : s.RequireGen().Temperature,
+                TagTypesJson = s.IsEdit || s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
                 OverridesJson = OverridesJsonOf(s),
                 LorasJson = LorasJsonOf(s),
-                SourceImageId = s.IsEdit ? s.Edit!.ImageId : null,
-                MaskImageId = s.IsEdit ? s.Edit!.MaskImageId : null,
-                LastFrameImageId = s.IsEdit ? s.Edit!.LastFrameImageId : null,
-                ReferenceImageIds = s.IsEdit ? [.. s.Edit!.ReferenceImageIds ?? []] : [],
+                SourceImageId = s.IsEdit ? s.RequireEdit().ImageId : null,
+                MaskImageId = s.IsEdit ? s.RequireEdit().MaskImageId : null,
+                LastFrameImageId = s.IsEdit ? s.RequireEdit().LastFrameImageId : null,
+                ReferenceImageIds = s.IsEdit ? [.. s.RequireEdit().ReferenceImageIds ?? []] : [],
             });
         return rec;
     }
@@ -1160,7 +1164,7 @@ public sealed class RenderOrchestrator
     /// by parameter name — not a relation to anything — so it stays JSON, and plain: none of it is protected.</summary>
     private static string? OverridesJsonOf(RenderSlot s)
     {
-        var overrides = s.IsEdit ? s.Edit!.Overrides : s.Gen!.Overrides;
+        var overrides = s.IsEdit ? s.RequireEdit().Overrides : s.RequireGen().Overrides;
         return overrides is null ? null : JsonSerializer.Serialize(overrides);
     }
 
@@ -1169,7 +1173,7 @@ public sealed class RenderOrchestrator
     private static string? LorasJsonOf(RenderSlot s)
     {
         if (s.IsEdit) return null;
-        var loras = s.Gen!.Loras;
+        var loras = s.RequireGen().Loras;
         return loras is not { Count: > 0 } ? null : JsonSerializer.Serialize(loras);
     }
 

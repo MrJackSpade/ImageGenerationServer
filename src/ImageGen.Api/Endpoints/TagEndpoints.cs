@@ -15,7 +15,7 @@ public static class TagEndpoints
             if (req is null || string.IsNullOrWhiteSpace(req.Tag) || string.IsNullOrWhiteSpace(req.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var ok = await tags.SetAsync(userId, req.Tag, req.Id, clock.GetUtcNow().UtcDateTime, context.RequestAborted);
             return ok ? Results.Ok(new { ok = true }) : Results.NotFound();
         });
@@ -25,7 +25,7 @@ public static class TagEndpoints
         {
             if (string.IsNullOrWhiteSpace(tag))
                 return Results.BadRequest();
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await tags.ClearAsync(userId, tag, context.RequestAborted);
             return Results.NoContent();
         });

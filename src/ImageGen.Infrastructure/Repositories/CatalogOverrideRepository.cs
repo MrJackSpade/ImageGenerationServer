@@ -58,7 +58,7 @@ VALUES (@m, @s, @f, @auto, @now);");
             ins.Transaction = tx;
             ins.AddParam("@m", machineName);
             ins.AddParam("@s", slotId);
-            ins.AddParam("@f", fileName!.Trim());
+            ins.AddParam("@f", fileName.Trim());
             ins.AddParam("@auto", isAuto);
             ins.AddParam("@now", DateTime.UtcNow);
             await ins.ExecuteNonQueryAsync(ct);
@@ -150,7 +150,7 @@ VALUES (@m, @c, @k, @v, @now);");
             ins.AddParam("@m", machineName);
             ins.AddParam("@c", configId);
             ins.AddParam("@k", settingKey);
-            ins.AddParam("@v", settingValue!.Trim());
+            ins.AddParam("@v", settingValue.Trim());
             ins.AddParam("@now", DateTime.UtcNow);
             await ins.ExecuteNonQueryAsync(ct);
         }

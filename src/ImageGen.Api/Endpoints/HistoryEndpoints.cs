@@ -17,7 +17,7 @@ public static class HistoryEndpoints
         api.MapPost("/history/query", async (
             HistoryQueryRequest req, HttpContext context, HistoryService history, ImageViewService views) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             // `search` is the history page's search box: space-separated terms, ALL of which must appear in the prompt.
             var query = new HistoryQuery(
                 userId, req.Page ?? 1, req.PageSize ?? 40, req.Artist, req.Tag, req.Workflow, req.Search,
@@ -40,7 +40,7 @@ public static class HistoryEndpoints
         // job table, not of whichever browser tab happened to watch the batch run. The client renders what comes back.
         api.MapGet("/recents", async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             // An out-of-range `min` is REFUSED, not clamped. The response carries no window size (see
             // RecentsResponse), so a silently clamped request came back looking exactly like a satisfied one:
             // ask for 500 and the 200 you got read as "that is everything there is". The server still stretches
@@ -58,7 +58,7 @@ public static class HistoryEndpoints
         // cleared one image at a time, which is not a thing anyone will do to a library.
         api.MapPost("/history/viewed", async (HttpContext context, ImageViewService views) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var marked = await views.MarkAllViewedAsync(userId, context.RequestAborted);
             return Results.Ok(new { marked });
         });
@@ -70,7 +70,7 @@ public static class HistoryEndpoints
         // id carried in the query string (gateway ids may contain characters awkward in a path segment).
         api.MapDelete("/history", async (HttpContext context, HistoryService history, string id) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var removed = await history.DeleteAsync(userId, id, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });

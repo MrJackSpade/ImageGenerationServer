@@ -183,15 +183,15 @@ public sealed class ModelMatcherTests
             using var doc = JsonDocument.Parse(File.ReadAllText(path));
             var root = doc.RootElement;
             var patterns = root.TryGetProperty("match", out var m) && m.ValueKind == JsonValueKind.Array
-                ? m.EnumerateArray().Select(e => e.GetString()!).ToList()
+                ? m.EnumerateArray().Select(e => e.RequireString()).ToList()
                 : [];
             // Mirrors ParseKind: an unrecognised kind is a failure, not a bucket. If this throws, a shipped
             // slot names a kind that no loader serves.
-            var raw = root.GetProperty("kind").GetString()!;
+            var raw = root.GetProperty("kind").RequireString();
             var kind = Enum.TryParse<RequirementKind>(raw.Replace("_", ""), ignoreCase: true, out var k)
                 ? k
                 : throw new InvalidOperationException($"slot kind '{raw}' maps to no RequirementKind");
-            slots.Add(new MatchableSlot(root.GetProperty("id").GetString()!, kind, patterns));
+            slots.Add(new MatchableSlot(root.GetProperty("id").RequireString(), kind, patterns));
         }
         return slots;
     }

@@ -16,7 +16,7 @@ public static class LoraEndpoints
             var req = await Json.ReadAsync<LoraSettingsRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Lora))
                 return Results.BadRequest();
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await settings.SetAsync(new LoraUserSetting
             {
                 UserId = userId,
@@ -34,7 +34,7 @@ public static class LoraEndpoints
             if (req is null || string.IsNullOrWhiteSpace(req.Lora) || string.IsNullOrWhiteSpace(req.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var ok = await loras.SetAsync(userId, req.Lora, req.Id, clock.GetUtcNow().UtcDateTime, context.RequestAborted);
             return ok ? Results.Ok(new { ok = true }) : Results.NotFound();
         });
@@ -44,7 +44,7 @@ public static class LoraEndpoints
         {
             if (string.IsNullOrWhiteSpace(lora))
                 return Results.BadRequest();
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await loras.ClearAsync(userId, lora, context.RequestAborted);
             return Results.NoContent();
         });

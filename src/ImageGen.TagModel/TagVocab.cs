@@ -113,7 +113,8 @@ public sealed class TagVocab
         var result = new string[array.GetArrayLength()];
         var i = 0;
         foreach (var element in array.EnumerateArray())
-            result[i++] = element.GetString()!;
+            result[i++] = element.GetString()
+                ?? throw new JsonException($"Vocab array '{name}' contains a non-string element.");
         return result;
     }
 

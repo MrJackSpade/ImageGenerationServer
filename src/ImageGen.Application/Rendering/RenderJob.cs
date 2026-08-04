@@ -42,6 +42,13 @@ public sealed class RenderSlot
     /// <summary>True when this slot is an edit.</summary>
     public bool IsEdit => Edit is not null;
 
+    /// <summary>The edit spec, guaranteed non-null. Throws if this is a generate slot — the discriminant
+    /// (<see cref="IsEdit"/>) already tells the caller which spec is present, so reaching the wrong one is a bug.</summary>
+    public EditSpec RequireEdit() => Edit ?? throw new InvalidOperationException("Slot is not an edit slot.");
+
+    /// <summary>The generate spec, guaranteed non-null. Throws if this is an edit slot.</summary>
+    public GenerateSpec RequireGen() => Gen ?? throw new InvalidOperationException("Slot is not a generate slot.");
+
     /// <summary>Current lifecycle state.</summary>
     public SlotState State = SlotState.Queued;
     /// <summary>Set when a cancel has been requested for the running slot.</summary>
@@ -92,7 +99,7 @@ public sealed class RenderSlot
     public bool Submitted => ComfyPromptId is not null;
 
     /// <summary>The workflow configuration id for this slot.</summary>
-    public string Model => IsEdit ? Edit!.Workflow : Gen!.Workflow;
+    public string Model => IsEdit ? RequireEdit().Workflow : RequireGen().Workflow;
 }
 
 /// <summary>
@@ -134,7 +141,7 @@ public sealed class RenderJob
     /// <summary>The job's configuration id (from slot 0).</summary>
     public string Model => Slots.Count > 0 ? Slots[0].Model : "";
     /// <summary>The job's summary prompt/instruction (from slot 0).</summary>
-    public string Prompt => Slots.Count == 0 ? "" : (Slots[0].IsEdit ? Slots[0].Edit!.Instruction : Slots[0].Gen!.Prompt);
+    public string Prompt => Slots.Count == 0 ? "" : (Slots[0].IsEdit ? Slots[0].RequireEdit().Instruction : Slots[0].RequireGen().Prompt);
 
     /// <summary>The positional image-id array the client diffs: <c>imageIds[i]</c> is slot i's produced image (or null
     /// until it lands / if it failed).</summary>

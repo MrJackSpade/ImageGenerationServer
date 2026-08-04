@@ -39,9 +39,10 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     {
         const string machine = "cfg-live";
         var (config, source) = BuildConfig(machine);
+        Assert.NotNull(source.Provider);
         Assert.Null(config["ComfyUI:BaseUrl"]);
 
-        await source.Provider!.WriteAsync("ComfyUI:BaseUrl", "http://moved:9000", CancellationToken.None);
+        await source.Provider.WriteAsync("ComfyUI:BaseUrl", "http://moved:9000", CancellationToken.None);
 
         // The same IConfiguration instance — nothing was rebuilt. This is what makes the renderer's address
         // changeable while the app is running.
@@ -53,10 +54,11 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     {
         const string machine = "cfg-token";
         var (config, source) = BuildConfig(machine);
+        Assert.NotNull(source.Provider);
         var fired = false;
         Microsoft.Extensions.Primitives.ChangeToken.OnChange(config.GetReloadToken, () => fired = true);
 
-        await source.Provider!.WriteAsync("Auth:RegistrationCode", "hunter2", CancellationToken.None);
+        await source.Provider.WriteAsync("Auth:RegistrationCode", "hunter2", CancellationToken.None);
 
         Assert.True(fired);
     }
@@ -66,10 +68,11 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     {
         const string machine = "cfg-clear";
         var (config, source) = BuildConfig(machine);
-        await source.Provider!.WriteAsync("Auth:RegistrationCode", "code", CancellationToken.None);
+        Assert.NotNull(source.Provider);
+        await source.Provider.WriteAsync("Auth:RegistrationCode", "code", CancellationToken.None);
         Assert.Equal("code", config["Auth:RegistrationCode"]);
 
-        await source.Provider!.WriteAsync("Auth:RegistrationCode", null, CancellationToken.None);
+        await source.Provider.WriteAsync("Auth:RegistrationCode", null, CancellationToken.None);
 
         // Unset and set-to-nothing have to stay the same state: the required-key check and the first-boot flow both
         // read "is there a value", and an empty string that counts as a value would skip setup on an unset box.
@@ -125,14 +128,15 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     {
         const string machine = "cfg-bool";
         var (config, source) = BuildConfig(machine);
+        Assert.NotNull(source.Provider);
 
         Assert.Null(config["Updates:Enabled"]);
         Assert.True(config.IsOn("Updates:Enabled"));
 
         // A stored value still wins over the default, in both directions.
-        await source.Provider!.WriteAsync("Updates:Enabled", "false", CancellationToken.None);
+        await source.Provider.WriteAsync("Updates:Enabled", "false", CancellationToken.None);
         Assert.False(config.IsOn("Updates:Enabled"));
-        await source.Provider!.WriteAsync("Updates:Enabled", "true", CancellationToken.None);
+        await source.Provider.WriteAsync("Updates:Enabled", "true", CancellationToken.None);
         Assert.True(config.IsOn("Updates:Enabled"));
     }
 }

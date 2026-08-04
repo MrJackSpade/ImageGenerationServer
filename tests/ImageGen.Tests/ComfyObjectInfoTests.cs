@@ -14,7 +14,7 @@ public sealed class ComfyObjectInfoTests
         JsonDocument.Parse(json).RootElement.GetProperty(node).GetProperty("input").GetProperty("required").GetProperty(key);
 
     private static string[] Options(JsonElement el) =>
-        ComfyClient.ComboOptions(el).Select(e => e.GetString()!).ToArray();
+        ComfyClient.ComboOptions(el).Select(e => e.RequireString()).ToArray();
 
     [Fact]
     public void Classic_combo_lists_its_options_at_slot_zero()

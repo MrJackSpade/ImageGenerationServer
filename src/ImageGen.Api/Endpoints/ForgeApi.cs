@@ -51,7 +51,8 @@ public static class ForgeApi
     }
 
     /// <summary>The authenticated user that owns this request's jobs (stashed by the /forge auth filter).</summary>
-    private static long OwnerOf(HttpRequest r) => (long)r.HttpContext.Items["ForgeOwnerUserId"]!;
+    private static long OwnerOf(HttpRequest r) =>
+        (long)(r.HttpContext.Items["ForgeOwnerUserId"] ?? throw new InvalidOperationException("ForgeOwnerUserId is not set on the request."));
 
     /// <summary>The subfolder a LoRA lives in — everything before the final path separator — or "" for a root-level
     /// file. ComfyUI reports names with the OS separator, so both '/' and '\' count, and the result is normalized to '/'.</summary>
@@ -90,7 +91,7 @@ public static class ForgeApi
 
     /// <summary>The name to show for a LoRA: CivitAI's model name once known, else the filename label.</summary>
     private static string DisplayNameOf(string name, IReadOnlyDictionary<string, LoraMeta> meta) =>
-        meta.TryGetValue(name, out var m) && !string.IsNullOrWhiteSpace(m.ModelName) ? m.ModelName! : LoraLabelOf(name);
+        meta.TryGetValue(name, out var m) && !string.IsNullOrWhiteSpace(m.ModelName) ? m.ModelName : LoraLabelOf(name);
 
     /// <summary>Whether a LoRA is fully populated — nothing more will change on its card, so the client can stop
     /// polling. True when CivitAI is off (nothing to fetch), or a cache row exists AND either it promises no preview
@@ -269,7 +270,7 @@ public static class ForgeApi
                         ready = LoraReady(e.Name, enabled, metaByName, previewTypes),
                         modelName = m?.ModelName,
                         defaultTriggers = def,
-                        triggers = !string.IsNullOrWhiteSpace(us?.TriggerWords) ? us!.TriggerWords : def,
+                        triggers = !string.IsNullOrWhiteSpace(us?.TriggerWords) ? us.TriggerWords : def,
                         hasOverride = !string.IsNullOrWhiteSpace(us?.TriggerWords),
                         autoAttach = us?.AutoAttach ?? true,
                     };
@@ -412,7 +413,7 @@ public static class ForgeApi
 
             if (!artist && !string.IsNullOrWhiteSpace(ctx) && model.Enabled)
             {
-                var sug = await model.QueryAsync(ctx!, frag, n, CancellationToken.None);
+                var sug = await model.QueryAsync(ctx, frag, n, CancellationToken.None);
                 if (sug is { Count: > 0 })
                     // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours
                     // it; without this the model-ranked path returned whatever the tag server sent, so the SAME
@@ -473,7 +474,7 @@ public static class ForgeApi
             foreach (var it in req.Jobs ?? [])
                 if (!ValidTagTypes(it.TagTypes, out var itemMaskError))
                     return Results.BadRequest(new { error = itemMaskError });
-            var items = (req.Jobs ?? new List<EnqueueItem>()).Select(it => it.ToRenderItem()).Where(i => i is not null).Select(i => i!).ToList();
+            var items = (req.Jobs ?? new List<EnqueueItem>()).Select(it => it.ToRenderItem()).OfType<RenderItem>().ToList();
             if (items.Count == 0) return Results.BadRequest(new { error = "No valid jobs in the batch." });
             return await AcceptAsync(async () =>
             {
@@ -724,7 +725,7 @@ public static class ForgeApi
         double? durationSeconds = null;
         if (r.FinishedAtUtc is DateTime finished)
         {
-            var starts = ordered.Where(s => s.GenStartedAtUtc is not null).Select(s => s.GenStartedAtUtc!.Value);
+            var starts = ordered.Select(s => s.GenStartedAtUtc).OfType<DateTime>();
             var start = starts.Any() ? starts.Min() : r.CreatedAtUtc;
             var secs = (finished - start).TotalSeconds;
             if (secs >= 0) durationSeconds = Math.Round(secs, 1);
@@ -1162,12 +1163,12 @@ public static class ForgeApi
                 || !data.TryGetProperty("prompt_id", out var pid) || pid.ValueKind != JsonValueKind.String)
                 return new WsFrameDecision(true, text, null);        // no prompt_id — a general backend status frame
 
-            var comfyId = pid.GetString();
+            var comfyId = pid.GetString() ?? throw new JsonException("prompt_id is present but not a string value.");
             var owner = queue.OwnerForComfy(comfyId);
             if (owner is not long o) return new WsFrameDecision(false, text, false);   // unattributable — withhold
             if (o != me) return new WsFrameDecision(false, text, false);
             var jobId = queue.JobIdForComfy(comfyId);
-            return new WsFrameDecision(true, jobId is not null ? text!.Replace(comfyId!, jobId) : text, true);
+            return new WsFrameDecision(true, jobId is not null ? text.Replace(comfyId, jobId) : text, true);
         }
     }
 

@@ -55,12 +55,12 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
         var svc = Service();
         var created = await svc.RegisterAsync("alice_auth", "s3cretpw!", "Alice", Ct);
         Assert.NotNull(created);
-        Assert.Equal("alice_auth", created!.Username);
+        Assert.Equal("alice_auth", created.Username);
         Assert.Equal("Alice", created.DisplayName);
 
         var ok = await svc.AuthenticateAsync("alice_auth", "s3cretpw!", Ct);
         Assert.NotNull(ok);
-        Assert.Equal(created.Id, ok!.Id);
+        Assert.Equal(created.Id, ok.Id);
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
 
         var ok = await svc.AuthenticateAsync("cAsEuSeR", "password1", Ct);
         Assert.NotNull(ok);
-        Assert.Equal("CaseUser", ok!.Username);   // the row that was actually stored, not the spelling typed
+        Assert.Equal("CaseUser", ok.Username);   // the row that was actually stored, not the spelling typed
     }
 
     [Fact]
@@ -107,7 +107,8 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     public async Task Display_name_defaults_to_username()
     {
         var created = await Service().RegisterAsync("nodisplay_auth", "password1", "", Ct);
-        Assert.Equal("nodisplay_auth", created!.DisplayName);
+        Assert.NotNull(created);
+        Assert.Equal("nodisplay_auth", created.DisplayName);
     }
 
     /// <summary>
@@ -120,8 +121,9 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     {
         var svc = Service();
         var user = await svc.RegisterAsync("wfrel_auth", "password1", "", Ct);
+        Assert.NotNull(user);
 
-        await svc.SetFavoriteWorkflowsAsync(user!.Id, ["anima", "flux2"], Ct);
+        await svc.SetFavoriteWorkflowsAsync(user.Id, ["anima", "flux2"], Ct);
         await svc.SetHiddenWorkflowsAsync(user.Id, ["slow-one"], Ct);
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>
         {
@@ -150,7 +152,8 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     {
         var svc = Service();
         var user = await svc.RegisterAsync("wfcrypto_auth", "password1", "", Ct);
-        await svc.SetFavoriteWorkflowsAsync(user!.Id, ["anima"], Ct);
+        Assert.NotNull(user);
+        await svc.SetFavoriteWorkflowsAsync(user.Id, ["anima"], Ct);
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>
         {
             ["anima"] = ["my private label"],
@@ -170,7 +173,9 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
             "SELECT Tag FROM dbo.UserWorkflowTag WHERE UserId = @id;"))
         {
             cmd.AddParam("@id", user.Id);
-            Assert.NotEqual("my private label", (string)(await cmd.ExecuteScalarAsync(Ct))!);
+            var scalar = await cmd.ExecuteScalarAsync(Ct);
+            Assert.NotNull(scalar);
+            Assert.NotEqual("my private label", (string)scalar);
         }
     }
 
@@ -184,12 +189,17 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     {
         var svc = Service();
         var user = await svc.RegisterAsync("bmprefs_auth", "password1", "", Ct);
+        Assert.NotNull(user);
         const string blob = """{"collapsed":["__global__/images","Landscapes","Landscapes/tags"]}""";
 
-        await svc.SetBookmarkPrefsAsync(user!.Id, blob, Ct);
-        Assert.Equal(blob, (await svc.GetByIdAsync(user.Id, Ct))!.BookmarkPrefs);
+        await svc.SetBookmarkPrefsAsync(user.Id, blob, Ct);
+        var stored = await svc.GetByIdAsync(user.Id, Ct);
+        Assert.NotNull(stored);
+        Assert.Equal(blob, stored.BookmarkPrefs);
 
         await svc.SetBookmarkPrefsAsync(user.Id, "  ", Ct);
-        Assert.Null((await svc.GetByIdAsync(user.Id, Ct))!.BookmarkPrefs);
+        var cleared = await svc.GetByIdAsync(user.Id, Ct);
+        Assert.NotNull(cleared);
+        Assert.Null(cleared.BookmarkPrefs);
     }
 }

@@ -20,7 +20,7 @@ public sealed class ArtistController(ArtistService artists, ImageViewService vie
     [HttpGet("/artist/{name}")]
     public async Task<IActionResult> Index(string name, CancellationToken ct)
     {
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
         var (displayId, isOverride) = await _artists.GetDisplayAsync(userId, name, ct);
         var gens = await _artists.GetGensAsync(userId, name, 1, PageSize, ct);
         var viewed = await _views.ViewedAsync(userId, gens.Items, ct);

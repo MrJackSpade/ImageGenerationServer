@@ -80,7 +80,7 @@ public sealed class VocabTagCatalog : ITagCatalog
     public IReadOnlyList<TagEntry> Query(string query, bool artist, int limit)
     {
         if (limit < 1) return [];
-        var needle = (query ?? "").Trim();
+        var needle = query.Trim();
 
         // Pre-sorted by count, so the first `limit` substring matches ARE the top `limit` by count -- no scoring pass
         // over ~639k entries per keystroke.

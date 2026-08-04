@@ -41,7 +41,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
-        var back = (await fixture.Jobs.GetAsync(jobId, Ct))!.Slots.Single();
+        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(job);
+        var back = job.Slots.Single();
 
         Assert.Equal("anima", back.Workflow);
         Assert.Equal("1girl, #long_hair, @monet", back.Prompt);
@@ -80,7 +82,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
-        var back = (await fixture.Jobs.GetAsync(jobId, Ct))!.Slots.Single();
+        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(job);
+        var back = job.Slots.Single();
 
         Assert.Equal("src-1", back.SourceImageId);
         Assert.Equal("mask-1", back.MaskImageId);
@@ -160,7 +164,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             },
         ]), Ct);
 
-        var back = (await fixture.Jobs.GetAsync(jobId, Ct))!.Slots.Single();
+        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(job);
+        var back = job.Slots.Single();
 
         Assert.Equal(2, back.Marks.Count);
         Assert.Contains(back.Marks, m => m is { Token: "long_hair", Kind: TokenKind.Tag });
@@ -191,7 +197,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         await fixture.Jobs.UpsertAsync(WithReferences("a", "b", "c"), Ct);
         await fixture.Jobs.UpsertAsync(WithReferences("a"), Ct);
 
-        var back = (await fixture.Jobs.GetAsync(jobId, Ct))!.Slots.Single();
+        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(job);
+        var back = job.Slots.Single();
         Assert.Equal(["a"], back.ReferenceImageIds);
         Assert.Single(back.Marks);
     }

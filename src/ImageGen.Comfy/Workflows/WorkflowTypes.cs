@@ -353,7 +353,7 @@ public sealed class ResolvedRequirements
     /// empty stand-in.</summary>
     public string RequiredVae() =>
         !string.IsNullOrWhiteSpace(Vae)
-            ? Vae!
+            ? Vae
             : throw new RenderValidationException("This configuration needs a VAE and none is bound on this machine.");
 
     /// <summary>The resolved checkpoint/diffusion filename, or a refusal — no empty name that fails obscurely at the
@@ -368,14 +368,14 @@ public sealed class ResolvedRequirements
     /// needs it (AnimateDiff motion module; Ideogram/Krea2's unconditional/refiner UNet) and cannot proceed without.</summary>
     public string RequiredMotionModel() =>
         !string.IsNullOrWhiteSpace(MotionModel)
-            ? MotionModel!
+            ? MotionModel
             : throw new RenderValidationException("This configuration needs a second model (the motion_model slot) and none is bound on this machine.");
 
     /// <summary>The resolved ControlNet filename, or a refusal — for a workflow that needs one (line-art ControlNet,
     /// the outpaint LLLite) and cannot build its graph without it.</summary>
     public string RequiredControlNet() =>
         !string.IsNullOrWhiteSpace(ControlNet)
-            ? ControlNet!
+            ? ControlNet
             : throw new RenderValidationException("This configuration needs a ControlNet and none is bound on this machine.");
 }
 
@@ -469,9 +469,9 @@ public sealed class RequirementLinks
     {
         if (!string.IsNullOrEmpty(Checkpoint)) yield return Checkpoint;
         foreach (var te in TextEncoders) if (!string.IsNullOrEmpty(te)) yield return te;
-        if (!string.IsNullOrEmpty(Vae)) yield return Vae!;
-        if (!string.IsNullOrEmpty(MotionModel)) yield return MotionModel!;
-        if (!string.IsNullOrEmpty(ControlNet)) yield return ControlNet!;
+        if (!string.IsNullOrEmpty(Vae)) yield return Vae;
+        if (!string.IsNullOrEmpty(MotionModel)) yield return MotionModel;
+        if (!string.IsNullOrEmpty(ControlNet)) yield return ControlNet;
         foreach (var x in Extra) if (!string.IsNullOrEmpty(x)) yield return x;
     }
 }

@@ -14,7 +14,7 @@ public static class SettingsEndpoints
         // own column, so one autosave can never clobber another's.
         api.MapGet("/settings", async (HttpContext context, UserService users) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var user = await users.GetByIdAsync(userId, context.RequestAborted);
             // An authenticated request whose user row is gone is a stale session, not an empty account: 401 sends the
             // caller to re-authenticate, where returning blank settings would instead read as a real (empty) account.
@@ -37,7 +37,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<ComposerPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetComposerPrefsAsync(userId, request.ComposerPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -49,7 +49,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<EditPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetEditPrefsAsync(userId, request.EditPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -60,7 +60,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<BookmarkPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetBookmarkPrefsAsync(userId, request.BookmarkPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -71,7 +71,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<FavoriteWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetFavoriteWorkflowsAsync(userId, request.FavoriteWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -82,7 +82,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<WorkflowTagsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetWorkflowTagsAsync(userId, request.CustomWorkflowTags, context.RequestAborted);
             return Results.NoContent();
         });
@@ -93,7 +93,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<HiddenWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetHiddenWorkflowsAsync(userId, request.HiddenWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -104,7 +104,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<HiddenApiWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await users.SetHiddenApiWorkflowsAsync(userId, request.HiddenApiWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -116,7 +116,7 @@ public static class SettingsEndpoints
             var request = await Json.ReadAsync<GenerationTagTypesRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             // An unknown type name is rejected, not dropped: a dropped name would read as "switched off" and quietly
             // change what the model generates.
             var error = await users.SetGenerationTagTypesAsync(userId, request.GenerationTagTypes, context.RequestAborted);

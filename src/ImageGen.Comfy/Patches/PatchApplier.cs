@@ -80,14 +80,14 @@ public static class PatchApplier
         foreach (var (path, content) in outcome.Writes)
         {
             var full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             File.WriteAllText(full, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
 
         foreach (var (path, bytes) in outcome.BinaryWrites)
         {
             var full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             File.WriteAllBytes(full, bytes);
         }
 
@@ -95,7 +95,7 @@ public static class PatchApplier
         {
             var full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(full)) File.Delete(full);
-            PruneEmptyDirectories(root, Path.GetDirectoryName(full)!);
+            PruneEmptyDirectories(root, Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
         }
     }
 
@@ -165,9 +165,10 @@ public static class PatchApplier
                     // A carried file has no lines to reconcile: it is these exact bytes or it is not.
                     if (file.IsBinary)
                     {
-                        if (!exists) { binaryWrites[file.Path] = file.Bytes!; break; }
-                        if (File.ReadAllBytes(full).AsSpan().SequenceEqual(file.Bytes)) break;
-                        if (overwrite) binaryWrites[file.Path] = file.Bytes!;
+                        var bytes = file.Bytes ?? throw new InvalidOperationException($"Binary patch file '{file.Path}' carries no bytes.");
+                        if (!exists) { binaryWrites[file.Path] = bytes; break; }
+                        if (File.ReadAllBytes(full).AsSpan().SequenceEqual(bytes)) break;
+                        if (overwrite) binaryWrites[file.Path] = bytes;
                         else occupied.Add(file.Path);
                         break;
                     }

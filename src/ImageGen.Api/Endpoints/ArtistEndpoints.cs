@@ -15,7 +15,7 @@ public static class ArtistEndpoints
             if (req is null || string.IsNullOrWhiteSpace(req.Artist) || string.IsNullOrWhiteSpace(req.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var ok = await artists.SetAsync(userId, req.Artist, req.Id, clock.GetUtcNow().UtcDateTime, context.RequestAborted);
             return ok ? Results.Ok(new { ok = true }) : Results.NotFound();
         });
@@ -25,7 +25,7 @@ public static class ArtistEndpoints
         {
             if (string.IsNullOrWhiteSpace(artist))
                 return Results.BadRequest();
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await artists.ClearAsync(userId, artist, context.RequestAborted);
             return Results.NoContent();
         });

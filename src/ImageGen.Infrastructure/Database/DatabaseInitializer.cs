@@ -93,7 +93,8 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         // EndsWith with the '.' guard, so "schema.sql" cannot also match "schema.sqlite.sql".
         var name = assembly.GetManifestResourceNames()
             .Single(n => n.EndsWith("." + fileName, StringComparison.OrdinalIgnoreCase));
-        using var stream = assembly.GetManifestResourceStream(name)!;
+        using var stream = assembly.GetManifestResourceStream(name)
+            ?? throw new InvalidOperationException($"Embedded schema resource '{name}' was not found.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }

@@ -69,9 +69,9 @@ public sealed class WorkflowGraphTests
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig(configId);
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var graph = wf!.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
+        var graph = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
         Assert.NotEmpty(graph);
         return JsonSerializer.Serialize(graph);
     }
@@ -90,8 +90,9 @@ public sealed class WorkflowGraphTests
         // red test, and the number is then updated by whoever is in a hurry.
         var onDisk = Directory.GetFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json").Length;
         Assert.Equal(onDisk, catalog.AllConfigs().Count);
-        Assert.NotNull(catalog.FindConfig("pony-v6"));
-        Assert.NotNull(catalog.FindRequirement(catalog.FindConfig("pony-v6")!.Requirements.Checkpoint));
+        var pony = catalog.FindConfig("pony-v6");
+        Assert.NotNull(pony);
+        Assert.NotNull(catalog.FindRequirement(pony.Requirements.Checkpoint));
     }
 
     /// <summary>
@@ -185,10 +186,10 @@ public sealed class WorkflowGraphTests
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("pixelanima");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         // It's a GENERATE workflow (text→image, no source), not an edit.
-        Assert.Equal(WorkflowKind.Generate, wf!.Kind);
+        Assert.Equal(WorkflowKind.Generate, wf.Kind);
         Assert.Equal(WorkflowMedia.Image, wf.Media);
 
         var json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg),
@@ -219,10 +220,10 @@ public sealed class WorkflowGraphTests
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("pixel-quantize-video");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         // It declares a VIDEO source (so the edit submit uploads a real clip + loads it) and a VIDEO output.
-        Assert.Equal(WorkflowMedia.Video, wf!.SourceMedia);
+        Assert.Equal(WorkflowMedia.Video, wf.SourceMedia);
         Assert.Equal(WorkflowMedia.Video, wf.Media);
         Assert.False(wf.RequiresModel);   // model-free — survives the catalog's no-checkpoint gate
 
@@ -250,7 +251,9 @@ public sealed class WorkflowGraphTests
         var inputs = new WorkflowInputs { SourceVideoName = "forgemcp_edit_src.mp4" };
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("pixel-quantize-video");
-        var wf = registry.Find(cfg!.WorkflowName)!;
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
 
         // Schema no longer carries defaults (Phase B); supply every param the graph reads, engine flipped to fp.
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
@@ -444,8 +447,10 @@ public sealed class WorkflowGraphTests
         // Push well past Photanima's budget and it downscales too — to /16-snapped dims, aspect preserved.
         var big = new WorkflowInputs { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 2048, SourceHeight = 2048 };
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("photanima-redraw")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("photanima-redraw");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var bigJson = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), big));
         Assert.Contains("\"ImageScale\"", bigJson);
         Assert.Contains("\"width\":1024", bigJson);    // sqrt(1044480/2048^2)*2048 = 1022 → snapped to 1024
@@ -461,8 +466,10 @@ public sealed class WorkflowGraphTests
         // A 0.1 step can't express 0.35 (and makes 0.6 a coarse slider). The configs omit `step`, so the value has to
         // come from the workflow's ParamSpec — assert it survives the config→spec fallback.
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig(configId)!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig(configId);
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var spec = wf.Schema.First(s => s.Key == "denoise");
         Assert.Equal(0.01, spec.Step);
         Assert.Null(cfg.Params["denoise"].Step);   // nothing overrides it at the config layer
@@ -496,7 +503,8 @@ public sealed class WorkflowGraphTests
         var (catalog, _) = Build();
         foreach (var id in new[] { "anima-redraw", "photanima-redraw", "krea2-redraw" })
         {
-            var cfg = catalog.FindConfig(id)!;
+            var cfg = catalog.FindConfig(id);
+            Assert.NotNull(cfg);
             Assert.Equal("Redraw", cfg.EditGroup);
             Assert.Null(cfg.EffectType);   // must NOT be an effect — that would move it to the Effects tab
             Assert.DoesNotContain("redraw", (cfg.FriendlyName ?? "").ToLowerInvariant());
@@ -510,7 +518,8 @@ public sealed class WorkflowGraphTests
         var (catalog, _) = Build();
         foreach (var id in new[] { "upscale-anime", "upscale-photo", "seedvr2-upscale" })
         {
-            var cfg = catalog.FindConfig(id)!;
+            var cfg = catalog.FindConfig(id);
+            Assert.NotNull(cfg);
             Assert.Equal("Upscale", cfg.EditGroup);
             Assert.Null(cfg.EffectType);   // must NOT be an effect — that would move it to the Effects tab
             Assert.DoesNotContain("upscale", (cfg.FriendlyName ?? "").ToLowerInvariant());
@@ -625,12 +634,13 @@ public sealed class WorkflowGraphTests
         // and a node slot can never have one — linking it gated the configuration off permanently. Eligibility is
         // node-aware now, so the link expresses the real dependency instead of being a trap.
         var (catalog, _) = Build();
-        var cfg = catalog.FindConfig("seedvr2-upscale")!;
+        var cfg = catalog.FindConfig("seedvr2-upscale");
+        Assert.NotNull(cfg);
         Assert.Contains("comfyui-seedvr2-node", cfg.Requirements.All());
 
         var node = catalog.FindRequirement("comfyui-seedvr2-node");
         Assert.NotNull(node);
-        Assert.False(string.IsNullOrWhiteSpace(node!.Node));   // met by node presence, not by a bound file
+        Assert.False(string.IsNullOrWhiteSpace(node.Node));   // met by node presence, not by a bound file
 
         foreach (var id in cfg.Requirements.All())
             Assert.NotNull(catalog.FindRequirement(id));
@@ -871,7 +881,9 @@ public sealed class WorkflowGraphTests
     {
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("flux1-fill-outpaint");
-        var wf = registry.Find(cfg!.WorkflowName)!;
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -964,7 +976,9 @@ public sealed class WorkflowGraphTests
         // ImageCompositeMasked blended it in, producing a grey frame (measured: RGB 127 at x=0).
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("qwen-image-outpaint");
-        var wf = registry.Find(cfg!.WorkflowName)!;
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1059,10 +1073,10 @@ public sealed class WorkflowGraphTests
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("qwen-image-outpaint");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf!.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         v["pad_left"] = 600; v["pad_right"] = 600;
         var inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
@@ -1202,8 +1216,10 @@ public sealed class WorkflowGraphTests
         // latent shaped like the RECT (stride-aligned), and the decode is pasted back onto a white full-size canvas at
         // the rect's offset — so the model fills a correctly-shaped frame rather than being clipped by a mask.
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-edit")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("qwen-image-edit");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1251,8 +1267,10 @@ public sealed class WorkflowGraphTests
     public void QwenImageEdit_rejects_a_degenerate_mask(int l, int r, int t, int b)
     {
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-edit")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("qwen-image-edit");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1381,9 +1399,9 @@ public sealed class WorkflowGraphTests
         catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + extension));
         var cfg = catalog.FindConfig(configId);
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        return JsonSerializer.Serialize(wf!.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
+        return JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
     }
 
     /// <summary>
@@ -1397,10 +1415,10 @@ public sealed class WorkflowGraphTests
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("flux1-dev");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg!.WorkflowName);
+        var wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
-        var shipped = JsonSerializer.Serialize(wf!.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
+        var shipped = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":28", shipped);
 
         catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
@@ -1451,8 +1469,10 @@ public sealed class WorkflowGraphTests
         // Each pad_*_pct adds dim·pct/100 px on that side; the source is composited onto the enlarged white canvas at
         // the top-left additions, and THAT feeds the total-pixel scale instead of the raw LoadImage.
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("wan22-i2v-a14b")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("wan22-i2v-a14b");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1539,8 +1559,10 @@ public sealed class WorkflowGraphTests
         // Neutral values (multiplier 1.0 + all-ones weights) → no rebalance node; the graph is plain Krea 2. The
         // krea2 configs now BAKE a non-neutral rebalance, so force neutral here to exercise the workflow's skip path.
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2-turbo")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("krea2-turbo");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1576,8 +1598,10 @@ public sealed class WorkflowGraphTests
     public void Krea2_with_rebalance_splices_the_node_between_encode_and_sampler()
     {
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2-turbo")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("krea2-turbo");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1605,8 +1629,10 @@ public sealed class WorkflowGraphTests
     {
         // Multiplier neutral (1.0) but non-neutral weights still activates the node (weights-only rebalance).
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("krea2");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
@@ -1655,8 +1681,10 @@ public sealed class WorkflowGraphTests
     {
         // The settings layer + an override flow into the graph: raise steps via a merged value.
         var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("pony-v6")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("pony-v6");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;

@@ -196,7 +196,8 @@ SELECT last_insert_rowid();";
             cmd.CommandText = "SELECT COUNT(*) FROM dbo.N;";
             var boxed = await cmd.ExecuteScalarAsync();
             Assert.IsType<long>(boxed);
-            Assert.Throws<InvalidCastException>(() => (int)boxed!);
+            Assert.NotNull(boxed);
+            Assert.Throws<InvalidCastException>(() => (int)boxed);
             Assert.Equal(1, Convert.ToInt32(boxed));   // what ScalarInt32Async does instead
         }
     }

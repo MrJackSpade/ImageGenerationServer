@@ -35,7 +35,7 @@ public sealed class ImageController(
 
     private async Task<ImageDetailViewModel?> BuildAsync(string id, CancellationToken ct)
     {
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
         var entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is null)
             return null;

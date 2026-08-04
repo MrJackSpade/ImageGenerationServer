@@ -36,7 +36,7 @@ public sealed class NodeRequirementTests
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(file));
             var cfg = doc.RootElement;
-            var workflow = cfg.GetProperty("workflow").GetString()!;
+            var workflow = cfg.GetProperty("workflow").RequireString();
             if (!needsByWorkflow.TryGetValue(workflow, out var needed)) continue;
 
             var declared = DeclaredRequirements(cfg);
@@ -102,9 +102,9 @@ public sealed class NodeRequirementTests
         if (!cfg.TryGetProperty("requirements", out var req)) return set;
         foreach (var prop in req.EnumerateObject())
         {
-            if (prop.Value.ValueKind == JsonValueKind.String) set.Add(prop.Value.GetString()!);
+            if (prop.Value.ValueKind == JsonValueKind.String) set.Add(prop.Value.RequireString());
             else if (prop.Value.ValueKind == JsonValueKind.Array)
-                foreach (var e in prop.Value.EnumerateArray()) set.Add(e.GetString()!);
+                foreach (var e in prop.Value.EnumerateArray()) set.Add(e.RequireString());
         }
         return set;
     }

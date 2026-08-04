@@ -27,7 +27,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         var after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
-        Assert.Equal(JobStatus.Error, after!.Status);
+        Assert.Equal(JobStatus.Error, after.Status);
         Assert.NotNull(after.FinishedAtUtc);
 
         // The slot that actually produced an image keeps its result; only the unfinished ones are failed.
@@ -58,7 +58,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         var after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
-        Assert.Equal(JobStatus.Cancelled, after!.Status);
+        Assert.Equal(JobStatus.Cancelled, after.Status);
         Assert.NotNull(after.FinishedAtUtc);
         Assert.Equal(JobSlotState.Done, after.Slots.Single(s => s.SlotIndex == 0).State);
         Assert.Equal("produced-image", after.Slots.Single(s => s.SlotIndex == 0).ImageId);
@@ -80,7 +80,8 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         await fixture.Jobs.FailAsync(jobId, "could not be resumed after restart", Ct);
 
         var after = await fixture.Jobs.GetAsync(jobId, Ct);
-        Assert.Equal(JobStatus.Done, after!.Status);
+        Assert.NotNull(after);
+        Assert.Equal(JobStatus.Done, after.Status);
         Assert.Equal(JobSlotState.Done, after.Slots.Single().State);
     }
 
@@ -171,7 +172,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         var after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
-        Assert.Equal([0, 2], after!.Slots.Select(s => s.SlotIndex).OrderBy(i => i).ToArray());
+        Assert.Equal([0, 2], after.Slots.Select(s => s.SlotIndex).OrderBy(i => i).ToArray());
     }
 
     /// <summary>When the sweep removes the last slot, the job row goes with it rather than lingering as an empty shell.</summary>
@@ -211,7 +212,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         var after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
-        Assert.Equal(2, after!.Slots.Count);
+        Assert.Equal(2, after.Slots.Count);
     }
 
     private static JobRecord Job(long userId, string jobId, string machine = "BOX-A", List<JobSlotRecord>? slots = null) => new()

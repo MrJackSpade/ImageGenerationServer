@@ -79,10 +79,11 @@ public sealed class ComfyPatchService(
 
         if (info.Ok)
         {
+            var root = info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.");
             foreach (var patch in Load())
             {
-                var (state, detail) = ComfyPatchCatalog.Inspect(patch, info.Root!);
-                var target = patch.ResolveTarget(info.Root!);
+                var (state, detail) = ComfyPatchCatalog.Inspect(patch, root);
+                var target = patch.ResolveTarget(root);
                 var occupied = state == PatchState.Conflicted && Directory.Exists(target)
                     ? PatchApplier.Occupied(target, patch.Files)
                     : [];

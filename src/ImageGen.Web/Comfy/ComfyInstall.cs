@@ -114,7 +114,9 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     public string RequireRoot()
     {
         var info = Describe();
-        return info.Ok ? info.Root! : throw new InvalidOperationException(info.Error!);
+        return info.Ok
+            ? info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.")
+            : throw new InvalidOperationException(info.Error ?? "The configured renderer folder is not usable.");
     }
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

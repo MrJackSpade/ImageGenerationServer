@@ -24,7 +24,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
 
         var fetched = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-1", Ct);
         Assert.NotNull(fetched);
-        Assert.Equal("a prompt", fetched!.Prompt);
+        Assert.Equal("a prompt", fetched.Prompt);
         Assert.Equal(2, fetched.Marks.Count);
         Assert.Contains(fetched.Marks, m => m is { Token: "van_gogh", Kind: TokenKind.Artist });
     }
@@ -42,7 +42,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
             Entry(user.Id, "img-raw", marks: [new Mark("long_hair", TokenKind.Tag)], rawPrompt: raw), Ct);
 
         var fetched = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-raw", Ct);
-        Assert.Equal(raw, fetched!.RawPrompt);
+        Assert.NotNull(fetched);
+        Assert.Equal(raw, fetched.RawPrompt);
     }
 
     [Fact]
@@ -59,9 +60,11 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
 
         var withNegative = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-neg", Ct);
         var without = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-noneg", Ct);
+        Assert.NotNull(withNegative);
+        Assert.NotNull(without);
 
-        Assert.Equal(negative, withNegative!.RawNegativePrompt);
-        Assert.Null(without!.RawNegativePrompt);
+        Assert.Equal(negative, withNegative.RawNegativePrompt);
+        Assert.Null(without.RawNegativePrompt);
     }
 
     [Fact]
@@ -73,7 +76,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         await fixture.History.AddAsync(Entry(user.Id, "img-norow"), Ct);
 
         var fetched = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-norow", Ct);
-        Assert.Null(fetched!.RawPrompt);
+        Assert.NotNull(fetched);
+        Assert.Null(fetched.RawPrompt);
     }
 
     [Fact]
@@ -129,12 +133,14 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         await fixture.History.AddAsync(Entry(user.Id, "img-no-original", rawPrompt: "1girl"), Ct);
 
         var typed = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-original", Ct);
-        Assert.Equal("1girl, #[blue|red]_hair", typed!.OriginalPrompt);
+        Assert.NotNull(typed);
+        Assert.Equal("1girl, #[blue|red]_hair", typed.OriginalPrompt);
         Assert.Equal("1girl, #blue_hair", typed.RawPrompt);   // what was submitted, already resolved
         Assert.Equal("1girl, blue hair", typed.Prompt);       // what the model rendered
 
         var none = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-no-original", Ct);
-        Assert.Null(none!.OriginalPrompt);
+        Assert.NotNull(none);
+        Assert.Null(none.OriginalPrompt);
     }
 
     /// <summary>

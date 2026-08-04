@@ -23,8 +23,9 @@ public sealed class CustomNodePresenceTests
     {
         var repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
+        Assert.NotNull(repo);
 
-        var models = Path.Combine(repo!, "configurations", "models");
+        var models = Path.Combine(repo, "configurations", "models");
         var slot = JsonDocument.Parse(File.ReadAllText(Path.Combine(models, "comfyui-anima-lllite.json"))).RootElement;
 
         Assert.Equal("custom_node", slot.GetProperty("kind").GetString());
@@ -32,7 +33,7 @@ public sealed class CustomNodePresenceTests
 
         // The workflow has to actually ask for it, or the requirement exists and gates nothing.
         var config = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(repo!, "configurations", "workflows", "anima-outpaint.json"))).RootElement;
+            File.ReadAllText(Path.Combine(repo, "configurations", "workflows", "anima-outpaint.json"))).RootElement;
         var extra = config.GetProperty("requirements").GetProperty("extra").EnumerateArray()
             .Select(e => e.GetString()).ToList();
         Assert.Contains("comfyui-anima-lllite", extra);
@@ -47,9 +48,10 @@ public sealed class CustomNodePresenceTests
     {
         var repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
+        Assert.NotNull(repo);
 
         var missing = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(repo!, "configurations", "models"), "*.json"))
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json"))
         {
             var root = JsonDocument.Parse(File.ReadAllText(file)).RootElement;
             if (root.TryGetProperty("kind", out var kind) && kind.GetString() == "custom_node"
@@ -71,8 +73,9 @@ public sealed class CustomNodePresenceTests
     {
         var baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
+        Assert.NotNull(baseUrl);
 
-        using var http = new HttpClient { BaseAddress = new Uri(baseUrl!.TrimEnd('/') + "/") };
+        using var http = new HttpClient { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/") };
 
         using var known = await http.GetAsync("object_info/AnimaLLLiteApply");
         known.EnsureSuccessStatusCode();

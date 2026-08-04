@@ -53,7 +53,8 @@ public sealed partial class WorkflowCatalogService(
         // loads no weights contributes no filenames to look for.
         var declaredNodes = _catalog.AllRequirements()
             .Where(r => !string.IsNullOrWhiteSpace(r.Node))
-            .Select(r => r.Node!)
+            .Select(r => r.Node)
+            .OfType<string>()
             .Distinct()
             .ToList();
         var presentNodes = declaredNodes.Count == 0
@@ -83,7 +84,7 @@ public sealed partial class WorkflowCatalogService(
                 // A node requirement is met by ComfyUI having the node registered. It has no file, so it can never
                 // have a binding — demanding one excluded EVERY configuration that declares a node pack from the
                 // picker, however well installed the pack was, while /forge/catalog/status reported it ready.
-                if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node!);
+                if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
                 return bindings.TryGetValue(id, out var bound) && present.Contains(bound.FileName);
             });
             if (!ok) continue;

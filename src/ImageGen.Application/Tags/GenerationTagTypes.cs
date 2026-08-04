@@ -101,7 +101,7 @@ public static class GenerationTagTypes
         var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var raw in requested ?? Enumerable.Empty<string>())
         {
-            var name = (raw ?? string.Empty).Trim();
+            var name = raw.Trim();
             if (name.Length == 0) continue;
             if (!Selectable.Contains(name, StringComparer.OrdinalIgnoreCase))
             {

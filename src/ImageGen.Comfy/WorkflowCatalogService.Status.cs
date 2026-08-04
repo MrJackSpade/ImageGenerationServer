@@ -26,8 +26,10 @@ public sealed partial class WorkflowCatalogService
                  .Select(s => new MatchableSlot(s.Id, s.Kind, s.Match)),
             byKind);
 
-        var auto = matches.Where(m => m.AutoBind is not null)
-                          .ToDictionary(m => m.SlotId, m => m.AutoBind!, StringComparer.OrdinalIgnoreCase);
+        var auto = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in matches)
+            if (m.AutoBind is { } bind)
+                auto[m.SlotId] = bind;
         if (auto.Count > 0)
         {
             await _overrides.AddAutoBindingsAsync(machine, auto, ct);
@@ -56,14 +58,14 @@ public sealed partial class WorkflowCatalogService
         var nodeRequirements = slots.Where(s => !string.IsNullOrWhiteSpace(s.Node)).ToList();
         var presentNodes = nodeRequirements.Count == 0
             ? (IReadOnlySet<string>)new HashSet<string>()
-            : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node!), ct);
+            : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node).OfType<string>(), ct);
 
         // A bound file that ComfyUI no longer reports is as missing as one that was never bound — the weights were
         // moved or deleted, and saying "bound" would be a lie the picker then contradicts.
         bool Satisfied(string slotId)
         {
             if (_catalog.FindRequirement(slotId) is not { } r) return false;
-            if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node!);
+            if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
 
             return bindings.TryGetValue(slotId, out var bound)
                 && byKind.TryGetValue(r.Kind, out var files)
@@ -109,9 +111,8 @@ public sealed partial class WorkflowCatalogService
     private void GuardAspectAgainstEnvelope(string configId, string json)
     {
         var cfg = _catalog.FindConfig(configId);
-        var env = cfg?.Resolution;
-        if (env is null) return;
-        var name = cfg!.FriendlyName ?? cfg.Id;
+        if (cfg?.Resolution is not { } env) return;
+        var name = cfg.FriendlyName ?? cfg.Id;
 
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         foreach (var aspect in doc.RootElement.EnumerateObject())
@@ -139,7 +140,7 @@ public sealed partial class WorkflowCatalogService
         if (string.Equals(settingKey, "param.aspect", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(settingValue))
         {
-            GuardAspectAgainstEnvelope(configId, settingValue!);
+            GuardAspectAgainstEnvelope(configId, settingValue);
         }
 
         await _overrides.SetOverrideAsync(Environment.MachineName, configId, settingKey, settingValue, ct);

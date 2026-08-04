@@ -59,12 +59,12 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
     /// </summary>
     public async Task<UpdateStatus> GetAsync(CancellationToken ct)
     {
-        if (IsFresh) return _answer!;
+        if (FreshAnswer is { } cached) return cached;
 
         await _gate.WaitAsync(ct);
         try
         {
-            if (IsFresh) return _answer!;   // another request refreshed it while we waited on the gate
+            if (FreshAnswer is { } refreshed) return refreshed;   // another request refreshed it while we waited on the gate
 
             _answer = await AskAsync(ct);
             _checkedAtUtc = DateTime.UtcNow;
@@ -76,8 +76,9 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
         }
     }
 
-    /// <summary>An answer we already have, last checked within <see cref="MaxAge"/>.</summary>
-    private bool IsFresh => _answer is not null && DateTime.UtcNow - _checkedAtUtc < MaxAge;
+    /// <summary>The answer we already have if it was last checked within <see cref="MaxAge"/>; else null.</summary>
+    private UpdateStatus? FreshAnswer =>
+        _answer is { } a && DateTime.UtcNow - _checkedAtUtc < MaxAge ? a : null;
 
     private async Task<UpdateStatus> AskAsync(CancellationToken ct)
     {

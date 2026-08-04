@@ -111,9 +111,9 @@ public sealed class LoraMetaPopulator(
         // when its bytes were actually cached, so "row exists + PreviewUrl set" always implies a served preview — that
         // invariant is what lets the client stop polling exactly when the card is fully populated.
         var cached = !string.IsNullOrEmpty(info?.PreviewImageUrl)
-                     && await CachePreviewAsync(previews, name, info!.PreviewImageUrl!, ct);
+                     && await CachePreviewAsync(previews, name, info.PreviewImageUrl, ct);
         await meta.UpsertAsync(
-            new LoraMeta(name, sha, info?.TrainedWords ?? [], info?.ModelName, cached ? info!.PreviewImageUrl : null, DateTime.UtcNow), ct);
+            new LoraMeta(name, sha, info?.TrainedWords ?? [], info?.ModelName, cached ? info?.PreviewImageUrl : null, DateTime.UtcNow), ct);
     }
 
     private async Task<bool> CachePreviewAsync(ILoraPreviewRepository previews, string name, string url, CancellationToken ct)

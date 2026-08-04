@@ -57,7 +57,7 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
             var entries = Directory.GetFileSystemEntries(staging);
             var root = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? throw new InvalidOperationException($"'{destination}' has no parent directory."));
             Directory.Move(root, destination);
         }
         catch (Exception ex) when (ex is not FetchException and not OperationCanceledException)
@@ -114,7 +114,7 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
                 continue;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             await entry.ExtractToFileAsync(full, overwrite: false, ct);
         }
     }

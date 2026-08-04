@@ -34,7 +34,14 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     private readonly IConfiguration _config = config;
     private readonly ILogger<ComfySupervisor> _log = log;
 
-    private string? Directory => string.IsNullOrWhiteSpace(_config[DirectoryKey]) ? null : _config[DirectoryKey]!.Trim();
+    private string? Directory
+    {
+        get
+        {
+            var dir = _config[DirectoryKey];
+            return string.IsNullOrWhiteSpace(dir) ? null : dir.Trim();
+        }
+    }
 
     /// <summary>
     /// True when this deployment supervises ComfyUI AND it is running right now. Both halves matter: the first

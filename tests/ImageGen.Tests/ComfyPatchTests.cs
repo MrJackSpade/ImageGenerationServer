@@ -26,7 +26,7 @@ public sealed class ComfyPatchTests : IDisposable
     private string Write(string relative, string content)
     {
         var full = Path.Combine(_root, relative.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
         File.WriteAllText(full, content);
         return full;
     }
@@ -291,8 +291,9 @@ public sealed class ComfyPatchTests : IDisposable
     {
         var payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
+        Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(payload!, "comfy-patches"), Path.Combine(payload!, "comfy-nodes"));
+        var patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
         Assert.NotEmpty(patches);
         Assert.Equal(patches.Select(p => p.Id).Distinct().Count(), patches.Count);
@@ -324,8 +325,9 @@ public sealed class ComfyPatchTests : IDisposable
     {
         var payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
+        Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(null, Path.Combine(payload!, "comfy-nodes"));
+        var patches = ComfyPatchCatalog.Load(null, Path.Combine(payload, "comfy-nodes"));
         Assert.NotEmpty(patches);
 
         foreach (var patch in patches)
@@ -352,8 +354,9 @@ public sealed class ComfyPatchTests : IDisposable
     {
         var payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
+        Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(payload!, "comfy-patches"), Path.Combine(payload!, "comfy-nodes"));
+        var patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
         // Anything targeting custom_nodes/ must either BE the pack (this repo ships it) or say where to get it.
         var packs = patches.Where(p => p.Target.StartsWith("custom_nodes/", StringComparison.Ordinal)).ToList();
@@ -365,7 +368,7 @@ public sealed class ComfyPatchTests : IDisposable
         foreach (var p in packs.Where(p => p.IsInstallOnly))
         {
             Assert.Empty(p.Files);
-            Assert.Matches("^[0-9a-f]{40}$", p.Rev!);   // a commit, never a branch
+            Assert.Matches("^[0-9a-f]{40}$", p.Rev ?? throw new InvalidOperationException("patch has no rev"));   // a commit, never a branch
         }
 
         // The two packs whose absence takes workflows out of the catalogue entirely.
@@ -384,13 +387,14 @@ public sealed class ComfyPatchTests : IDisposable
     {
         var repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
+        Assert.NotNull(repo);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(repo!, "comfy-patches"), Path.Combine(repo!, "comfy-nodes"));
+        var patches = ComfyPatchCatalog.Load(Path.Combine(repo, "comfy-patches"), Path.Combine(repo, "comfy-nodes"));
 
-        var slots = Directory.EnumerateFiles(Path.Combine(repo!, "configurations", "models"), "*.json")
+        var slots = Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json")
             .Select(f => System.Text.Json.JsonDocument.Parse(File.ReadAllText(f)).RootElement)
             .Where(e => e.TryGetProperty("id", out _))
-            .ToDictionary(e => e.GetProperty("id").GetString()!, e => e.TryGetProperty("kind", out var k) ? k.GetString() : null);
+            .ToDictionary(e => e.GetProperty("id").RequireString(), e => e.TryGetProperty("kind", out var k) ? k.GetString() : null);
 
         foreach (var patch in patches)
         {
@@ -423,17 +427,18 @@ public sealed class ComfyPatchTests : IDisposable
     {
         var baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
+        Assert.NotNull(baseUrl);
 
         var install = new ImageGen.Web.Comfy.ComfyInstall(
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
             new SingleClientFactory(),
-            new FixedEndpoint(baseUrl!));
+            new FixedEndpoint(baseUrl));
 
         var root = await install.DetectRootAsync(CancellationToken.None);
 
         Assert.NotNull(root);
-        Assert.True(File.Exists(Path.Combine(root!, "main.py")), $"{root} has no main.py");
-        Assert.True(Directory.Exists(Path.Combine(root!, "comfy")), $"{root} has no comfy/");
+        Assert.True(File.Exists(Path.Combine(root, "main.py")), $"{root} has no main.py");
+        Assert.True(Directory.Exists(Path.Combine(root, "comfy")), $"{root} has no comfy/");
     }
 
     private sealed class SingleClientFactory : IHttpClientFactory

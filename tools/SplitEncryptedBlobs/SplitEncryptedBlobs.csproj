@@ -11,8 +11,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>SplitEncryptedBlobs</RootNamespace>
-    <!-- The app's doc-comment analyzer is not worth satisfying in a file that is going to be deleted. -->
-    <NoWarn>$(NoWarn);IMGDOC001</NoWarn>
+    <!--
+      Analyzers scoped out for this throwaway, single-provider (SqlClient-only) tool, same rationale as IMGDOC001:
+      not worth satisfying in a file slated for deletion. IMGDB001/002 enforce cross-provider portability that does
+      not apply here (hardwired to SQL Server, where COUNT(*) is int and the typed getters return their declared
+      types); IMGNULL001 is the null-forgiving ! on the (int)ExecuteScalar casts those same reads use. See issue #101.
+    -->
+    <NoWarn>$(NoWarn);IMGDOC001;IMGDB001;IMGDB002;IMGNULL001</NoWarn>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
   </PropertyGroup>
 

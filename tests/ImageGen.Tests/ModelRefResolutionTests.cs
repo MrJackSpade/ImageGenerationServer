@@ -100,8 +100,10 @@ public sealed class ModelRefResolutionTests
         // second MoE expert nowhere but params, so it is the case that proves the rule.
         var (catalog, _) = Build(bindEverything: true);
         var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var cfg = catalog.FindConfig("wan22-i2v-a14b")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("wan22-i2v-a14b");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
 
         var asked = catalog.ModelRefSlots(wf, cfg).ToList();
         Assert.Contains("wan2-2-i2v-low-noise-14b", asked);
@@ -115,8 +117,10 @@ public sealed class ModelRefResolutionTests
         // nothing here, or gating on this would hide every configuration that simply has no optional LoRA.
         var (catalog, _) = Build(bindEverything: true);
         var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var cfg = catalog.FindConfig("anima")!;
-        var wf = registry.Find(cfg.WorkflowName)!;
+        var cfg = catalog.FindConfig("anima");
+        Assert.NotNull(cfg);
+        var wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
 
         Assert.DoesNotContain(catalog.ModelRefSlots(wf, cfg), _ => true);
     }
@@ -159,7 +163,9 @@ public sealed class ModelRefResolutionTests
             : new Dictionary<string, string>());
 
         var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        return (catalog, registry.Find("animatediff-sd15")!);
+        var wf = registry.Find("animatediff-sd15");
+        Assert.NotNull(wf);
+        return (catalog, wf);
     }
 
     private static string RepoRoot()

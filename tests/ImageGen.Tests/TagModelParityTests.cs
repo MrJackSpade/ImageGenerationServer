@@ -42,14 +42,15 @@ public sealed class TagModelParityTests : IDisposable
     public void Suggest_matches_the_python_server_case_for_case()
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
-        var engine = new SuggestEngine(_bundle!);
+        Assert.NotNull(_bundle);
+        var engine = new SuggestEngine(_bundle);
         var snapshot = LoadSnapshot();
 
         var compared = 0;
         foreach (var recorded in snapshot.GetProperty("suggest").EnumerateArray())
         {
-            var context = recorded.GetProperty("tags").EnumerateArray().Select(e => e.GetString()!).ToArray();
-            var fragment = recorded.GetProperty("q").GetString()!;
+            var context = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            var fragment = recorded.GetProperty("q").RequireString();
             var limit = recorded.GetProperty("k").GetInt32();
 
             var actual = engine.Query(context, fragment, limit);
@@ -79,15 +80,16 @@ public sealed class TagModelParityTests : IDisposable
     public void Greedy_generation_reproduces_the_python_sequence()
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
-        var engine = new GenerateEngine(_bundle!);
+        Assert.NotNull(_bundle);
+        var engine = new GenerateEngine(_bundle);
         var snapshot = LoadSnapshot();
 
         var compared = 0;
         foreach (var recorded in snapshot.GetProperty("greedy").EnumerateArray())
         {
-            var seed = recorded.GetProperty("seed").EnumerateArray().Select(e => e.GetString()!).ToArray();
-            var types = recorded.GetProperty("types").EnumerateArray().Select(e => e.GetString()!).ToArray();
-            var expected = recorded.GetProperty("tags").EnumerateArray().Select(e => e.GetString()!).ToArray();
+            var seed = recorded.GetProperty("seed").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            var types = recorded.GetProperty("types").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            var expected = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
 
             var actual = engine.Generate(
                 seed, seed: 0, temperature: 0, bannedTags: null, typeMask: TypeMask.FromAllowedNames(types));
@@ -109,8 +111,9 @@ public sealed class TagModelParityTests : IDisposable
     public void Sampled_generation_holds_its_invariants()
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
-        var engine = new GenerateEngine(_bundle!);
-        var vocab = _bundle!.Vocab;
+        Assert.NotNull(_bundle);
+        var engine = new GenerateEngine(_bundle);
+        var vocab = _bundle.Vocab;
         var seed = new[] { "1girl", "solo" };
         var banned = new[] { "long_hair", "smile" };
 
@@ -142,8 +145,9 @@ public sealed class TagModelParityTests : IDisposable
     public void A_restrictive_type_mask_is_actually_enforced()
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
-        var engine = new GenerateEngine(_bundle!);
-        var vocab = _bundle!.Vocab;
+        Assert.NotNull(_bundle);
+        var engine = new GenerateEngine(_bundle);
+        var vocab = _bundle.Vocab;
 
         var result = engine.Generate(["1girl"], seed: 7, temperature: 1.0, bannedTags: null,
             typeMask: TypeMask.FromAllowedNames(["character", "copyright"]));

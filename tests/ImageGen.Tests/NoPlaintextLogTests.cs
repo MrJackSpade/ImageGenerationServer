@@ -110,7 +110,7 @@ public sealed partial class NoPlaintextLogTests
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "ImageGen.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);
-        return dir!.FullName;
+        return dir.FullName;
     }
 
     [GeneratedRegex(@"Console\s*\.\s*(Out\s*\.\s*|Error\s*\.\s*)?Write(Line)?\s*\(")]

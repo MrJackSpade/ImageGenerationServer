@@ -75,7 +75,7 @@ public sealed class DeclaredEnvelopeTests
         foreach (var file in Directory.EnumerateFiles(Path.Combine(dir, "configurations", "workflows"), "*.json"))
         {
             var doc = JsonDocument.Parse(File.ReadAllText(file));
-            yield return (doc.RootElement.GetProperty("id").GetString()!, doc.RootElement);
+            yield return (doc.RootElement.GetProperty("id").RequireString(), doc.RootElement);
         }
     }
 }

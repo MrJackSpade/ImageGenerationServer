@@ -25,7 +25,7 @@ public sealed class EditController(HistoryService history) : Controller
         var prompt = "(image)";
         var tagPrompt = "";
         var negativePrompt = "";
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
         var entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is not null)
         {

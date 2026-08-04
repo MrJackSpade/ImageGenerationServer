@@ -42,7 +42,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
             if (patch.SourceUrl is not null)
             {
                 _log.LogInformation("Fetching {Target} from {Source} at {Rev}", patch.Target, patch.SourceUrl, patch.Rev);
-                await _packs.FetchAsync(patch.SourceUrl, patch.Rev!, target, ct);
+                await _packs.FetchAsync(patch.SourceUrl, patch.Rev ?? throw new InvalidOperationException($"Patch '{patch.Target}' has a source URL but no pinned rev."), target, ct);
             }
         }
 

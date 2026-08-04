@@ -25,7 +25,8 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
 
         var all = await Repo.BindingsAsync(machine, Ct);
         Assert.True(all.TryGetValue("pony-v6", out var b));
-        Assert.Equal("myPony_v6.safetensors", b!.FileName);
+        Assert.NotNull(b);
+        Assert.Equal("myPony_v6.safetensors", b.FileName);
         Assert.False(b.IsAuto);
     }
 

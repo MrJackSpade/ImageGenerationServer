@@ -93,7 +93,7 @@ var logFilePath = config["Logging:FilePath"] ?? "logs/imagegen-.log";
 if (!string.IsNullOrWhiteSpace(logFilePath))
 {
     var logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
-    Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+    Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? throw new InvalidOperationException($"Log path '{logPath}' has no parent directory."));
 
     // Unset keeps the shipped default level; a SET-but-unparseable value is a typo and throws rather than silently
     // applying a different level than the operator asked for. None parses but has no Serilog equivalent, so the file

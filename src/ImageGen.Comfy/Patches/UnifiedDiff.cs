@@ -111,7 +111,7 @@ public static class UnifiedDiff
                 (not null, null) => FileChange.Delete,
                 _ => FileChange.Modify,
             };
-            var path = newPath ?? oldPath!;
+            var path = newPath ?? oldPath ?? throw new InvalidOperationException("A diff entry has neither an old nor a new path.");
 
             var hunks = new List<Hunk>();
             var oldNoNewline = false;
@@ -265,7 +265,7 @@ public static class UnifiedDiff
                 // Named and measured, not dumped: nobody reads a megabyte of base64, and pretending it is a diff
                 // would make the output useless for the text around it.
                 text.Append("diff --git a/").Append(file.Path).Append(" b/").Append(file.Path).Append('\n');
-                text.Append("Binary file, ").Append(file.Bytes!.Length).Append(" bytes\n");
+                text.Append("Binary file, ").Append(file.Bytes?.Length ?? throw new InvalidOperationException($"Binary file '{file.Path}' carries no bytes.")).Append(" bytes\n");
                 continue;
             }
 

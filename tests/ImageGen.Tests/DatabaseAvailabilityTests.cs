@@ -30,7 +30,7 @@ public sealed class DatabaseAvailabilityTests
         var ex = await Record.ExceptionAsync(() => conn.OpenAsync());
 
         Assert.NotNull(ex);
-        Assert.True(_availability.IsUnavailable(ex!), $"a refused connection should read as unavailable, got: {ex}");
+        Assert.True(_availability.IsUnavailable(ex), $"a refused connection should read as unavailable, got: {ex}");
     }
 
     /// <summary>An ordinary bug is not an outage. If this ever starts answering true, the render path stops failing

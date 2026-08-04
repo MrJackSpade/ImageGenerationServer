@@ -11,7 +11,7 @@ public static class BookmarkEndpoints
     {
         api.MapGet("/bookmarks", async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var tokens = await bookmarks.GetTokensAsync(userId, context.RequestAborted);
             var images = await bookmarks.GetImagesAsync(userId, context.RequestAborted);
             return Results.Ok(new BookmarksResponse
@@ -28,14 +28,14 @@ public static class BookmarkEndpoints
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var added = await bookmarks.AddTokenAsync(userId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         api.MapDelete("/bookmarks/tokens", async (HttpContext context, BookmarkService bookmarks, string name, string kind) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var removed = await bookmarks.RemoveTokenAsync(userId, name, WireMapping.ParseKind(kind), context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
@@ -46,7 +46,7 @@ public static class BookmarkEndpoints
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var updated = await bookmarks.SetTokenPinnedAsync(
                 userId, request.Name, WireMapping.ParseKind(request.Kind), request.Pinned, context.RequestAborted);
             return updated ? Results.NoContent() : Results.NotFound();
@@ -58,14 +58,14 @@ public static class BookmarkEndpoints
             if (record is null || string.IsNullOrEmpty(record.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var added = await bookmarks.AddImageAsync(record.ToAddImageCommand(userId), context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         api.MapDelete("/bookmarks/images", async (HttpContext context, BookmarkService bookmarks, string id) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var removed = await bookmarks.RemoveImageAsync(userId, id, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
@@ -75,7 +75,7 @@ public static class BookmarkEndpoints
         api.MapGet("/bookmarks/categories", async (
             HttpContext context, BookmarkService bookmarks, string? scope, string? name, string? kind, string? id) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var all = await bookmarks.GetAllCategoriesAsync(userId, context.RequestAborted);
             IReadOnlyList<string> selected = [];
             if (string.Equals(scope, "token", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(name))
@@ -92,7 +92,7 @@ public static class BookmarkEndpoints
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await bookmarks.SetTokenCategoriesAsync(
                 userId, request.Name, WireMapping.ParseKind(request.Kind), request.Categories, context.RequestAborted);
             return Results.NoContent();
@@ -104,7 +104,7 @@ public static class BookmarkEndpoints
             if (request is null || request.Image is null || string.IsNullOrEmpty(request.Image.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             await bookmarks.SetImageCategoriesAsync(
                 request.Image.ToAddImageCommand(userId), request.Categories, context.RequestAborted);
             return Results.NoContent();

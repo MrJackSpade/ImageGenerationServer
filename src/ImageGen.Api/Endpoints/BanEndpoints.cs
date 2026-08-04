@@ -14,7 +14,7 @@ public static class BanEndpoints
         // path resolves bans in the worker rather than having the browser hand them over.
         api.MapGet("/bans/all", async (HttpContext context, BanService bans) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var list = await bans.GetAllAsync(userId, context.RequestAborted);
             var groups = list
                 .GroupBy(b => b.ModelId, StringComparer.Ordinal)
@@ -34,7 +34,7 @@ public static class BanEndpoints
             if (request is null || string.IsNullOrWhiteSpace(request.ModelId) || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var added = await bans.AddAsync(
                 userId, request.ModelId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
             return Results.Ok(new { added });
@@ -42,7 +42,7 @@ public static class BanEndpoints
 
         api.MapDelete("/bans", async (HttpContext context, BanService bans, string modelId, string name, string kind) =>
         {
-            var userId = context.User.GetUserId()!.Value;
+            var userId = context.User.GetRequiredUserId();
             var removed = await bans.RemoveAsync(
                 userId, modelId, name, WireMapping.ParseKind(kind), context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();

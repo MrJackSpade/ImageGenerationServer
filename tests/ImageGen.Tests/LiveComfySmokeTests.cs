@@ -31,7 +31,7 @@ public sealed class LiveComfySmokeTests
         // Full registry via reflection (every concrete parameterless IWorkflow in the Forge assembly).
         var all = typeof(IWorkflow).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && typeof(IWorkflow).IsAssignableFrom(t) && t.GetConstructor(Type.EmptyTypes) != null)
-            .Select(t => (IWorkflow)Activator.CreateInstance(t)!).ToArray();
+            .Select(t => (IWorkflow)(Activator.CreateInstance(t) ?? throw new InvalidOperationException($"could not instantiate {t}"))).ToArray();
         var registry = new WorkflowRegistry(all);
 
         using var http = new HttpClient { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(20) };
@@ -77,7 +77,7 @@ public sealed class LiveComfySmokeTests
         using var doc = JsonDocument.Parse(txt);
         if (doc.RootElement.TryGetProperty("node_errors", out var ne) && ne.ValueKind == JsonValueKind.Object && ne.EnumerateObject().Any())
             throw new Exception($"node_errors: {Trim(ne.GetRawText())}");
-        var promptId = doc.RootElement.GetProperty("prompt_id").GetString()!;
+        var promptId = doc.RootElement.GetProperty("prompt_id").RequireString();
 
         var deadline = DateTime.UtcNow.AddMinutes(18);
         while (DateTime.UtcNow < deadline)
@@ -120,7 +120,7 @@ public sealed class LiveComfySmokeTests
         var t = await r.Content.ReadAsStringAsync();
         if (!r.IsSuccessStatusCode) throw new Exception($"/upload/image {(int)r.StatusCode}: {Trim(t)}");
         using var d = JsonDocument.Parse(t);
-        var name = d.RootElement.GetProperty("name").GetString()!;
+        var name = d.RootElement.GetProperty("name").RequireString();
         var sub = d.RootElement.TryGetProperty("subfolder", out var s) ? s.GetString() : "";
         return string.IsNullOrEmpty(sub) ? name : $"{sub}/{name}";
     }

@@ -21,7 +21,7 @@ public sealed class RequirementKindTests
     {
         var field = typeof(ComfyClient).GetField("LoaderInputs", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("ComfyClient.LoaderInputs not found — was it renamed?");
-        return ((RequirementKind, string, string)[])field.GetValue(null)!;
+        return ((RequirementKind, string, string)[])(field.GetValue(null) ?? throw new InvalidOperationException("static field value was null"));
     }
 
     /// <summary>
@@ -111,14 +111,15 @@ public sealed class RequirementKindTests
     private static Dictionary<string, RequirementKind> SlotKinds()
     {
         var dir = CatalogDir();
-        var parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(parse);
         var map = new Dictionary<string, RequirementKind>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(file));
             var root = doc.RootElement;
-            var id = root.GetProperty("id").GetString()!;
-            map[id] = (RequirementKind)parse.Invoke(null, [root.GetProperty("kind").GetString()])!;
+            var id = root.GetProperty("id").RequireString();
+            map[id] = (RequirementKind)(parse.Invoke(null, [root.GetProperty("kind").GetString()]) ?? throw new InvalidOperationException("ParseKind returned null"));
         }
         return map;
     }

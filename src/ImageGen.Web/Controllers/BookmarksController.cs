@@ -36,7 +36,7 @@ public sealed class BookmarksController(
         if (string.IsNullOrWhiteSpace(tag))
             return RedirectToAction(nameof(Index));
 
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
         var page = await _history.GetPageAsync(new HistoryQuery(userId, 1, 200, Tag: tag), ct);
         var viewed = await _views.ViewedAsync(userId, page.Items, ct);
         return View("Filter", new BookmarkFilterViewModel
@@ -48,7 +48,7 @@ public sealed class BookmarksController(
     [HttpGet("/bookmarks")]
     public async Task<IActionResult> Index(string? artist, CancellationToken ct)
     {
-        var userId = User.GetUserId()!.Value;
+        var userId = User.GetRequiredUserId();
 
         // Artists now have their own page (display image + all their gens + set-display).
         if (!string.IsNullOrEmpty(artist))

@@ -81,7 +81,7 @@ public sealed class CatalogueLinkageTests
         foreach (var f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json"))
         {
             var doc = JsonDocument.Parse(File.ReadAllText(f));
-            yield return (doc.RootElement.GetProperty("id").GetString()!, doc.RootElement.Clone());
+            yield return (doc.RootElement.GetProperty("id").RequireString(), doc.RootElement.Clone());
         }
     }
 
@@ -91,7 +91,7 @@ public sealed class CatalogueLinkageTests
         foreach (var f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
         {
             using var doc = JsonDocument.Parse(File.ReadAllText(f));
-            slots[doc.RootElement.GetProperty("id").GetString()!] = f;
+            slots[doc.RootElement.GetProperty("id").RequireString()] = f;
         }
 
         var registry = Registry();
@@ -110,8 +110,8 @@ public sealed class CatalogueLinkageTests
                 {
                     var names = prop.Value.ValueKind switch
                     {
-                        JsonValueKind.Array  => prop.Value.EnumerateArray().Select(e => e.GetString()!),
-                        JsonValueKind.String => [prop.Value.GetString()!],
+                        JsonValueKind.Array  => prop.Value.EnumerateArray().Select(e => e.RequireString()),
+                        JsonValueKind.String => [prop.Value.RequireString()],
                         _                    => Array.Empty<string>(),
                     };
                     foreach (var n in names) Note(n, id);
@@ -128,7 +128,7 @@ public sealed class CatalogueLinkageTests
                 // A param is either the bare value or the {value, exposed, min, ...} envelope form.
                 if (p.ValueKind == JsonValueKind.Object && !p.TryGetProperty("value", out p)) continue;
                 if (p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()))
-                    Note(p.GetString()!, $"{id}.params.{spec.Key}");
+                    Note(p.RequireString(), $"{id}.params.{spec.Key}");
             }
         }
         return (slots, required);

@@ -60,7 +60,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
 
         // Negative = the config default with the UI negative (inputs.Negative) appended — never replaced.
         var rp = p.Str("required_prefix");
-        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp!.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
+        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         var neg = ComfyGraph.ComposeNegative(p.Str("negative"), inputs.Negative);
         wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = prefix + inputs.Positive, clip = clip0 });
         wf["14"] = ComfyGraph.Node("CLIPTextEncode", new { text = neg, clip = clip0 });

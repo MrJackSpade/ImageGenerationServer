@@ -28,9 +28,12 @@ public sealed class RenderContractMappingTests
         var item = new EnqueueItem(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
             Aspect: "square", Instruction: null, ImageId: null, RandomPrompt: true, TagTypes: ["meta"]);
 
-        var spec = item.ToRenderItem()!.Gen;
+        var ri = item.ToRenderItem();
+        Assert.NotNull(ri);
+        var spec = ri.Gen;
+        Assert.NotNull(spec);
 
-        Assert.Equal(["meta"], spec!.TagTypes);
+        Assert.Equal(["meta"], spec.TagTypes);
     }
 
     /// <summary>An omitted mask stays null — the "use the owner's stored mask" signal, not "none of them".</summary>
