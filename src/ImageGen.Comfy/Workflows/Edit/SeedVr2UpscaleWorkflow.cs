@@ -1,4 +1,6 @@
 //TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -74,32 +76,32 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        string device = p.Str("device") ?? "cuda:0";
-        string offload = p.Str("offload_device") ?? "cpu";
+        string device = p.StrReq("device");
+        string offload = p.StrReq("offload_device");
         bool tiled = p.Bool("vae_tiled");
-        int tile = p.Int("vae_tile_size", 512);
-        int overlap = p.Int("vae_tile_overlap", 64);
+        int tile = p.IntReq("vae_tile_size");
+        int overlap = p.IntReq("vae_tile_overlap");
 
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.") }),
 
             // The DiT, with BlockSwap parked on the offload device so the 3B weights don't have to sit in VRAM whole.
             ["30"] = ComfyGraph.Node("SeedVR2LoadDiTModel", new
             {
-                model = p.Str("dit_model") ?? "",
+                model = p.Model("dit_model"),
                 device,
-                blocks_to_swap = p.Int("blocks_to_swap", 32),
+                blocks_to_swap = p.IntReq("blocks_to_swap"),
                 swap_io_components = p.Bool("swap_io_components"),
                 offload_device = offload,
                 cache_model = p.Bool("cache_model"),
-                attention_mode = p.Str("attention_mode") ?? "sdpa",
+                attention_mode = p.StrReq("attention_mode"),
             }),
 
             // The VAE, tiled on both ends: a full-frame encode/decode is its own VRAM spike, independent of the DiT.
             ["31"] = ComfyGraph.Node("SeedVR2LoadVAEModel", new
             {
-                model = p.Str("vae_model") ?? "",
+                model = p.Model("vae_model"),
                 device,
                 encode_tiled = tiled,
                 encode_tile_size = tile,
@@ -125,10 +127,10 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
         const int NodeResMin = 16, NodeResMax = 16384;
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        int scale = Math.Max(1, p.Int("scale", 2));
+        int scale = Math.Max(1, p.IntReq("scale"));
         int resolution = (sw > 0 && sh > 0)
             ? Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax)
-            : p.Int("fallback_short_edge", 1080);
+            : p.IntReq("fallback_short_edge");
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
         wf["32"] = ComfyGraph.Node("SeedVR2VideoUpscaler", new
@@ -138,10 +140,10 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
             vae = ComfyGraph.Ref("31", 0),
             seed,
             resolution,
-            max_resolution = p.Int("max_resolution"),
-            batch_size = p.Int("batch_size", 1),
+            max_resolution = p.IntReq("max_resolution"),
+            batch_size = p.IntReq("batch_size"),
             uniform_batch_size = false,
-            color_correction = p.Str("color_correction") ?? "lab",
+            color_correction = p.StrReq("color_correction"),
             offload_device = offload,
         });
 

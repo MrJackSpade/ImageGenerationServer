@@ -40,9 +40,9 @@ internal static class PixelVideoGraph
             image = imagesSrc,
             grid_w = gw,
             grid_h = gh,
-            palette = p.Str("palette") ?? "chroma-256",
-            method = p.Str("method") ?? "median",
-            virtual_resolution = p.Int("virtual_resolution", 0),
+            palette = p.StrReq("palette"),
+            method = p.StrReq("method"),
+            virtual_resolution = p.IntReq("virtual_resolution"),
         });
         inputs["images"] = ComfyGraph.Ref(quantNodeId, 0);
         save["inputs"] = inputs;
@@ -76,14 +76,14 @@ internal static class PixelVideoGraph
                 vae,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.Str("palette") ?? "chroma-256",
-                method = p.Str("method") ?? "median",
-                w_start = p.Dbl("w_start", 0.5),
-                w_end = p.Dbl("w_end", 1.0),
-                start_percent = p.Dbl("start_percent", 0.6),
-                end_percent = p.Dbl("end_percent", 1.0),
-                project_every = p.Int("project_every", 1),
-                virtual_resolution = p.Int("virtual_resolution", 0),
+                palette = p.StrReq("palette"),
+                method = p.StrReq("method"),
+                w_start = p.DblReq("w_start"),
+                w_end = p.DblReq("w_end"),
+                start_percent = p.DblReq("start_percent"),
+                end_percent = p.DblReq("end_percent"),
+                project_every = p.IntReq("project_every"),
+                virtual_resolution = p.IntReq("virtual_resolution"),
             });
             inputs["model"] = ComfyGraph.Ref(projId, 0);
             node["inputs"] = inputs;
@@ -93,8 +93,8 @@ internal static class PixelVideoGraph
     /// <summary>The quantize grid: explicit grid_w/grid_h, falling back to 384×256 (PixelQuantizeWorkflow's default).</summary>
     private static (int gw, int gh) Grid(ParamValues p)
     {
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
         return (gw, gh);
     }
 
@@ -115,8 +115,8 @@ internal static class PixelVideoGraph
     public static readonly ParamSpec[] Params =
     {
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         new() { Key = "palette", Type = ParamType.String, Default = "chroma-256", Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
         new() { Key = "method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // The toggle: false = fast post-quantize only; true = also project the latent onto the manifold every step

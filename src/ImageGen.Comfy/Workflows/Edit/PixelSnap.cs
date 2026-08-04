@@ -27,7 +27,7 @@ internal static class PixelSnap
         // directly, no Normalize pass) → fall through and compute fresh, identical to the old inline behaviour.
         int cw = p.Int("_snap_w", 0), ch = p.Int("_snap_h", 0);
         if (cw > 0 && ch > 0) return (cw, ch);
-        if (!p.Bool("snap_resolution", true)) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
+        if (!p.Bool("snap_resolution")) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
         // From here snapping was REQUESTED, so any inability to compute is a HARD FAILURE, not a silent fall-back to
         // the model's default size (which would still render but look like the toggle did nothing).
         int w = p.Int("width", 0); if (w <= 0) w = srcW;

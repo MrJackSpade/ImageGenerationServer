@@ -38,15 +38,15 @@ public sealed class DeflickerAutoVideoWorkflow : IWorkflow
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.") }),
             ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
             ["20"] = ComfyGraph.Node("DeflickerAuto", new
             {
                 image = ComfyGraph.Ref("11", 0),
-                mad_k = p.Dbl("mad_k", 4.0),
-                min_dev = p.Dbl("min_dev", 1.0),
-                alpha_cut = p.Dbl("alpha_cut", 0.5),
-                time_sigma = p.Dbl("time_sigma", 3.0),
+                mad_k = p.DblReq("mad_k"),
+                min_dev = p.DblReq("min_dev"),
+                alpha_cut = p.DblReq("alpha_cut"),
+                time_sigma = p.DblReq("time_sigma"),
             }),
         };
         // Keep the source clip's frame rate (GetVideoComponents output 2). lossless so downstream stages see the

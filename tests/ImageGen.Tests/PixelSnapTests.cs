@@ -61,20 +61,20 @@ public sealed class PixelSnapTests
     [Fact]
     public void Snap_on_without_aspect_throws_rather_than_silently_using_the_default()
     {
-        // snap defaults on; no width/height and no source dims -> must FAIL, not return null + render at default.
-        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(), Flux, 384, 0, 0));
+        // snap on; no width/height and no source dims -> must FAIL, not return null + render at default.
+        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 0, 0));
     }
 
     [Fact]
     public void Snap_on_with_no_resolution_data_throws()
     {
-        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(), (ModelResolution?)null, 384, 1216, 832));
+        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(("snap_resolution", true)), (ModelResolution?)null, 384, 1216, 832));
     }
 
     [Fact]
     public void Snap_on_with_source_dims_snaps_from_the_source_aspect()
     {
-        var r = PixelSnap.Target(PV(), Flux, 384, 1216, 832);   // no override -> uses the source dims
+        var r = PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 1216, 832);   // no override -> uses the source dims
         Assert.Equal(((int, int)?)(1152, 768), r);
     }
 

@@ -29,10 +29,10 @@ public sealed class BiRefNetMatteVideoWorkflow : IWorkflow
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video matte needs a source clip, but none was provided.") }),
             ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha).
-            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.Dbl("threshold", 0) }),
+            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.DblReq("threshold") }),
         };
         // Keep the source clip's frame rate (GetVideoComponents output 2). lossless=true so the alpha survives.
         wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref("11", 2), lossless = true, quality = 100, method = "default" });

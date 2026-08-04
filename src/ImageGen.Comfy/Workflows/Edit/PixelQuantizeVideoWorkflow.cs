@@ -34,8 +34,8 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
     {
         // Virtual resolution = the grid's longest edge (aspect from the frame); each frame keeps its input resolution.
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 128, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         // A named (locked) palette is the same every frame → temporally consistent. 'adaptive' would re-derive a
         // palette per frame and flicker, so a locked palette is the default for video.
         new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "chroma-256", Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
@@ -66,22 +66,22 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
         // Source clip → frames (+ its frame rate). No model head: the quantizer is pure CPU.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") }),
             ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
         };
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
         // key_background: matte every frame first, feeding RGBA (subject + alpha) into the quantizer. The BiRefNetMatte
         // node sits between the decoded frames and the quantizer so the alpha stays a tensor (no lossy round-trip).
-        bool key = p.Bool("key_background", false);
+        bool key = p.Bool("key_background");
         object frames = ComfyGraph.Ref("11", 0);
         if (key)
         {
-            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.Dbl("matte_threshold", 0) });
+            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.DblReq("matte_threshold") });
             frames = ComfyGraph.Ref("15", 0);
         }
         // Both engines process the whole (N,H,W,C) frame batch and return N quantized frames at the same resolution.
-        if ((p.Str("engine") ?? "median") == "fp")
+        if (p.StrReq("engine") == "fp")
         {
             // Feature-preserving: derives ONE global palette across all frames, so 'palette'/'final_method' are unused.
             wf["20"] = ComfyGraph.Node("PixelQuantizeFP", new
@@ -89,13 +89,13 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
                 image = frames,
                 grid_w = gw,
                 grid_h = gh,
-                virtual_resolution = p.Int("virtual_resolution", 0),
-                thicken = p.Dbl("thicken", 0.75),
-                tau = p.Dbl("tau", 0.6),
-                lam = p.Dbl("lam", 0.015),
-                k = p.Int("k", 31),
-                beta = p.Dbl("beta", 0.5),
-                step = p.Dbl("step", 5.6),
+                virtual_resolution = p.IntReq("virtual_resolution"),
+                thicken = p.DblReq("thicken"),
+                tau = p.DblReq("tau"),
+                lam = p.DblReq("lam"),
+                k = p.IntReq("k"),
+                beta = p.DblReq("beta"),
+                step = p.DblReq("step"),
             });
         }
         else
@@ -105,14 +105,14 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
                 image = frames,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.Str("palette") ?? "chroma-256",
-                method = p.Str("final_method") ?? "median",
-                virtual_resolution = p.Int("virtual_resolution", 0),
+                palette = p.StrReq("palette"),
+                method = p.StrReq("final_method"),
+                virtual_resolution = p.IntReq("virtual_resolution"),
             });
         }
         // Keep the source clip's frame rate by default (GetVideoComponents output 2); an explicit fps>0 overrides it.
         // Keyed output must be LOSSLESS so the alpha channel survives the webp encode (as the matte/deflicker passes do).
-        double fps = p.Dbl("fps", 0);
+        double fps = p.DblReq("fps");
         object fpsArg = fps > 0 ? fps : ComfyGraph.Ref("11", 2);
         wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit", fps = fpsArg, lossless = key, quality = key ? 100 : 80, method = "default" });
         return wf;

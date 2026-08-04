@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -23,7 +25,7 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
         object refImg;
         var refNames = inputs.ReferenceImageNames;
@@ -32,10 +34,10 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
 
         var instruction = p.Str("style_prompt");
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        var palette = p.Str("palette") ?? "chroma-256";
-        int vres = p.Int("virtual_resolution", 256);
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        var palette = p.StrReq("palette");
+        int vres = p.IntReq("virtual_resolution");
 
         // The config links no checkpoint (the editor loads its own int8 weights), so there's no resolved Resolution.
         // DreamOmni2 is a FLUX.1-Kontext-class pipeline, so snap against the Kontext envelope (256-1440, /16). The
@@ -49,21 +51,21 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
             src_image = ComfyGraph.Ref("10", 0),
             ref_image = refImg,
             prompt = instruction,
-            num_inference_steps = p.Int("steps", 30),
-            guidance_scale = p.Dbl("cfg", 3.5),
+            num_inference_steps = p.IntReq("steps"),
+            guidance_scale = p.DblReq("cfg"),
             seed = ComfyGraph.Seed(p),
             // per-step pixel-art projection inside the pipeline (the node modification)
             pixel_art = true,
             grid_w = gw,
             grid_h = gh,
             palette,
-            proj_method = p.Str("proj_method") ?? "median",
+            proj_method = p.StrReq("proj_method"),
             virtual_resolution = vres,
-            w_start = p.Dbl("w_start", 0.5),
-            w_end = p.Dbl("w_end", 1.0),
-            proj_start = p.Dbl("start_percent", 0.0),
-            proj_end = p.Dbl("end_percent", 1.0),
-            project_every = p.Int("project_every", 1),
+            w_start = p.DblReq("w_start"),
+            w_end = p.DblReq("w_end"),
+            proj_start = p.DblReq("start_percent"),
+            proj_end = p.DblReq("end_percent"),
+            project_every = p.IntReq("project_every"),
             // 0 when snapping is off / no width+height given -> the node keeps its own aspect-bucket size
             render_width = snap?.w ?? 0,
             render_height = snap?.h ?? 0,

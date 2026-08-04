@@ -121,14 +121,14 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
     private object SoftenMask(Dictionary<string, object> wf, ParamValues p, object rawMask)
     {
         object m = rawMask;
-        int grow = Math.Max(0, p.Int("mask_grow"));
+        int grow = p.Has("mask_grow") ? Math.Max(0, p.IntReq("mask_grow")) : 0;
         if (grow > 0)
         {
             wf["30"] = ComfyGraph.Node("GrowMask", new { mask = m, expand = grow, tapered_corners = true });
             m = ComfyGraph.Ref("30", 0);
         }
 
-        int blur = Math.Clamp(p.Int("mask_blur", 31), 0, 31);
+        int blur = p.IntReq("mask_blur");
         if (blur == 0) return m;
 
         wf["32"] = ComfyGraph.Node("MaskToImage", new { mask = m });
@@ -155,7 +155,7 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
     private static void ApplyCeiling(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
         (int W, int H) canvas, ref object image, ref object rawMask)
     {
-        int cap = p.Int("max_dimension", 1536);
+        int cap = p.IntReq("max_dimension");
         int longEdge = Math.Max(canvas.W, canvas.H);
         if (cap <= 0 || canvas.W <= 0 || canvas.H <= 0 || longEdge <= cap) return;   // native: under the ceiling, or unknown
 
@@ -209,7 +209,7 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // up to the boundary, preserve them" while SetLatentNoiseMask has the sampler regenerating `mask_grow` px
         // INSIDE that boundary. Across that ring the model is conditioned on pixels it is simultaneously being told
         // to replace, and the contradiction lands precisely on the join.
-        wf["84"] = ComfyGraph.Node("ControlNetLoader", new { control_net_name = req.ControlNet ?? "" });
+        wf["84"] = ComfyGraph.Node("ControlNetLoader", new { control_net_name = req.RequiredControlNet() });
         wf["108"] = ComfyGraph.Node("ControlNetInpaintingAliMamaApply", new
         {
             positive = ComfyGraph.Ref("13", 0),
@@ -218,9 +218,9 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
             vae = vae0,
             image,
             mask = softMask,
-            strength = p.Dbl("cn_strength", 1.0),
-            start_percent = p.Dbl("cn_start", 0.0),
-            end_percent = p.Dbl("cn_end", 1.0),
+            strength = p.DblReq("cn_strength"),
+            start_percent = p.DblReq("cn_start"),
+            end_percent = p.DblReq("cn_end"),
         });
 
         wf["12"] = ComfyGraph.Node("VAEEncode", new { pixels = image, vae = vae0 });
@@ -236,17 +236,16 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         wf["31"] = ComfyGraph.Node("SetLatentNoiseMask", new { samples = ComfyGraph.Ref("12", 0), mask = softMask });
         object latent = ComfyGraph.Ref("31", 0);
 
-        wf["66"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = p.Dbl("auraflow", 3.1) });
+        wf["66"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = p.DblReq("auraflow") });
 
-        double dn = p.Dbl("denoise", DefaultDenoise);
-        if (dn <= 0 || dn > 1) dn = DefaultDenoise;
+        double dn = p.DblReq("denoise");
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 2.5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = dn,
             model = ComfyGraph.Ref("66", 0),
             positive = ComfyGraph.Ref("108", 0),

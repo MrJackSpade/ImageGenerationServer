@@ -31,6 +31,8 @@
       "min": 32,
       "max": 1024
     },
+    "grid_w": 384,
+    "grid_h": 256,
     "palette": "chroma-256",
     "guided": {
       "value": false,

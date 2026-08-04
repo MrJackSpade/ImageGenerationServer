@@ -257,6 +257,7 @@ public sealed class WorkflowGraphTests
         var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         v["engine"] = "fp";
+        v["grid_w"] = 384; v["grid_h"] = 256;   // grid carries no schema default now — the config supplies it
         var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
 
         // Same V2V scaffolding, but the quantize node is the feature-preserving one (not PixelQuantize).
@@ -550,6 +551,8 @@ public sealed class WorkflowGraphTests
         {
             ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = scale,
             ["max_resolution"] = 0, ["fallback_short_edge"] = 1080, ["batch_size"] = 1,
+            ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
+            ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
         });
         string Json(ParamValues p, WorkflowInputs i) => JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), i));
 
@@ -580,6 +583,8 @@ public sealed class WorkflowGraphTests
         {
             ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = 2,
             ["max_resolution"] = 0, ["fallback_short_edge"] = 1080, ["batch_size"] = 1, ["seed"] = seed,
+            ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
+            ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
         });
         long SeedOf(long s)
         {
@@ -1670,14 +1675,14 @@ public sealed class WorkflowGraphTests
             Checkpoint = "qwen.gguf", TextEncoders = new[] { "te.gguf" }, Vae = "vae.safetensors",
             Resolution = new ModelResolution { MinW = 928, MinH = 928, MaxW = 1664, MaxH = 1664, Step = 16 },
         };
-        var pv = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["reference"] = 80, ["virtual_resolution"] = 256, ["snap_resolution"] = true,
-            ["loader"] = "unet_gguf", ["clip_type"] = "qwen_image",
-            ["sampler"] = "euler", ["scheduler"] = "simple",   // required now that MapSampler/MapScheduler refuse a blank
-        });
+        var wf = new QwenPixelizeWorkflow();
+        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;   // schema defaults (steps/cfg/shift/palette/proj ramp…), then the test's specifics
+        v["reference"] = 80; v["virtual_resolution"] = 256; v["snap_resolution"] = true;
+        v["loader"] = "unet_gguf"; v["grid_w"] = 384; v["grid_h"] = 256;                 // grid_w/h carry no schema default
+        var pv = new ParamValues(v);
         var inputs = new WorkflowInputs { SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
-        var graph = new QwenPixelizeWorkflow().Build(pv, req, inputs);
+        var graph = wf.Build(pv, req, inputs);
 
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
         var root = doc.RootElement;

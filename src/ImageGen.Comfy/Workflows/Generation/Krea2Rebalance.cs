@@ -46,12 +46,11 @@ public static class Krea2Rebalance
     public static object Apply(Dictionary<string, object> wf, object positive, ParamValues p, string nodeId)
     {
         if (!IsActive(p)) return positive;
-        var weights = p.Str("per_layer_weights");
         wf[nodeId] = ComfyGraph.Node("ConditioningKrea2Rebalance", new
         {
             conditioning = positive,
-            multiplier = p.Dbl("rebalance_multiplier", 1.0),
-            per_layer_weights = string.IsNullOrWhiteSpace(weights) ? NeutralWeights : weights,
+            multiplier = p.DblReq("rebalance_multiplier"),
+            per_layer_weights = p.StrReq("per_layer_weights"),
         });
         return ComfyGraph.Ref(nodeId, 0);
     }
@@ -60,8 +59,8 @@ public static class Krea2Rebalance
     /// Both neutral (the schema defaults) keeps the emitted graph byte-identical to plain Krea 2.</summary>
     public static bool IsActive(ParamValues p)
     {
-        if (Math.Abs(p.Dbl("rebalance_multiplier", 1.0) - 1.0) > 1e-6) return true;
-        var w = p.Str("per_layer_weights");
+        if (Math.Abs(p.DblReq("rebalance_multiplier") - 1.0) > 1e-6) return true;
+        var w = p.StrReq("per_layer_weights");
         if (!string.IsNullOrWhiteSpace(w))
             foreach (var part in w.Split(','))
                 if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)

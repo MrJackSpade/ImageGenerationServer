@@ -42,10 +42,10 @@ public abstract class EditWorkflowBase : IWorkflow
         new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
         new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
         // Video shapes (wan/animatediff/ltxv): frame-size budget, clip length (frames), playback fps. 0 = builder default.
-        new() { Key = "width",     Type = ParamType.Int,    Default = 0 },
-        new() { Key = "height",    Type = ParamType.Int,    Default = 0 },
-        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames", EtaVariable = true },
-        new() { Key = "fps",       Type = ParamType.Double, Default = 0 },
+        new() { Key = "width",     Type = ParamType.Int },
+        new() { Key = "height",    Type = ParamType.Int },
+        new() { Key = "length",    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
+        new() { Key = "fps",       Type = ParamType.Double },
         new() { Key = "motion_model", Type = ParamType.String, IsModelRef = true },
         // SD1.5 AnimateDiff's SparseCtrl-RGB adapter — a slot id resolved to a bound file, exactly like
         // motion_model. Without IsModelRef the raw slot id reached ACN_SparseCtrlLoaderAdvanced and ComfyUI
@@ -57,7 +57,7 @@ public abstract class EditWorkflowBase : IWorkflow
         new() { Key = "clip_vision", Type = ParamType.String, IsModelRef = true },
         // SDXL AnimateDiff img2img: how far frames drift from the source. Low = stays put (little motion); high =
         // more motion but loses the source. Exposed for tuning the motion/fidelity tradeoff.
-        new() { Key = "denoise",   Type = ParamType.Double, Default = 0, Min = 0.1, Max = 1.0, Label = "Denoise (source ↔ motion)" },
+        new() { Key = "denoise",   Type = ParamType.Double, Min = 0.1, Max = 1.0, Label = "Denoise (source ↔ motion)" },
         // AnimateDiff only (ADE_UseEvolvedSampling). The WRONG schedule is what turns these into color-smear/no-motion
         // garbage, so it's a per-module setting, not an artistic one — exposed for iterative testing, to be locked
         // down once dialed in. No schema default: each AnimateDiff workflow falls back to its module's correct value.

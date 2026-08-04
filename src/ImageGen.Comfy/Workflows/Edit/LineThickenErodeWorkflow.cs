@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -27,10 +29,10 @@ public sealed class LineThickenErodeWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
-        wf["20"] = ComfyGraph.Node("LineThicken", new { image = src, thickness = p.Int("thickness", 2) });
+        wf["20"] = ComfyGraph.Node("LineThicken", new { image = src, thickness = p.IntReq("thickness") });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }

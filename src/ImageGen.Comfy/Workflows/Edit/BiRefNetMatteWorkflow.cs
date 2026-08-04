@@ -27,9 +27,9 @@ public sealed class BiRefNetMatteWorkflow : EditWorkflowBase
         // No flatten-on-white: the matte wants the source verbatim (mirrors the video matte, which feeds frames as-is).
         return new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The matte needs a source image, but none was provided.") }),
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha); SaveImage writes PNG, which keeps the alpha.
-            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("10", 0), threshold = p.Dbl("threshold", 0) }),
+            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("10", 0), threshold = p.DblReq("threshold") }),
             ["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" }),
         };
     }

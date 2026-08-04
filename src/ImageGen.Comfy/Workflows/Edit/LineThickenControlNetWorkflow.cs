@@ -43,15 +43,15 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
         wf["61"] = ComfyGraph.Node("CLIPTextEncode", new { text = neg, clip = clip0 });
 
         // lineart control image (white-on-black, as the lineart ControlNet expects), then apply the ControlNet.
-        wf["50"] = ComfyGraph.Node("LineArtPreprocessor", new { image = src, coarse = p.Str("coarse") ?? "enable", resolution = p.Int("resolution", 512) });
-        wf["51"] = ComfyGraph.Node("ControlNetLoader", new { control_net_name = req.ControlNet ?? "" });
+        wf["50"] = ComfyGraph.Node("LineArtPreprocessor", new { image = src, coarse = p.StrReq("coarse"), resolution = p.IntReq("resolution") });
+        wf["51"] = ComfyGraph.Node("ControlNetLoader", new { control_net_name = req.RequiredControlNet() });
         wf["52"] = ComfyGraph.Node("ControlNetApplyAdvanced", new
         {
             positive = ComfyGraph.Ref("60", 0),
             negative = ComfyGraph.Ref("61", 0),
             control_net = ComfyGraph.Ref("51", 0),
             image = ComfyGraph.Ref("50", 0),
-            strength = p.Dbl("controlnet_strength", 0.9),
+            strength = p.DblReq("controlnet_strength"),
             start_percent = 0.0,
             end_percent = 1.0,
             vae = vae0,
@@ -62,11 +62,11 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 7.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
-            denoise = Math.Clamp(p.Dbl("denoise", 0.55), 0.1, 1.0),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            denoise = p.DblReq("denoise"),
             model = model0,
             positive = ComfyGraph.Ref("52", 0),
             negative = ComfyGraph.Ref("52", 1),

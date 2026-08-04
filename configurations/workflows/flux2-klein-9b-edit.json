@@ -16,6 +16,7 @@
     "dual": false,
     "steps": 4,
     "cfg": 1.0,
+    "guidance": 4.0,
     "sampler": "euler",
     "scheduler": "simple",
     "reference_max": 3

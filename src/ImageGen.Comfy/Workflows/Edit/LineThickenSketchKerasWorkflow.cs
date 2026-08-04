@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -24,12 +26,12 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
         // Extract lines as dark-on-white (already at input size), bolden, multiply over the source.
-        wf["20"] = ComfyGraph.Node("SketchKerasLines", new { image = src, threshold = p.Dbl("threshold", 0.1) });
-        wf["21"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("20", 0), thickness = p.Int("thickness", 2) });
+        wf["20"] = ComfyGraph.Node("SketchKerasLines", new { image = src, threshold = p.DblReq("threshold") });
+        wf["21"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("20", 0), thickness = p.IntReq("thickness") });
         wf["22"] = ComfyGraph.Node("ImageBlend", new
         {
             image1 = src,

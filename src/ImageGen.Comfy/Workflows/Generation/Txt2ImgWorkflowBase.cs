@@ -51,8 +51,8 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         // fps; 0 = the builder's default. Present on the shared schema so a config that exposes `length` renders it as
         // a NUMERIC control — the control's type is read from here, and without an entry an exposed length falls back to
         // a text box. Image models simply never expose these. Mirrors EditWorkflowBase.
-        new() { Key = "length",    Type = ParamType.Int,    Default = 0, Label = "Frames", EtaVariable = true },
-        new() { Key = "fps",       Type = ParamType.Double, Default = 0 },
+        new() { Key = "length",    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
+        new() { Key = "fps",       Type = ParamType.Double },
         new() { Key = "required_prefix",     Type = ParamType.String },
         new() { Key = "negative_supported",  Type = ParamType.Bool, Default = true },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).

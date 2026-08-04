@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -22,8 +21,8 @@ public sealed class ChronoEditWorkflow : EditWorkflowBase
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
         model0 = ComfyGraph.ApplyLora(wf, model0, p);                                  // distilled LoRA (fast 20-step path)
         var seed = ComfyGraph.Seed(p);
-        int len = p.Int("length") > 0 ? p.Int("length") : 5;                           // ChronoEdit's short trajectory
-        double budgetMp = (p.Int("width") > 0 && p.Int("height") > 0) ? (p.Int("width") * (double)p.Int("height")) / 1_000_000.0 : 0.52;
+        int len = p.IntReq("length");                                                  // ChronoEdit's short trajectory
+        double budgetMp = 0.52;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
 
         // Sampling fix-ups the template applies to the Wan model for ChronoEdit.
         wf["20"] = ComfyGraph.Node("ModelSamplingSD3", new { model = model0, shift = 5.0 });
@@ -56,10 +55,10 @@ public sealed class ChronoEditWorkflow : EditWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed,
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 4),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = ksModel,
             positive = ComfyGraph.Ref("14", 0),

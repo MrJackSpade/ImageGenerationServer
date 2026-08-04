@@ -21,8 +21,8 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
         // Virtual resolution = the sprite's pixel count on its longest edge; the grid follows the render aspect. This is
         // the knob the UI exposes. 0 = use explicit grid_w/grid_h instead.
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 384, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096 },
-        new() { Key = "grid_h", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096 },
+        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096 },
+        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096 },
         new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
         new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
         new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
@@ -36,9 +36,9 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
     /// <summary>Grid + palette + virtual resolution shared by the projection patch and the final quantize.</summary>
     private static (int gw, int gh, string palette, int vres) Pixel(ParamValues p)
     {
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        return (gw, gh, p.Str("palette") ?? "adaptive", p.Int("virtual_resolution", 384));
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        return (gw, gh, p.StrReq("palette"), p.IntReq("virtual_resolution"));
     }
 
     /// <summary>Patch the denoise model with the per-step pixel-manifold projection (node "35").</summary>

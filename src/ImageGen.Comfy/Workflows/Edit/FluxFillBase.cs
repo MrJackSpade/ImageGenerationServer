@@ -97,14 +97,14 @@ public abstract class FluxFillBase : EditWorkflowBase
     private static object SoftenMask(Dictionary<string, object> wf, ParamValues p, object rawMask)
     {
         object m = rawMask;
-        int grow = Math.Max(0, p.Int("mask_grow"));
+        int grow = p.Has("mask_grow") ? Math.Max(0, p.IntReq("mask_grow")) : 0;
         if (grow > 0)
         {
             wf["30"] = ComfyGraph.Node("GrowMask", new { mask = m, expand = grow, tapered_corners = true });
             m = ComfyGraph.Ref("30", 0);
         }
 
-        int blur = Math.Clamp(p.Int("mask_blur", 31), 0, 31);
+        int blur = p.IntReq("mask_blur");
         if (blur == 0) return m;
 
         wf["32"] = ComfyGraph.Node("MaskToImage", new { mask = m });
@@ -122,7 +122,7 @@ public abstract class FluxFillBase : EditWorkflowBase
     private static void ApplyCeiling(Dictionary<string, object> wf, ParamValues p, (int W, int H) canvas,
         ref object image, ref object rawMask)
     {
-        int cap = p.Int("max_dimension", 1536);
+        int cap = p.IntReq("max_dimension");
         int longEdge = Math.Max(canvas.W, canvas.H);
         if (cap <= 0 || canvas.W <= 0 || canvas.H <= 0 || longEdge <= cap) return;
 
@@ -151,13 +151,13 @@ public abstract class FluxFillBase : EditWorkflowBase
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.
         wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clip0 });
-        wf["14"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("13", 0), guidance = p.Dbl("guidance", 30.0) });
+        wf["14"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("13", 0), guidance = p.DblReq("guidance") });
         wf["16"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = ComfyGraph.Ref("13", 0) });
 
         // Differential blending: the soft mask becomes a per-pixel denoise SCHEDULE, so the model harmonizes the
         // transition band across steps instead of us cross-fading two finished images. See the class doc.
         object samplerModel = model0;
-        if (p.Bool("diffdiff", true))
+        if (p.Bool("diffdiff"))
         {
             wf["7"] = ComfyGraph.Node("DifferentialDiffusion", new { model = model0 });
             samplerModel = ComfyGraph.Ref("7", 0);
@@ -181,10 +181,10 @@ public abstract class FluxFillBase : EditWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 1.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = samplerModel,
             positive = ComfyGraph.Ref("38", 0),
@@ -204,7 +204,7 @@ public abstract class FluxFillBase : EditWorkflowBase
             x = 0,
             y = 0,
             mask = softMask,
-            correction_method = p.Bool("color_correct", true) ? "Linear2" : "None",
+            correction_method = p.Bool("color_correct") ? "Linear2" : "None",
         });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("126", 0), filename_prefix = "forgemcp_edit" });
         return wf;

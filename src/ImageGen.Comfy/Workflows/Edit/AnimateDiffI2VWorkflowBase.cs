@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -19,10 +21,6 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
     /// <summary>AnimateDiff: prompt is a scene hint, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>Push away realism/3D + the usual artifacts so anime stays anime.</summary>
-    protected const string AnimeNegative =
-        "worst quality, low quality, blurry, deformed, bad anatomy, extra limbs, watermark, text, realistic, photorealistic, 3d";
-
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
     {
@@ -39,13 +37,13 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>();
         var seed = ComfyGraph.Seed(p);
-        int frames = p.Int("length") > 0 ? p.Int("length") : 16;
-        double fps = p.Dbl("fps") > 0 ? p.Dbl("fps") : 8;
-        double budgetMp = (p.Int("width") > 0 && p.Int("height") > 0) ? (p.Int("width") * (double)p.Int("height")) / 1_000_000.0 : 0.39;
-        var beta = string.IsNullOrWhiteSpace(p.Str("beta_schedule")) ? "sqrt_linear (AnimateDiff)" : p.Str("beta_schedule")!;
-        var motion = req.MotionModel ?? p.Str("motion_model") ?? "";
+        int frames = p.IntReq("length");
+        double fps = p.DblReq("fps");
+        double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        var beta = p.StrReq("beta_schedule");
+        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel! : p.Model("motion_model");
 
-        wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.Checkpoint });
+        wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
         object baseModel = ComfyGraph.Ref("4", 0);
         var lcmLora = p.Str("lcm_lora");
         if (!string.IsNullOrWhiteSpace(lcmLora))   // AnimateLCM: apply the LCM LoRA to the base model to enable lcm sampling
@@ -54,7 +52,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
             baseModel = ComfyGraph.Ref("5", 0);
         }
 
-        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" });
+        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") });
         wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 64 });
         wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
         wf["7"] = ComfyGraph.Node("EmptyLatentImage", new { width = ComfyGraph.Ref("15", 0), height = ComfyGraph.Ref("15", 1), batch_size = frames });
@@ -65,11 +63,11 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
 
         // IP-Adapter: UnifiedLoader auto-resolves the IP-Adapter PLUS model + CLIP-ViT-H from the preset, then apply
         // the SOURCE image so the subject's identity carries into every generated frame.
-        wf["30"] = ComfyGraph.Node("IPAdapterUnifiedLoader", new { model = ComfyGraph.Ref("22", 0), preset = p.Str("ipadapter_preset") ?? "PLUS (high strength)" });
-        wf["31"] = ComfyGraph.Node("IPAdapter", new { model = ComfyGraph.Ref("30", 0), ipadapter = ComfyGraph.Ref("30", 1), image = ComfyGraph.Ref("11", 0), weight = p.Dbl("ipadapter_weight", 0.7), start_at = 0.0, end_at = 1.0, weight_type = "standard" });
+        wf["30"] = ComfyGraph.Node("IPAdapterUnifiedLoader", new { model = ComfyGraph.Ref("22", 0), preset = p.StrReq("ipadapter_preset") });
+        wf["31"] = ComfyGraph.Node("IPAdapter", new { model = ComfyGraph.Ref("30", 0), ipadapter = ComfyGraph.Ref("30", 1), image = ComfyGraph.Ref("11", 0), weight = p.DblReq("ipadapter_weight"), start_at = 0.0, end_at = 1.0, weight_type = "standard" });
 
         wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = ComfyGraph.Ref("4", 1) });
-        wf["12"] = ComfyGraph.Node("CLIPTextEncode", new { text = AnimeNegative, clip = ComfyGraph.Ref("4", 1) });
+        wf["12"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = ComfyGraph.Ref("4", 1) });
 
         // SparseCtrl RGB: condition frame 0 on the source. Strength eased off after the early frames (end_percent)
         // so later frames are free to move instead of freezing on the source.
@@ -81,19 +79,19 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
             negative = ComfyGraph.Ref("12", 0),
             control_net = ComfyGraph.Ref("23", 0),
             image = ComfyGraph.Ref("24", 0),
-            strength = p.Dbl("sparsectrl_strength", 0.8),
+            strength = p.DblReq("sparsectrl_strength"),
             start_percent = 0.0,
-            end_percent = p.Dbl("sparsectrl_end", 0.7),
+            end_percent = p.DblReq("sparsectrl_end"),
             vae = ComfyGraph.Ref("4", 2),
         });
 
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed,
-            steps = p.Int("steps", 8),
-            cfg = p.Dbl("cfg", 1.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = ComfyGraph.Ref("31", 0),
             positive = ComfyGraph.Ref("25", 0),

@@ -45,8 +45,8 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
         // aspect so output aspect == input aspect. 0 = use explicit grid_w/grid_h. The sampler runs at `megapixels`
         // (aspect-preserving), NOT a fixed grid*block, so a portrait input no longer gets squashed to 3:2.
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 384, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w",      Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
-        new() { Key = "grid_h",      Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
+        new() { Key = "grid_w",      Type = ParamType.Int,    Min = 0, Max = 4096 },
+        new() { Key = "grid_h",      Type = ParamType.Int,    Min = 0, Max = 4096 },
         new() { Key = "megapixels",  Type = ParamType.Double, Default = 1.0, Min = 0.1, Max = 4.0, Label = "Megapixels", Help = "Working resolution area, aspect preserved (ignored when Snap res is on)" },
         // When snap_resolution is on AND width+height are given, the render res is snapped to a clean integer
         // multiple of VRES (exact k×k cells) within the model's range, overriding the megapixels sizing above.
@@ -71,17 +71,17 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
         var src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (nodes 11-14)
 
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        int vres = p.Int("virtual_resolution", 384);
-        var palette = p.Str("palette") ?? "chroma-256";
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        int vres = p.IntReq("virtual_resolution");
+        var palette = p.StrReq("palette");
 
         // source image -> working resolution -> init latent. Default: preserve input aspect at a megapixel area
         // (snapped /16). When snapping is on, override with the clean k×VRES render size instead.
         var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
         wf["30"] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : ComfyGraph.Node("ImageScaleToTotalPixels", new { image = src, upscale_method = "lanczos", megapixels = p.DblOrNull("megapixels") ?? 1.0, resolution_steps = 16 });
+            : ComfyGraph.Node("ImageScaleToTotalPixels", new { image = src, upscale_method = "lanczos", megapixels = p.DblReq("megapixels"), resolution_steps = 16 });
         wf["31"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("30", 0), vae = vae0 });
 
         // conditioning: the harness's fixed style prompt (or the caller's instruction if it's blanked),
@@ -105,22 +105,22 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("proj_method") ?? "median",
-            w_start = p.Dbl("w_start", 0.5),
-            w_end = p.Dbl("w_end", 1.0),
-            start_percent = p.Dbl("start_percent", 0.0),
-            end_percent = p.Dbl("end_percent", 1.0),
-            project_every = p.Int("project_every", 1),
+            method = p.StrReq("proj_method"),
+            w_start = p.DblReq("w_start"),
+            w_end = p.DblReq("w_end"),
+            start_percent = p.DblReq("start_percent"),
+            end_percent = p.DblReq("end_percent"),
+            project_every = p.IntReq("project_every"),
             virtual_resolution = vres,
         });
 
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 28),
-            cfg = p.Dbl("cfg", 1),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = PixelSnap.Denoise(p, 70),   // reference% -> denoise (default 70 == the old strength 0.3)
             model = ComfyGraph.Ref("35", 0),
             positive = posSrc,
@@ -135,7 +135,7 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("final_method") ?? "median",
+            method = p.StrReq("final_method"),
             virtual_resolution = vres,
         });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("36", 0), filename_prefix = "forgemcp_edit" });

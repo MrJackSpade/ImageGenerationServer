@@ -45,8 +45,8 @@
       "min": 32,
       "max": 1024
     },
-    "grid_w": 0,
-    "grid_h": 0,
+    "grid_w": 384,
+    "grid_h": 256,
     "palette": {
       "value": "adaptive",
       "exposed": true

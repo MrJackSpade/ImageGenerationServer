@@ -47,11 +47,11 @@ internal static class HunyuanSr
     {
         if (!Enabled(p)) return baseLatent;
 
-        wf["70"] = ComfyGraph.Node("LatentUpscaleModelLoader", new { model_name = p.Str("sr_upsampler") ?? "" });
+        wf["70"] = ComfyGraph.Node("LatentUpscaleModelLoader", new { model_name = p.Model("sr_upsampler") });
         wf["71"] = ComfyGraph.Node("HunyuanVideo15LatentUpscaleWithModel", new
         {
             model = ComfyGraph.Ref("70", 0), samples = baseLatent,
-            upscale_method = "bilinear", width = p.Int("sr_width", 1920), height = p.Int("sr_height", 1080), crop = "disabled",
+            upscale_method = "bilinear", width = p.IntReq("sr_width"), height = p.IntReq("sr_height"), crop = "disabled",
         });
 
         // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
@@ -61,20 +61,20 @@ internal static class HunyuanSr
             ["positive"] = positive,
             ["negative"] = negative,
             ["latent"] = ComfyGraph.Ref("71", 0),
-            ["noise_augmentation"] = p.Dbl("sr_noise_aug", 0.0),
+            ["noise_augmentation"] = p.DblReq("sr_noise_aug"),
             ["vae"] = vae,
         };
         if (startImage is not null) srInputs["start_image"] = startImage;
         if (clipVisionOutput is not null) srInputs["clip_vision_output"] = clipVisionOutput;
         wf["72"] = ComfyGraph.Node("HunyuanVideo15SuperResolution", srInputs);
 
-        wf["73"] = ComfyGraph.DiffusionLoader(p.Str("sr_model") ?? "");
-        wf["74"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("73", 0), shift = p.Dbl("sr_shift", 2.0) });
+        wf["73"] = ComfyGraph.DiffusionLoader(p.Model("sr_model"));
+        wf["74"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("73", 0), shift = p.DblReq("sr_shift") });
         object srModel = ComfyGraph.Ref("74", 0);
-        wf["75"] = ComfyGraph.Node("BasicScheduler", new { model = srModel, scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")), steps = p.Int("sr_steps", 8), denoise = p.Dbl("sr_denoise", 0.7) });
-        wf["76"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.Str("sampler")) });
+        wf["75"] = ComfyGraph.Node("BasicScheduler", new { model = srModel, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("sr_steps"), denoise = p.DblReq("sr_denoise") });
+        wf["76"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
         wf["77"] = ComfyGraph.Node("RandomNoise", new { noise_seed = seed });
-        wf["78"] = ComfyGraph.Node("CFGGuider", new { model = srModel, positive = ComfyGraph.Ref("72", 0), negative = ComfyGraph.Ref("72", 1), cfg = p.Dbl("sr_cfg", 1.0) });
+        wf["78"] = ComfyGraph.Node("CFGGuider", new { model = srModel, positive = ComfyGraph.Ref("72", 0), negative = ComfyGraph.Ref("72", 1), cfg = p.DblReq("sr_cfg") });
         wf["79"] = ComfyGraph.Node("SamplerCustomAdvanced", new { noise = ComfyGraph.Ref("77", 0), guider = ComfyGraph.Ref("78", 0), sampler = ComfyGraph.Ref("76", 0), sigmas = ComfyGraph.Ref("75", 0), latent_image = ComfyGraph.Ref("72", 2) });
         return ComfyGraph.Ref("79", 0);
     }

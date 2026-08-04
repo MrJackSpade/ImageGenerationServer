@@ -1,4 +1,6 @@
 //TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -62,8 +64,8 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
         // are reused, since the edit save path keys off the "forgemcp_edit" prefix.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
-            ["20"] = ComfyGraph.Node("UpscaleModelLoader", new { model_name = p.Str("upscale_model") ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.") }),
+            ["20"] = ComfyGraph.Node("UpscaleModelLoader", new { model_name = p.Model("upscale_model") }),
         };
         wf["21"] = ComfyGraph.Node("ImageUpscaleWithModel", new
         {
@@ -74,8 +76,8 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
 
         // Fit the net's fixed-factor output to the requested scale. A model_scale of 0 (config typo) would divide by
         // zero, so fall back to "the net's output is already what was asked for" and emit no resample.
-        double modelScale = p.Dbl("model_scale", 4.0);
-        double scale = p.Dbl("scale", modelScale);
+        double modelScale = p.DblReq("model_scale");
+        double scale = p.DblReq("scale");
         if (modelScale > 0 && scale > 0)
         {
             double ratio = scale / modelScale;
@@ -84,7 +86,7 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
                 wf["22"] = ComfyGraph.Node("ImageScaleBy", new
                 {
                     image = outImage,
-                    upscale_method = p.Str("resample") ?? "lanczos",
+                    upscale_method = p.StrReq("resample"),
                     scale_by = ratio,
                 });
                 outImage = ComfyGraph.Ref("22", 0);

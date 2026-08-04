@@ -29,8 +29,8 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
     {
         // Virtual resolution = the grid's longest edge (aspect from the input); the output keeps the INPUT resolution.
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         // "adaptive", an inline hex list ("aabbcc, 112233, ..."), or a bundled name ("chroma-256").
         // The inline path is how a per-character LOCKED palette is fed for frame-to-frame consistency.
         new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
@@ -66,24 +66,24 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
         // No model head: the quantizer is pure CPU. Source → (matte | flatten-on-white) → quantize → save.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
         // key_background: matte first, feed the RGBA (subject + alpha) into the quantizer at full res. Otherwise the
         // legacy flatten-onto-white (RGBA→RGB) so a transparent source doesn't halo. BiRefNetMatte output 0 = RGBA.
-        bool key = p.Bool("key_background", false);
+        bool key = p.Bool("key_background");
         object src;
         if (key)
         {
-            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("10", 0), threshold = p.Dbl("matte_threshold", 0) });
+            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("10", 0), threshold = p.DblReq("matte_threshold") });
             src = ComfyGraph.Ref("15", 0);
         }
         else
         {
             src = PixelHarnessGraph.FlattenOnWhite(wf);
         }
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        if ((p.Str("engine") ?? "median") == "fp")
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        if (p.StrReq("engine") == "fp")
         {
             // Feature-preserving engine, same node + knobs as pixel-quantize-video's fp branch, plus the replay
             // globals so a single frame can reproduce its whole-batch result exactly.
@@ -92,13 +92,13 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
                 image = src,
                 grid_w = gw,
                 grid_h = gh,
-                virtual_resolution = p.Int("virtual_resolution", 0),
-                thicken = p.Dbl("thicken", 0.75),
-                tau = p.Dbl("tau", 0.6),
-                lam = p.Dbl("lam", 0.015),
-                k = p.Int("k", 31),
-                beta = p.Dbl("beta", 0.5),
-                step = p.Dbl("step", 5.6),
+                virtual_resolution = p.IntReq("virtual_resolution"),
+                thicken = p.DblReq("thicken"),
+                tau = p.DblReq("tau"),
+                lam = p.DblReq("lam"),
+                k = p.IntReq("k"),
+                beta = p.DblReq("beta"),
+                step = p.DblReq("step"),
                 palette = p.Str("fp_palette") ?? "",
                 frequencies = p.Str("fp_frequencies") ?? "",
             });
@@ -110,9 +110,9 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
                 image = src,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.Str("palette") ?? "chroma-256",
-                method = p.Str("final_method") ?? "median",
-                virtual_resolution = p.Int("virtual_resolution", 0),
+                palette = p.StrReq("palette"),
+                method = p.StrReq("final_method"),
+                virtual_resolution = p.IntReq("virtual_resolution"),
             });
         }
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" });

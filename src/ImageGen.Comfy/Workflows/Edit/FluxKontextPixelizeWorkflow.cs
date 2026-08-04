@@ -22,10 +22,10 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflowBase
 
         var instruction = p.Str("style_prompt");
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        var palette = p.Str("palette") ?? "chroma-256";
-        int vres = p.Int("virtual_resolution", 256);
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        var palette = p.StrReq("palette");
+        int vres = p.IntReq("virtual_resolution");
 
         wf["60"] = ComfyGraph.Node("CLIPTextEncode", new { text = instruction, clip = clip0 });
         var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
@@ -34,17 +34,17 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflowBase
             : ComfyGraph.Node("FluxKontextImageScale", new { image = src });
         wf["63"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("62", 0), vae = vae0 });
         wf["64"] = ComfyGraph.Node("ReferenceLatent", new { conditioning = ComfyGraph.Ref("60", 0), latent = ComfyGraph.Ref("63", 0) });
-        wf["65"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("64", 0), guidance = p.DblOrNull("guidance") ?? 2.5 });
+        wf["65"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("64", 0), guidance = p.DblReq("guidance") });
         wf["66"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = ComfyGraph.Ref("60", 0) });
 
         wf["35"] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p);
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 1),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = PixelSnap.Denoise(p, 0),   // reference% -> denoise; 0 (default) == 1.0 == regenerate from the source ref
             model = ComfyGraph.Ref("35", 0),
             positive = ComfyGraph.Ref("65", 0),

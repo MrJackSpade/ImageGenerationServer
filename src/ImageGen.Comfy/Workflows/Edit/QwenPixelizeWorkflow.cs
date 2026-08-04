@@ -37,8 +37,8 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
         // Virtual resolution = the sprite's pixel count on its longest edge (aspect preserved), independent of the
         // model's render bucket. 0 = use explicit grid_w/grid_h instead.
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 256, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w",    Type = ParamType.Int, Default = 0, Min = 0, Max = 4096 },
-        new() { Key = "grid_h",    Type = ParamType.Int, Default = 0, Min = 0, Max = 4096 },
+        new() { Key = "grid_w",    Type = ParamType.Int, Min = 0, Max = 4096 },
+        new() { Key = "grid_h",    Type = ParamType.Int, Min = 0, Max = 4096 },
         // Snap the render res to a clean integer multiple of VRES (exact k×k cells) within the model's range,
         // overriding the FluxKontextImageScale bucket. Needs width+height (the requested fixed aspect).
         new() { Key = "width",           Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
@@ -64,17 +64,17 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
         var instruction = p.Str("style_prompt");
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
 
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        var palette = p.Str("palette") ?? "chroma-256";
-        int vres = p.Int("virtual_resolution", 256);
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        var palette = p.StrReq("palette");
+        int vres = p.IntReq("virtual_resolution");
 
         // The source enters as a SEMANTIC guide through Qwen's vision encoder (image1). The `reference` % knob sets
         // how much the output references the source pixels: 0 = no reference (empty init latent, no ReferenceLatent →
         // QIE GENERATES a new design each seed); >0 = inject the source latent + ReferenceLatent and img2img it at
         // denoise = 1 - reference/100 (100 ≈ copy). When snapping is on, the sprite renders at the clean k×VRES size.
         var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
-        bool useRef = p.Int("reference", 0) > 0;
+        bool useRef = p.IntReq("reference") > 0;
         wf["20"] = ComfyGraph.Node("FluxKontextImageScale", new { image = src });
         wf["22"] = ComfyGraph.Node("TextEncodeQwenImageEditPlus", new { clip = clip0, image1 = ComfyGraph.Ref("20", 0), prompt = instruction });
         object cond, initLatent;
@@ -106,7 +106,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
         wf["26"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = cond });
 
         // Qwen 2511 sampling fix (ModelSamplingAuraFlow + CFGNorm), then patch with the per-step projection.
-        wf["2"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = p.Dbl("shift", 3.1) });
+        wf["2"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = p.DblReq("shift") });
         wf["7"] = ComfyGraph.Node("CFGNorm", new { model = ComfyGraph.Ref("2", 0), strength = 1.0 });
         wf["35"] = ComfyGraph.Node("PixelManifoldProjection", new
         {
@@ -115,22 +115,22 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("proj_method") ?? "median",
-            w_start = p.Dbl("w_start", 0.5),
-            w_end = p.Dbl("w_end", 1.0),
-            start_percent = p.Dbl("start_percent", 0.0),
-            end_percent = p.Dbl("end_percent", 1.0),
-            project_every = p.Int("project_every", 1),
+            method = p.StrReq("proj_method"),
+            w_start = p.DblReq("w_start"),
+            w_end = p.DblReq("w_end"),
+            start_percent = p.DblReq("start_percent"),
+            end_percent = p.DblReq("end_percent"),
+            project_every = p.IntReq("project_every"),
             virtual_resolution = vres,
         });
 
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 4.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = PixelSnap.Denoise(p, 0),   // reference% -> denoise; 0 (default) == 1.0 == generate fresh
             model = ComfyGraph.Ref("35", 0),
             positive = cond,
@@ -144,7 +144,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("final_method") ?? "median",
+            method = p.StrReq("final_method"),
             virtual_resolution = vres,
         });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("36", 0), filename_prefix = "forgemcp_edit" });

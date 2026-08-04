@@ -28,8 +28,8 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "chroma-256", Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
         new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method" },
         new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Default = "fp", Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
@@ -54,7 +54,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
         object batch = ComfyGraph.Ref("10", 0);
         int node = 100;
@@ -68,15 +68,15 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
         }
         // key_background: matte the whole batch first, feed the RGBA (subject + alpha) into the quantizer at full res.
         // BiRefNetMatte processes the batched tensor (same node the video matte runs per frame); output 0 = RGBA.
-        if (p.Bool("key_background", false))
+        if (p.Bool("key_background"))
         {
-            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = batch, threshold = p.Dbl("matte_threshold", 0) });
+            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = batch, threshold = p.DblReq("matte_threshold") });
             batch = ComfyGraph.Ref("15", 0);
         }
 
-        int gw = p.Int("grid_w", 0); if (gw <= 0) gw = 384;
-        int gh = p.Int("grid_h", 0); if (gh <= 0) gh = 256;
-        if ((p.Str("engine") ?? "fp") == "fp")
+        int gw = p.IntReq("grid_w");
+        int gh = p.IntReq("grid_h");
+        if (p.StrReq("engine") == "fp")
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
             // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
@@ -85,13 +85,13 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
                 image = batch,
                 grid_w = gw,
                 grid_h = gh,
-                virtual_resolution = p.Int("virtual_resolution", 0),
-                thicken = p.Dbl("thicken", 0.75),
-                tau = p.Dbl("tau", 0.6),
-                lam = p.Dbl("lam", 0.015),
-                k = p.Int("k", 31),
-                beta = p.Dbl("beta", 0.5),
-                step = p.Dbl("step", 5.6),
+                virtual_resolution = p.IntReq("virtual_resolution"),
+                thicken = p.DblReq("thicken"),
+                tau = p.DblReq("tau"),
+                lam = p.DblReq("lam"),
+                k = p.IntReq("k"),
+                beta = p.DblReq("beta"),
+                step = p.DblReq("step"),
             });
         }
         else
@@ -101,9 +101,9 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
                 image = batch,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.Str("palette") ?? "chroma-256",
-                method = p.Str("final_method") ?? "median",
-                virtual_resolution = p.Int("virtual_resolution", 0),
+                palette = p.StrReq("palette"),
+                method = p.StrReq("final_method"),
+                virtual_resolution = p.IntReq("virtual_resolution"),
             });
         }
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" });

@@ -36,8 +36,7 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
         // Lift of the official Comfy-Org image_boogu_image_0_1_edit template. Resize the source to ~1 MP (lanczos) —
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
-        double mp = p.Dbl("megapixels", 1.0);
-        if (mp < 0.5 || mp > 4.0) mp = 1.0;
+        double mp = p.DblReq("megapixels");
         wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = mp, resolution_steps = 16 });
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries
@@ -65,15 +64,15 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
         // a plain euler KSampler (what this used to do) is what produced the soft/blurry edits.
         wf["17"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
         wf["50"] = ComfyGraph.Node("EmptyLatentImage", new { width = ComfyGraph.Ref("17", 0), height = ComfyGraph.Ref("17", 1), batch_size = 1 });
-        wf["16"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.Str("sampler")) });
-        wf["26"] = ComfyGraph.Node("BasicScheduler", new { model = modelS, scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")), steps = p.Int("steps", 25), denoise = 1.0 });
+        wf["16"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
+        wf["26"] = ComfyGraph.Node("BasicScheduler", new { model = modelS, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("steps"), denoise = 1.0 });
 
         wf["3"] = ComfyGraph.Node("SamplerCustom", new
         {
             model = modelS,
             add_noise = true,
             noise_seed = ComfyGraph.Seed(p),
-            cfg = p.Dbl("cfg", 3.5),
+            cfg = p.DblReq("cfg"),
             positive = ComfyGraph.Ref("13", 0),
             negative = ComfyGraph.Ref("13", 1),
             sampler = ComfyGraph.Ref("16", 0),

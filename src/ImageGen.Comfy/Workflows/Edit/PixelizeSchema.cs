@@ -8,8 +8,8 @@ internal static class PixelizeSchema
     private static readonly ParamSpec[] Common =
     {
         new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 256, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w",       Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
-        new() { Key = "grid_h",       Type = ParamType.Int,    Default = 0, Min = 0, Max = 4096 },
+        new() { Key = "grid_w",       Type = ParamType.Int,    Min = 0, Max = 4096 },
+        new() { Key = "grid_h",       Type = ParamType.Int,    Min = 0, Max = 4096 },
         // Snap the render res to a clean integer multiple of VRES (exact k×k cells) within the model's range,
         // overriding the model's own image-scale bucket. Needs width+height (the requested fixed aspect).
         new() { Key = "width",           Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
@@ -77,12 +77,12 @@ internal static class PixelizeSchema
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("proj_method") ?? "median",
-            w_start = p.Dbl("w_start", 0.5),
-            w_end = p.Dbl("w_end", 1.0),
-            start_percent = p.Dbl("start_percent", 0.0),
-            end_percent = p.Dbl("end_percent", 1.0),
-            project_every = p.Int("project_every", 1),
+            method = p.StrReq("proj_method"),
+            w_start = p.DblReq("w_start"),
+            w_end = p.DblReq("w_end"),
+            start_percent = p.DblReq("start_percent"),
+            end_percent = p.DblReq("end_percent"),
+            project_every = p.IntReq("project_every"),
             virtual_resolution = vres,
         });
 
@@ -94,7 +94,7 @@ internal static class PixelizeSchema
             grid_w = gw,
             grid_h = gh,
             palette,
-            method = p.Str("final_method") ?? "median",
+            method = p.StrReq("final_method"),
             virtual_resolution = vres,
         });
 }

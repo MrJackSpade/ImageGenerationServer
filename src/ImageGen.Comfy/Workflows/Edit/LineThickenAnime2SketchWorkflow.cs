@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -25,11 +27,11 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
         // Extract anime line art (white-on-black), invert to dark-lines-on-white, force back to the source size.
-        wf["20"] = ComfyGraph.Node("AnimeLineArtPreprocessor", new { image = src, resolution = p.Int("resolution", 512) });
+        wf["20"] = ComfyGraph.Node("AnimeLineArtPreprocessor", new { image = src, resolution = p.IntReq("resolution") });
         wf["21"] = ComfyGraph.Node("ImageInvert", new { image = ComfyGraph.Ref("20", 0) });
         wf["15"] = ComfyGraph.Node("GetImageSize", new { image = src });
         wf["22"] = ComfyGraph.Node("ImageScale", new
@@ -41,7 +43,7 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflowBase
             crop = "disabled",
         });
         // Bolden the extracted lines, then multiply over the source (flat regions = white = unchanged).
-        wf["23"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("22", 0), thickness = p.Int("thickness", 2) });
+        wf["23"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("22", 0), thickness = p.IntReq("thickness") });
         wf["24"] = ComfyGraph.Node("ImageBlend", new
         {
             image1 = src,

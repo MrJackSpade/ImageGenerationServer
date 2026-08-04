@@ -1,4 +1,6 @@
 ﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -29,21 +31,21 @@ public sealed class LineThickenXDoGWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
         // Extract the existing outlines as dark-lines-on-white...
         wf["20"] = ComfyGraph.Node("XDoGLines", new
         {
             image = src,
-            sigma = p.Dbl("sigma", 1.0),
-            k = p.Dbl("k", 1.6),
-            tau = p.Dbl("tau", 0.98),
-            epsilon = p.Dbl("epsilon", 0.0),
-            phi = p.Dbl("phi", 10.0),
+            sigma = p.DblReq("sigma"),
+            k = p.DblReq("k"),
+            tau = p.DblReq("tau"),
+            epsilon = p.DblReq("epsilon"),
+            phi = p.DblReq("phi"),
         });
         // ...bolden that line layer...
-        wf["21"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("20", 0), thickness = p.Int("thickness", 2) });
+        wf["21"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("20", 0), thickness = p.IntReq("thickness") });
         // ...and multiply it back over the source so only the outlines darken (flat regions = white = unchanged).
         wf["22"] = ComfyGraph.Node("ImageBlend", new
         {
