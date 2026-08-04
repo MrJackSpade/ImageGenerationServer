@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Shared client foundation, loaded before every page script. window.GATEWAY is injected by _Layout.
 
 const $ = id => document.getElementById(id);
@@ -290,15 +289,15 @@ function toast(msg) {
 // Copy to the clipboard, resolving true/false so the caller can report the real outcome. The async Clipboard API is
 // only available in a secure context (and can reject if the document isn't focused), so a failure there falls through
 // to the legacy execCommand path rather than being reported as success — this is a capability fallback, not a
-// swallowed error: whether the text actually landed is what gets returned.
+// The failure is logged at debug; the boolean return (did the text actually land) is what callers act on.
 async function copyText(t) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    try { await navigator.clipboard.writeText(t); return true; } catch (_) { /* fall through */ }
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { console.debug("clipboard API copy failed, trying execCommand:", e); }
   }
   try {
     const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.focus(); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok;
-  } catch (_) { return false; }
+  } catch (e) { console.debug("copy failed:", e); return false; }
 }
 
 // Gateway error helpers.
@@ -363,7 +362,7 @@ function trackPrompt(promptId, hooks) {
     let settled = false, pollTimer = null, ws = null, etaStarted = false;
     const done = (fn) => {
       if (settled) return; settled = true;
-      try { ws && ws.close(); } catch (_) {}
+      try { ws && ws.close(); } catch (e) { console.debug("ws close on finish failed:", e); }
       if (pollTimer) clearInterval(pollTimer);
       document.removeEventListener("visibilitychange", onVisible);
       setActiveGen(null); fn();
@@ -371,7 +370,7 @@ function trackPrompt(promptId, hooks) {
     async function checkResult() {
       if (settled) return;
       let res;
-      try { const r = await fetch(`${GATEWAY}/result/${encodeURIComponent(promptId)}`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+      try { const r = await fetch(`${GATEWAY}/result/${encodeURIComponent(promptId)}`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("result poll failed:", e); return; }
       if (res && res.startedAt && !etaStarted) { etaStarted = true; onStart(res); }
       // Still waiting for the GPU ("queued") or on it ("running") — either way, keep polling.
       if (!res || res.status === "running" || res.status === "queued") return;
@@ -387,7 +386,7 @@ function trackPrompt(promptId, hooks) {
         ws = new WebSocket(gwWs("/ws"));
         ws.onmessage = (ev) => {
           if (typeof ev.data !== "string") return;
-          let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("gen ws non-JSON message:", e); return; }
           const id = m.data && m.data.prompt_id;
           if (id && id !== promptId) return;
           const f = wsFraction(m);
@@ -395,12 +394,12 @@ function trackPrompt(promptId, hooks) {
           if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") checkResult();
         };
         ws.onclose = () => { ws = null; };
-        ws.onerror = () => { try { ws && ws.close(); } catch (_) {} ws = null; };
-      } catch (_) { ws = null; }
+        ws.onerror = (ev) => { console.debug("gen ws error:", ev); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
+      } catch (e) { console.debug("gen ws open failed:", e); ws = null; }
     }
     const onVisible = () => { if (document.visibilityState === "visible" && !settled) { checkResult(); openWs(); } };
     document.addEventListener("visibilitychange", onVisible);
-    setActiveGen({ cancel: async () => { try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (_) {} done(() => reject(new DOMException("Generation cancelled", "AbortError"))); } });
+    setActiveGen({ cancel: async () => { try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (e) { console.debug("interrupt request failed:", e); } done(() => reject(new DOMException("Generation cancelled", "AbortError"))); } });
     pollTimer = setInterval(checkResult, 1500);
     checkResult(); openWs();
   });
@@ -595,12 +594,12 @@ function pollLoraMeta(names, onUpdate, intervalMs) {
   async function tick() {
     if (stopped) return;
     let data;
-    try { const r = await postLoraMeta(names); if (!r.ok) throw 0; data = await r.json(); }
-    catch (_) { return; }
+    try { const r = await postLoraMeta(names); if (!r.ok) throw new Error(`the server answered ${r.status}`); data = await r.json(); }
+    catch (e) { console.debug("lora meta poll failed:", e); return; }
     if (stopped) return;
     const map = {};
     (data.items || []).forEach(it => { map[it.name] = it; });
-    try { onUpdate(map); } catch (_) {}
+    try { onUpdate(map); } catch (e) { console.error("lora meta onUpdate callback threw:", e); }
     if (data.pending) setTimeout(tick, gap);
   }
   setTimeout(tick, gap);
