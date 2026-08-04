@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Data.Common;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
