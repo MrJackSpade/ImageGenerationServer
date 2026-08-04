@@ -22,13 +22,17 @@ public static class PromptFinalizer
     /// map of the explicitly-marked tokens.</summary>
     public static FinalizedPrompt Finalize(string? rawPrompt, WorkflowTagging? tg)
     {
-        // GUIDE TAGS ('~') are dropped first and unconditionally — before the no-tagging-block early return below,
-        // which otherwise hands the prompt back verbatim. "'~' never reaches the image model" has to hold for every
-        // model or it is not a rule anyone can build a prompt on, and a workflow without a tagging block is exactly
-        // where a stray '~pig' would have sailed through into the render.
-        var raw = PromptMarkers.WithoutGuides(rawPrompt);
+        // A model with no tagging block — or one that speaks neither tags nor artists — gets its prompt back
+        // BYTE-FOR-BYTE. Comma is sentence punctuation to a natural-language model, not a tag delimiter, so NONE of the
+        // comma-segment management below runs for it: not marker stripping, not underscore folding, and not '~' guide
+        // removal. A '~'-led segment therefore renders exactly as typed here — '~' means "guide tag" only inside the
+        // tagging gate, the sole place it is ever read (the predictor seed in TagSeed, off the RAW prompt).
         var marks = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (tg is null || (!tg.Tags && !tg.Artists)) return new FinalizedPrompt(raw, marks);
+        if (tg is null || (!tg.Tags && !tg.Artists)) return new FinalizedPrompt(rawPrompt ?? string.Empty, marks);
+
+        // Tag model only: '~' GUIDE TAGS are dropped up front — they steer the predictor's seed (see TagSeed) but the
+        // image model never sees one — and everything below operates on the guide-free prompt.
+        var raw = PromptMarkers.WithoutGuides(rawPrompt);
 
         // 1) Marks: a leading '#'/'@'/'!' on a comma-segment declares a bookmarkable tag/artist. '!' is an INERT TAG —
         //    it marks as a plain tag here on purpose. Its inertness is a fact about ONE consumer (the seed handed to

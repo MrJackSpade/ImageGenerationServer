@@ -188,14 +188,15 @@ public sealed class PromptFinalizerTests
     }
 
     /// <summary>
-    /// "'~' never reaches the image model" has to hold for EVERY model, including one with no tagging block — which
-    /// takes the early return that hands the prompt straight back. That path is exactly where a stray guide tag would
-    /// otherwise sail through into the render.
+    /// A model with no tagging block gets its prompt back BYTE-FOR-BYTE — '~' means "guide tag" only inside the tagging
+    /// gate, so a literal '~'-led segment renders exactly as typed rather than being deleted (#91). (For a TAG model it
+    /// IS dropped — see <see cref="A_guide_tag_renders_as_nothing_and_does_not_mark"/>. The full non-tag contract is
+    /// pinned in <c>PromptFinalizerGatingTests</c>.)
     /// </summary>
     [Fact]
-    public void A_guide_tag_is_dropped_even_for_a_model_that_speaks_no_markers()
+    public void A_non_tag_model_keeps_a_tilde_segment_verbatim()
     {
-        Assert.Equal("a plain prompt", PromptFinalizer.Finalize("a plain prompt, ~1boy", null).Rendered);
+        Assert.Equal("a plain prompt, ~1boy", PromptFinalizer.Finalize("a plain prompt, ~1boy", null).Rendered);
     }
 
     /// <summary>The whole point, in one prompt: subject swapping. The predictor is seeded with 1boy — so it samples
