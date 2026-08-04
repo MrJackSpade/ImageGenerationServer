@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using ImageGen.Application.Rendering;
 using Microsoft.Extensions.Logging;
 
@@ -305,22 +306,21 @@ public sealed class WorkflowCatalog
             modelStamp = PresentStamp(_modelsDir)
                 ?? throw new InvalidOperationException($"The models catalog directory vanished while loading: {_modelsDir}");
             var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (path, root) in ReadAll(_modelsDir))
+            foreach (var (path, dto) in ReadAll(_modelsDir, CatalogJsonContext.Default.ModelFileDto))
             {
-                var id = GetStr(root, "id");
+                var id = dto.Id;
                 if (string.IsNullOrEmpty(id))
                     throw new InvalidOperationException($"{path}: a model file must have an 'id'.");
                 RequireIdMatchesFileName(path, id);
                 RequireUnique(seen, id, path, "model");
 
-                var kind = GetStr(root, "kind");
                 reqById[id] = new Requirement
                 {
                     Id = id,
-                    Kind = ParseKind(kind),
-                    Label = GetStr(root, "label") ?? id,
-                    Match = GetStrArray(root, "match"),
-                    Node = GetStr(root, "node"),
+                    Kind = ParseKind(dto.Kind),
+                    Label = dto.Label ?? id,
+                    Match = Arr(dto.Match),
+                    Node = dto.Node,
                 };
             }
         }
@@ -333,10 +333,10 @@ public sealed class WorkflowCatalog
             wfStamp = PresentStamp(_workflowsDir)
                 ?? throw new InvalidOperationException($"The workflows catalog directory vanished while loading: {_workflowsDir}");
             var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (path, root) in ReadAll(_workflowsDir))
+            foreach (var (path, dto) in ReadAll(_workflowsDir, CatalogJsonContext.Default.WorkflowFileDto))
             {
-                var id = GetStr(root, "id");
-                var wf = GetStr(root, "workflow");
+                var id = dto.Id;
+                var wf = dto.Workflow;
                 // A configuration with no id or no workflow class cannot run, and dropping it silently is
                 // indistinguishable from this box not being able to afford it.
                 if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(wf))
@@ -344,7 +344,7 @@ public sealed class WorkflowCatalog
                 RequireIdMatchesFileName(path, id);
                 RequireUnique(seen, id, path, "workflow");
 
-                var entry = BuildConfiguration(root, id, wf);
+                var entry = BuildConfiguration(dto, id, wf);
                 all.Add(entry);
                 byId[id] = entry;
             }
@@ -358,31 +358,42 @@ public sealed class WorkflowCatalog
     }
 
     /// <summary>
-    /// Parses every <c>*.json</c> in a catalogue directory, in a stable order.
+    /// Deserializes every <c>*.json</c> in a catalogue directory into <typeparamref name="T"/>, in a stable order.
     ///
-    /// <para>A file that will not parse is reported by NAME and skipped, rather than failing the whole
-    /// directory. This is the one deliberate departure from this codebase's fail-fast rule, and it is the
-    /// consequence of the one-file-per-thing layout: users may add their own files here, and letting a single bad
-    /// one take out all 167 workflows is a far worse outcome than losing the one. It is affordable precisely
-    /// because the file is individually identifiable, which it was not when everything lived in one document.</para>
+    /// <para>A file that cannot be understood in isolation — malformed JSON, an unknown/misspelled key (the DTOs are
+    /// <see cref="System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow"/>), or a value of the wrong
+    /// type — is reported by NAME and skipped, rather than failing the whole directory. This is the one deliberate
+    /// departure from this codebase's fail-fast rule, and it is the consequence of the one-file-per-thing layout:
+    /// users may add their own files here, and letting a single bad one take out all 167 workflows is a far worse
+    /// outcome than losing the one. It is affordable precisely because the file is individually identifiable.</para>
+    ///
+    /// <para>Relational errors that a single file cannot see — a missing id, an id that disagrees with the filename,
+    /// a duplicate id, an unknown model kind, an incomplete resolution block — are NOT caught here; they are thrown
+    /// by the caller and are fatal at startup / last-good on hot reload.</para>
     /// </summary>
-    private IEnumerable<(string Path, JsonElement Root)> ReadAll(string dir)
+    private IEnumerable<(string Path, T Dto)> ReadAll<T>(string dir, JsonTypeInfo<T> type)
     {
         foreach (var path in Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
         {
-            JsonDocument doc;
+            T? dto;
             try
             {
-                doc = JsonDocument.Parse(File.ReadAllText(path));
+                dto = JsonSerializer.Deserialize(File.ReadAllText(path), type);
             }
             catch (JsonException ex)
             {
-                _log.LogError(ex, "Catalog file {Path} is not valid JSON and was SKIPPED; everything that depends "
-                    + "on it is unavailable until it parses.", path);
+                _log.LogError(ex, "Catalog file {Path} is not valid or carries an unknown key and was SKIPPED; "
+                    + "everything that depends on it is unavailable until it parses.", path);
                 continue;
             }
 
-            using (doc) yield return (path, doc.RootElement.Clone());
+            if (dto is null)
+            {
+                _log.LogError("Catalog file {Path} is an empty or null document and was SKIPPED.", path);
+                continue;
+            }
+
+            yield return (path, dto);
         }
     }
 
@@ -422,107 +433,98 @@ public sealed class WorkflowCatalog
         return true;
     }
 
-    private static WorkflowConfiguration BuildConfiguration(JsonElement c, string id, string workflow)
+    private static WorkflowConfiguration BuildConfiguration(WorkflowFileDto c, string id, string workflow)
     {
-        var rl = c.TryGetProperty("requirements", out var r) && r.ValueKind == JsonValueKind.Object
+        var rl = c.Requirements is { } r
             ? new RequirementLinks
             {
-                Checkpoint = GetStr(r, "checkpoint") ?? "",
-                TextEncoders = GetStrArray(r, "text_encoders"),
-                Vae = GetStr(r, "vae"),
-                MotionModel = GetStr(r, "motion_model"),
-                ControlNet = GetStr(r, "controlnet"),
-                Extra = GetStrArray(r, "extra"),
+                Checkpoint = r.Checkpoint ?? "",
+                TextEncoders = Arr(r.TextEncoders),
+                Vae = r.Vae,
+                MotionModel = r.MotionModel,
+                ControlNet = r.ControlNet,
+                Extra = Arr(r.Extra),
             }
             : new RequirementLinks();
 
         var pars = new Dictionary<string, ConfigParam>(StringComparer.OrdinalIgnoreCase);
-        if (c.TryGetProperty("params", out var pe) && pe.ValueKind == JsonValueKind.Object)
-            foreach (var prop in pe.EnumerateObject())
-            {
-                var pv = prop.Value;
-                object? value = pv.ValueKind == JsonValueKind.Object && pv.TryGetProperty("value", out var ve)
-                    ? CloneValue(ve)
-                    : CloneValue(pv);   // bare scalar shorthand: "steps": 25
-                pars[prop.Name] = new ConfigParam
+        if (c.Params is { } pmap)
+            foreach (var (name, p) in pmap)
+                pars[name] = new ConfigParam
                 {
-                    Value = value,
-                    Exposed = pv.ValueKind == JsonValueKind.Object && GetBool(pv, "exposed") == true,
-                    // Object-form with an explicit "exposed": false = a baked, locked knob: hidden from the UI AND
-                    // not overridable by the request. A bare scalar (no "exposed" key) is a plain default, not locked.
-                    Locked = pv.ValueKind == JsonValueKind.Object && GetBool(pv, "exposed") == false,
-                    Min = pv.ValueKind == JsonValueKind.Object ? GetDouble(pv, "min") : null,
-                    Max = pv.ValueKind == JsonValueKind.Object ? GetDouble(pv, "max") : null,
-                    Step = pv.ValueKind == JsonValueKind.Object ? GetDouble(pv, "step") : null,
+                    Value = CloneValue(p.Value),
+                    Exposed = p.Exposed,
+                    Locked = p.Locked,
+                    Min = p.Min,
+                    Max = p.Max,
+                    Step = p.Step,
                 };
-            }
 
-        var card = c.TryGetProperty("card", out var ce) && ce.ValueKind == JsonValueKind.Object ? ce : default;
         return new WorkflowConfiguration
         {
             Id = id,
             WorkflowName = workflow,
-            FriendlyName = GetStr(c, "friendly_name"),
+            FriendlyName = c.FriendlyName,
             Requirements = rl,
             Params = pars,
-            EffectType = GetStr(c, "effect_type"),
-            EditGroup = GetStr(c, "edit_group"),
-            Default = GetBool(c, "default") ?? false,
-            // The documented output-resolution envelope. ParseResolution existed and was never called, so 130
-            // configurations declared a `resolution` block that nothing read: the size a model says it supports
-            // was dead data, and the render-size editor had no bound to honour.
-            Resolution = ParseResolution(c, id),
-            Card = BuildCard(card, id, GetStr(c, "friendly_name")),
+            EffectType = c.EffectType,
+            EditGroup = c.EditGroup,
+            Default = c.Default ?? false,
+            Resolution = BuildResolution(c.Resolution, id),
+            Card = BuildCard(c.Card, id, c.FriendlyName),
         };
     }
 
-    private static ModelCard BuildCard(JsonElement m, string id, string? friendlyName)
+    private static ModelCard BuildCard(CardDto? m, string id, string? friendlyName)
     {
-        var prompt = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("prompt", out var p) ? p : default;
-        var speed = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("speed", out var s) ? s : default;
-        var negp = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("negative", out var np) ? np : default;
-        var uiHelp = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("ui_help", out var uh) ? uh : default;
-        var reference = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("reference", out var rf) && rf.ValueKind == JsonValueKind.Object ? rf : default;
+        var prompt = m?.Prompt;
+        var speed = m?.Speed;
+        var negative = m?.Negative;
+        var ui = m?.UiHelp;
+        var reference = m?.Reference;
         return new ModelCard
         {
             Name = id,
             Id = id,
-            FriendlyName = friendlyName ?? GetStr(m, "friendly_name"),
-            UiGoodFor = GetStr(uiHelp, "good_for"),
-            UiNote = GetStr(uiHelp, "note"),
-            UiLinkText = uiHelp.ValueKind == JsonValueKind.Object && uiHelp.TryGetProperty("link", out var lk1) && lk1.ValueKind == JsonValueKind.Object ? GetStr(lk1, "text") : null,
-            UiLinkUrl = uiHelp.ValueKind == JsonValueKind.Object && uiHelp.TryGetProperty("link", out var lk2) && lk2.ValueKind == JsonValueKind.Object ? GetStr(lk2, "url") : null,
-            Architecture = GetStr(m, "architecture"),
-            Summary = GetStr(m, "summary"),
-            UseCases = GetStrArray(m, "use_cases"),
-            PromptFormat = GetStr(prompt, "format"),
-            RequiredPrefix = GetStr(prompt, "required_prefix"),
-            PromptGuidance = GetStr(prompt, "guidance"),
-            PromptOverview = GetStr(prompt, "overview"),
-            PromptInstructions = GetStr(prompt, "instructions"),
-            PromptExample = GetStr(prompt, "example"),
-            PromptDo = GetStrArray(prompt, "do"),
-            PromptDont = GetStrArray(prompt, "dont"),
-            PromptExamples = GetStrArray(prompt, "examples"),
-            PromptSource = GetStr(prompt, "source"),
-            NegativeSupported = GetBool(negp, "supported"),
-            NegativeGuidance = GetStr(prompt, "negative_guidance") ?? GetStr(negp, "note"),
-            Speed = GetStr(speed, "class"),
-            ExpectedGenSeconds = GetDouble(speed, "measured_seconds"),
-            ExpectedGenNote = GetStr(speed, "measured_note"),
-            NsfwCapable = GetStr(m, "nsfw_capable"),
-            CommercialUse = GetStr(m, "commercial_use"),
-            PickWhen = GetStr(m, "pick_when"),
-            EditUseCases = GetStrArray(m, "edit_use_cases"),
-            EditReferenceMax = reference.ValueKind == JsonValueKind.Object ? (GetInt(reference, "max") ?? 0) : 0,
-            EditReferenceHint = reference.ValueKind == JsonValueKind.Object ? GetStr(reference, "hint") : null,
-            Tagging = m.ValueKind == JsonValueKind.Object && m.TryGetProperty("tagging", out var tge) && tge.ValueKind == JsonValueKind.Object
+            FriendlyName = friendlyName ?? m?.FriendlyName,
+            UiGoodFor = ui?.GoodFor,
+            UiNote = ui?.Note,
+            UiLinkText = ui?.Link?.Text,
+            UiLinkUrl = ui?.Link?.Url,
+            Architecture = m?.Architecture,
+            Summary = m?.Summary,
+            Notes = m?.Notes,
+            UseCases = Arr(m?.UseCases),
+            PromptFormat = prompt?.Format,
+            RequiredPrefix = prompt?.RequiredPrefix,
+            PromptOptionalTags = Arr(prompt?.OptionalTags),
+            PromptGuidance = prompt?.Guidance,
+            PromptOverview = prompt?.Overview,
+            PromptInstructions = prompt?.Instructions,
+            PromptExample = prompt?.Example,
+            PromptDo = Arr(prompt?.Do),
+            PromptDont = Arr(prompt?.Dont),
+            PromptExamples = Arr(prompt?.Examples),
+            PromptSource = prompt?.Source,
+            NegativeSupported = negative?.Supported,
+            NegativeGuidance = prompt?.NegativeGuidance ?? negative?.Note,
+            Speed = speed?.Class,
+            SpeedNote = speed?.Note,
+            ExpectedGenSeconds = speed?.MeasuredSeconds,
+            ExpectedGenNote = speed?.MeasuredNote,
+            NsfwCapable = m?.NsfwCapable,
+            CommercialUse = m?.CommercialUse,
+            PickWhen = m?.PickWhen,
+            EditUseCases = Arr(m?.EditUseCases),
+            EditReferenceMax = reference?.Max ?? 0,
+            EditReferenceHint = reference?.Hint,
+            Tagging = m?.Tagging is { } t
                 ? new TaggingInfo
                 {
-                    Tags = GetBool(tge, "tags") ?? false,
-                    Artists = GetBool(tge, "artists") ?? false,
-                    KeepArtistMarker = GetBool(tge, "keep_artist_marker") ?? false,
-                    UnderscoresToSpaces = GetBool(tge, "underscores_to_spaces") ?? false
+                    Tags = t.Tags ?? false,
+                    Artists = t.Artists ?? false,
+                    KeepArtistMarker = t.KeepArtistMarker ?? false,
+                    UnderscoresToSpaces = t.UnderscoresToSpaces ?? false
                 }
                 : null
         };
@@ -571,39 +573,31 @@ public sealed class WorkflowCatalog
         _ => v.Clone()   // object / array (e.g. the aspect dims map, reference_inputs list)
     };
 
-    /// <summary>Parse a configuration's optional <c>resolution</c> block ({min_w,min_h,max_w,max_h,step}). The block
+    /// <summary>Build a configuration's optional <c>resolution</c> envelope ({min_w,min_h,max_w,max_h,step}). The block
     /// as a whole is optional (absent → null), but a block that IS declared must be complete: a missing field is a
     /// config error, not a default. Silently filling <c>step</c> with 16, or a side with 0, would bound the render-size
     /// editor by a number the model never stated — 16 for a model that needs 32, an unbounded floor for one with a real
     /// minimum — so the size the author actually meant is the one thing that must not be guessed here.</summary>
-    private static ModelResolution? ParseResolution(JsonElement r, string id)
+    private static ModelResolution? BuildResolution(ResolutionDto? res, string id)
     {
-        if (!r.TryGetProperty("resolution", out var res) || res.ValueKind != JsonValueKind.Object) return null;
-        int Req(string k) => GetInt(res, k) ?? throw new InvalidOperationException(
+        if (res is null) return null;
+        int Req(int? v, string k) => v ?? throw new InvalidOperationException(
             $"{id}: the resolution block is missing '{k}'. A declared envelope must state min_w/min_h/max_w/max_h and step; "
             + "an omitted field would silently bound the size editor by a number the model never gave.");
         return new ModelResolution
         {
-            MinW = Req("min_w"),
-            MinH = Req("min_h"),
-            MaxW = Req("max_w"),
-            MaxH = Req("max_h"),
-            Step = Req("step"),
+            MinW = Req(res.MinW, "min_w"),
+            MinH = Req(res.MinH, "min_h"),
+            MaxW = Req(res.MaxW, "max_w"),
+            MaxH = Req(res.MaxH, "max_h"),
+            Step = Req(res.Step, "step"),
         };
     }
 
-    private static int? GetInt(JsonElement e, string k) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
-    private static double? GetDouble(JsonElement e, string k) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
-    private static string? GetStr(JsonElement e, string k) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-    private static bool? GetBool(JsonElement e, string k) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False) ? v.GetBoolean() : null;
-    private static string[] GetStrArray(JsonElement e, string k) =>
-        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Array
-            ? v.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToArray()
-            : Array.Empty<string>();
+    /// <summary>A catalog string array as the domain wants it: an independent, non-empty-entry array (never null).
+    /// Empty and null entries are dropped, matching the loaders' "an empty filename is not a slot" contract.</summary>
+    private static string[] Arr(string[]? a) =>
+        a is null ? Array.Empty<string>() : a.Where(x => !string.IsNullOrEmpty(x)).ToArray();
 }
 
 /// <summary>LLM/UI-facing decision info for a configuration (its prompting guide + selection hints). Carried in the
@@ -619,9 +613,14 @@ public sealed class ModelCard
     public string? UiLinkUrl { get; init; }
     public string? Architecture { get; init; }
     public string? Summary { get; init; }
+    /// <summary>Free-form authoring note about the model (e.g. a licence caveat), or null. Card <c>notes</c>.</summary>
+    public string? Notes { get; init; }
     public string[] UseCases { get; init; } = Array.Empty<string>();
     public string? PromptFormat { get; init; }
     public string? RequiredPrefix { get; init; }
+    /// <summary>Optional booru tag groups a tag-model prompt may draw from — each entry a pipe-delimited option set,
+    /// or empty. Card <c>prompt.optional_tags</c>.</summary>
+    public string[] PromptOptionalTags { get; init; } = Array.Empty<string>();
     public string? PromptGuidance { get; init; }
     public string? PromptOverview { get; init; }
     public string? PromptInstructions { get; init; }
@@ -636,6 +635,9 @@ public sealed class ModelCard
     public int EditReferenceMax { get; init; }
     public string? EditReferenceHint { get; init; }
     public string? Speed { get; init; }
+    /// <summary>A short qualitative speed note (e.g. "Fastest model here"), distinct from the benchmarked
+    /// <see cref="ExpectedGenNote"/>. Card <c>speed.note</c>.</summary>
+    public string? SpeedNote { get; init; }
     public double? ExpectedGenSeconds { get; init; }
     public string? ExpectedGenNote { get; init; }
     public string? NsfwCapable { get; init; }
