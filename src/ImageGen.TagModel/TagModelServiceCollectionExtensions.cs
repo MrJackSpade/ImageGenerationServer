@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Tags;
 using Microsoft.Extensions.DependencyInjection;
 

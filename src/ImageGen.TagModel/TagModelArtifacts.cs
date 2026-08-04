@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -65,9 +64,14 @@ public static class TagModelArtifacts
 
         var result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
         foreach (var file in files.EnumerateObject())
-            result[file.Name] = new ManifestEntry(
-                file.Value.GetProperty("bytes").GetInt64(),
-                file.Value.GetProperty("sha256").GetString() ?? "");
+        {
+            var sha256 = file.Value.GetProperty("sha256").GetString();
+            if (string.IsNullOrEmpty(sha256))
+                throw new InvalidDataException(
+                    $"'{path}': manifest entry '{file.Name}' has no sha256. Every artifact must carry a checksum — "
+                    + "an entry without one would download unverified.");
+            result[file.Name] = new ManifestEntry(file.Value.GetProperty("bytes").GetInt64(), sha256);
+        }
         return result;
     }
 
