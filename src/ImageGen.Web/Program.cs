@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Api;
 using ImageGen.Application;
 using ImageGen.Application.Platform;
@@ -46,9 +45,16 @@ var connectionString = config.GetConnectionString("ImageGen")
 // install starts and works. AddInfrastructure refuses to start if the provider and the connection string disagree,
 // rather than quietly creating an empty database -- so a SQL Server deployment that sets a SQL Server connection
 // string but no provider gets a named error at startup, not a silent second database.
-var databaseProvider = Enum.TryParse<DatabaseProvider>(config["Database:Provider"], ignoreCase: true, out var parsed)
-    ? parsed
-    : DatabaseProvider.Sqlite;
+// Unset defaults to Sqlite (the zero-config engine); a value that is SET but not a known provider is a typo, not a
+// request for the default — surfacing it beats silently starting on a different (empty) database than intended.
+var providerConfigured = config["Database:Provider"];
+var databaseProvider = string.IsNullOrWhiteSpace(providerConfigured)
+    ? DatabaseProvider.Sqlite
+    : Enum.TryParse<DatabaseProvider>(providerConfigured, ignoreCase: true, out var parsed)
+        ? parsed
+        : throw new InvalidOperationException(
+            $"Database:Provider is '{providerConfigured}', which is not a known provider — expected one of "
+            + $"{string.Join(", ", Enum.GetNames<DatabaseProvider>())} (unset defaults to Sqlite).");
 
 var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConnectionFactory(connectionString, databaseProvider);
 
@@ -89,10 +95,17 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
     var logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
     Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
-    static Serilog.Events.LogEventLevel Level(string? configured, Serilog.Events.LogEventLevel fallback) =>
-        Enum.TryParse<LogLevel>(configured, ignoreCase: true, out var mel) && mel != LogLevel.None
-            ? (Serilog.Events.LogEventLevel)mel   // MEL Trace..Critical map 1:1 onto Serilog Verbose..Fatal
-            : fallback;
+    // Unset keeps the shipped default level; a SET-but-unparseable value is a typo and throws rather than silently
+    // applying a different level than the operator asked for. None parses but has no Serilog equivalent, so the file
+    // sink keeps its own default there.
+    static Serilog.Events.LogEventLevel Level(string? configured, Serilog.Events.LogEventLevel fallback)
+    {
+        if (string.IsNullOrWhiteSpace(configured)) return fallback;
+        if (!Enum.TryParse<LogLevel>(configured, ignoreCase: true, out var mel))
+            throw new InvalidOperationException(
+                $"A configured log level is '{configured}', which is not one of Trace, Debug, Information, Warning, Error, Critical, None.");
+        return mel == LogLevel.None ? fallback : (Serilog.Events.LogEventLevel)mel;   // MEL Trace..Critical map 1:1 onto Serilog Verbose..Fatal
+    }
 
     builder.Logging.AddSerilog(new Serilog.LoggerConfiguration()
         .MinimumLevel.Is(Level(config["Logging:LogLevel:Default"], Serilog.Events.LogEventLevel.Information))
