@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Comfy.Patches;
 using ImageGen.Web.Comfy;
 using Microsoft.AspNetCore.Authorization;
