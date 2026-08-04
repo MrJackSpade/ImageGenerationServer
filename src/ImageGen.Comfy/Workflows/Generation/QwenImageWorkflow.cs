@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// 24GB-tier generation models whose graph is the plain txt2img topology (single CLIPLoader). Qwen-Image base

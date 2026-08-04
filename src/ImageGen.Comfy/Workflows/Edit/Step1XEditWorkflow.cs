@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -54,7 +53,7 @@ public sealed class Step1XEditWorkflow : EditWorkflowBase
             num_steps = p.IntReq("steps"),
             cfg_guidance = p.DblReq("cfg"),
             seed = ComfyGraph.Seed(p),
-            size_level = p.Int("width") > 0 ? p.Int("width") : 1024,
+            size_level = p.IntReq("width"),
         });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("2", 0), filename_prefix = "forgemcp_edit" });
         return wf;

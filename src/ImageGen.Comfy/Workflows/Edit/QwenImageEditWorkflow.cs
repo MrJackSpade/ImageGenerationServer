@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>Standard split Qwen-Image-Edit.</summary>
 public sealed class QwenImageEditWorkflow : QwenEditBase

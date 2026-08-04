@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>Qwen rapid all-in-one checkpoint (bakes its own sampling).</summary>
 public sealed class QwenRapidAioWorkflow : QwenEditBase
