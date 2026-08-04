@@ -232,8 +232,8 @@ async Task<int> MigrateUserWorkflowRelationsAsync()
         if (row.Tags is not null && !await HasRowsAsync("dbo.UserWorkflowTag", row.Id))
         {
             var plain = await cipher.DecryptAsync(row.Id, row.Tags, ct);
-            Dictionary<string, List<string>>? map = null;
-            try { map = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(plain); }
+            Dictionary<string, List<string>?>? map = null;
+            try { map = JsonSerializer.Deserialize<Dictionary<string, List<string>?>>(plain); }
             catch (JsonException) { Console.WriteLine($"    user {row.Id}: workflow tags are not readable JSON; skipped"); }
 
             foreach (var (workflowId, labels) in map ?? [])
