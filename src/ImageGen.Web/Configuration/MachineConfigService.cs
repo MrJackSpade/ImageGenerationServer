@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -77,9 +76,14 @@ public sealed class MachineConfigService(
     private void WriteToOverrideFile(string key, string? value)
     {
         var path = OverrideFilePath;
-        var root = File.Exists(path)
-            ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject()
-            : new JsonObject();
+        // Absent file: start fresh (the legitimate first-write state). Present file: it MUST already be a JSON object;
+        // a valid-but-non-object root (an array, a scalar, the literal null) is not something to silently discard and
+        // overwrite — that would lose whatever is in it — so refuse. (Invalid JSON throws in Parse, which is also right.)
+        var root = !File.Exists(path)
+            ? new JsonObject()
+            : JsonNode.Parse(File.ReadAllText(path)) as JsonObject
+              ?? throw new InvalidOperationException(
+                  $"'{path}' exists but its root is not a JSON object; refusing to overwrite it. Fix or remove the file.");
 
         var segments = key.Split(':');
         var node = root;
