@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Queue page: a paginated, cross-user feed of every generation on this box (all users). Unfinished work comes FIRST,
 // in the order the queue will serve it (the row on the GPU is the top row), with a progress bar + time-remaining
 // countdown; finished jobs follow, newest first. 25 per page, polled every 2s whichever page is shown. The prompt is
@@ -205,7 +204,7 @@
       const cancel = document.createElement("button"); cancel.className = "queue-cancel"; cancel.textContent = "Cancel";
       cancel.addEventListener("click", async () => {
         cancel.disabled = true; cancel.textContent = "Cancelling…";
-        try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(j.jobId)}`, { method: "POST" }); } catch (_) {}
+        try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(j.jobId)}`, { method: "POST" }); } catch (e) { console.debug("best-effort cancel failed:", e); }
         setTimeout(() => fetchPage(page, false), 400);
       });
       el.appendChild(cancel);
@@ -226,7 +225,7 @@
           const body = await r.json().catch(() => null);
           if (!r.ok) { toast((body && body.error) || "Couldn't requeue"); }
           else { const n = (body && body.total) || 0; toast(`Queued ${n} image${n === 1 ? "" : "s"}`); }
-        } catch (_) { toast("Couldn't requeue"); }
+        } catch (e) { console.error("requeue failed:", e); toast("Couldn't requeue"); }
         finally { again.disabled = false; again.textContent = "Requeue"; fetchPage(1, false); }
       });
       el.appendChild(again);
@@ -281,7 +280,7 @@
       if (!r.ok) throw new Error(r.status);
       const n = (await r.json()).cancelled || 0;
       toast(n ? `Cancelled ${n} job${n === 1 ? "" : "s"}` : "Nothing left to cancel");
-    } catch (_) { toast("Couldn't cancel"); }
+    } catch (e) { console.error("cancel failed:", e); toast("Couldn't cancel"); }
     finally { btn.disabled = false; btn.textContent = label; fetchPage(page, false); }
   }
   if ($cancelMine) $cancelMine.addEventListener("click", () =>

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // A single workflow's page: its info (architecture/summary), kind, average render time, file size, a ★ favorite
 // toggle, a hide-from-picker toggle, an editable list of your custom tags, and a recents grid of images this
 // workflow produced (history filtered by its config id, reusing the imgcard markup + lightbox). Uses core.js.
@@ -13,7 +12,7 @@
   let prefsOk = false;
   let listError = "";
   const gb = b => b ? (b / 1073741824).toFixed(1) + " GB" : "—";
-  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (_) { return ""; } };
+  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { console.debug("date format failed:", e); return ""; } };
 
   async function load() {
     const [rows, status, prefs] = await Promise.all([
@@ -23,7 +22,7 @@
       }).catch(e => { listError = e.message || String(e); return null; }),
       // The complete picture, including what is NOT runnable and why — the eligible list above cannot tell an
       // unconfigured workflow from one that does not exist.
-      fetch(`${GATEWAY}/catalog/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${GATEWAY}/catalog/status`).then(r => r.ok ? r.json() : null).catch(e => { console.debug("catalog status unavailable:", e); return null; }),
       loadWorkflowPrefs(),
     ]);
     workflow = (rows || []).find(m => m.id === id) || null;
@@ -103,7 +102,7 @@
   // preferences having actually loaded — writing over an unknown value is how the stored one gets lost.
   const canWritePrefs = () => prefsOk || (toast("Your saved preferences didn’t load — reload before changing them"), false);
 
-  const persistTags = () => saveWorkflowTags(tags).catch(() => toast("Couldn't save tags"));
+  const persistTags = () => saveWorkflowTags(tags).catch(e => { console.error("save tags failed:", e); toast("Couldn't save tags"); });
   async function addTag(e) {
     e.preventDefault();
     if (!canWritePrefs()) return;
@@ -124,7 +123,7 @@
     if (!canWritePrefs()) return;
     if (favs.has(workflow.id)) favs.delete(workflow.id); else favs.add(workflow.id);
     document.getElementById("mdStar").classList.toggle("on", favs.has(workflow.id));
-    try { await saveFavoriteWorkflows([...favs]); } catch (_) { toast("Couldn't save"); }
+    try { await saveFavoriteWorkflows([...favs]); } catch (e) { console.error("save favorites failed:", e); toast("Couldn't save"); }
   }
   async function toggleHide() {
     if (!canWritePrefs()) return;
@@ -132,7 +131,7 @@
     if (on) hidden.add(workflow.id); else hidden.delete(workflow.id);
     const h = document.getElementById("mdHide");
     h.classList.toggle("on", on); h.textContent = on ? "Unhide from picker" : "Hide from picker";
-    try { await saveHiddenWorkflows([...hidden]); } catch (_) { toast("Couldn't save"); }
+    try { await saveHiddenWorkflows([...hidden]); } catch (e) { console.error("save hidden failed:", e); toast("Couldn't save"); }
   }
   async function toggleHideApi() {
     if (!canWritePrefs()) return;
@@ -140,7 +139,7 @@
     if (on) hiddenApi.add(workflow.id); else hiddenApi.delete(workflow.id);
     const h = document.getElementById("mdHideApi");
     h.classList.toggle("on", on); h.textContent = on ? "Unhide from API" : "Hide from API";
-    try { await saveHiddenApiWorkflows([...hiddenApi]); } catch (_) { toast("Couldn't save"); }
+    try { await saveHiddenApiWorkflows([...hiddenApi]); } catch (e) { console.error("save hidden-api failed:", e); toast("Couldn't save"); }
   }
 
   // --- this machine's settings for this workflow ---------------------------------------------------
@@ -297,7 +296,7 @@
           + `<div class="meta"><div class="p">${prompt}</div>`
           + `<div class="row"><span class="seed">${escapeHtml(fmtDate(r.ts))}</span></div></div></a>`;
       }).join("");
-    } catch (_) { grid.innerHTML = '<p class="muted">Couldn’t load recents.</p>'; }
+    } catch (e) { console.error("load recents failed:", e); grid.innerHTML = '<p class="muted">Couldn’t load recents.</p>'; }
   }
 
   load();

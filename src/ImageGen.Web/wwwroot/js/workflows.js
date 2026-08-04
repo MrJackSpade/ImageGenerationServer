@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Workflows library index: every workflow on this machine, ready or not. Favorites pin to the top with a ★.
 // Each row: ★ toggle | name + gen/edit badge + your tags | avg time | size | hide toggle. Click the name → the
 // workflow's detail page. Star and hide are editable here; tags are edited on the detail page. Uses core.js.
@@ -46,7 +45,7 @@
         return r.json();
       }).catch(e => { listError = e.message || String(e); return null; }),
       // The complete picture, including what is NOT runnable and why. The list above is only what is ready.
-      fetch(`${GATEWAY}/catalog/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${GATEWAY}/catalog/status`).then(r => r.ok ? r.json() : null).catch(e => { console.debug("catalog status unavailable:", e); return null; }),
       loadWorkflowPrefs(),
       loadPatches(),
     ]);
