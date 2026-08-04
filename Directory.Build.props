@@ -1,6 +1,16 @@
 <Project>
 
   <!--
+    Nullable-reference-type violations (CS8600-CS8655) are build errors, not warnings, so a
+    nullability regression can't be committed or ignored. The special 'nullable' token promotes
+    exactly the nullable-analysis warning set - not every warning - matching <Nullable>enable</Nullable>,
+    which is set on every project. Solution-wide with no opt-outs, alongside the IMGNULL analyzers.
+  -->
+  <PropertyGroup>
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
     Attach the ImageGen.Analyzers Roslyn analyzer to every project in the solution.
     The condition excludes the analyzer project itself (it cannot reference itself).
     ReferenceOutputAssembly=false: we want the analyzer, not a runtime dependency.
