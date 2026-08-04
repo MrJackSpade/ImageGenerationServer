@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -28,37 +27,37 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
         // Virtual resolution = the grid's longest edge (aspect from the input); the output keeps the INPUT resolution.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         // "adaptive", an inline hex list ("aabbcc, 112233, ..."), or a bundled name ("chroma-256").
         // The inline path is how a per-character LOCKED palette is fed for frame-to-frame consistency.
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
+        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
         // Named final_method (not method) to match the diffusion pixelizers' final-render param, so the key is shared
         // across every pixelizer and stays in the multi-select intersection panel. (The PixelQuantize node input is
         // still "method" — see Build.)
-        new() { Key = "final_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = "final_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // Engine selector, mirroring pixel-quantize-video. 'fp' routes to PixelQuantizeFP (L0 flatten + XDoG
         // thicken + de-AA + DIN99d palette). For a SINGLE frame the fp result is only identical to that frame's
         // whole-batch run when BOTH batch globals are replayed via fp_palette + fp_frequencies below; deriving
         // them from one frame is valid fp but not batch-exact. palette/final_method are ignored for 'fp'.
-        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Default = "median", Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
-        new() { Key = "thicken", Type = ParamType.Double, Default = 0.75, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
-        new() { Key = "tau", Type = ParamType.Double, Default = 0.6, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
-        new() { Key = "lam", Type = ParamType.Double, Default = 0.015, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
-        new() { Key = "k", Type = ParamType.Int, Default = 31, Min = 2, Max = 128, Label = "FP palette k-means" },
-        new() { Key = "beta", Type = ParamType.Double, Default = 0.5, Min = 0, Max = 4, Label = "FP rarity bias" },
-        new() { Key = "step", Type = ParamType.Double, Default = 5.6, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
+        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
+        new() { Key = "thicken", Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
+        new() { Key = "tau", Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
+        new() { Key = "lam", Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
+        new() { Key = "k", Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
+        new() { Key = "beta", Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
+        new() { Key = "step", Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
         // fp REPLAY globals from a previous fp run (both emitted in its ui/side-channel and persisted by Forge):
         // fp_palette = inline hex list, fp_frequencies = float list indexed by that palette's ORDER. Empty = derive
         // from this image. Distinct keys from 'palette' (the median-engine named-palette enum) on purpose.
-        new() { Key = "fp_palette", Type = ParamType.String, Default = "", Label = "FP replay palette", Help = "Inline hex list from a previous fp run; empty = derive" },
-        new() { Key = "fp_frequencies", Type = ParamType.String, Default = "", Label = "FP replay frequencies", Help = "Float list (palette order) from the same fp run; empty = derive" },
+        new() { Key = "fp_palette", Type = ParamType.String, Label = "FP replay palette", Help = "Inline hex list from a previous fp run; empty = derive" },
+        new() { Key = "fp_frequencies", Type = ParamType.String, Label = "FP replay frequencies", Help = "Float list (palette order) from the same fp run; empty = derive" },
         // Key BEFORE pixelizing: matte the source (BiRefNet) at FULL resolution and feed the RGBA straight into the
         // quantizer, which carries the alpha through and outputs a transparent-background sprite (PNG keeps the alpha).
         // Off = the legacy flatten-onto-white path. On, the flatten is skipped — the matte IS the background handling.
-        new() { Key = "key_background", Type = ParamType.Bool, Default = false, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprite" },
-        new() { Key = "matte_threshold", Type = ParamType.Double, Default = 0, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
+        new() { Key = "key_background", Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprite" },
+        new() { Key = "matte_threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

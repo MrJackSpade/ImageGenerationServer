@@ -21,7 +21,8 @@
     "final_method": {
       "value": "median",
       "exposed": true
-    }
+    },
+    "engine": "median"
   },
   "card": {
     "architecture": "Deterministic OKLab palette + grid quantizer (no model) — PixelQuantize node (ComfyUI-PixelHarness)",

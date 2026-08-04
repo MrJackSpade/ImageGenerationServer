@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -24,45 +23,45 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> PixelizeSchema = new ParamSpec[]
     {
         // model loading (consumed by EditWorkflowBase.LoadModel)
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "unet_gguf" },
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for, and "flux"
         // silently became the answer for any configuration that omitted it -- pixelize-hidream inherited it
         // and handed CLIPLoader a type it does not accept. An omission must surface, not be guessed.
         new() { Key = "clip_type", Type = ParamType.String },
-        new() { Key = "dual",      Type = ParamType.Bool,   Default = true },
+        new() { Key = "dual",      Type = ParamType.Bool },
         // sampling
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 28, Min = 1, Max = 100, Label = "Steps" },
-        new() { Key = "cfg",       Type = ParamType.Double, Default = 1,  Min = 1, Max = 30, Label = "CFG scale" },
+        new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps" },
+        new() { Key = "cfg",       Type = ParamType.Double, Min = 1, Max = 30, Label = "CFG scale" },
         new() { Key = "guidance",  Type = ParamType.Double },   // Flux distilled guidance (omit the node for non-flux)
-        new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
-        new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
+        new() { Key = "sampler",   Type = ParamType.String },
+        new() { Key = "scheduler", Type = ParamType.String },
         // The harness uses a FIXED style prompt for the correction pass (not the edit instruction). Blank it to
         // fall back to the caller's instruction.
-        new() { Key = "style_prompt", Type = ParamType.String, Default = "16-bit pixel art, flat colors, clean crisp pixels, vibrant", Label = "Style prompt" },
+        new() { Key = "style_prompt", Type = ParamType.String, Label = "Style prompt" },
         // Low strength: the projection leads, the model only cleans up. The harness Flux default is 0.3.
-        new() { Key = "reference",  Type = ParamType.Int, Default = 70, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
+        new() { Key = "reference",  Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
         // Virtual resolution = the sprite's pixel count on its longest edge; the grid is derived from the INPUT
         // aspect so output aspect == input aspect. 0 = use explicit grid_w/grid_h. The sampler runs at `megapixels`
         // (aspect-preserving), NOT a fixed grid*block, so a portrait input no longer gets squashed to 3:2.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 384, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w",      Type = ParamType.Int,    Min = 0, Max = 4096 },
         new() { Key = "grid_h",      Type = ParamType.Int,    Min = 0, Max = 4096 },
-        new() { Key = "megapixels",  Type = ParamType.Double, Default = 1.0, Min = 0.1, Max = 4.0, Label = "Megapixels", Help = "Working resolution area, aspect preserved (ignored when Snap res is on)" },
+        new() { Key = "megapixels",  Type = ParamType.Double, Min = 0.1, Max = 4.0, Label = "Megapixels", Help = "Working resolution area, aspect preserved (ignored when Snap res is on)" },
         // When snap_resolution is on AND width+height are given, the render res is snapped to a clean integer
         // multiple of VRES (exact k×k cells) within the model's range, overriding the megapixels sizing above.
-        new() { Key = "width",           Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
-        new() { Key = "height",          Type = ParamType.Int,  Default = 0, Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
-        new() { Key = "snap_resolution", Type = ParamType.Bool, Default = true, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
-        new() { Key = "out_scale",   Type = ParamType.Int,    Default = 1, Min = 1, Max = 16, Label = "Output upscale" },
-        new() { Key = "palette",     Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
-        new() { Key = "proj_method", Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
-        new() { Key = "final_method",Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
+        new() { Key = "width",           Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
+        new() { Key = "height",          Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
+        new() { Key = "snap_resolution", Type = ParamType.Bool, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
+        new() { Key = "out_scale",   Type = ParamType.Int,    Min = 1, Max = 16, Label = "Output upscale" },
+        new() { Key = "palette",     Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
+        new() { Key = "proj_method", Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
+        new() { Key = "final_method",Type = ParamType.Enum,   Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
         // projection weight ramp (over log-sigma progress) + the window it applies in
-        new() { Key = "w_start",       Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0 },
-        new() { Key = "w_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "start_percent", Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "end_percent",   Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "project_every", Type = ParamType.Int,    Default = 1, Min = 1, Max = 8 },
+        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "project_every", Type = ParamType.Int,    Min = 1, Max = 8 },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
