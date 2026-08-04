@@ -8,10 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 // One-time backfill: HTML-decode every stored booru tag name.
 //
 // The tag scrape never HTML-decoded the names, so both tag dictionaries spelled apostrophes '&#039;' and '>_<'
-// '&gt;_&lt;' ("holding_another&#039;s_foot"). tags.json was escaped TWICE over. Those spellings then leaked into the
-// app: the tag model emitted them, the composer stored them, and every bookmark/ban key was written under them. The
-// serving vocab and tags.json now decode at ingest, so the app speaks the literal name ("holding_another's_foot"). This
-// tool moves the DATA the app already stored onto that same spelling.
+// '&gt;_&lt;' ("holding_another&#039;s_foot"). tags.json was escaped TWICE over. The serving vocab and tags.json now
+// decode at ingest, so the app speaks the literal name ("holding_another's_foot"). This tool moves the DATA the app
+// already stored onto that same spelling.
 //
 // It is not optional cleanup — it gates the deploy. Bans are matched against the vocab by name (server.py's tag2id),
 // so a ban still written '&#039;' silently stops suppressing the moment the vocab decodes. Bookmarks and marks key the
@@ -54,9 +53,8 @@ Console.WriteLine();
 
 // NOTHING BELOW MAY PRINT A DECRYPTED VALUE. This tool decrypts — it has to, to rewrite the value — and every
 // prompt-bearing column in this database is encrypted under a per-user key for the express purpose of keeping the text
-// out of consoles and logs. Decrypting is necessary; printing never is. Report counts and ids, not content. (The
-// RawPrompt backfill once echoed a "first 5 rows" preview and leaked real user prompts into a terminal.
-// NoPlaintextConsoleTests fails the build if it comes back.)
+// out of consoles and logs. Decrypting is necessary; printing never is. Report counts and ids, not content.
+// (NoPlaintextConsoleTests fails the build if a Console call here so much as looks like it emits one.)
 
 var totalChanged = 0;
 var totalRemoved = 0;
@@ -104,9 +102,9 @@ return 0;
 //
 // A fixed point is only safe HERE because WebUtility.HtmlDecode requires the trailing ';': it leaves the real tag
 // '&ether' alone, so re-running this tool over already-decoded data is a no-op. DO NOT port this loop to python --
-// html.unescape resolves semicolon-less entities, so it reads '&ether' as '&eth'+'er' and writes 'ðer'. That bug cost
-// us a corrupted tags.json once already; the python side (build-tags-json.py, tagmodel/server.py) does not decode at
-// all any more, because the scraper decodes at capture.
+// html.unescape resolves semicolon-less entities, so it reads '&ether' as '&eth'+'er' and writes 'ðer'. The python
+// side (build-tags-json.py, tagmodel/server.py) does not decode at all any more, because the scraper decodes at
+// capture.
 static string Decode(string s)
 {
     while (true)

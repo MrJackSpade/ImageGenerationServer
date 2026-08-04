@@ -9,8 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 // A JSON blob in this database is only acceptable for an audit record — written once, read whole, never joined on.
 // These were not that. Each held relational data, and encrypting the whole object because two or three of its fields
 // are protected dragged every neutral field behind the same opaque wall. A foreign key inside an encrypted blob is
-// not a foreign key: nothing can join it, count it, or garbage-collect against it — which is exactly how 19,329
-// upload rows / 7.1 GB became unreachable, their only reference living inside JobSlot.RequestJson.
+// not a foreign key: nothing can join it, count it, or garbage-collect against it.
 //
 // What this moves:
 //   * JobSlot.RequestJson  -> JobSlot.Workflow/Prompt/NegativePrompt/Aspect/RandomArtist/RandomPrompt/Temperature/

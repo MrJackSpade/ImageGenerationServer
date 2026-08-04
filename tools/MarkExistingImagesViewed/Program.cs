@@ -2,10 +2,9 @@ using Microsoft.Data.SqlClient;
 
 // One-time backfill: mark every image that already exists as VIEWED.
 //
-// The grids used to outline whatever was generated while a tab happened to be open. The outline now means "you have
-// not opened this yet", which is a per-(user, image) row in dbo.ImageView, and unviewed is the ABSENCE of a row. So on
-// the deploy that introduces it, every image ever made would light up at once — a library-wide wall of outlines that
-// says nothing and that the user would have to clear by hand.
+// The outline means "you have not opened this yet", which is a per-(user, image) row in dbo.ImageView, and unviewed
+// is the ABSENCE of a row. So on the deploy that introduces it, every image ever made would light up at once — a
+// library-wide wall of outlines that says nothing and that the user would have to clear by hand.
 //
 // This gives everyone a clean start: everything that exists before the change counts as seen, and only images
 // generated afterwards begin unviewed. It is not optional polish — without it the feature's first impression is
