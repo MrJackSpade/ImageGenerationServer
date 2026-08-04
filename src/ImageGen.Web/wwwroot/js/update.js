@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // The "a newer version exists" banner.
 //
 // Checked on load and then re-checked every 60 seconds by asking the server for its stored answer. The server
@@ -69,8 +68,9 @@
       const r = await fetch("/api/update", { headers: { Accept: "application/json" } });
       if (!r.ok) return;              // not something to tell anyone about
       render(await r.json());
-    } catch (_) {
-      // offline, or the app is going down; either way, say nothing and try again on the next tick
+    } catch (e) {
+      // offline, or the app is going down: non-actionable, so just try again next tick — but don't swallow it silently.
+      console.debug("update check failed (offline?):", e);
     }
   }
 

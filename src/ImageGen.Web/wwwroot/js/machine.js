@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // This machine's configuration. JSON in, DOM built here — /api/machine-settings returns the key list, its current
 // values, and per key whether a change bites now or waits for a restart. The server owns that list: a key it doesn't
 // know is a 400, so this page cannot write arbitrary configuration into the process.
@@ -78,14 +77,14 @@
       spec.value = value;
       toast(spec.live ? `Saved — ${spec.label} is live` : `Saved — ${spec.label} applies on restart`);
       if (spec.key === "ComfyUI:BaseUrl") probe(value);
-    } catch (_) { toast("Couldn't save"); }
+    } catch (e) { console.error("machine-settings save failed:", e); toast("Couldn't save"); }
     finally { input.disabled = false; }
   }
 
   // Saving an address is not the same as it being right, and the difference only shows up at the next render —
   // by which time nobody connects the two. Ask the address whether anything is there, and say so.
   async function probe(url) {
-    const r = await api.probe(url).catch(() => ({ ok: false, error: "no answer" }));
+    const r = await api.probe(url).catch(e => { console.error("machine-settings probe failed:", e); return { ok: false, error: "no answer" }; });
     toast(r.ok ? "The renderer answered" : `Nothing answered at that address — ${r.error}`);
   }
 

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Bounded-concurrency thumbnail loader.
 //
 // A grid page (bookmarks, gallery, an artist's gens, the recents strip) can put hundreds of thumbnails on screen at

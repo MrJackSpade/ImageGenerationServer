@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Compose page "Recent" strip. SOURCE OF TRUTH = the server, always. /api/recents returns the images this strip should
 // show, already sized: the newest MIN, stretched to cover the current-or-last batch whenever that batch produced more
 // than MIN. The window is worked out server-side from the job table, so a tab that just loaded shows exactly what a tab

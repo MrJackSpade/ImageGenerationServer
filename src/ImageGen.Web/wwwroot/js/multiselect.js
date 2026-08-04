@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Image-grid multi-select + batch delete (history/recents pages only — NOT bookmarks, which it isn't loaded on).
 // Android-style: long-press an image card to enter selection mode, then tap cards to toggle. A fixed top-right
 // bar shows the count + a Delete button that batch-deletes the selected images from history. Operates on the same
@@ -53,7 +52,7 @@
     let ok = 0, fail = 0;
     for (const id of ids) {
       try { const r = await deleteHistory(id); if (r && (r.ok || r.status === 204)) { ok++; removeCards(id); } else fail++; }
-      catch (_) { fail++; }
+      catch (e) { console.error("bulk delete failed for", id, e); fail++; }
     }
     setMode(false);
     toast(fail ? `Deleted ${ok}, ${fail} failed` : `Deleted ${ok}`);
