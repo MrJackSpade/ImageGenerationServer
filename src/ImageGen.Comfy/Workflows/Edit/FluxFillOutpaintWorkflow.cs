@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// OUTPAINT on FLUX.1 Fill [dev]. <c>ImagePadForOutpaint</c> supplies the enlarged canvas and the border mask.
@@ -28,11 +27,11 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = FillSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "pad_left",   Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend left (px)" },
-        new() { Key = "pad_top",    Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend top (px)" },
-        new() { Key = "pad_right",  Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend right (px)" },
-        new() { Key = "pad_bottom", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
-        new() { Key = "mask_grow",  Type = ParamType.Int, Default = 16, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "pad_left",   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
+        new() { Key = "pad_top",    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
+        new() { Key = "pad_right",  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
+        new() { Key = "pad_bottom", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
+        new() { Key = "mask_grow",  Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,

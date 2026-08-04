@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// OUTPAINT on base Qwen-Image + the InstantX inpainting ControlNet. <c>ImagePadForOutpaint</c> extends the canvas by
@@ -30,16 +29,16 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "denoise",    Type = ParamType.Double, Default = 1.0, Min = 0.5, Max = 1.0, Step = 0.01, Label = "Fill strength" },
-        new() { Key = "pad_left",   Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend left (px)" },
-        new() { Key = "pad_top",    Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend top (px)" },
-        new() { Key = "pad_right",  Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend right (px)" },
-        new() { Key = "pad_bottom", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
+        new() { Key = "denoise",    Type = ParamType.Double, Min = 0.5, Max = 1.0, Step = 0.01, Label = "Fill strength" },
+        new() { Key = "pad_left",   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
+        new() { Key = "pad_top",    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
+        new() { Key = "pad_right",  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
+        new() { Key = "pad_bottom", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
         // With the clamp holding the pad at 1, grow only places the ramp's midpoint: 16 = 2σ puts the 50% blend
         // 16px inside the original and has the descent begin right at the boundary — the shape the seam-free
         // hand-ramp measurement used. The crossfade band sits over ground where the ControlNet saw real adjacent
         // pixels.
-        new() { Key = "mask_grow", Type = ParamType.Int, Default = 16, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "mask_grow", Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
         // NOTE: no "feather" knob. ImagePadForOutpaint's own feathering stays 0 (see ResolveCanvas) — the template
         // sets it to 0 too — so seam softening happens in exactly one place: mask_grow + mask_blur.
     }).ToArray();

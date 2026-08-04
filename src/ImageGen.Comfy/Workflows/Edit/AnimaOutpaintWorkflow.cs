@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -33,16 +32,16 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = SharedSchema.Where(s => s.Key != "denoise").Concat(new ParamSpec[]
     {
-        new() { Key = "denoise",         Type = ParamType.Double, Default = 1.0, Min = 0.5, Max = 1.0, Label = "Fill strength" },
-        new() { Key = "pad_left",        Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend left (px)" },
-        new() { Key = "pad_top",         Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend top (px)" },
-        new() { Key = "pad_right",       Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend right (px)" },
-        new() { Key = "pad_bottom",      Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
-        new() { Key = "feather",         Type = ParamType.Int, Default = 24, Min = 0, Max = 256, Label = "Seam feather (px)" },
-        new() { Key = "mask_grow",       Type = ParamType.Int, Default = 8, Min = 0, Max = 64, Label = "Mask grow (px)" },
-        new() { Key = "lllite_strength", Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 2.0, Label = "Inpaint control strength" },
-        new() { Key = "lllite_start",    Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0, Label = "Control start %" },
-        new() { Key = "lllite_end",      Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0, Label = "Control end %" },
+        new() { Key = "denoise",         Type = ParamType.Double, Min = 0.5, Max = 1.0, Label = "Fill strength" },
+        new() { Key = "pad_left",        Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
+        new() { Key = "pad_top",         Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
+        new() { Key = "pad_right",       Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
+        new() { Key = "pad_bottom",      Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
+        new() { Key = "feather",         Type = ParamType.Int, Min = 0, Max = 256, Label = "Seam feather (px)" },
+        new() { Key = "mask_grow",       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "lllite_strength", Type = ParamType.Double, Min = 0.0, Max = 2.0, Label = "Inpaint control strength" },
+        new() { Key = "lllite_start",    Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Control start %" },
+        new() { Key = "lllite_end",      Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Control end %" },
         new() { Key = "required_prefix", Type = ParamType.String },
         new() { Key = "negative",        Type = ParamType.String },
         new() { Key = "clip_skip",       Type = ParamType.Int },

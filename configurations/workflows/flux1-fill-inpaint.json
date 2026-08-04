@@ -22,6 +22,7 @@
     "scheduler": "normal",
     "negative_supported": false,
     "max_dimension": 1536,
+    "diffdiff": true,
     "guidance": {
       "value": 30.0,
       "exposed": true,

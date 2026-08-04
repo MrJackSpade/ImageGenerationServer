@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -19,12 +18,12 @@ public sealed class LineThickenXDoGWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> XDoGSchema = new ParamSpec[]
     {
-        new() { Key = "thickness", Type = ParamType.Int,    Default = 2,    Min = 0,    Max = 32,  Label = "Line thickness (px)" },
-        new() { Key = "sigma",     Type = ParamType.Double, Default = 1.0,  Min = 0.3,  Max = 8.0, Label = "Line scale (sigma)" },
-        new() { Key = "k",         Type = ParamType.Double, Default = 1.6,  Min = 1.0,  Max = 4.0 },
-        new() { Key = "tau",       Type = ParamType.Double, Default = 0.98, Min = 0.5,  Max = 1.0 },
-        new() { Key = "epsilon",   Type = ParamType.Double, Default = 0.0,  Min = -1.0, Max = 1.0, Label = "Edge threshold (0=flats stay clean)" },
-        new() { Key = "phi",       Type = ParamType.Double, Default = 10.0, Min = 0.1,  Max = 50.0 },
+        new() { Key = "thickness", Type = ParamType.Int,    Min = 0,    Max = 32,  Label = "Line thickness (px)" },
+        new() { Key = "sigma",     Type = ParamType.Double, Min = 0.3,  Max = 8.0, Label = "Line scale (sigma)" },
+        new() { Key = "k",         Type = ParamType.Double, Min = 1.0,  Max = 4.0 },
+        new() { Key = "tau",       Type = ParamType.Double, Min = 0.5,  Max = 1.0 },
+        new() { Key = "epsilon",   Type = ParamType.Double, Min = -1.0, Max = 1.0, Label = "Edge threshold (0=flats stay clean)" },
+        new() { Key = "phi",       Type = ParamType.Double, Min = 0.1,  Max = 50.0 },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

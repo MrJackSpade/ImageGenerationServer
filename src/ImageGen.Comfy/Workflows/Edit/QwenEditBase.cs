@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Qwen-Image-Edit (<c>TextEncodeQwenImageEditPlus</c>). Two models run this topology — the standard split model
@@ -33,10 +32,10 @@ public abstract class QwenEditBase : EditWorkflowBase
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "mask_left_pct",   Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Default = 0, Label = "Mask left %",   Help = "Fence the model out of the left N% of the canvas" },
-        new() { Key = "mask_right_pct",  Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Default = 0, Label = "Mask right %",  Help = "Fence the model out of the right N% of the canvas" },
-        new() { Key = "mask_top_pct",    Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Default = 0, Label = "Mask top %",    Help = "Fence the model out of the top N% of the canvas" },
-        new() { Key = "mask_bottom_pct", Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Default = 0, Label = "Mask bottom %", Help = "Fence the model out of the bottom N% of the canvas" },
+        new() { Key = "mask_left_pct",   Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask left %",   Help = "Fence the model out of the left N% of the canvas" },
+        new() { Key = "mask_right_pct",  Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask right %",  Help = "Fence the model out of the right N% of the canvas" },
+        new() { Key = "mask_top_pct",    Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask top %",    Help = "Fence the model out of the top N% of the canvas" },
+        new() { Key = "mask_bottom_pct", Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask bottom %", Help = "Fence the model out of the bottom N% of the canvas" },
     }).ToArray();
 
     /// <summary>

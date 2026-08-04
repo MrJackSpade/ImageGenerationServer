@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// INPAINT / OUTPAINT on <b>FLUX.1 Fill [dev]</b> — a model TRAINED for filling, not a txt2img base with a fill
@@ -57,16 +56,16 @@ public abstract class FluxFillBase : EditWorkflowBase
         // Fill is guidance-distilled: real CFG stays 1 and the strength knob is FluxGuidance. 30 is the value BFL
         // ship for Fill (ComfyUI's blueprint uses it too) — an order of magnitude above Flux txt2img's 3.5, because
         // the guidance embedding is what carries "obey the mask conditioning".
-        new() { Key = "guidance",  Type = ParamType.Double, Default = 30.0, Min = 1.0, Max = 60.0, Step = 0.5, Label = "Fill guidance" },
+        new() { Key = "guidance",  Type = ParamType.Double, Min = 1.0, Max = 60.0, Step = 0.5, Label = "Fill guidance" },
         // The soft edge that DifferentialDiffusion converts into a per-pixel denoise schedule. Wide enough to be a
         // real schedule ramp rather than a 1px step; the grow keeps it off the region being filled.
-        new() { Key = "mask_blur", Type = ParamType.Int, Default = 31, Min = 0, Max = 31, Label = "Mask edge blur (px)" },
-        new() { Key = "diffdiff",  Type = ParamType.Bool, Default = true, Label = "Differential blending" },
+        new() { Key = "mask_blur", Type = ParamType.Int, Min = 0, Max = 31, Label = "Mask edge blur (px)" },
+        new() { Key = "diffdiff",  Type = ParamType.Bool, Label = "Differential blending" },
         // Fit-and-invert the decode's tint on the outside-mask pixels before pasting back
         // (ImageCompositeMaskedColorCorrected "Linear2"). Off = plain composite.
-        new() { Key = "color_correct", Type = ParamType.Bool, Default = true, Label = "Seam color match" },
+        new() { Key = "color_correct", Type = ParamType.Bool, Label = "Seam color match" },
         // Long-edge CEILING (not a target): a canvas already under it is passed through untouched and never upscaled.
-        new() { Key = "max_dimension", Type = ParamType.Int, Default = 1536, Min = 0, Max = 4096, Label = "Max long edge (px)" },
+        new() { Key = "max_dimension", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Max long edge (px)" },
     }).ToArray();
 
     /// <summary>Produce the canvas to fill and the raw region to fill in it.</summary>

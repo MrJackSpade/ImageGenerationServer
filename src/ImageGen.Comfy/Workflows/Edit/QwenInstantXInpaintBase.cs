@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// INPAINT / OUTPAINT on base <b>Qwen-Image</b> using the InstantX inpainting ControlNet
@@ -64,10 +63,10 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
     {
         new() { Key = "negative",       Type = ParamType.String },
         // Shift for ModelSamplingAuraFlow. Qwen-Image's trained value; the template ships 3.1.
-        new() { Key = "auraflow",       Type = ParamType.Double, Default = 3.1, Min = 0.0, Max = 10.0 },
-        new() { Key = "cn_strength",    Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 2.0,  Step = 0.05, Label = "Fill control strength" },
-        new() { Key = "cn_start",       Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control start %" },
-        new() { Key = "cn_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control end %" },
+        new() { Key = "auraflow",       Type = ParamType.Double, Min = 0.0, Max = 10.0 },
+        new() { Key = "cn_strength",    Type = ParamType.Double, Min = 0.0, Max = 2.0,  Step = 0.05, Label = "Fill control strength" },
+        new() { Key = "cn_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control start %" },
+        new() { Key = "cn_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control end %" },
         // mask_grow is declared PER DIRECTION (0 inpaint / 24 outpaint) — see each subclass's schema; they are not
         // interchangeable.
         //
@@ -77,14 +76,14 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // latent-cell-wide for outpaint, always paired with a grow that keeps the ramp off the 0.5-grey pad fill).
         // Do not "simplify" this to FeatherMask — that node ramps in from the CANVAS EDGES, not from the mask's own
         // boundary.
-        new() { Key = "mask_blur",      Type = ParamType.Int,    Default = 31,  Min = 0,   Max = 31,   Label = "Mask edge blur (px)" },
+        new() { Key = "mask_blur",      Type = ParamType.Int,    Min = 0,   Max = 31,   Label = "Mask edge blur (px)" },
         // Long-edge ceiling for the sampled canvas. 0 = no ceiling (run native). This is a CEILING, not a target: an
         // image already under it is passed through untouched and is never upscaled to meet it. Comfy's template uses
         // ImageScaleToMaxDimension, which forces the long edge to EXACTLY largest_size and so scales small sources UP;
         // that wastes VRAM on a 20B model + a 4.2GB ControlNet and silently changes the user's resolution, so the
         // decision is made here in C# (the source dims are known at submit) and a scale node is emitted only when the
         // canvas genuinely exceeds the ceiling.
-        new() { Key = "max_dimension",  Type = ParamType.Int,    Default = 1536, Min = 0,  Max = 4096, Label = "Max long edge (px)" },
+        new() { Key = "max_dimension",  Type = ParamType.Int,    Min = 0,  Max = 4096, Label = "Max long edge (px)" },
     }).ToArray();
 
     /// <summary>Produce the canvas to fill and the region to fill in it. Inpaint uses the source as-is plus the

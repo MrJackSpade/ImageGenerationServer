@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// ControlNet line-art re-render. A lineart preprocessor (<c>LineArtPreprocessor</c>,
@@ -16,17 +15,17 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> ControlNetSchema = new ParamSpec[]
     {
-        new() { Key = "loader",     Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "checkpoint" },
-        new() { Key = "steps",      Type = ParamType.Int,    Default = 20,   Min = 1,    Max = 100, Label = "Steps" },
-        new() { Key = "cfg",        Type = ParamType.Double, Default = 7.0,  Min = 1,    Max = 30,  Label = "CFG scale" },
-        new() { Key = "sampler",    Type = ParamType.String, Default = "dpmpp_2m" },
-        new() { Key = "scheduler",  Type = ParamType.String, Default = "karras" },
-        new() { Key = "denoise",    Type = ParamType.Double, Default = 0.55, Min = 0.1,  Max = 1.0, Label = "Redraw amount" },
-        new() { Key = "style_prompt", Type = ParamType.String, Default = "masterpiece, best quality, anime, clean bold outlines", Label = "Style prompt" },
+        new() { Key = "loader",     Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = "steps",      Type = ParamType.Int,    Min = 1,    Max = 100, Label = "Steps" },
+        new() { Key = "cfg",        Type = ParamType.Double, Min = 1,    Max = 30,  Label = "CFG scale" },
+        new() { Key = "sampler",    Type = ParamType.String },
+        new() { Key = "scheduler",  Type = ParamType.String },
+        new() { Key = "denoise",    Type = ParamType.Double, Min = 0.1,  Max = 1.0, Label = "Redraw amount" },
+        new() { Key = "style_prompt", Type = ParamType.String, Label = "Style prompt" },
         new() { Key = "negative",   Type = ParamType.String },
-        new() { Key = "coarse",     Type = ParamType.Enum,   Choices = new[] { "enable", "disable" }, Default = "enable", Label = "Coarse (bolder) lineart" },
-        new() { Key = "controlnet_strength", Type = ParamType.Double, Default = 0.9, Min = 0.0, Max = 2.0, Label = "ControlNet strength" },
-        new() { Key = "resolution", Type = ParamType.Int,    Default = 512,  Min = 256,  Max = 2048, Label = "Lineart resolution" },
+        new() { Key = "coarse",     Type = ParamType.Enum,   Choices = new[] { "enable", "disable" }, Label = "Coarse (bolder) lineart" },
+        new() { Key = "controlnet_strength", Type = ParamType.Double, Min = 0.0, Max = 2.0, Label = "ControlNet strength" },
+        new() { Key = "resolution", Type = ParamType.Int,    Min = 256,  Max = 2048, Label = "Lineart resolution" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
