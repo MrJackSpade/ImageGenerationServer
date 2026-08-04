@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text.Json;
 using ImageGen.Application.Media;
@@ -68,8 +67,8 @@ public sealed class ComfyClient : IComfyClient
     {
         get
         {
-            var url = (_endpoint.BaseUrl ?? "").TrimEnd('/');
-            var token = _endpoint.GateToken ?? "";
+            var url = _endpoint.BaseUrl.TrimEnd('/');
+            var token = _endpoint.GateToken;
             if (url.Length == 0)
                 throw new InvalidOperationException(
                     "The renderer's address is not configured. Set it on the settings page (ComfyUI:BaseUrl).");
@@ -376,7 +375,7 @@ public sealed class ComfyClient : IComfyClient
         var resolved = _catalog.Resolve(cfg);
         wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         var values = new ParamValues(dict);
-        var (pos, neg) = ApplyGenPromptRules(values, prompt ?? "", negativePrompt);
+        var (pos, neg) = ApplyGenPromptRules(values, prompt, negativePrompt);
         var loraStack = await ValidateLorasAsync(loras, ct);
         var inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect), Loras = loraStack };
         var graph = wf.Build(values, resolved, inputs);
