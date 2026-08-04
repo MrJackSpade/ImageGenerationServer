@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Edit page: four modes behind a tab bar, all over one source image (seeded from /edit/{id}).
 //   • Edit    — instruction image-editing (Flux Kontext / Qwen), gen-style: source on the left, prompt box +
 //               controls on the right, outputs underneath. Each "Apply" edits the SAME source image.
@@ -99,7 +98,7 @@ async function detectSrcVideo(id) {
     if (!r.ok) return false;
     const map = await r.json();
     return map[key] === "webp" || map[key] === "mp4";   // clip kinds; a still ("image") is not V2V-eligible
-  } catch (_) { return false; }
+  } catch (e) { console.debug("media kind check failed:", e); return false; }
 }
 // The inpaint/outpaint boxes seed from the source image's prompt VERBATIM — the marker form ('#'/'@' and underscores
 // intact) the worker stored when it made the picture. Empty for prose/uploaded sources; falls back to the plain prompt
@@ -618,7 +617,7 @@ async function sendEdit() {
 let editJobIds = [];
 let editMade = 0;   // images actually produced this batch (excludes no-change / failed runs)
 const cancelEditBatch = () => Promise.all(editJobIds.map(id =>
-  fetch(`${GATEWAY}/cancel/${encodeURIComponent(id)}`, { method: "POST" }).catch(() => {})));
+  fetch(`${GATEWAY}/cancel/${encodeURIComponent(id)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e))));
 // Batch bookkeeping + the shared bar/ETA wiring, shared by a fresh Apply and reconnect-on-return. One shared bar for
 // single and multi: the queue renders edits one at a time, so only the running model emits frames, and barBase/barSpan
 // map that model's fraction into its slice of the overall total (see showBar).
@@ -666,9 +665,9 @@ async function runOneEdit(model, instruction, refIds, overrides, single) {
     editJobIds.push(promptId);
     // Cancel can land while this POST is still in flight — the job exists on the server now, so cancel it here rather
     // than let it render behind the user's back. trackPrompt then reads it back as cancelled and reports it.
-    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(() => {});
+    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e));
     showPendingNotice(notice);   // yellow text on the placeholder right away (before the render)
-    postPending({ jobId: promptId, prompt: instruction, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(() => {});
+    postPending({ jobId: promptId, prompt: instruction, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
   } catch (e) {
     setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
     multiDone++; barBase = multiDone / Math.max(1, multiTotal); return;
@@ -746,7 +745,7 @@ function bindPaint(canvas) {
     maskCtx.fillStyle = "rgba(255,40,60,1)";              // SOLID — display tint comes from CSS canvas opacity
     maskCtx.beginPath(); maskCtx.arc(x, y, radius, 0, Math.PI * 2); maskCtx.fill();
   };
-  canvas.addEventListener("pointerdown", e => { drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} stamp(e); });
+  canvas.addEventListener("pointerdown", e => { drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch (err) { console.debug("pointer capture failed:", err); } stamp(e); });
   canvas.addEventListener("pointermove", e => { if (drawing) stamp(e); });
   const stop = () => { drawing = false; };
   canvas.addEventListener("pointerup", stop); canvas.addEventListener("pointercancel", stop); canvas.addEventListener("pointerleave", stop);
@@ -806,7 +805,7 @@ function applyInpaintOutput(result) {
 let inpaintJobIds = [];
 let inpaintMade = 0;   // images actually produced this batch (excludes no-change / failed runs)
 const cancelInpaintBatch = () => Promise.all(inpaintJobIds.map(id =>
-  fetch(`${GATEWAY}/cancel/${encodeURIComponent(id)}`, { method: "POST" }).catch(() => {})));
+  fetch(`${GATEWAY}/cancel/${encodeURIComponent(id)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e))));
 // The whole batch drives ONE shared page bar. The backend renders the queued jobs one at a time and /ws frames carry
 // the running job's prompt_id, so trackPrompt only fires onFraction for whichever run is actually rendering — the
 // queued siblings stay silent. That lets the overall fraction be (finished + this run's p) / total without the idle
@@ -859,8 +858,8 @@ async function runOneInpaint(model, prompt, maskId, overrides) {
     inpaintJobIds.push(promptId);
     // Cancel can land while this POST is still in flight — the job exists on the server now, so cancel it here rather
     // than let it render behind the user's back. trackPrompt then reads it back as cancelled and reports it.
-    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(() => {});
-    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(() => {});
+    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e));
+    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
   } catch (e) {
     setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
     multiDone++; return;
@@ -978,7 +977,7 @@ function bindOutHandles(frame) {
     const h = e.target.closest(".op-h"); if (!h) return;
     e.preventDefault();
     const dir = h.dataset.dir, sx = e.clientX, sy = e.clientY, s0 = outScale || 1, p0 = { ...pads };
-    try { h.setPointerCapture(e.pointerId); } catch (_) {}
+    try { h.setPointerCapture(e.pointerId); } catch (err) { console.debug("pointer capture failed:", err); }
     const move = ev => {
       const dx = (ev.clientX - sx) / s0, dy = (ev.clientY - sy) / s0;
       const n = { ...p0 };
@@ -1092,8 +1091,8 @@ async function outpaintGenerate() {
     if (!r.ok) throw new Error(await gwError(r));
     const promptId = (await r.json()).promptId;
     // Cancel can land while this POST is still in flight — the job exists on the server now, so cancel it by id.
-    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(() => {});
-    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(() => {});
+    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e));
+    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
     await trackOutpaintRun(promptId);
   } catch (e) {
     setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
@@ -1174,7 +1173,7 @@ async function recoverEditJob() {
   if (busy || recovering || editRecovering || activeMode === "inpaint" || activeMode === "outpaint") return;
   editRecovering = true;
   try {
-    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
     const inp = inpaintWorkflowIds(), out = outpaintWorkflowIds();
     // Keyed on the CURRENT source, like its inpaint/outpaint siblings — the seed is only the source the page
     // opened with, and an upload (the no-source flow) replaces it.
@@ -1203,7 +1202,7 @@ async function recoverInpaintJob() {
   inpaintRecovering = true;
   try {
     const inp = inpaintWorkflowIds();
-    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
     const mine = (res.jobs || []).filter(j => j.kind === "edit" && (j.status === "running" || j.status === "queued")
       && j.sourceImageId === inpaintBase && inp.has(j.model));
     if (!mine.length) return;
@@ -1227,7 +1226,7 @@ async function recoverOutpaintJob() {
   outpaintRecovering = true;
   try {
     const out = outpaintWorkflowIds();
-    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
     const mine = (res.jobs || []).filter(j => j.kind === "edit" && (j.status === "running" || j.status === "queued")
       && j.sourceImageId === outpaintBase && out.has(j.model));
     if (!mine.length) return;
