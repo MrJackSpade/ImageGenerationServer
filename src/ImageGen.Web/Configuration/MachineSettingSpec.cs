@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Web.Configuration;
 
 /// <summary>Where a key is kept. A key is in exactly one of these — never both.</summary>

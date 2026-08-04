@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Web.Configuration;
 
 /// <summary>Whether anything answered, and if not, why not.</summary>
@@ -22,8 +21,8 @@ public sealed class ComfyProbe(IHttpClientFactory httpFactory)
 
     public async Task<ProbeResult> TryAsync(string? url, CancellationToken ct)
     {
-        var address = (url ?? "").Trim().TrimEnd('/');
-        if (address.Length == 0) return new ProbeResult(false, "no address given");
+        if (string.IsNullOrWhiteSpace(url)) return new ProbeResult(false, "no address given");
+        var address = url.Trim().TrimEnd('/');
         if (!Uri.TryCreate(address + "/system_stats", UriKind.Absolute, out var probe))
             return new ProbeResult(false, "that is not a valid address");
 
@@ -38,10 +37,11 @@ public sealed class ComfyProbe(IHttpClientFactory httpFactory)
                 ? new ProbeResult(true, null)
                 : new ProbeResult(false, $"it answered {(int)response.StatusCode}");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Reporting the failure IS the result. This method's whole job is to answer "did it respond?", so an
-            // exception is an answer of no, with the reason — not an error to swallow or to let escape.
+            // exception is an answer of no, with the reason — not an error to swallow or to let escape. Cancellation
+            // is NOT an answer of "no" — the caller pulled out — so it is excluded and propagates.
             return new ProbeResult(false, ex.Message);
         }
     }
