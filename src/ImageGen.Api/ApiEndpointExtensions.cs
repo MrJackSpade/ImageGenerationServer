@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Api.Auth;
 using ImageGen.Api.Endpoints;
 using Microsoft.AspNetCore.Builder;

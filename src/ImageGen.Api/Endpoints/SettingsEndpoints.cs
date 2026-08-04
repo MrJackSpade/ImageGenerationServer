@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Api.Auth;
@@ -17,15 +16,18 @@ public static class SettingsEndpoints
         {
             var userId = context.User.GetUserId()!.Value;
             var user = await users.GetByIdAsync(userId, context.RequestAborted);
+            // An authenticated request whose user row is gone is a stale session, not an empty account: 401 sends the
+            // caller to re-authenticate, where returning blank settings would instead read as a real (empty) account.
+            if (user is null) return Results.Unauthorized();
             // The workflow relations are read separately — they are rows, not columns on the user, and are wanted
             // here and nowhere else. They go out as real arrays/maps; the client no longer parses a string.
             var workflows = await users.GetWorkflowPrefsAsync(userId, context.RequestAborted);
-            return Results.Ok(new { composerPrefs = user?.ComposerPrefs, editPrefs = user?.EditPrefs, bookmarkPrefs = user?.BookmarkPrefs,
+            return Results.Ok(new { composerPrefs = user.ComposerPrefs, editPrefs = user.EditPrefs, bookmarkPrefs = user.BookmarkPrefs,
                 favoriteWorkflowIds = workflows.Favorites, customWorkflowTags = workflows.Tags,
                 hiddenWorkflowIds = workflows.Hidden, hiddenApiWorkflowIds = workflows.HiddenApi,
                 // The generation mask, RESOLVED (an unset column reads as the default) plus the switchable types, so the
                 // settings page renders the real choices from the model's own list instead of hardcoding a copy of it.
-                generationTagTypes = GenerationTagTypes.Resolve(user?.GenerationTagTypes),
+                generationTagTypes = GenerationTagTypes.Resolve(user.GenerationTagTypes),
                 generationTagTypeOptions = GenerationTagTypes.Selectable });
         });
 

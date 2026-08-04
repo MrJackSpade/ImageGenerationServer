@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Security.Claims;
 
 namespace ImageGen.Api.Auth;

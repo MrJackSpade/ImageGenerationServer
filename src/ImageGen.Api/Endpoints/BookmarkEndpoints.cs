@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Services;
 using ImageGen.Domain;
 using ImageGen.Api.Auth;
@@ -95,7 +94,7 @@ public static class BookmarkEndpoints
 
             var userId = context.User.GetUserId()!.Value;
             await bookmarks.SetTokenCategoriesAsync(
-                userId, request.Name, WireMapping.ParseKind(request.Kind), request.Categories ?? [], context.RequestAborted);
+                userId, request.Name, WireMapping.ParseKind(request.Kind), request.Categories, context.RequestAborted);
             return Results.NoContent();
         });
 
@@ -107,7 +106,7 @@ public static class BookmarkEndpoints
 
             var userId = context.User.GetUserId()!.Value;
             await bookmarks.SetImageCategoriesAsync(
-                request.Image.ToAddImageCommand(userId), request.Categories ?? [], context.RequestAborted);
+                request.Image.ToAddImageCommand(userId), request.Categories, context.RequestAborted);
             return Results.NoContent();
         });
     }
