@@ -26,7 +26,8 @@
       "exposed": true,
       "min": 0,
       "max": 60
-    }
+    },
+    "engine": "median"
   },
   "card": {
     "architecture": "Deterministic OKLab palette + grid quantizer applied per frame (no model) — LoadVideo → GetVideoComponents → PixelQuantize → SaveAnimatedWEBP",

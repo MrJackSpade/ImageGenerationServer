@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -33,32 +32,32 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
         // Virtual resolution = the grid's longest edge (aspect from the frame); each frame keeps its input resolution.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 128, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         // A named (locked) palette is the same every frame → temporally consistent. 'adaptive' would re-derive a
         // palette per frame and flicker, so a locked palette is the default for video.
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "chroma-256", Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
+        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // 0 (default) = keep the source clip's frame rate (wired from GetVideoComponents); >0 overrides it.
-        new() { Key = "fps", Type = ParamType.Double, Default = 0, Min = 0, Max = 60, Label = "Output FPS", Help = "0 = keep the source clip's frame rate" },
+        new() { Key = "fps", Type = ParamType.Double, Min = 0, Max = 60, Label = "Output FPS", Help = "0 = keep the source clip's frame rate" },
         // Engine selector. 'median' = the original per-frame PixelQuantize (named/locked palette). 'fp' =
         // PixelQuantizeFP: L0 flatten + XDoG line-thicken + de-AA edge-collapse, then ONE global per-video
         // palette (DIN99d) so it's temporally consistent WITHOUT a named palette (the palette/final_method
         // params are ignored for 'fp'). The fp_* knobs below tune it.
-        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Default = "median", Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
-        new() { Key = "thicken", Type = ParamType.Double, Default = 0.75, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
-        new() { Key = "tau", Type = ParamType.Double, Default = 0.6, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
-        new() { Key = "lam", Type = ParamType.Double, Default = 0.015, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
-        new() { Key = "k", Type = ParamType.Int, Default = 31, Min = 2, Max = 128, Label = "FP palette k-means" },
-        new() { Key = "beta", Type = ParamType.Double, Default = 0.5, Min = 0, Max = 4, Label = "FP rarity bias" },
-        new() { Key = "step", Type = ParamType.Double, Default = 5.6, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
+        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
+        new() { Key = "thicken", Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
+        new() { Key = "tau", Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
+        new() { Key = "lam", Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
+        new() { Key = "k", Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
+        new() { Key = "beta", Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
+        new() { Key = "step", Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
         // Key BEFORE pixelizing: matte every frame (BiRefNet) at FULL resolution and feed the RGBA batch straight into
         // the quantizer, which carries the alpha through to a transparent-background clip (saved lossless so it
         // survives). The matte runs INSIDE this graph — the RGBA stays an in-memory tensor, never round-tripping through
         // a webp decode that would drop the alpha. Off = the legacy opaque path.
-        new() { Key = "key_background", Type = ParamType.Bool, Default = false, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background clip (lossless)" },
-        new() { Key = "matte_threshold", Type = ParamType.Double, Default = 0, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
+        new() { Key = "key_background", Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background clip (lossless)" },
+        new() { Key = "matte_threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

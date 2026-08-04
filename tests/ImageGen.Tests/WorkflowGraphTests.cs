@@ -253,11 +253,15 @@ public sealed class WorkflowGraphTests
         var cfg = catalog.FindConfig("pixel-quantize-video");
         var wf = registry.Find(cfg!.WorkflowName)!;
 
-        // Schema defaults, then flip the engine to fp.
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        v["engine"] = "fp";
-        v["grid_w"] = 384; v["grid_h"] = 256;   // grid carries no schema default now — the config supplies it
+        // Schema no longer carries defaults (Phase B); supply every param the graph reads, engine flipped to fp.
+        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["virtual_resolution"] = 128, ["palette"] = "chroma-256", ["final_method"] = "median", ["fps"] = 0,
+            ["engine"] = "fp",
+            ["thicken"] = 0.75, ["tau"] = 0.6, ["lam"] = 0.015, ["k"] = 31, ["beta"] = 0.5, ["step"] = 5.6,
+            ["key_background"] = false,
+            ["grid_w"] = 384, ["grid_h"] = 256,   // grid carries no schema default now — the config supplies it
+        };
         var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
 
         // Same V2V scaffolding, but the quantize node is the feature-preserving one (not PixelQuantize).
