@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Globalization;
 using ImageGen.Application.Platform;
 

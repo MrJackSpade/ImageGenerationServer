@@ -23,15 +23,21 @@ public sealed class AppVersionTests
     public void Reads_the_version_out_of_a_tag(string text, string expected) =>
         Assert.Equal(Version.Parse(expected), AppVersion.Parse(text));
 
+    /// <summary>A genuinely absent value is a real "no version here" state, distinct from a malformed one below.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
+    public void An_absent_value_has_no_version(string? text) => Assert.Null(AppVersion.Parse(text));
+
+    /// <summary>Present but not a version is malformed input, not "no version": it must surface, not launder into null.</summary>
+    [Theory]
     [InlineData("latest")]
     [InlineData("v")]
     [InlineData("release-2026-07")]
     [InlineData("vNext")]
-    public void Refuses_anything_it_cannot_read(string? text) => Assert.Null(AppVersion.Parse(text));
+    public void A_present_but_unparseable_value_throws(string text) =>
+        Assert.Throws<FormatException>(() => AppVersion.Parse(text));
 
     /// <summary>
     /// 1.0.0 is what the SDK stamps when nobody passed a version, so it means "this build was never released",

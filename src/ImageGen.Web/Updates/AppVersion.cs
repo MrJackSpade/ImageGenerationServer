@@ -40,12 +40,16 @@ public static class AppVersion
 
     /// <summary>
     /// Read a version out of a tag or an informational version: a leading <c>v</c>, build metadata after
-    /// <c>+</c>, and a pre-release suffix after <c>-</c> are all stripped. Anything that does not then parse as
-    /// a plain numeric version returns null rather than a guess — comparing a version nobody can read is how an
-    /// app tells people to upgrade to something older than what they have.
+    /// <c>+</c>, and a pre-release suffix after <c>-</c> are all stripped. Null ONLY for a genuinely absent value
+    /// (null/blank) or the SDK's unstamped <c>1.0.0</c> sentinel — both real "this is not a released version" states.
+    /// A value that is PRESENT but does not parse as a version is malformed input and THROWS: laundering a broken tag
+    /// or build stamp into "no version" would hide the defect. A caller for which a single bad tag must not abort the
+    /// run (see <c>UpdateCheck</c>) catches it there — that is the caller's decision, not this method's contract.
     /// </summary>
     public static Version? Parse(string? text)
     {
+        // Genuinely absent — nothing to read. A real, distinct "no version here" state (an unstamped build, a release
+        // with no tag), NOT a parse failure to be conflated with the malformed case below.
         if (string.IsNullOrWhiteSpace(text)) return null;
 
         var value = text.Trim();
@@ -57,9 +61,14 @@ public static class AppVersion
         var dash = value.IndexOf('-');
         if (dash >= 0) value = value[..dash];
 
-        if (!Version.TryParse(value, out var parsed)) return null;
+        // Present but not a version is MALFORMED, not "no version": a version string that will not parse is a broken
+        // tag or a broken build stamp, and returning null here would launder that into silence. Surface it.
+        if (!Version.TryParse(value, out var parsed))
+            throw new FormatException(
+                $"'{text}' is not a version — '{value}' does not parse as major.minor[.build[.revision]].");
 
-        // An unstamped build is not version 1.0.0, it is a build that was never released.
+        // The SDK stamps 1.0.0 when nobody set a version: a build that was never released, not a version to compare.
+        // Distinct from the malformed case above — 1.0.0 parses fine, so it is a sentinel that maps to null, not a failure.
         return parsed.ToString(3) == Unstamped ? null : parsed;
     }
 
