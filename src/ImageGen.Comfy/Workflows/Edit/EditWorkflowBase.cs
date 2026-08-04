@@ -28,7 +28,7 @@ public abstract class EditWorkflowBase : IWorkflow
 
     protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
         // model fits a 24GB card alongside its text encoder instead of swapping against it.
         new() { Key = "weight_dtype", Type = ParamType.String },
@@ -79,8 +79,8 @@ public abstract class EditWorkflowBase : IWorkflow
         out object model0, out object clip0, out object vae0)
     {
         var file = req.RequiredCheckpoint();
-        var loader = p.StrReq("loader");
-        if (loader == "checkpoint")                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
+        var loader = p.Loader();
+        if (loader == LoaderKind.Checkpoint)                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
         {
             wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = file });
             model0 = ComfyGraph.Ref("4", 0); vae0 = ComfyGraph.Ref("4", 2);

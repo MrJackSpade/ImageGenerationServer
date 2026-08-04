@@ -20,7 +20,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> QwenPixelizeSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         new() { Key = "clip_type", Type = ParamType.String },
         new() { Key = "dual",      Type = ParamType.Bool },
         new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps" },

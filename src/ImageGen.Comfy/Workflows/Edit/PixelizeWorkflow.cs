@@ -23,7 +23,7 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> PixelizeSchema = new ParamSpec[]
     {
         // model loading (consumed by EditWorkflowBase.LoadModel)
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
         // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
         // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.

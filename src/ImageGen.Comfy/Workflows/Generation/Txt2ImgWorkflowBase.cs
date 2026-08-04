@@ -27,7 +27,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
 
     protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         new() { Key = "clip_type", Type = ParamType.String },
         new() { Key = "dual",      Type = ParamType.Bool },
         // "pixel" = a pixel-space latent: (B,3,H,W) at spatial downscale 1, for models that diffuse
@@ -61,13 +61,13 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
     public virtual Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var file = req.RequiredCheckpoint();
-        var loader = p.StrReq("loader");
+        var loader = p.Loader();
         var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         var wf = new Dictionary<string, object>();
         object modelSrc, clipSrc, vaeSrc;
 
-        if (loader == "checkpoint")
+        if (loader == LoaderKind.Checkpoint)
         {
             wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = file });
             modelSrc = ComfyGraph.Ref("4", 0); clipSrc = ComfyGraph.Ref("4", 1); vaeSrc = ComfyGraph.Ref("4", 2);
@@ -88,7 +88,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         modelSrc = ComfyGraph.ApplyLora(wf, modelSrc, p);   // optional LoRA on the base model
 
         // clip-skip applies only to a checkpoint's baked CLIP (SD/SDXL); absent = no skip — an optional feature, not a default value.
-        if (loader == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
+        if (loader == LoaderKind.Checkpoint && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["10"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clipSrc, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clipSrc = ComfyGraph.Ref("10", 0);

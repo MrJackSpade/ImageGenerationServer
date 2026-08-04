@@ -52,7 +52,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         var wf = new Dictionary<string, object>();
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        if (p.StrReq("loader") == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
+        if (p.Loader() == LoaderKind.Checkpoint && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["19"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clip0 = ComfyGraph.Ref("19", 0);

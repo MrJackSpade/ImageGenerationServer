@@ -23,6 +23,42 @@ public enum PromptSemantics { Instruction, WholeImage, MaskedRegion }
 /// <summary>The CLR type of a workflow parameter, so a configuration value can be coerced + a UI control chosen.</summary>
 public enum ParamType { Int, Double, String, Bool, Enum }
 
+/// <summary>How a configuration's diffusion model is loaded — the closed vocabulary of the <c>loader</c> param.
+/// <see cref="Checkpoint"/> is an all-in-one checkpoint (model+CLIP+VAE) via <c>CheckpointLoaderSimple</c>;
+/// <see cref="Unet"/> / <see cref="UnetGguf"/> are a diffusion-only UNet (safetensors / GGUF) with CLIP and VAE loaded
+/// separately. Only checkpoint-vs-split changes the graph head — UNet-vs-GGUF is decided downstream from the file
+/// extension (<see cref="ComfyGraph.DiffusionLoader"/>) — but all three stay distinct config-facing choices so a
+/// configuration declares its intent.</summary>
+public enum LoaderKind { Checkpoint, Unet, UnetGguf }
+
+/// <summary>The single source of truth for the <c>loader</c> param: its key, its wire vocabulary (what a configuration
+/// writes and the schema offers), and the parse from wire string to <see cref="LoaderKind"/> — replacing the literal
+/// <c>"loader"</c> key and the <c>{ "checkpoint", "unet", "unet_gguf" }</c> choice array that were re-typed across the
+/// schemas and every access site.</summary>
+internal static class LoaderKinds
+{
+    /// <summary>The param key a workflow reads the loader kind from.</summary>
+    public const string ParamKey = "loader";
+
+    public const string Checkpoint = "checkpoint";
+    public const string Unet = "unet";
+    public const string UnetGguf = "unet_gguf";
+
+    /// <summary>The wire vocabulary in dropdown order, for a schema's <see cref="ParamSpec.Choices"/>.</summary>
+    public static readonly string[] Choices = { Checkpoint, Unet, UnetGguf };
+
+    /// <summary>Wire string → kind, or a refusal naming the value — a loader outside the closed set is a broken
+    /// configuration, not a silent fall-through to the split-loader branch.</summary>
+    public static LoaderKind Parse(string wire) => wire switch
+    {
+        Checkpoint => LoaderKind.Checkpoint,
+        Unet => LoaderKind.Unet,
+        UnetGguf => LoaderKind.UnetGguf,
+        _ => throw new RenderValidationException(
+            $"Unknown loader '{wire}'. A configuration's loader must be one of: {string.Join(", ", Choices)}."),
+    };
+}
+
 /// <summary>A stepped frame-count rule for video models: the only valid clip lengths are <c>Base + k*Step</c>
 /// (k ≥ 0) — LTX = (1, 8) → 1, 9, 17, …, 97; Wan = (1, 4) → 1, 5, 9, …. It's a property of the model's VAE temporal
 /// compression, mirrored from the underlying ComfyUI node's <c>length</c> step. Null on a workflow means no frame
@@ -202,6 +238,11 @@ public sealed class ParamValues
     /// <summary>Required string: present and non-empty, or the render is REFUSED — never an empty-string stand-in.</summary>
     public string StrReq(string key) =>
         Str(key) is { } s && s.Length > 0 ? s : throw MissingParam(key);
+
+    /// <summary>The required loader kind, parsed from the <c>loader</c> param — the typed sibling of <see cref="StrReq"/>
+    /// on that key. An absent/empty value is refused exactly as <see cref="StrReq"/> refuses it; an unrecognised value
+    /// is refused by <see cref="LoaderKinds.Parse"/>.</summary>
+    public LoaderKind Loader() => LoaderKinds.Parse(StrReq(LoaderKinds.ParamKey));
 
     /// <summary>A model-ref parameter the graph cannot be built without — the resolved FILENAME, or a failure naming
     /// the parameter.

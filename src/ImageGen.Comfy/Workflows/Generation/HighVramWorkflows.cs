@@ -11,8 +11,8 @@ file static class HighVram
     /// <summary>The model loader block (UNETLoader / UnetLoaderGGUF / CheckpointLoaderSimple), returning model+vae refs.</summary>
     public static (object model, object vae) LoadDiffusion(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req)
     {
-        var loader = p.StrReq("loader");
-        if (loader == "checkpoint")
+        var loader = p.Loader();
+        if (loader == LoaderKind.Checkpoint)
         {
             wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
             return (ComfyGraph.Ref("4", 0), ComfyGraph.Ref("4", 2));   // model, (clip unused), vae
