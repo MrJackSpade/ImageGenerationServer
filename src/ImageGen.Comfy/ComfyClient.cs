@@ -270,9 +270,13 @@ public sealed class ComfyClient : IComfyClient
             foreach (var e in doc.RootElement.EnumerateArray())
                 if (e.GetString() is { Length: > 0 } f) files.Add(f);
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
-            // Older build, or the folder is not registered. Narrowing is an improvement, not a requirement.
+            // A real transport/parse failure — NOT the "older build / folder absent" case, which is the non-2xx return
+            // above and never reaches here. The kind's list is left un-narrowed rather than failing the whole probe, but
+            // the failure is logged: a narrowing that silently stopped (letting a not-present model look bindable) must
+            // be diagnosable, not invisible. Cancellation is no longer caught here, so it propagates as it should.
+            _logger.LogWarning(ex, "ComfyUI models/{Folder} could not be read; that kind's list is not narrowed to on-disk files.", folder);
         }
         return files;
     }
