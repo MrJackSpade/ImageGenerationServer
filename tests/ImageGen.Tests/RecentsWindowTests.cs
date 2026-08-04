@@ -5,9 +5,9 @@ namespace ImageGen.Tests;
 
 /// <summary>
 /// The Recent strip's window is decided SERVER-side: the newest `min` images, stretched to cover the user's
-/// current-or-last batch whenever that batch produced more. It used to be assembled in the browser from live job
-/// events, so the size existed only in a tab that watched the batch happen — reload after it finished and the strip
-/// cropped the last batch to `min` (50 made, 48 shown). These pin the rule where it now lives.
+/// current-or-last batch whenever that batch produced more. Assembling it in the browser from live job events would
+/// tie the size to a tab that watched the batch happen, so a reload after the batch finished would crop it to `min`
+/// (a 50-image batch shown as 48). These pin the rule where it lives.
 /// </summary>
 [Collection("db")]
 public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
@@ -17,7 +17,7 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
 
     private HistoryService Service => new(fixture.History, fixture.ImageDeletions, fixture.Jobs);
 
-    /// <summary>A batch bigger than the minimum stretches the window to the whole batch — the bug, in one test.</summary>
+    /// <summary>A batch bigger than the minimum stretches the window to the whole batch.</summary>
     [Fact]
     public async Task A_batch_bigger_than_the_minimum_is_shown_whole()
     {

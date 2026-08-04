@@ -21,7 +21,7 @@ public sealed class ModelMatcherTests
 
     /// <summary>
     /// The case the whole feature exists for: Civitai's auto-generated filename bears no resemblance to the slot
-    /// id, so an exact match — which is all the app used to do — finds nothing and the workflow vanishes silently.
+    /// id, so an exact match finds nothing and the workflow vanishes silently.
     /// </summary>
     [Fact]
     public void A_civitai_renamed_checkpoint_is_recognised_by_its_published_name()
@@ -77,8 +77,8 @@ public sealed class ModelMatcherTests
     }
 
     /// <summary>
-    /// Matching never crosses loader kinds. Before this, present files were one flat set, so a VAE and a
-    /// checkpoint sharing a name satisfied each other's presence check.
+    /// Matching never crosses loader kinds. In one flat set, a VAE and a checkpoint sharing a name would satisfy
+    /// each other's presence check.
     /// </summary>
     [Fact]
     public void A_pattern_never_reaches_into_another_kind()

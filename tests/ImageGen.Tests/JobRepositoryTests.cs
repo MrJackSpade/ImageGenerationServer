@@ -9,8 +9,8 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     private static readonly CancellationToken Ct = CancellationToken.None;
 
     /// <summary>A job this instance cannot bring back must be finalized as failed, not left Active forever. An Active
-    /// row with no live queue behind it is unfinishable AND uncancellable (Cancel only knows in-memory jobs), which is
-    /// how a 300-slot job sat "running" for five weeks with nothing rendering.</summary>
+    /// row with no live queue behind it is unfinishable AND uncancellable (Cancel only knows in-memory jobs), so it
+    /// would sit "running" forever with nothing rendering.</summary>
     [Fact]
     public async Task Fail_finalizes_the_job_and_its_unfinished_slots()
     {
@@ -150,8 +150,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     /// <summary>
     /// The sweep drops slots whose image the user deleted, and takes the job row once nothing is left. A slot that
     /// still has its blob, and a slot that never produced one, must both survive — dropping either would erase a real
-    /// generation from the user's job view. Untested until the statement was rewritten off T-SQL's <c>DELETE alias
-    /// FROM</c>, which is exactly the rewrite that could have inverted the condition unnoticed.
+    /// generation from the user's job view.
     /// </summary>
     [Fact]
     public async Task Sweep_drops_only_slots_whose_image_is_gone()

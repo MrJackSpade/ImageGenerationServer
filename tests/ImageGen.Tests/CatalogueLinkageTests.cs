@@ -7,17 +7,16 @@ namespace ImageGen.Tests;
 /// <summary>
 /// Every slot has a consumer, and every consumer's slots exist.
 ///
-/// <para>Both directions had failed. Nine model slots were required by no configuration, so the models page asked
-/// you to bind files that could never affect a render — and three of them were downloaded overnight, ~28 GB, for
-/// nothing. The other direction is worse: a configuration naming a slot that does not exist resolves to an empty
-/// filename and is hidden by presence-gating, so it silently never appears.</para>
+/// <para>Both directions matter. A model slot required by no configuration makes the models page ask you to bind
+/// — and download — a file that could never affect a render. The other direction is worse: a configuration naming
+/// a slot that does not exist resolves to an empty filename and is hidden by presence-gating, so it silently never
+/// appears.</para>
 ///
-/// <para>A slot id can appear in TWO places, and an earlier version of this test only looked at one. Besides the
-/// <c>requirements</c> block, any parameter whose <see cref="ParamSpec.IsModelRef"/> is set carries a slot id in
-/// <c>params</c>, which <c>ComfyClient.MergeParams</c> resolves through <c>WorkflowCatalog.ResolveSlot</c>. Reading
-/// only <c>requirements</c> made three genuinely-used slots look orphaned — <c>v3-sd15-mm</c>,
-/// <c>mm-sdxl-v10-beta</c> and <c>chronoedit-distill-lora</c> — and deleting them broke the three configurations
-/// that name them from <c>params</c>, in exactly the silent way described above.</para>
+/// <para>A slot id can appear in TWO places, so both must be swept. Besides the <c>requirements</c> block, any
+/// parameter whose <see cref="ParamSpec.IsModelRef"/> is set carries a slot id in <c>params</c>, which
+/// <c>ComfyClient.MergeParams</c> resolves through <c>WorkflowCatalog.ResolveSlot</c>. Reading only
+/// <c>requirements</c> would make a slot used only from <c>params</c> look orphaned — and deleting it would break
+/// the configuration that names it there, in exactly the silent way described above.</para>
 ///
 /// <para>Which parameters are model refs is taken from the workflow classes themselves, via the real DI
 /// registration, so this cannot drift from what the resolver does. It is deliberately NOT inferred from the value:

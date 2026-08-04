@@ -7,11 +7,10 @@ using SixLabors.ImageSharp.Processing;
 namespace ImageGen.Tests;
 
 /// <summary>
-/// The animated-webp → mp4 path, which had no coverage at all while it was a subprocess: the only way to find out
-/// whether it worked was to open a video clip in the browser.
+/// The animated-webp → mp4 path. ffmpeg runs in-process, so it can be tested like anything else.
 ///
-/// <para>ffmpeg now runs in-process, so it can be tested like anything else. These assert on the produced bytes
-/// rather than on "it didn't throw" — a muxer that writes a truncated file throws nothing.</para>
+/// <para>These assert on the produced bytes rather than on "it didn't throw" — a muxer that writes a truncated file
+/// throws nothing.</para>
 /// </summary>
 public sealed class WebpToMp4Tests
 {
@@ -97,7 +96,7 @@ public sealed class WebpToMp4Tests
     }
 
     /// <summary>
-    /// Odd dimensions used to be a real failure: H.264 with YUV420P chroma subsampling cannot represent an odd
+    /// Odd dimensions are a real hazard: H.264 with YUV420P chroma subsampling cannot represent an odd
     /// width or height, and the encoder refuses to open with a message that never mentions the size.
     /// </summary>
     [Fact]

@@ -7,9 +7,9 @@ namespace ImageGen.Tests;
 /// "Running" means one thing: the GPU is generating this image right now. The box renders one image at a time, so at
 /// most one job can ever be running, and anything else that is merely unfinished is WAITING.
 ///
-/// <para>These pin that, because it was broken in four separate places at once and the symptom — a queue full of jobs
-/// all claiming to render while the GPU sat idle — looked like a stuck renderer rather than a lying status. Each test
-/// below is one of the ways the old code said "running" about something that was not on a GPU.</para>
+/// <para>These pin that. A job that reads "running" while no GPU is holding it fills the queue with jobs all claiming
+/// to render while the GPU sits idle, which looks like a stuck renderer rather than a lying status. Each test below is
+/// one of the ways something not on a GPU could wrongly read as "running".</para>
 /// </summary>
 public sealed class RenderPhaseTests
 {
@@ -34,9 +34,8 @@ public sealed class RenderPhaseTests
         return job;
     }
 
-    /// <summary>A batch that has produced an image and is waiting for the rest is WAITING. This was the common case:
-    /// the old rule was "any slot has left Queued", so one finished slot made a ten-image job read as running for as
-    /// long as it sat in the queue.</summary>
+    /// <summary>A batch that has produced an image and is waiting for the rest is WAITING. A rule of "any slot has left
+    /// Queued" would let one finished slot make a ten-image job read as running for as long as it sits in the queue.</summary>
     [Fact]
     public void A_batch_with_a_finished_slot_and_the_rest_waiting_is_queued()
     {
@@ -92,7 +91,7 @@ public sealed class RenderPhaseTests
 
     /// <summary>
     /// A batch stopped part-way reads as cancelled WITH its count: ten asked for, three landed, then you stopped it.
-    /// "done · 3/10" would claim it ran its course, which is the thing that made a deliberate stop look like a result.
+    /// "done · 3/10" would claim it ran its course, making a deliberate stop look like a result.
     /// </summary>
     [Fact]
     public void A_batch_stopped_after_some_images_landed_is_cancelled_not_done()
@@ -113,8 +112,8 @@ public sealed class RenderPhaseTests
         Assert.Equal(2, job.Progress);
     }
 
-    /// <summary>A merely FAILED slot keeps the old precedence — a partial failure has always read as done-with-fewer,
-    /// and only cancellation outranks done.</summary>
+    /// <summary>A merely FAILED slot does not outrank done: a partial failure reads as done-with-fewer, and only
+    /// cancellation outranks done.</summary>
     [Fact]
     public void A_failed_slot_does_not_outrank_done_the_way_a_cancelled_one_does()
     {
@@ -125,8 +124,7 @@ public sealed class RenderPhaseTests
     /// <summary>
     /// An Active database row never reads as running. It is read precisely when the job is NOT in its owning
     /// instance's live set — it may be waiting to rehydrate, or stranded by a crash with nothing that will ever pick
-    /// it up — and in every one of those cases no GPU is holding it. This is what turned a bad night's orphaned rows
-    /// into thousands of jobs "running" at once.
+    /// it up — and in every one of those cases no GPU is holding it.
     /// </summary>
     [Fact]
     public void An_active_durable_row_is_queued_never_running()
@@ -139,8 +137,8 @@ public sealed class RenderPhaseTests
 
     /// <summary>
     /// The durable status is derived from the same rule the client's phase is, so a row and the page it renders can
-    /// never disagree about how a job ended. This was two separate expressions, which is how "cancelled" could have
-    /// been added to one and not the other.
+    /// never disagree about how a job ended. Two separate expressions would let a state like "cancelled" be added to
+    /// one and not the other.
     /// </summary>
     [Fact]
     public void The_durable_status_agrees_with_the_phase_the_client_is_shown()

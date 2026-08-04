@@ -8,11 +8,10 @@ namespace ImageGen.Tests;
 /// <summary>
 /// A model reference that does not resolve must FAIL, naming the slot — never quietly become "".
 ///
-/// <para>It used to become "", and every consumer then supplied a hardcoded filename of its own
-/// (<c>p.Str("motion_model") ?? "v3_sd15_mm.ckpt"</c>, six times over). So when an orphan sweep deleted
-/// <c>mm-sdxl-v10-beta</c> from the catalogue outright, <c>sdxl-i2v</c> did not break: the fallback filename
-/// happened to be on that one machine's disk, the render produced a real 512×512 animated clip, and the run
-/// reported success. The catalogue was wrong for an entire smoke sweep and nothing anywhere disagreed.</para>
+/// <para>Yielding "" and carrying on would let each consumer substitute a hardcoded filename of its own
+/// (<c>p.Str("motion_model") ?? "v3_sd15_mm.ckpt"</c>, six times over), so a configuration whose slot was deleted
+/// from the catalogue would still render on the one machine that happens to have that file on disk and report
+/// success — the catalogue wrong for an entire run with nothing anywhere disagreeing.</para>
 ///
 /// <para>These tests exercise <see cref="WorkflowCatalog.ResolveModelRefs"/> — the same method the renderer calls,
 /// not a copy of its rules.</para>
@@ -35,7 +34,7 @@ public sealed class ModelRefResolutionTests
     public void A_slot_that_exists_but_is_unbound_fails_too()
     {
         // The distinction that matters: the catalogue knows the slot, this machine simply has no file for it.
-        // Silently rendering here is what made a missing binding indistinguishable from a working one.
+        // Silently rendering here would make a missing binding indistinguishable from a working one.
         var (catalog, wf) = Build(bindEverything: false);
         var v = Bag(("motion_model", "v3-sd15-mm"));
 
@@ -67,8 +66,8 @@ public sealed class ModelRefResolutionTests
     [Fact]
     public void No_workflow_substitutes_a_model_filename_of_its_own()
     {
-        // The fallbacks this fixes were literal filenames in the graph builders. A new one would reintroduce exactly
-        // the bug above, on exactly one machine, so the shape itself is banned rather than the instances.
+        // A literal model filename in a graph builder would reintroduce exactly the bug above, on exactly one
+        // machine, so the shape itself is banned rather than the instances.
         var offenders = new List<string>();
         var dir = Path.Combine(RepoRoot(), "src", "ImageGen.Comfy", "Workflows");
         foreach (var f in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
@@ -95,9 +94,9 @@ public sealed class ModelRefResolutionTests
     [Fact]
     public void Eligibility_counts_the_slots_a_configuration_asks_for_through_params()
     {
-        // The gating half of the same bug: requirements were checked, params model refs were not, so a
-        // configuration with an unbound one was offered and then failed at submit. wan22-i2v-a14b names its
-        // second MoE expert nowhere but params, so it is the case that proves the rule.
+        // The gating half of the same bug: checking requirements but not params model refs would offer a
+        // configuration with an unbound one and then fail at submit. wan22-i2v-a14b names its second MoE expert
+        // nowhere but params, so it is the case that proves the rule.
         var (catalog, _) = Build(bindEverything: true);
         var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
         var cfg = catalog.FindConfig("wan22-i2v-a14b");
@@ -128,8 +127,8 @@ public sealed class ModelRefResolutionTests
     [Fact]
     public void Every_slot_a_configuration_asks_for_through_params_exists_in_the_catalogue()
     {
-        // The catalogue-wide version: an id here that has no slot file resolves to "" at submit and, since c6d9a54,
-        // now FAILS the render. Before that it silently produced a graph with an empty filename.
+        // The catalogue-wide version: an id here that has no slot file resolves to "" at submit and FAILS the
+        // render, rather than silently producing a graph with an empty filename.
         var (catalog, _) = Build(bindEverything: true);
         var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
         var dangling = new List<string>();

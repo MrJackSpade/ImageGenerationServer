@@ -8,11 +8,11 @@ namespace ImageGen.Tests;
 /// <summary>
 /// A slot's kind must name exactly one loader's file list.
 ///
-/// <para>These exist because the broken shape READ as reasonable. A single <c>Other</c> value quietly unioned
-/// seven loaders — loras, IP-adapters, CLIP vision, latent upsamplers, both SeedVR2 loaders and HunyuanImage3 —
-/// so every slot among them was offered every file of all of them, and a LoRA was a selectable answer for a
-/// ControlNet pack. Nothing in the code looked wrong; the defect was only visible by listing what a picker
-/// actually offered. Each test below fails if a bucket comes back by any route.</para>
+/// <para>The failure mode is a shape that READS as reasonable. A single <c>Other</c> value that unions seven loaders
+/// — loras, IP-adapters, CLIP vision, latent upsamplers, both SeedVR2 loaders and HunyuanImage3 — offers every slot
+/// among them every file of all of them, so a LoRA becomes a selectable answer for a ControlNet pack. Nothing in the
+/// code looks wrong; the defect is only visible by listing what a picker actually offers. Each test below fails if a
+/// bucket comes back by any route.</para>
 /// </summary>
 public sealed class RequirementKindTests
 {
@@ -80,8 +80,8 @@ public sealed class RequirementKindTests
     [Fact]
     public void An_unrecognised_kind_fails_rather_than_joining_a_pool()
     {
-        // ParseKind used to end in `_ => Other`, so a typo silently produced a slot that shared a pool with six
-        // unrelated model types. It must throw instead.
+        // A catch-all `_ => Other` would let a typo silently produce a slot that shares a pool with six unrelated
+        // model types. It must throw instead.
         var parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("WorkflowCatalog.ParseKind not found — was it renamed?");
 
@@ -92,9 +92,9 @@ public sealed class RequirementKindTests
     [Fact]
     public void Sibling_slots_of_one_model_share_a_kind()
     {
-        // seedvr2-vae was `vae` while seedvr2-3b was `other`, though both files live in the pack's own folder and
-        // both are read by its own loaders. The vae declaration then dragged a SeedVR2-private file into the
-        // candidate list of every unrelated VAE slot.
+        // Both seedvr2 files live in the pack's own folder and are read by its own loaders, so they must share one
+        // kind. Declaring seedvr2-vae as `vae` instead would drag a SeedVR2-private file into the candidate list of
+        // every unrelated VAE slot.
         var kinds = SlotKinds();
         foreach (var family in new[] { new[] { "seedvr2-3b", "seedvr2-vae" } })
         {

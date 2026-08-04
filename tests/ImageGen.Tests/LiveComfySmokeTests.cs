@@ -103,8 +103,8 @@ public sealed class LiveComfySmokeTests
     /// <summary>Upload an existing ComfyUI output still as the i2v source frame; returns the input-folder name to reference.</summary>
     private static async Task<string> UploadSourceAsync(HttpClient http)
     {
-        // Env-only. This used to fall back to an absolute F:\ path from one machine, which on any other box failed
-        // with a confusing "directory not found" instead of saying what to set.
+        // Env-only: a hardcoded absolute path would fail on any other box with a confusing "directory not found"
+        // instead of saying what to set.
         var dir = Environment.GetEnvironmentVariable("COMFY_OUTPUT")
             ?? throw new InvalidOperationException(
                 "set COMFY_OUTPUT to your ComfyUI output directory to run the live smoke tests.");

@@ -9,7 +9,7 @@ namespace ImageGen.Tests;
 /// Exercises the workflow-focused path end to end without a backend: load the real workflows.json +
 /// requirements.json, resolve a configuration to its workflow, merge its parameter settings layer, and build the
 /// ComfyUI graph. Asserts the structural fingerprints of each loader/latent/guidance/edit family so a parsing,
-/// coercion, or merge regression is caught. (Graph topology itself is a verbatim lift of the old builders.)
+/// coercion, or merge regression is caught.
 /// </summary>
 public sealed class WorkflowGraphTests
 {
@@ -30,16 +30,15 @@ public sealed class WorkflowGraphTests
         };
         var catalog = new WorkflowCatalog(cfg, NullLogger<WorkflowCatalog>.Instance);
         // Bind every slot to a synthetic filename derived from its id. These tests assert that the file bound to a
-        // slot reaches the right loader node -- which is the actual invariant. They used to assert the AUTHOR's
-        // filenames, which baked one machine's disk into the suite and is exactly the coupling this catalogue split
-        // removed.
+        // slot reaches the right loader node -- which is the actual invariant. Asserting the AUTHOR's filenames would
+        // bake one machine's disk into the suite.
         // One rule, no special cases: a slot no longer declares a precision, so there is nothing here to key a
         // .gguf off. WHICH loader node a graph emits is a property of the bound file now, and is asserted by
         // The_diffusion_loader_is_chosen_by_the_bound_file rather than by every workflow test in passing.
         catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
         // The FULL workflow set from the real DI registration — the exact set the app serves, including the
-        // factory-registered decorators (the PixelVideoWorkflow wrappers). A hardcoded list drifted out of date (new
-        // workflows silently escaped the graph tests); this stays complete on its own.
+        // factory-registered decorators (the PixelVideoWorkflow wrappers). A hardcoded list would drift out of date
+        // (new workflows would silently escape the graph tests); this stays complete on its own.
         IWorkflow[] all = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetServices<IWorkflow>().ToArray();
         return (catalog, new WorkflowRegistry(all));
     }
@@ -49,7 +48,7 @@ public sealed class WorkflowGraphTests
     /// IsModelRef parameters resolved from slot id to bound filename.
     ///
     /// <para>The duplication is a known wart — this has to stay in step with <c>MergeParamsDict</c> by hand, and
-    /// it did not, which is how the model-ref resolution was missing here after it was added there.</para>
+    /// falling out of step lets a rule like model-ref resolution be present there and missing here.</para>
     /// </summary>
     private static ParamValues Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
     {
@@ -58,8 +57,8 @@ public sealed class WorkflowGraphTests
         foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
-        // The real thing, not a copy of it. This loop used to be duplicated here and fell out of step with the
-        // renderer once already — which is precisely how a resolution rule can be right in the tests and wrong live.
+        // The real thing, not a copy of it. Duplicating this loop here would let it fall out of step with the
+        // renderer — which is precisely how a resolution rule can be right in the tests and wrong live.
         catalog.ResolveModelRefs(wf, cfg.Id, v);
         return new ParamValues(v);
     }
@@ -401,9 +400,9 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("DualCLIPLoader", json);
     }
 
-    /// <summary>The text-encoder eviction was removed, so NO redraw config may emit the node — including the one it
-    /// was built for. Kept as a Theory over the whole family so a reintroduction has to be deliberate rather than
-    /// arriving with a config flag nobody notices.</summary>
+    /// <summary>No redraw config may emit the text-encoder eviction node — including the one it was built for. Kept as
+    /// a Theory over the whole family so a reintroduction has to be deliberate rather than arriving with a config flag
+    /// nobody notices.</summary>
     [Theory]
     [InlineData("anima-redraw")]
     [InlineData("photanima-redraw")]
@@ -589,7 +588,7 @@ public sealed class WorkflowGraphTests
     public void SeedVr2_folds_the_64bit_seed_into_the_nodes_uint32_range()
     {
         // The upstream node caps seed at 2^32-1, unlike ComfyUI's samplers. Passing the app's 64-bit seed straight
-        // through made ComfyUI reject the whole prompt: "Value 2709052392662243722 bigger than max of 4294967295".
+        // through makes ComfyUI reject the whole prompt: "Value 2709052392662243722 bigger than max of 4294967295".
         var wf = new SeedVr2UpscaleWorkflow();
         ParamValues P(long seed) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -605,7 +604,7 @@ public sealed class WorkflowGraphTests
             return inputs.GetProperty("seed").GetInt64();
         }
 
-        // The exact seed from the live 400, and the extremes.
+        // The seed that overflows the cap, and the extremes.
         foreach (var s in new[] { 2709052392662243722L, long.MaxValue, 4294967296L, 4294967295L, 1L })
         {
             var got = SeedOf(s);
@@ -630,9 +629,9 @@ public sealed class WorkflowGraphTests
     public void SeedVr2_is_gated_on_loader_reported_weights_not_on_the_custom_node_directory()
     {
         // The node pack IS linked, and is satisfied by ComfyUI having the node registered rather than by a file.
-        // It used to be deliberately unlinked, because eligibility demanded a file binding for every requirement
-        // and a node slot can never have one — linking it gated the configuration off permanently. Eligibility is
-        // node-aware now, so the link expresses the real dependency instead of being a trap.
+        // Eligibility is node-aware, so the link expresses the real dependency instead of being a trap: were it to
+        // demand a file binding for every requirement, a node slot — which can never have one — would gate the
+        // configuration off permanently.
         var (catalog, _) = Build();
         var cfg = catalog.FindConfig("seedvr2-upscale");
         Assert.NotNull(cfg);
@@ -647,11 +646,10 @@ public sealed class WorkflowGraphTests
     }
 
     /// <summary>
-    /// The shared edit head chose between one CLIP loader and two from a `dual` boolean, which cannot express
-    /// three or four. Both failures were invisible until render: pixelize-sd35 declared three encoders alongside a
-    /// checkpoint loader and got the checkpoint's CLIP output — null, for a checkpoint that ships without any —
-    /// and pixelize-hidream declared four, got a single CLIPLoader, and fed it the generic workflow's "flux"
-    /// default, a type that loader does not accept.
+    /// Choosing between one CLIP loader and two from a `dual` boolean cannot express three or four, and the failure is
+    /// invisible until render: pixelize-sd35 declares three encoders alongside a checkpoint loader and would get the
+    /// checkpoint's CLIP output — null, for a checkpoint that ships without any — and pixelize-hidream declares four
+    /// and would get a single CLIPLoader fed the generic workflow's "flux" default, a type that loader does not accept.
     /// </summary>
     [Theory]
     [InlineData("pixelize-sd35", "TripleCLIPLoader")]
@@ -660,7 +658,7 @@ public sealed class WorkflowGraphTests
     {
         var json = BuildJson(configId, Edit);
         Assert.Contains($"\"{loader}\"", json);
-        // And never the single-encoder loader it used to fall back to.
+        // And never the single-encoder loader the dual-boolean selection would fall back to.
         Assert.DoesNotContain("\"CLIPLoaderGGUF\"", json);
     }
 
@@ -844,10 +842,10 @@ public sealed class WorkflowGraphTests
         // the blanked region as concat_latent_image + the mask as concat_mask. No ControlNet is involved anywhere.
         Assert.Contains("\"InpaintModelConditioning\"", json);
         // noise_mask must be TRUE: the per-step latent pinning anchors the fill's CONTENT to the surroundings.
-        // Full-frame sampling (noise_mask=false, the diffusers-reference shape) was tried 2026-07-20 so the
-        // outside pixels would witness the fill's exposure drift for the color fit — and measured strictly worse:
-        // Fill freewheels without the anchor (a moon hallucinated into an empty-prompt sky fill; −27/−89 luminance
-        // vs −6 pinned). The drift is attacked at its source instead, not by unpinning.
+        // Full-frame sampling (noise_mask=false, the diffusers-reference shape) would let the outside pixels witness
+        // the fill's exposure drift for the color fit, but measures strictly worse: Fill freewheels without the anchor
+        // (a moon hallucinated into an empty-prompt sky fill; −27/−89 luminance vs −6 pinned). The drift is attacked
+        // at its source instead, not by unpinning.
         Assert.Contains("\"noise_mask\":true", json);
         Assert.DoesNotContain("ControlNet", json);
         // ...and none of the scaffolding the ControlNet path needed to survive its own seams: no SetLatentNoiseMask
@@ -970,10 +968,10 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenOutpaint_never_softens_the_mask_over_the_grey_pad_fill()
     {
-        // REGRESSION: the first cut used FeatherMask, which ramps the mask in from the CANVAS EDGES rather than from
-        // the mask's own boundary. On an outpaint the fill region touches those edges, so the mask fell toward 0
-        // exactly over ImagePadForOutpaint's 0.5-GREY fill — the sampler left the grey half-denoised AND
-        // ImageCompositeMasked blended it in, producing a grey frame (measured: RGB 127 at x=0).
+        // FeatherMask ramps the mask in from the CANVAS EDGES rather than from the mask's own boundary. On an
+        // outpaint the fill region touches those edges, so the mask would fall toward 0 exactly over
+        // ImagePadForOutpaint's 0.5-GREY fill — the sampler would leave the grey half-denoised AND
+        // ImageCompositeMasked would blend it in, producing a grey frame (measured: RGB 127 at x=0).
         var (catalog, registry) = Build();
         var cfg = catalog.FindConfig("qwen-image-outpaint");
         Assert.NotNull(cfg);
@@ -989,7 +987,7 @@ public sealed class WorkflowGraphTests
         var graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs);
         var json = JsonSerializer.Serialize(graph);
 
-        Assert.DoesNotContain("FeatherMask", json);              // the node that caused it
+        Assert.DoesNotContain("FeatherMask", json);              // the node that would cause it
         Assert.Contains("\"ImageBlur\"", json);                  // blur the mask's own boundary instead
 
         // The pad node must not ALSO feather, or the softening stacks into a wide partial-denoise band (mushy seam).
@@ -1025,14 +1023,14 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"20\"", clamp);                                   // clamped against the RAW pad mask
 
         // Every mask consumer takes the SAME softened+clamped mask: the ControlNet apply, SetLatentNoiseMask and the
-        // composite. Splitting any of them off has failed twice (raw-to-ControlNet dirtied the seam; raw-to-composite
-        // hard-switched on pixels the ControlNet was blind to and the extension didn't line up).
+        // composite. Splitting any of them off fails: a raw mask to the ControlNet dirties the seam; a raw mask to the
+        // composite hard-switches on pixels the ControlNet is blind to, so the extension doesn't line up.
         Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["108"]));  // ControlNet gets the SOFTENED mask
         Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["31"]));   // latent noise mask: same softened mask
         Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["126"])); // composite: same softened mask
 
         // The sampler goes through SetLatentNoiseMask — the exposure anchor. Without it (template outpaint branch,
-        // VAEEncode straight in) the ControlNet anchors structure but not tone, and the measured side panels came
+        // VAEEncode straight in) the ControlNet anchors structure but not tone, and the measured side panels come
         // out ~15 RGB brighter than the frame they extend (the "color balance" halo).
         Assert.Contains("\"31\"", JsonSerializer.Serialize(graph["3"]));
     }
@@ -1355,10 +1353,9 @@ public sealed class WorkflowGraphTests
     }
 
     /// <summary>
-    /// No configuration is another one wearing a different name. The catalogue grew a second workflow per model
-    /// -- an "-hq" sibling -- whose only difference was a VRAM floor and which precision it loaded, and then a
-    /// third that was byte-identical apart from one link. Both of those are now the user's choice at bind time,
-    /// so a pair that agrees on graph, requirements and parameters is a duplicate, not a variant.
+    /// No configuration is another one wearing a different name. Precision and its VRAM floor are the user's choice at
+    /// bind time, not a reason for a separate workflow, so a pair that agrees on graph, requirements and parameters is
+    /// a duplicate, not a variant.
     /// </summary>
     [Fact]
     public void No_configuration_is_another_one_under_a_different_name()
@@ -1405,9 +1402,9 @@ public sealed class WorkflowGraphTests
     }
 
     /// <summary>
-    /// A machine setting reaches the graph. The override endpoint stored rows that nothing read — every size or
-    /// step change a user made was accepted and silently ignored — so this asserts the whole path: stored value,
-    /// through the merge, into the emitted node.
+    /// A machine setting reaches the graph. A stored override that nothing reads would accept every size or step change
+    /// a user makes and silently ignore it, so this asserts the whole path: stored value, through the merge, into the
+    /// emitted node.
     /// </summary>
     [Fact]
     public void A_machine_setting_overrides_the_shipped_one()
@@ -1698,9 +1695,9 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Qwen_pixelizer_with_reference_and_snap_references_the_scale_node_not_an_inline_dict()
     {
-        // Regression: the QIE pixelizer's reference>0 branch VAE-encodes a snapped source. The FixedScale must be
-        // its OWN node and REFERENCED — passing the node dict inline as `pixels` handed the encoder a dict
-        // ('dict' object has no attribute 'shape'). Shared by pixelize-qwen/-longcat/-longcat-turbo/-firered.
+        // The QIE pixelizer's reference>0 branch VAE-encodes a snapped source. The FixedScale must be its OWN node and
+        // REFERENCED — passing the node dict inline as `pixels` hands the encoder a dict ('dict' object has no
+        // attribute 'shape'). Shared by pixelize-qwen/-longcat/-longcat-turbo/-firered.
         var req = new ResolvedRequirements
         {
             Checkpoint = "qwen.gguf", TextEncoders = new[] { "te.gguf" }, Vae = "vae.safetensors",

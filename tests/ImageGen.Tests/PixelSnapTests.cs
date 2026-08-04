@@ -79,7 +79,7 @@ public sealed class PixelSnapTests
 
     [Theory]
     [InlineData(0, 0, 1.00)]    // 0% reference  -> full denoise (generate fresh)
-    [InlineData(70, 0, 0.30)]   // 70%           -> denoise 0.3 (the old Flux 'strength' default)
+    [InlineData(70, 0, 0.30)]   // 70%           -> denoise 0.3
     [InlineData(50, 0, 0.50)]
     [InlineData(100, 0, 0.01)]  // 100% (copy)   -> clamped to 0.01 so the sampler still runs
     public void Reference_pct_maps_to_denoise(int reference, int dflt, double expected)

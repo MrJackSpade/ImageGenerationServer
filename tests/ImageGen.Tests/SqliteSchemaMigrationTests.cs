@@ -6,14 +6,14 @@ namespace ImageGen.Tests;
 
 /// <summary>
 /// The SQLite schema is an append-only, version-segregated script replayed in full on every startup
-/// (<c>schema.sqlite.sql</c>). These pin the two things that has to mean, and the bug that made them necessary:
+/// (<c>schema.sqlite.sql</c>). These pin the two things that has to mean:
 /// a column added in a later version must reach a database created by an earlier one, and replaying the whole
 /// script must never error.
 ///
-/// <para>The bug: <c>JobSlot.LorasJson</c> was once inlined into the JobSlot <c>CREATE TABLE</c>. On an existing
-/// database that CREATE is skipped (the table is already there), so the column never arrived, and the app started
-/// and then died on the first JobSlot query. It is now an <c>ALTER TABLE … ADD COLUMN</c> in the 0.9.1 block, which
-/// the initializer applies only when the column is absent.</para>
+/// <para>Inlining a column such as <c>JobSlot.LorasJson</c> into the JobSlot <c>CREATE TABLE</c> would strand it: on
+/// an existing database that CREATE is skipped (the table is already there), so the column never arrives and the app
+/// dies on the first JobSlot query. A later-version column is instead an <c>ALTER TABLE … ADD COLUMN</c> in the 0.9.1
+/// block, which the initializer applies only when the column is absent.</para>
 /// </summary>
 public sealed class SqliteSchemaMigrationTests
 {
@@ -75,7 +75,7 @@ public sealed class SqliteSchemaMigrationTests
         {
             // JobSlot as a 0.9.0 database has it: present, and WITHOUT LorasJson (added in 0.9.1). The UNIQUE mirrors
             // the real table so the composite foreign keys in the 0.9.0 block still create. The 0.9.0 CREATE TABLE
-            // IF NOT EXISTS will see this table and skip it — exactly the case that stranded LorasJson before.
+            // IF NOT EXISTS will see this table and skip it — exactly the case that would strand LorasJson.
             await ExecAsync(factory,
                 "CREATE TABLE dbo.JobSlot (Id INTEGER PRIMARY KEY AUTOINCREMENT, JobId TEXT NOT NULL, " +
                 "SlotIndex INTEGER NOT NULL, CONSTRAINT UQ_JobSlot_Job_Index UNIQUE (JobId, SlotIndex));");

@@ -5,12 +5,12 @@ namespace ImageGen.Tests;
 /// <summary>
 /// A declared minimum must be a value the workflow can actually produce.
 ///
-/// <para>These failed in two different ways, and only one of them was loud. The LTX i2v configurations declared
-/// 32x32, which their graph turns into a 0.001024 MP budget for <c>ImageScaleToTotalPixels</c> — below its
-/// <c>min: 0.01</c>, so ComfyUI rejected the prompt outright. Every video configuration declared
-/// <c>length: 1</c>, which renders a single frame and saves as a still WEBP: nothing rejected it, the job
-/// succeeded, and the result only failed later when something tried to read it as a clip. A floor that cannot
-/// produce the output the workflow exists to produce is not a floor.</para>
+/// <para>A declared minimum can be wrong in two ways, and only one of them is loud. A size below the rescale
+/// floor — 32x32 turns into a 0.001024 MP budget for <c>ImageScaleToTotalPixels</c>, below its
+/// <c>min: 0.01</c> — makes ComfyUI reject the prompt outright. A <c>length: 1</c> renders a single frame and
+/// saves as a still WEBP: nothing rejects it, the job succeeds, and the result only fails later when something
+/// tries to read it as a clip. A floor that cannot produce the output the workflow exists to produce is not a
+/// floor.</para>
 /// </summary>
 public sealed class DeclaredEnvelopeTests
 {

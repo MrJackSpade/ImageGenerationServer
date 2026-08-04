@@ -156,7 +156,7 @@ SELECT last_insert_rowid();";
     ///
     /// <para>What genuinely breaks is unboxing a scalar: <c>(int)(await cmd.ExecuteScalarAsync())</c> on a
     /// <c>COUNT(*)</c> is an unbox of a boxed <c>long</c> to <c>int</c>, which the CLR refuses regardless of provider.
-    /// That is the real hazard, and it is the one this codebase had ~8 of.</para>
+    /// That is the real hazard.</para>
     /// </summary>
     [Fact]
     public async Task Integral_columns_are_long_but_only_the_scalar_unbox_actually_breaks()

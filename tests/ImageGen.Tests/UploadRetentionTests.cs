@@ -7,10 +7,10 @@ namespace ImageGen.Tests;
 /// The retention contract for render inputs. An upload is an input to work the API has ACCEPTED, and the queue it
 /// waits in is durable and unbounded — so the store may never decide on its own to drop an id it has handed out.
 /// <para>
-/// These pin the regression that cost 16,831 jobs: the store used to evict the least-recently-used past a byte
-/// budget, so a bulk submission destroyed its own earlier sources long before the worker reached them and every one
-/// of those accepted jobs failed with "source image not found". Pressure is answered at the DOOR now
-/// (<see cref="SubmissionMemoryGate"/>), never by discarding work already taken on.
+/// Evicting the least-recently-used past a byte budget would let a bulk submission destroy its own earlier sources
+/// long before the worker reached them, so every one of those accepted jobs would fail with "source image not
+/// found". Pressure is answered at the DOOR (<see cref="SubmissionMemoryGate"/>), never by discarding work already
+/// taken on.
 /// </para>
 /// </summary>
 public sealed class UploadRetentionTests
@@ -21,7 +21,7 @@ public sealed class UploadRetentionTests
     public void Every_upload_resolves_however_many_follow_it()
     {
         var store = new InMemoryUploadStore();
-        // Far past any budget the store used to keep: 64 x 1MB. The first id must answer exactly like the last.
+        // Far past any byte budget an evicting store would keep: 64 x 1MB. The first id must answer exactly like the last.
         var ids = Enumerable.Range(0, 64).Select(_ => store.Add(Image(1024 * 1024))).ToList();
 
         Assert.Equal(64, store.Count);
@@ -35,7 +35,7 @@ public sealed class UploadRetentionTests
     {
         var store = new InMemoryUploadStore();
         var first = store.Add(Image(4 * 1024 * 1024));
-        // Never touched again — under an LRU this is precisely the entry that used to be dropped.
+        // Never touched again — under an LRU this is precisely the entry that would be dropped.
         for (var i = 0; i < 200; i++) store.Add(Image(1024 * 1024));
 
         Assert.NotNull(store.Get(first));

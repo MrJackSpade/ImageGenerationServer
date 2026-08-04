@@ -71,10 +71,10 @@ public sealed class PromptFinalizerTests
     }
 
     /// <summary>
-    /// Only a segment's LEADING '#'/'@' is a marker. A blanket Replace("#","") also ate the '#' inside the HTML entity
-    /// the scraped vocab spells apostrophes with, so a randomly-sampled "#holding_another&amp;#039;s_foot" rendered as
-    /// "holding another&amp;039;s foot" — and, because the marks map is keyed BEFORE that strip, the mangled segment no
-    /// longer matched its own mark and the card drew it as a dead plainchip instead of a tag chip.
+    /// Only a segment's LEADING '#'/'@' is a marker. A blanket Replace("#","") would also eat the '#' inside the HTML
+    /// entity the scraped vocab spells apostrophes with, so a randomly-sampled "#holding_another&amp;#039;s_foot" would
+    /// render as "holding another&amp;039;s foot" — and, because the marks map is keyed BEFORE that strip, the mangled
+    /// segment would no longer match its own mark and the card would draw it as a dead plainchip instead of a tag chip.
     /// </summary>
     [Fact]
     public void An_entity_in_a_tag_keeps_its_hash_and_the_segment_still_matches_its_mark()
@@ -274,9 +274,9 @@ public sealed class PromptFinalizerTests
 
     /// <summary>
     /// A sampled name is marked by ITS OWN category, not by the sampler that produced it. The tag model returns bare
-    /// names and emits artist-type ones whenever the generation mask has artists on; marking those '#' filed an artist
-    /// as a tag in the marks map, in the chips, and — permanently — in dbo.BannedToken, which is where a pile of
-    /// artist names banned under Kind=Tag came from. The marker is the only thing downstream reads the kind off.
+    /// names and emits artist-type ones whenever the generation mask has artists on; marking those '#' would file an
+    /// artist as a tag in the marks map, in the chips, and — permanently — in dbo.BannedToken. The marker is the only
+    /// thing downstream reads the kind off.
     /// </summary>
     [Fact]
     public void A_sampled_artist_is_marked_an_artist_and_a_sampled_tag_a_tag()
@@ -319,7 +319,7 @@ public sealed class PromptFinalizerTests
     public void Append_drops_a_straggling_separator_the_user_left_on_the_prompt()
     {
         // The autocomplete leaves a trailing "," (and often a space) after the tag it inserts. Appending a random-prompt
-        // tag or artist onto that raw tail produced "1girl,, next_tag" in the rendered prompt.
+        // tag or artist onto that raw tail would otherwise produce "1girl,, next_tag" in the rendered prompt.
         Assert.Equal("1girl, next_tag", PromptFinalizer.Append("1girl,", "next_tag"));
         Assert.Equal("1girl, next_tag", PromptFinalizer.Append("1girl, ", "next_tag"));
         Assert.Equal("1girl, next_tag", PromptFinalizer.Append("1girl , , ", "next_tag"));

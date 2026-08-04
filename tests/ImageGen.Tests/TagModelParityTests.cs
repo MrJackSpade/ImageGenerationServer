@@ -139,7 +139,7 @@ public sealed class TagModelParityTests : IDisposable
 
     /// <summary>
     /// The mask must reshape what is emitted, not merely be accepted. A character-only mask that still produced
-    /// general tags would be the exact defect that made a standing type list collapse generation to two tags.
+    /// general tags is the exact defect that would collapse generation to two tags under a standing type list.
     /// </summary>
     [SkippableFact]
     public void A_restrictive_type_mask_is_actually_enforced()

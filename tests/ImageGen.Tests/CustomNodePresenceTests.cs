@@ -9,7 +9,7 @@ namespace ImageGen.Tests;
 /// <para>Most packs gate themselves: their loaders are where their filenames come from, so an uninstalled pack
 /// takes its files with it and every configuration behind it disappears. <c>AnimaLLLiteApply</c> patches a model
 /// it is handed and loads nothing, so it contributes no filenames — and <c>anima-outpaint</c>, which gates on the
-/// LLLite <i>weight</i>, read as perfectly ready on a box without the pack and failed at submit on an
+/// LLLite <i>weight</i>, would read as perfectly ready on a box without the pack and then fail at submit on an
 /// unregistered node. A requirement that names a node is how that becomes checkable.</para>
 /// </summary>
 public sealed class CustomNodePresenceTests

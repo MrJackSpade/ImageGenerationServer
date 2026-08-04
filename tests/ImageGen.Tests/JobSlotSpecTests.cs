@@ -6,11 +6,11 @@ namespace ImageGen.Tests;
 /// <summary>
 /// The slot's render spec, stored as TYPED COLUMNS and child rows rather than one encrypted JSON blob.
 ///
-/// <para>These replace <c>RequestJsonContractTests</c>, which existed because the blob was a serialization contract:
-/// renaming a property still deserialized, handing back an object with a hole in it, and a job sat Active for five
-/// weeks because its workflow arrived null. A renamed column cannot do that — it fails at the database. What is worth
-/// pinning now is different: that every field survives the round trip, that the FOREIGN KEYS are legible (plain, so
-/// they can be joined and counted, which is the whole point), and that the user's text is not.</para>
+/// <para>Stored this way, a renamed field fails at the database. A single encrypted JSON blob would not: a renamed
+/// property still deserializes, handing back an object with a hole in it, and a job whose workflow arrived null
+/// would sit Active forever. What is worth pinning is that every field survives the round trip, that the FOREIGN
+/// KEYS are legible (plain, so they can be joined and counted, which is the whole point), and that the user's text
+/// is not.</para>
 /// </summary>
 [Collection("db")]
 public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
@@ -58,9 +58,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     }
 
     /// <summary>
-    /// An edit's four image ids — source, mask, end frame, and its ordered references — survive as ids. They used to
-    /// live inside the encrypted blob, where nothing could join or count them; that is how 19,329 upload rows became
-    /// unreachable. Order matters for the references: they are positional to the workflow.
+    /// An edit's four image ids — source, mask, end frame, and its ordered references — survive as ids. Inside an
+    /// encrypted blob nothing could join or count them, leaving upload rows unreachable. Order matters for the
+    /// references: they are positional to the workflow.
     /// </summary>
     [Fact]
     public async Task An_edits_image_ids_round_trip_and_references_keep_their_order()

@@ -382,7 +382,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     }
 
     /// <summary>Deleting an image must take the bytes and every reference with it — the whole point of the cascade.
-    /// Leaving any of these behind is what left 8 GB of unreachable blobs plus dangling bookmarks in the database.</summary>
+    /// Leaving any of these behind would strand unreachable blobs and dangling bookmarks in the database.</summary>
     [Fact]
     public async Task Delete_removes_the_blob_and_everything_referencing_it()
     {
@@ -435,7 +435,6 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
 
     /// <summary>
     /// The prev/next arrows. Ordering is <c>(CreatedAtUtc, Id)</c> DESC-is-older, so "newer" walks forward in time.
-    /// This had no coverage at all until the statement behind it was rewritten off T-SQL local variables.
     /// </summary>
     [Fact]
     public async Task Neighbors_walk_the_users_history_in_both_directions()

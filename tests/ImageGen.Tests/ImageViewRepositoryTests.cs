@@ -5,7 +5,7 @@ namespace ImageGen.Tests;
 /// <summary>
 /// The grids outline an image until the user has opened it. That state is a row per (user, image) rather than
 /// anything the browser holds, because it has to survive a reload and be the same answer on every device the user
-/// has — the previous behaviour was an in-memory set of "generated while this tab was open", which is neither.
+/// has — an in-memory set of "generated while this tab was open" would be neither.
 /// </summary>
 [Collection("db")]
 public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)

@@ -38,7 +38,7 @@ public sealed class GenerationTagTypesTests
     }
 
     /// <summary>
-    /// Every category the model can suppress is now switchable, `general` included (2026-07-26) — so the switch list
+    /// Every category the model can suppress is now switchable, `general` included — so the switch list
     /// covers the model's whole DROPPABLE set and the selection IS the wire list. If the model gains a category, it
     /// belongs in Selectable in the same change: `types=` names what stays ALLOWED, so one the app forgets to name is
     /// one the model silently switches off.

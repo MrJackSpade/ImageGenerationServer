@@ -7,10 +7,10 @@ namespace ImageGen.Tests;
 /// A workflow that emits a custom-node pack's node must declare that pack as a requirement.
 ///
 /// <para>Presence-gating is what stops a workflow being offered when its pack is missing. It only works if the
-/// configuration says which pack it needs — and six of the seven node slots were required by nothing at all, so
-/// removing any of those packs left the workflow reading READY and failing at render with a bare
-/// <c>value_not_in_list</c> on the node type. Declaring them by hand does not stay true; a new workflow that
-/// emits <c>ADE_*</c> and forgets the requirement is invisible until someone uninstalls the pack.</para>
+/// configuration says which pack it needs — a workflow that emits a pack's nodes without declaring the requirement
+/// reads READY and then fails at render with a bare <c>value_not_in_list</c> on the node type. Declaring them by
+/// hand does not stay true; a new workflow that emits <c>ADE_*</c> and forgets the requirement is invisible until
+/// someone uninstalls the pack.</para>
 /// </summary>
 public sealed class NodeRequirementTests
 {

@@ -19,9 +19,9 @@ public sealed class PasswordHasherTests
         Assert.NotEqual(PasswordHasher.Hash("same"), PasswordHasher.Hash("same"));
     }
 
-    /// <summary>A damaged stored hash is a corrupt record, not a failed login. Answering false for it — which this
-    /// test used to assert — told the account holder "wrong password" about a row they could never authenticate
-    /// against no matter what they typed, and gave the operator nothing to find.</summary>
+    /// <summary>A damaged stored hash is a corrupt record, not a failed login. Answering false for it would tell the
+    /// account holder "wrong password" about a row they could never authenticate against no matter what they typed, and
+    /// give the operator nothing to find.</summary>
     [Theory]
     [InlineData("")]                                    // nothing stored
     [InlineData("not-a-valid-hash")]                    // not the $-separated shape at all

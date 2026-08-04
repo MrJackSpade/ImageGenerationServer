@@ -8,8 +8,8 @@ namespace ImageGen.Tests;
 /// Every catalog file deserializes into its typed DTO with no unknown keys and no wrong-typed values. This is the
 /// guard the typed reader buys: a misspelled or unread key in a <c>workflows/*.json</c> or <c>models/*.json</c> is a
 /// NAMED failure here (the DTOs are <see cref="System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow"/>),
-/// not a value silently dropped at load — which is how a whole <c>resolution</c> block went unread on 130 files and a
-/// mistyped <c>kind</c> collapsed into a shared bucket. The catalog itself skips such a file with an Error log; this
+/// not a value silently dropped at load — the way an unread <c>resolution</c> block or a <c>kind</c> mistyped into a
+/// shared bucket would otherwise slip through. The catalog itself skips such a file with an Error log; this
 /// turns that quiet, count-only loss into an explicit list of file + offending key.
 /// </summary>
 public sealed class CatalogDeserializationTests

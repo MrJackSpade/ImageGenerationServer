@@ -48,8 +48,8 @@ public sealed class PromptMarkersTests
     }
 
     /// <summary>
-    /// Same for the random artist: appending '@token' to the raw prompt must reproduce what AppendArtist used to build
-    /// by hand — '@' kept only when the model documents it, underscores folded only when the model wants spaces.
+    /// Same for the random artist: appending '@token' to the raw prompt reproduces the hand-built artist form — '@'
+    /// kept only when the model documents it, underscores folded only when the model wants spaces.
     /// </summary>
     [Theory]
     [InlineData(false, "1girl, greg_rutkowski")]   // marker stripped, underscores kept

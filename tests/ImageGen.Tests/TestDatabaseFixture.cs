@@ -13,10 +13,10 @@ namespace ImageGen.Tests;
 /// <summary>
 /// A fresh, empty database for the repository tests, on whichever engine is selected.
 ///
-/// <para><b>SQLite by default.</b> This fixture used to require a SQL Server LocalDB instance, which made
-/// <c>dotnet test</c> impossible on a machine that had not installed one — a hard prerequisite for anyone cloning the
-/// repo, and the single biggest reason the test suite was not portable. It now creates a temp-file SQLite database
-/// instead, so the whole suite runs on a bare checkout.</para>
+/// <para><b>SQLite by default.</b> The fixture creates a temp-file SQLite database, so the whole suite runs on a bare
+/// checkout. Requiring a SQL Server LocalDB instance would make <c>dotnet test</c> impossible on any machine that had
+/// not installed one — a hard prerequisite for anyone cloning the repo, and enough on its own to make the suite
+/// non-portable.</para>
 ///
 /// <para><b>SQL Server on demand.</b> Set <c>IMAGEGEN_TEST_SQLSERVER=1</c> and the identical suite runs against
 /// LocalDB. That is not a nicety: SQLite and SQL Server are the two things the repositories claim to work on, and the

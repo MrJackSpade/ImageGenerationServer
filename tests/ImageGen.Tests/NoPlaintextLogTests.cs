@@ -8,14 +8,12 @@ namespace ImageGen.Tests;
 /// reason. But any code holding the connection string can decrypt, and a migration/diagnostic tool legitimately HAS to:
 /// it must read the plaintext to rewrite it. Decrypting is necessary. PRINTING never is.
 ///
-/// This is not hypothetical. The RawPrompt backfill shipped with a "show the first 5 rows" preview and dumped real user
-/// prompts straight into a terminal on its first dry run. So the rule is enforced here rather than left to discipline:
-/// no <c>Console</c> write and no <c>ILogger</c> call anywhere in src/ or tools/ may emit a prompt-bearing value.
-/// Report counts and ids; never content, not even truncated, not even in a dry run.
+/// A preview that dumps "the first few rows" puts real user prompts straight into a terminal, so the rule is enforced
+/// here rather than left to discipline: no <c>Console</c> write and no <c>ILogger</c> call anywhere in src/ or tools/
+/// may emit a prompt-bearing value. Report counts and ids; never content, not even truncated, not even in a dry run.
 ///
 /// <para><c>ILogger</c> is here because it is what a FILE SINK captures. A console line scrolls away with the window;
-/// a log file is durable, greppable, and outlives the process that wrote it by years. The rule this repo already chose
-/// to enforce mechanically was, until now, enforced only on the sink that matters least.</para>
+/// a log file is durable, greppable, and outlives the process that wrote it by years.</para>
 /// </summary>
 public sealed partial class NoPlaintextLogTests
 {
