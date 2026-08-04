@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -24,16 +23,16 @@ internal static class HunyuanSr
     /// carry the SR file names (literal, like the MoE <c>unet_low</c>) and the refine settings.</summary>
     public static readonly ParamSpec[] Schema =
     {
-        new() { Key = "sr",           Type = ParamType.Bool,   Default = false, Label = "Super-resolution (1080p)" },
+        new() { Key = "sr",           Type = ParamType.Bool,   Label = "Super-resolution (1080p)" },
         new() { Key = "sr_model",     Type = ParamType.String, IsModelRef = true },   // SR distilled UNet filename
         new() { Key = "sr_upsampler", Type = ParamType.String, IsModelRef = true },   // latent upsampler filename
-        new() { Key = "sr_width",     Type = ParamType.Int,    Default = 1920 },
-        new() { Key = "sr_height",    Type = ParamType.Int,    Default = 1080 },
-        new() { Key = "sr_steps",     Type = ParamType.Int,    Default = 8,   Min = 1, Max = 50 },
-        new() { Key = "sr_denoise",   Type = ParamType.Double, Default = 0.7, Min = 0.1, Max = 1.0 },
-        new() { Key = "sr_noise_aug", Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "sr_cfg",       Type = ParamType.Double, Default = 1.0, Min = 1.0, Max = 12.0 },
-        new() { Key = "sr_shift",     Type = ParamType.Double, Default = 2.0, Min = 1.0, Max = 12.0 },
+        new() { Key = "sr_width",     Type = ParamType.Int },
+        new() { Key = "sr_height",    Type = ParamType.Int },
+        new() { Key = "sr_steps",     Type = ParamType.Int,    Min = 1, Max = 50 },
+        new() { Key = "sr_denoise",   Type = ParamType.Double, Min = 0.1, Max = 1.0 },
+        new() { Key = "sr_noise_aug", Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "sr_cfg",       Type = ParamType.Double, Min = 1.0, Max = 12.0 },
+        new() { Key = "sr_shift",     Type = ParamType.Double, Min = 1.0, Max = 12.0 },
     };
 
     /// <summary>True when the config asked for SR and supplied an SR model file.</summary>

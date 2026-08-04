@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace ImageGen.Comfy;
 
@@ -114,20 +113,20 @@ internal static class PixelVideoGraph
     /// destroys the image — the projection must engage only on the low-noise tail.</summary>
     public static readonly ParamSpec[] Params =
     {
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 0, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
-        new() { Key = "palette", Type = ParamType.String, Default = "chroma-256", Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = "method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = "palette", Type = ParamType.String, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
+        new() { Key = "method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // The toggle: false = fast post-quantize only; true = also project the latent onto the manifold every step
         // (pixels baked into the motion, no shimmer — much slower).
-        new() { Key = "guided", Type = ParamType.Bool, Default = false, Label = "Pixel-guided", Help = "Project the latent every step — kills shimmer, but much slower" },
+        new() { Key = "guided", Type = ParamType.Bool, Label = "Pixel-guided", Help = "Project the latent every step — kills shimmer, but much slower" },
         // Projection ramp/window (used only when guided). project_every and the start/end window trade fidelity for
         // speed; start_percent skips the destructive noisy steps.
-        new() { Key = "w_start",       Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0, Label = "Proj weight start", Help = "Projection blend weight at the start of the window" },
-        new() { Key = "w_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0, Label = "Proj weight end", Help = "Projection blend weight at the end of the window" },
-        new() { Key = "start_percent", Type = ParamType.Double, Default = 0.6, Min = 0.0, Max = 1.0, Label = "Project from %", Help = "Step % to begin projecting (skips the noisy early steps)" },
-        new() { Key = "end_percent",   Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0, Label = "Project until %", Help = "Step % to stop projecting" },
-        new() { Key = "project_every", Type = ParamType.Int,    Default = 1,   Min = 1,   Max = 8,   Label = "Project every", Help = "Project every Nth step (higher = faster, less faithful)" },
+        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight start", Help = "Projection blend weight at the start of the window" },
+        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight end", Help = "Projection blend weight at the end of the window" },
+        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project from %", Help = "Step % to begin projecting (skips the noisy early steps)" },
+        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project until %", Help = "Step % to stop projecting" },
+        new() { Key = "project_every", Type = ParamType.Int,    Min = 1,   Max = 8,   Label = "Project every", Help = "Project every Nth step (higher = faster, less faithful)" },
     };
 }

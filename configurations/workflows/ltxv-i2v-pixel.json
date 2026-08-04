@@ -37,6 +37,11 @@
     "grid_w": 384,
     "grid_h": 256,
     "palette": "chroma-256",
+    "method": "median",
+    "w_start": 0.5,
+    "w_end": 1.0,
+    "end_percent": 1.0,
+    "project_every": 1,
     "guided": {
       "value": false,
       "exposed": true

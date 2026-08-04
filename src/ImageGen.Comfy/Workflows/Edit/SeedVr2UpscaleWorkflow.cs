@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -49,29 +48,29 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         new() { Key = "vae_model",  Type = ParamType.String, IsModelRef = true },
         // Sizing, expressed the same way as the feed-forward upscalers: a plain multiple of the SOURCE. The node
         // itself only understands a target short edge, so Build converts (short_edge * scale) -- see there.
-        new() { Key = "scale", Type = ParamType.Int, Default = 2, Min = 1, Max = 4, Step = 1,
+        new() { Key = "scale", Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
                 Label = "Scale (×)", Help = "Output size relative to the source. The aspect ratio is preserved." },
         // The node's "no limit" sentinel. Locked: an upscaler must never silently shrink what it was asked for.
-        new() { Key = "max_resolution", Type = ParamType.Int, Default = 0 },
+        new() { Key = "max_resolution", Type = ParamType.Int },
         // Fallback short edge for the rare case the edit path supplies no source dimensions (the node's own default).
-        new() { Key = "fallback_short_edge", Type = ParamType.Int, Default = 1080 },
+        new() { Key = "fallback_short_edge", Type = ParamType.Int },
         // How the output's colour is re-matched to the source. Diffusion restorers drift; 'lab' is the pack's default.
-        new() { Key = "color_correction", Type = ParamType.Enum, Default = "lab",
+        new() { Key = "color_correction", Type = ParamType.Enum,
                 Choices = new[] { "lab", "wavelet", "wavelet_adaptive", "hsv", "adain", "none" }, Label = "Colour match" },
         // Compute + memory placement. cuda:0 / cpu on this single-GPU box.
-        new() { Key = "device",         Type = ParamType.String, Default = "cuda:0" },
-        new() { Key = "offload_device", Type = ParamType.String, Default = "cpu" },
-        new() { Key = "attention_mode", Type = ParamType.String, Default = "sdpa" },
+        new() { Key = "device",         Type = ParamType.String },
+        new() { Key = "offload_device", Type = ParamType.String },
+        new() { Key = "attention_mode", Type = ParamType.String },
         // BlockSwap: how many of the 3B model's transformer blocks live on the offload device (max 32 for 3B).
-        new() { Key = "blocks_to_swap",     Type = ParamType.Int,  Default = 32, Min = 0, Max = 36 },
-        new() { Key = "swap_io_components", Type = ParamType.Bool, Default = true },
-        new() { Key = "cache_model",        Type = ParamType.Bool, Default = false },
+        new() { Key = "blocks_to_swap",     Type = ParamType.Int,  Min = 0, Max = 36 },
+        new() { Key = "swap_io_components", Type = ParamType.Bool },
+        new() { Key = "cache_model",        Type = ParamType.Bool },
         // Tiled VAE — without it the encode/decode of a large frame spikes past the card on its own.
-        new() { Key = "vae_tiled",        Type = ParamType.Bool, Default = true },
-        new() { Key = "vae_tile_size",    Type = ParamType.Int,  Default = 512 },
-        new() { Key = "vae_tile_overlap", Type = ParamType.Int,  Default = 64 },
+        new() { Key = "vae_tiled",        Type = ParamType.Bool },
+        new() { Key = "vae_tile_size",    Type = ParamType.Int },
+        new() { Key = "vae_tile_overlap", Type = ParamType.Int },
         // A still is a one-frame clip. 4n+1 => 1. Never raise this for an image editor.
-        new() { Key = "batch_size", Type = ParamType.Int, Default = 1 },
+        new() { Key = "batch_size", Type = ParamType.Int },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

@@ -42,6 +42,7 @@
     "sr_height": 1080,
     "sr_steps": 8,
     "sr_denoise": 0.7,
+    "sr_noise_aug": 0.0,
     "sr_cfg": 1.0,
     "sr_shift": 2.0,
     "clip_vision": "sigclip-vision-patch14-384"

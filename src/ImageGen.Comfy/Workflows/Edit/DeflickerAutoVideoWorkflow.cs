@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -28,10 +27,10 @@ public sealed class DeflickerAutoVideoWorkflow : IWorkflow
 
     private static readonly IReadOnlyList<ParamSpec> DeflickerSchema = new ParamSpec[]
     {
-        new() { Key = "mad_k", Type = ParamType.Double, Default = 4.0, Min = 0.5, Max = 20.0, Label = "MAD K", Help = "Robust threshold: flag a frame past K*MAD of the whole-clip series" },
-        new() { Key = "min_dev", Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 16.0, Label = "Min deviation (levels)", Help = "Absolute floor in 8-bit levels — smaller deviations are invisible" },
-        new() { Key = "alpha_cut", Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0, Label = "Matte cutoff", Help = "BiRefNet matte threshold for the character pixel set" },
-        new() { Key = "time_sigma", Type = ParamType.Double, Default = 3.0, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
+        new() { Key = "mad_k", Type = ParamType.Double, Min = 0.5, Max = 20.0, Label = "MAD K", Help = "Robust threshold: flag a frame past K*MAD of the whole-clip series" },
+        new() { Key = "min_dev", Type = ParamType.Double, Min = 0.0, Max = 16.0, Label = "Min deviation (levels)", Help = "Absolute floor in 8-bit levels — smaller deviations are invisible" },
+        new() { Key = "alpha_cut", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Matte cutoff", Help = "BiRefNet matte threshold for the character pixel set" },
+        new() { Key = "time_sigma", Type = ParamType.Double, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
     };
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

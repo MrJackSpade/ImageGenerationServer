@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -27,10 +26,10 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
         new() { Key = "lcm_lora", Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
         // sparsectrl_name is inherited from SharedSchema now (IsModelRef, no Default — a default there would be a
         // filename sitting where a slot id belongs). Only the strength/end knobs are AnimateDiff-i2v-specific.
-        new() { Key = "sparsectrl_strength", Type = ParamType.Double, Default = 0.8 },
-        new() { Key = "sparsectrl_end", Type = ParamType.Double, Default = 0.7 },
-        new() { Key = "ipadapter_preset", Type = ParamType.String, Default = "PLUS (high strength)" },
-        new() { Key = "ipadapter_weight", Type = ParamType.Double, Default = 0.7, Min = 0.0, Max = 1.5, Label = "Identity strength" },
+        new() { Key = "sparsectrl_strength", Type = ParamType.Double },
+        new() { Key = "sparsectrl_end", Type = ParamType.Double },
+        new() { Key = "ipadapter_preset", Type = ParamType.String },
+        new() { Key = "ipadapter_weight", Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "Identity strength" },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -48,13 +47,13 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
         new() { Key = "upscale_model", Type = ParamType.String, IsModelRef = true },
         // The network's own fixed output factor, from its model card. Locked per config; used only as the divisor
         // that turns the requested scale into a resample ratio. Wrong value = a silently mis-sized result.
-        new() { Key = "model_scale",   Type = ParamType.Double, Default = 4.0, Min = 1.0, Max = 8.0 },
+        new() { Key = "model_scale",   Type = ParamType.Double, Min = 1.0, Max = 8.0 },
         // The factor the user actually wants, relative to the SOURCE. Each config narrows Max to its own
         // model_scale, so the slider never asks for more magnification than the network can produce.
-        new() { Key = "scale",         Type = ParamType.Int, Default = 2, Min = 1, Max = 4, Step = 1,
+        new() { Key = "scale",         Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
                 Label = "Scale (×)", Help = "Output size relative to the source. Above the model's native factor the result is stretched, not resolved." },
         // Resampler for the fit-to-scale step. lanczos keeps the SR pass's sharpness on the way down.
-        new() { Key = "resample",      Type = ParamType.Enum, Default = "lanczos",
+        new() { Key = "resample",      Type = ParamType.Enum,
                 Choices = new[] { "lanczos", "bicubic", "bilinear", "area", "nearest-exact" } },
     };
 

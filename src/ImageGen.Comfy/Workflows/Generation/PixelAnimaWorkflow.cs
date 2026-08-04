@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -20,17 +19,17 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
     {
         // Virtual resolution = the sprite's pixel count on its longest edge; the grid follows the render aspect. This is
         // the knob the UI exposes. 0 = use explicit grid_w/grid_h instead.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Default = 384, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096 },
         new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096 },
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Default = "adaptive", Label = "Palette" },
-        new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Default = "median", Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
-        new() { Key = "w_start",       Type = ParamType.Double, Default = 0.5, Min = 0.0, Max = 1.0 },
-        new() { Key = "w_end",         Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "start_percent", Type = ParamType.Double, Default = 0.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "end_percent",   Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.0 },
-        new() { Key = "project_every", Type = ParamType.Int,    Default = 1, Min = 1, Max = 8 },
+        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
+        new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
+        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
+        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = "project_every", Type = ParamType.Int,    Min = 1, Max = 8 },
     }).ToArray();
 
     /// <summary>Grid + palette + virtual resolution shared by the projection patch and the final quantize.</summary>

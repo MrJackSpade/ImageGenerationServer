@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -22,16 +21,16 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = new Krea2Workflow().Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "polish_denoise", Type = ParamType.Double, Default = 0.35, Min = 0.1, Max = 0.9, Step = 0.01,
+        new() { Key = "polish_denoise", Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the base render in the second pass. ~0.25–0.40 polishes texture and "
                      + "aesthetic while keeping the base composition; higher redraws more of the image (and can drift "
                      + "from the prompt). 0 would skip the polish entirely." },
-        new() { Key = "refiner_steps", Type = ParamType.Int, Default = 8, Min = 1, Max = 30,
+        new() { Key = "refiner_steps", Type = ParamType.Int, Min = 1, Max = 30,
                 Label = "Polish steps",
                 Help = "Turbo steps in the polish pass. 8 is the distilled sweet spot; the effective count is scaled by "
                      + "Polish strength (steps × denoise)." },
-        new() { Key = "refiner_cfg", Type = ParamType.Double, Default = 1.0, Min = 1.0, Max = 4.0 },
+        new() { Key = "refiner_cfg", Type = ParamType.Double, Min = 1.0, Max = 4.0 },
         new() { Key = "refiner_sampler",   Type = ParamType.String },
         new() { Key = "refiner_scheduler", Type = ParamType.String },
     }).ToArray();

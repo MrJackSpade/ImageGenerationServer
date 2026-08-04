@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -23,9 +22,9 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflowBase
 
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "cfg_override", Type = ParamType.Double, Default = 3.0,  Min = 1,   Max = 30, Label = "Late-step CFG" },
-        new() { Key = "mu",          Type = ParamType.Double, Default = 0.5,  Min = -10, Max = 10, Label = "Schedule shift (mu)" },
-        new() { Key = "std",         Type = ParamType.Double, Default = 1.75, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
+        new() { Key = "cfg_override", Type = ParamType.Double, Min = 1,   Max = 30, Label = "Late-step CFG" },
+        new() { Key = "mu",          Type = ParamType.Double, Min = -10, Max = 10, Label = "Schedule shift (mu)" },
+        new() { Key = "std",         Type = ParamType.Double, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
