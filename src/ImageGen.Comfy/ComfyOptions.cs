@@ -9,8 +9,9 @@ namespace ImageGen.Comfy;
 /// </summary>
 public interface IComfyEndpoint
 {
-    /// <summary>Base URL of the ComfyUI server, e.g. http://localhost:8188. Trailing slash optional.</summary>
-    string BaseUrl { get; }
+    /// <summary>Base URL of the ComfyUI server, e.g. http://localhost:8188 (trailing slash optional), or null when no
+    /// renderer address is configured — a real, distinct state the consumer must handle (validate/refuse), never "".</summary>
+    string? BaseUrl { get; }
 
     /// <summary>
     /// Token sent as <c>X-ImageGen-Token</c> so ComfyUI's <c>imagegen_gate</c> custom node accepts the request. It is

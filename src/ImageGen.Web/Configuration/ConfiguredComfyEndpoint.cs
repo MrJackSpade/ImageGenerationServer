@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Comfy;
 
 namespace ImageGen.Web.Configuration;
@@ -15,10 +14,11 @@ public sealed class ConfiguredComfyEndpoint(IConfiguration configuration) : ICom
     private readonly IConfiguration _configuration = configuration;
 
     /// <summary>
-    /// No default. An unset address is a box nobody has configured, which is a question for the setup page — not
-    /// something to paper over with a guess at localhost that then fails at the first render.
+    /// No default, and null (not "") when unset. An unset address is a box nobody has configured — a question for the
+    /// setup page, surfaced as the null the config lookup actually returns rather than papered over with an empty
+    /// string a consumer would then have to re-recognise as "unconfigured".
     /// </summary>
-    public string BaseUrl => _configuration[MachineSettingSpecs.ComfyBaseUrl] ?? "";
+    public string? BaseUrl => _configuration[MachineSettingSpecs.ComfyBaseUrl];
 
     /// <summary>Falls back to the historical literal, which is also what the gate node itself falls back to.</summary>
     public string GateToken

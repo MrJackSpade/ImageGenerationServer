@@ -75,8 +75,8 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     /// </summary>
     public async Task<string?> DetectRootAsync(CancellationToken ct)
     {
-        var address = (_endpoint.BaseUrl ?? "").Trim().TrimEnd('/');
-        if (address.Length == 0) return null;
+        var address = _endpoint.BaseUrl?.Trim().TrimEnd('/');
+        if (string.IsNullOrEmpty(address)) return null;
         if (!Uri.TryCreate(address + "/internal/folder_paths", UriKind.Absolute, out var uri)) return null;
 
         try

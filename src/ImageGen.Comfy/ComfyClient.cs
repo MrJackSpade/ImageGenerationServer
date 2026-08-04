@@ -67,11 +67,12 @@ public sealed class ComfyClient : IComfyClient
     {
         get
         {
-            var url = _endpoint.BaseUrl.TrimEnd('/');
+            var url = _endpoint.BaseUrl;
             var token = _endpoint.GateToken;
-            if (url.Length == 0)
+            if (string.IsNullOrWhiteSpace(url))
                 throw new InvalidOperationException(
                     "The renderer's address is not configured. Set it on the settings page (ComfyUI:BaseUrl).");
+            url = url.TrimEnd('/');
 
             lock (_clientLock)
             {
