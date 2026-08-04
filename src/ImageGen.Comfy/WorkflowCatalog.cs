@@ -470,7 +470,7 @@ public sealed class WorkflowCatalog
             // The documented output-resolution envelope. ParseResolution existed and was never called, so 130
             // configurations declared a `resolution` block that nothing read: the size a model says it supports
             // was dead data, and the render-size editor had no bound to honour.
-            Resolution = ParseResolution(c),
+            Resolution = ParseResolution(c, id),
             Card = BuildCard(card, id, GetStr(c, "friendly_name")),
         };
     }
@@ -570,17 +570,24 @@ public sealed class WorkflowCatalog
         _ => v.Clone()   // object / array (e.g. the aspect dims map, reference_inputs list)
     };
 
-    /// <summary>Parse a requirement's optional <c>resolution</c> block ({min_w,min_h,max_w,max_h,step}).</summary>
-    private static ModelResolution? ParseResolution(JsonElement r)
+    /// <summary>Parse a configuration's optional <c>resolution</c> block ({min_w,min_h,max_w,max_h,step}). The block
+    /// as a whole is optional (absent → null), but a block that IS declared must be complete: a missing field is a
+    /// config error, not a default. Silently filling <c>step</c> with 16, or a side with 0, would bound the render-size
+    /// editor by a number the model never stated — 16 for a model that needs 32, an unbounded floor for one with a real
+    /// minimum — so the size the author actually meant is the one thing that must not be guessed here.</summary>
+    private static ModelResolution? ParseResolution(JsonElement r, string id)
     {
         if (!r.TryGetProperty("resolution", out var res) || res.ValueKind != JsonValueKind.Object) return null;
+        int Req(string k) => GetInt(res, k) ?? throw new InvalidOperationException(
+            $"{id}: the resolution block is missing '{k}'. A declared envelope must state min_w/min_h/max_w/max_h and step; "
+            + "an omitted field would silently bound the size editor by a number the model never gave.");
         return new ModelResolution
         {
-            MinW = GetInt(res, "min_w") ?? 0,
-            MinH = GetInt(res, "min_h") ?? 0,
-            MaxW = GetInt(res, "max_w") ?? 0,
-            MaxH = GetInt(res, "max_h") ?? 0,
-            Step = GetInt(res, "step") ?? 16,
+            MinW = Req("min_w"),
+            MinH = Req("min_h"),
+            MaxW = Req("max_w"),
+            MaxH = Req("max_h"),
+            Step = Req("step"),
         };
     }
 

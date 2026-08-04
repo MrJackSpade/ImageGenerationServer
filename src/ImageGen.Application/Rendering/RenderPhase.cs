@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Domain.Entities;
 
 namespace ImageGen.Application.Rendering;

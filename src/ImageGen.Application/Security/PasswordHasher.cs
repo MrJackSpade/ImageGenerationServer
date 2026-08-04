@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Security.Cryptography;
 
 namespace ImageGen.Application.Security;

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Application.Media;
 
 /// <summary>The pixel dimensions of an image.</summary>

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Images;
 using ImageGen.Application.Logging;
 using ImageGen.Application.Prompting;

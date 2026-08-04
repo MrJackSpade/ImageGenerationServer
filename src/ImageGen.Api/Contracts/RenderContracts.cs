@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text.Json;
 using ImageGen.Application.Rendering;
 
@@ -16,7 +15,7 @@ namespace ImageGen.Api.Contracts;
 /// with the image and never rendered from. Omit it when the caller does no such resolution — nothing is inferred.
 /// </param>
 public sealed record GenerateRequest(
-    string Workflow, string Prompt, string? NegativePrompt, string? Aspect,
+    string Workflow, string? Prompt, string? NegativePrompt, string? Aspect,
     bool? RandomArtist = null, bool? RandomPrompt = null,
     double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
@@ -26,7 +25,7 @@ public sealed record GenerateRequest(
 
 /// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.</summary>
 public sealed record EditRequest(
-    string Workflow, string Instruction, string ImageId, string? NegativePrompt = null,
+    string Workflow, string? Instruction, string ImageId, string? NegativePrompt = null,
     List<string>? ReferenceImageIds = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
@@ -54,9 +53,12 @@ public static class RenderContractMapping
         r.Workflow, r.Prompt ?? "", r.NegativePrompt, r.Aspect,
         r.RandomArtist, r.RandomPrompt, r.Temperature, r.Overrides, r.TagTypes, r.OriginalPrompt, r.Loras);
 
-    /// <summary>Map an edit request body to the orchestration spec.</summary>
+    /// <summary>Map an edit request body to the orchestration spec. An absent instruction is an empty one — some
+    /// editors (upscale, matte) take none — coalesced here at the wire→domain boundary exactly as the generate path
+    /// does its prompt, so <see cref="EditSpec.Instruction"/> is honestly non-null and nothing downstream re-checks it.
+    /// (The batch and requeue paths already normalize it the same way.)</summary>
     public static EditSpec ToSpec(this EditRequest r) => new(
-        r.Workflow, r.Instruction, r.ImageId, r.NegativePrompt, r.ReferenceImageIds, r.Overrides, r.MaskImageId, r.LastFrameImageId);
+        r.Workflow, r.Instruction ?? "", r.ImageId, r.NegativePrompt, r.ReferenceImageIds, r.Overrides, r.MaskImageId, r.LastFrameImageId);
 
     /// <summary>Map a batch item to a render item, or null when the item is invalid (skipped).</summary>
     public static RenderItem? ToRenderItem(this EnqueueItem it)

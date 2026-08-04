@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text.Json;
 using ImageGen.Application.Images;
 using ImageGen.Application.Media;
@@ -601,7 +600,7 @@ public sealed class RenderOrchestrator
                 var editFinal = PromptFinalizer.Finalize(slot.Edit!.Instruction, editInfo?.Tagging);
                 // The instruction and its negative arrive in marker form and are stored verbatim, exactly as the generate
                 // path stores its raw prompt — so an edited image's prompt comes back to the box the way it was written.
-                slot.RawPrompt = slot.Edit!.Instruction ?? "";
+                slot.RawPrompt = slot.Edit!.Instruction;
                 slot.RawNegativePrompt = slot.Edit!.NegativePrompt;
                 slot.EffectivePrompt = editFinal.Rendered; slot.Marks = editFinal.Marks;
                 await _userLog.LogAsync(slot.Job.Owner, "submit_edit", editFinal.Rendered, ct);
@@ -622,7 +621,7 @@ public sealed class RenderOrchestrator
                 // it still reads as something the user could have typed. The rendered prompt and the marks are then
                 // derived from it, once, by the finalizer. One direction of transform: nothing downstream ever has to
                 // invert a finalized prompt to guess back the markers and underscores it destroyed.
-                var raw = slot.Gen.Prompt ?? "";
+                var raw = slot.Gen.Prompt;
                 // What the user put in the NEGATIVE is a standing exclusion for the random samplers: a tag they negated
                 // must never be handed back to them as a randomly-chosen positive (same for a negated artist).
                 var negKeys = PromptFinalizer.NegativeKeys(slot.Gen.NegativePrompt);
@@ -983,14 +982,18 @@ public sealed class RenderOrchestrator
             var friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
             // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
             // without going through RunSlotAsync's prompt build — the same shape the EffectivePrompt line has always had.
-            var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.Edit!.Instruction ?? "" : slot.Gen!.Prompt ?? "");
+            var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.Edit!.Instruction : slot.Gen!.Prompt);
             var rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.Edit!.NegativePrompt : slot.Gen!.NegativePrompt);
             var prompt = slot.EffectivePrompt ?? raw;
             // What the user TYPED, which for a generate only the client knows (it resolves [a|b], {a|b} and the
             // artist lock before submitting) and so travels on the spec. An edit's instruction goes through no
             // sampler at all, so for those the submitted string IS the original.
             var original = slot.IsEdit ? slot.Edit!.Instruction : slot.Gen!.OriginalPrompt;
-            var aspect = slot.IsEdit ? "" : (slot.Gen!.Aspect ?? "square");
+            // A generate that reached here rendered, and a render only happens once NormalizeAspect has accepted the
+            // aspect at submit (it throws on anything but square/landscape/portrait) — so a null here is not a missing
+            // value to fill with "square", it is a broken invariant. Edits carry no aspect: "" is their real value.
+            var aspect = slot.IsEdit ? "" : (slot.Gen!.Aspect
+                ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
                 : slot.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList();
@@ -1098,11 +1101,12 @@ public sealed class RenderOrchestrator
             JobId = j.JobId,
             UserId = j.Owner,
             MachineName = j.MachineName,
-            // Both are derived from slot 0's spec and are NOT NULL columns. A spec that deserialized without its
-            // workflow makes these null, and AddWithValue(null) sends "parameter not supplied" — SqlException 8178,
-            // which failed every write-through for this job. Never hand the upsert a null for a non-null column.
-            Model = j.Model ?? "",
-            Prompt = j.Prompt ?? "",
+            // Slot 0's workflow id and prompt, both honestly non-null by the time a job exists: the workflow is
+            // validated non-blank at every entry (ForgeApi, batch, requeue), and the prompt/instruction is coalesced to
+            // "" at the wire→domain boundary (an empty prompt, or an instruction-less editor, is a real value). No
+            // coalesce here — that would only paper over a null the boundary has already ruled out.
+            Model = j.Model,
+            Prompt = j.Prompt,
             Total = j.Total,
             Status = RenderPhases.Persisted(j),
             CreatedAtUtc = j.CreatedAt.UtcDateTime,

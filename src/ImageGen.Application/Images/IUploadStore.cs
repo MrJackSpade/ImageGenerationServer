@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Application.Images;
 
 /// <summary>An image the user handed us — an edit source, a reference image, an inpaint mask, an i2v end frame.

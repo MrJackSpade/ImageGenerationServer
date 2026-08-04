@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Application.Civitai;
 
 /// <summary>What CivitAI knows about a local model file, looked up by its file hash.</summary>
