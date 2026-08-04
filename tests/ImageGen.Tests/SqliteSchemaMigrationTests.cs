@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Infrastructure;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.Sqlite;
@@ -48,6 +47,7 @@ public sealed class SqliteSchemaMigrationTests
         // Release the native file handles before deleting, or the WAL/SHM siblings stay locked on Windows.
         SqliteConnection.ClearAllPools();
         foreach (var file in new[] { path, path + "-wal", path + "-shm" })
+            // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
             try { if (File.Exists(file)) File.Delete(file); } catch (IOException) { }
     }
 

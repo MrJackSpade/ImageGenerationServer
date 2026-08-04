@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using Microsoft.Data.Sqlite;
 
 namespace ImageGen.Tests;
@@ -234,6 +233,7 @@ SELECT last_insert_rowid();";
     {
         SqliteConnection.ClearAllPools();
         foreach (var f in new[] { _dbPath, _dbPath + "-wal", _dbPath + "-shm" })
+            // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
             if (File.Exists(f)) try { File.Delete(f); } catch (IOException) { }
     }
 }

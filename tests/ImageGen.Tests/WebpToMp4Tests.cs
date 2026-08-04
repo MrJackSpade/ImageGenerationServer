@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Webp;

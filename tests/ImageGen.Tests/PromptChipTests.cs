@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Web.ViewModels;
 
 namespace ImageGen.Tests;

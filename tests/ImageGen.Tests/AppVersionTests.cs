@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Web.Updates;
 
 namespace ImageGen.Tests;

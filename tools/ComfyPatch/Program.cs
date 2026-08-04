@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Comfy.Patches;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

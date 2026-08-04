@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Security.Cryptography;
 using ImageGen.Application.Security;
 

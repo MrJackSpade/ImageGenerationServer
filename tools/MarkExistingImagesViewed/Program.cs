@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using Microsoft.Data.SqlClient;
 
 // One-time backfill: mark every image that already exists as VIEWED.

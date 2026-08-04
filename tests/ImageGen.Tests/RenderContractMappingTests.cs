@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Api.Contracts;
 
 namespace ImageGen.Tests;
