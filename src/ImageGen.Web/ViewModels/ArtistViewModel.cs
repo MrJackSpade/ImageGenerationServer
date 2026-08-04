@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Web.ViewModels;
 
 public sealed class ArtistViewModel
