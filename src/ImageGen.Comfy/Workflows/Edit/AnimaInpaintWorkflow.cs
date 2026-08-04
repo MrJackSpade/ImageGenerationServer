@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -32,11 +31,11 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
     {
         // Step 0.01, not the UI's 0.1 default for doubles: how far the masked region drifts is the knob you tune most
         // finely here, and 0.1 is too coarse to land between (e.g.) 0.55 and 0.65.
-        new() { Key = "denoise",         Type = ParamType.Double, Default = 0.6, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
+        new() { Key = "denoise",         Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
         new() { Key = "required_prefix", Type = ParamType.String },
         new() { Key = "negative",        Type = ParamType.String },
         new() { Key = "clip_skip",       Type = ParamType.Int },
-        new() { Key = "mask_grow",       Type = ParamType.Int, Default = 6, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "mask_grow",       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

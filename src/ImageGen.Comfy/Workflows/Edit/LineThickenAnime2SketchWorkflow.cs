@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -19,8 +18,8 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> AnimeSchema = new ParamSpec[]
     {
-        new() { Key = "thickness",  Type = ParamType.Int, Default = 2,   Min = 0,   Max = 32,   Label = "Line thickness (px)" },
-        new() { Key = "resolution", Type = ParamType.Int, Default = 512, Min = 256, Max = 2048, Label = "Detector resolution" },
+        new() { Key = "thickness",  Type = ParamType.Int, Min = 0,   Max = 32,   Label = "Line thickness (px)" },
+        new() { Key = "resolution", Type = ParamType.Int, Min = 256, Max = 2048, Label = "Detector resolution" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

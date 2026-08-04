@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>HunyuanVideo 1.5 image-to-video (480p cfg-distilled fp8). The model/clip/VAE come from the shared
 /// LoadModel head (loader=unet, dual=true, clip_type="hunyuan_video_15" → UNETLoader + the Qwen2.5-VL/byT5
@@ -15,7 +14,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "shift", Type = ParamType.Double, Default = 7.0, Min = 1.0, Max = 12.0, Label = "Flow shift" },
+        new() { Key = "shift", Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).Concat(HunyuanSr.Schema).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

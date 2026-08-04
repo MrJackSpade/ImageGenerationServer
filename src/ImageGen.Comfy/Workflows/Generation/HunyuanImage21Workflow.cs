@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// HunyuanImage 2.1 text→image (2K native). A diffusion-transformer image model with dual text encoders
@@ -16,7 +15,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflowBase
     public override WorkflowMedia Media => WorkflowMedia.Image;
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "shift", Type = ParamType.Double, Default = 5.0, Min = 1.0, Max = 12.0, Label = "Flow shift" },
+        new() { Key = "shift", Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

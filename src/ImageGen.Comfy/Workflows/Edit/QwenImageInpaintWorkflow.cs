@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Masked INPAINT on base Qwen-Image + the InstantX inpainting ControlNet. The region to regenerate arrives as a
@@ -17,11 +16,11 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> InpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "denoise", Type = ParamType.Double, Default = 1.0, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
+        new() { Key = "denoise", Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
         // 16 = 2σ, same shape as outpaint: with the clamp holding the painted region at a hard 1, grow only places
         // the one-sided ramp's midpoint 16px OUTSIDE the painted region. The painted pixels are always fully
         // replaced; the ramp is the crossfade band over the surrounding original.
-        new() { Key = "mask_grow", Type = ParamType.Int, Default = 16, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "mask_grow", Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,

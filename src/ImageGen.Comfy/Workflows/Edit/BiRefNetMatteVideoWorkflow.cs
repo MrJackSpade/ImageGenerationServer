@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -22,7 +21,7 @@ public sealed class BiRefNetMatteVideoWorkflow : IWorkflow
 
     private static readonly IReadOnlyList<ParamSpec> MatteSchema = new ParamSpec[]
     {
-        new() { Key = "threshold", Type = ParamType.Double, Default = 0, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
+        new() { Key = "threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
     };
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

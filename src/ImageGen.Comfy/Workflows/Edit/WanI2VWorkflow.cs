@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>Wan 2.2 TI2V-5B image-to-video: the source image is the first frame; output is an animated WEBP. The
 /// text prompt drives the motion/scene.</summary>
@@ -15,7 +14,7 @@ public sealed class WanI2VWorkflow : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "shift", Type = ParamType.Double, Default = 5.0, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
+        new() { Key = "shift", Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

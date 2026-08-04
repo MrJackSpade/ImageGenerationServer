@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -38,7 +37,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
     private static readonly IReadOnlyList<ParamSpec> RedrawSchema = SharedSchema.Where(s => s.Key != "denoise").Concat(new ParamSpec[]
     {
-        new() { Key = "denoise",         Type = ParamType.Double, Default = 0.6, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
+        new() { Key = "denoise",         Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
         new() { Key = "required_prefix", Type = ParamType.String },
         new() { Key = "negative",        Type = ParamType.String },
         new() { Key = "clip_skip",       Type = ParamType.Int },
@@ -46,7 +45,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         new() { Key = "shift",           Type = ParamType.Double },
         // The model's trained pixel budget (width × height of one of its native aspect buckets). A source meaningfully
         // over it is downscaled to it before the encode; 0 = sample the source at its own resolution, no rescale.
-        new() { Key = "native_pixels",   Type = ParamType.Int, Default = 0 },
+        new() { Key = "native_pixels",   Type = ParamType.Int },
     }).ToArray();
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

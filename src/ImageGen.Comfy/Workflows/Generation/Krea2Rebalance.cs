@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace ImageGen.Comfy;
 
@@ -30,11 +29,11 @@ public static class Krea2Rebalance
     /// <summary>The two knobs, concatenated into every Krea 2 workflow's schema.</summary>
     public static readonly IReadOnlyList<ParamSpec> Schema = new ParamSpec[]
     {
-        new() { Key = "rebalance_multiplier", Type = ParamType.Double, Default = 1.0, Min = 1.0, Max = 8.0,
+        new() { Key = "rebalance_multiplier", Type = ParamType.Double, Min = 1.0, Max = 8.0,
                 Label = "Uncensor strength",
                 Help = "Global conditioning multiplier on Krea 2's per-layer rebalance. 1.0 = off. ~2–4 progressively "
                      + "bypasses the model's safety / quality-dilution alignment; higher is stronger but can destabilize the image." },
-        new() { Key = "per_layer_weights", Type = ParamType.String, Default = NeutralWeights,
+        new() { Key = "per_layer_weights", Type = ParamType.String,
                 Label = "Per-layer weights",
                 Help = "12 comma-separated gains for Krea 2's tapped Qwen3-VL layers. All 1.0 = neutral. Uncensor preset: " + UncensorWeights },
     };

@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Masked INPAINT on FLUX.1 Fill [dev]. The region arrives as a white-on-black mask upload
@@ -19,7 +18,7 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
     {
         // Grow pushes the whole soft band OUTWARD onto real pixels, so the painted region keeps a hard 1 and is
         // fully replaced. 16 ≈ 2σ places the band's midpoint just outside the painted edge.
-        new() { Key = "mask_grow", Type = ParamType.Int, Default = 16, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = "mask_grow", Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,

@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -18,8 +17,8 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> SketchSchema = new ParamSpec[]
     {
-        new() { Key = "thickness", Type = ParamType.Int,    Default = 2,   Min = 0,   Max = 32,  Label = "Line thickness (px)" },
-        new() { Key = "threshold", Type = ParamType.Double, Default = 0.1, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
+        new() { Key = "thickness", Type = ParamType.Int,    Min = 0,   Max = 32,  Label = "Line thickness (px)" },
+        new() { Key = "threshold", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

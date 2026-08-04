@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -39,7 +38,7 @@ public sealed class Krea2RedrawWorkflow : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
     private static readonly IReadOnlyList<ParamSpec> RedrawSchema = SharedSchema.Where(s => s.Key != "denoise").Concat(new ParamSpec[]
     {
-        new() { Key = "denoise", Type = ParamType.Double, Default = 0.35, Min = 0.1, Max = 0.9, Step = 0.01,
+        new() { Key = "denoise", Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the source image. ~0.25–0.40 polishes texture and aesthetic while keeping "
                      + "the source's composition; higher redraws more of the image (and drifts toward the prompt rather "

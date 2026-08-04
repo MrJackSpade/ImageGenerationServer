@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -22,7 +21,7 @@ public sealed class LineThickenErodeWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> ErodeSchema = new ParamSpec[]
     {
         // Growth radius in pixels = iterations of a 3x3 minimum filter. 1 ≈ +1px lines.
-        new() { Key = "thickness", Type = ParamType.Int, Default = 2, Min = 0, Max = 32, Label = "Line thickness (px)" },
+        new() { Key = "thickness", Type = ParamType.Int, Min = 0, Max = 32, Label = "Line thickness (px)" },
     };
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)

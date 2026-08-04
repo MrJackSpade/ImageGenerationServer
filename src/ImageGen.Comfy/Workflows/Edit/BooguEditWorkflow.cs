@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -24,7 +23,7 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
         .Concat(new ParamSpec[]
         {
             new() { Key = "negative",   Type = ParamType.String },
-            new() { Key = "megapixels", Type = ParamType.Double, Default = 2.0, Min = 0.5, Max = 4.0, Label = "Edit resolution (MP)" },
+            new() { Key = "megapixels", Type = ParamType.Double, Min = 0.5, Max = 4.0, Label = "Edit resolution (MP)" },
         })
         .ToArray();
 
