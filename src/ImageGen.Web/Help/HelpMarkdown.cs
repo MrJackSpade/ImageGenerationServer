@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text;
 using Markdig;
 
@@ -28,7 +27,7 @@ public static class HelpMarkdown
 
     public static HelpPageViewModel Parse(string markdown)
     {
-        var lines = (markdown ?? "").Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         var intro = new StringBuilder();
         var sections = new List<(string Title, StringBuilder Body)>();
         (string Title, StringBuilder Body)? cur = null;

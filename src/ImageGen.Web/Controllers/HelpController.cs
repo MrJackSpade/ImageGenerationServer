@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Web.Help;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,9 +14,11 @@ public sealed class HelpController(IWebHostEnvironment env) : Controller
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         var path = Path.Combine(_env.WebRootPath, "help.md");
-        var markdown = System.IO.File.Exists(path)
-            ? await System.IO.File.ReadAllTextAsync(path, ct)
-            : "# Help\n\nHelp content isn't available.";
+        // help.md ships in wwwroot, so a missing one is a broken deployment, not a page to render a placeholder for.
+        if (!System.IO.File.Exists(path))
+            throw new FileNotFoundException(
+                $"help.md is missing from the web root ({_env.WebRootPath}); it ships with the app.", path);
+        var markdown = await System.IO.File.ReadAllTextAsync(path, ct);
         return View(HelpMarkdown.Parse(markdown));
     }
 }
