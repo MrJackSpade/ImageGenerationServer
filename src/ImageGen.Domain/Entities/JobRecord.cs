@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Domain.Entities;
 
 /// <summary>Job-level lifecycle. A job is <see cref="Active"/> while any slot is still non-terminal; once every slot

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Domain;
 
 /// <summary>A page of results plus the total row count for the query (for paging UI).</summary>
