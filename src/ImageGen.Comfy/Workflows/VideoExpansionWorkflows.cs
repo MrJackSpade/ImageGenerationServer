@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -96,10 +95,10 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "pad_left_pct",   Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Default = 0, Label = "Pad left %",   Help = "Whitespace on the left, % of source width" },
-        new() { Key = "pad_right_pct",  Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Default = 0, Label = "Pad right %",  Help = "Whitespace on the right, % of source width" },
-        new() { Key = "pad_top_pct",    Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Default = 0, Label = "Pad top %",    Help = "Whitespace on top, % of source height" },
-        new() { Key = "pad_bottom_pct", Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Default = 0, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
+        new() { Key = "pad_left_pct",   Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad left %",   Help = "Whitespace on the left, % of source width" },
+        new() { Key = "pad_right_pct",  Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad right %",  Help = "Whitespace on the right, % of source width" },
+        new() { Key = "pad_top_pct",    Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad top %",    Help = "Whitespace on top, % of source height" },
+        new() { Key = "pad_bottom_pct", Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
         // Draft/commit knob (see Vid.MoESample): motion is fixed by the structure phase; this only buys sharpness.
         new() { Key = "refiner_steps", Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
         // The second MoE expert. A slot id, resolved to this machine's bound file — it was a literal
