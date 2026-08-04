@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 using System.Data.Common;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -36,8 +37,8 @@ VALUES (@m, @c, @edit, @ms, @rw, @rh, @steps, @frames);");
     public async Task<double?> EtaAverageMsAsync(string machineName, string configId, EtaSignature current, int take, CancellationToken ct)
     {
         await using var conn = await _connectionFactory.OpenAsync(ct);
-        // Only signature-bearing rows (RenderWidth captured) — a machine/config with none yields null, so the caller
-        // falls back to the flat per-model average (today's behaviour). Unit-cost: scale each sample's time by how the
+        // Only signature-bearing rows (RenderWidth captured) — a machine/config with none yields null, and the caller
+        // shows NO ETA (there is no fall-back to a param-blind average). Unit-cost: scale each sample's time by how the
         // CURRENT request's pixels×steps×frames compares to that sample's, then average — so an unseen param combo still
         // gets a scaled estimate, and a config whose params never vary returns ~the plain average (every ratio ≈ 1).
         await using var cmd = conn.Command($@"

@@ -20,6 +20,7 @@
     "cfg": 4,
     "sampler": "er_sde",
     "scheduler": "simple",
+    "negative": "toon (style), anime coloring, painting (medium), airbrushed, mutation, distortion, ai-assisted, glossy, shiny, shiny skin, worst quality, score_3, score_4",
     "width": 1024,
     "height": 1024,
     "negative_supported": true,

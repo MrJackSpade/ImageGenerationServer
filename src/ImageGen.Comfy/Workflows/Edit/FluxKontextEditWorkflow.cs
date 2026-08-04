@@ -17,7 +17,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
         wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clip0 });
         wf["11"] = ComfyGraph.Node("FluxKontextImageScale", new { image = ComfyGraph.Ref("10", 0) });
         wf["12"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("11", 0), vae = vae0 });
-        int fn = Math.Min(refNames.Count, p.Int("reference_max"));
+        int fn = p.Has("reference_max") ? Math.Min(refNames.Count, p.IntReq("reference_max")) : 0;   // no reference_max declared → this editor takes no refs
         object refLatent;
         if (fn > 0)
         {
@@ -35,15 +35,15 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
         }
         else refLatent = ComfyGraph.Ref("12", 0);
         wf["15"] = ComfyGraph.Node("ReferenceLatent", new { conditioning = ComfyGraph.Ref("13", 0), latent = refLatent });
-        wf["14"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("15", 0), guidance = p.DblOrNull("guidance") ?? 2.5 });
+        wf["14"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("15", 0), guidance = p.DblReq("guidance") });
         wf["16"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = ComfyGraph.Ref("13", 0) });
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed,
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 1),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = model0,
             positive = ComfyGraph.Ref("14", 0),

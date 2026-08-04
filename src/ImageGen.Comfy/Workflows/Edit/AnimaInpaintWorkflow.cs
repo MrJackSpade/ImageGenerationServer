@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -44,8 +45,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
         // clip-skip applies only to a checkpoint's baked CLIP (Anima loads split → no-op there; kept for parity).
-        int clipSkip = p.Int("clip_skip");
-        if (clipSkip > 0 && (p.Str("loader") ?? "checkpoint") == "checkpoint")
+        if (p.StrReq("loader") == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["19"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clip0 = ComfyGraph.Ref("19", 0);
@@ -71,7 +71,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
             maskSrc = ComfyGraph.Ref("11", 0);
         }
         else maskSrc = ComfyGraph.Ref("10", 1);
-        int grow = p.Int("mask_grow", 6);
+        int grow = p.IntReq("mask_grow");
         if (grow > 0)
         {
             wf["30"] = ComfyGraph.Node("GrowMask", new { mask = maskSrc, expand = grow, tapered_corners = true });
@@ -79,15 +79,14 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
         }
         wf["31"] = ComfyGraph.Node("SetLatentNoiseMask", new { samples = ComfyGraph.Ref("12", 0), mask = maskSrc });
 
-        double dn = p.Dbl("denoise", 0.6);
-        if (dn <= 0 || dn > 1) dn = 0.6;
+        double dn = p.DblReq("denoise");
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 40),
-            cfg = p.Dbl("cfg", 4.5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = dn,
             model = model0,
             positive = ComfyGraph.Ref("13", 0),

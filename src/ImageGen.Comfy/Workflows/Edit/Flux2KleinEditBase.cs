@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>Flux.2 Klein custom-sampler edit pipeline. Multi-image uses the ComfyUI reference_latent method (chain
 /// one ReferenceLatent per image, source first). Two models run this (4B and 9B) → two workflow classes over this

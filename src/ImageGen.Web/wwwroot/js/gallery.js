@@ -1,4 +1,5 @@
-﻿// History page: filters + infinite scroll. The first page is server-rendered; as the sentinel nears the viewport we
+﻿//TODO: CHECK FOR FALLBACKS
+// History page: filters + infinite scroll. The first page is server-rendered; as the sentinel nears the viewport we
 // fetch the next /api/history page and append cards built to match the server markup, so the lightbox
 // (delegated on a.imgcard) and the grid styles apply unchanged. Uses core.js (GATEWAY, escapeHtml, Api).
 //

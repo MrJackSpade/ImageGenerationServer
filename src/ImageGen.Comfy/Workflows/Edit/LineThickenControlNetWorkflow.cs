@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// ControlNet line-art re-render. A lineart preprocessor (<c>LineArtPreprocessor</c>,
@@ -36,8 +37,7 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
 
         var prompt = p.Str("style_prompt");
         if (string.IsNullOrWhiteSpace(prompt)) prompt = inputs.Positive;
-        var neg = p.Str("negative");
-        if (string.IsNullOrWhiteSpace(neg)) neg = ComfyGraph.DefaultNegative;
+        var neg = p.Str("negative") ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
         // 60/61, not 12/13 — FlattenOnWhite already owns 11-14 (EmptyImage 12, InvertMask 13, composite 14).
         wf["60"] = ComfyGraph.Node("CLIPTextEncode", new { text = prompt, clip = clip0 });
         wf["61"] = ComfyGraph.Node("CLIPTextEncode", new { text = neg, clip = clip0 });

@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>HunyuanVideo 1.5 image-to-video (480p cfg-distilled fp8). The model/clip/VAE come from the shared
 /// LoadModel head (loader=unet, dual=true, clip_type="hunyuan_video_15" → UNETLoader + the Qwen2.5-VL/byT5

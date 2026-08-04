@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Masked INPAINT on FLUX.1 Fill [dev]. The region arrives as a white-on-black mask upload

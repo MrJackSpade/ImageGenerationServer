@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>LTX-2 (19B) image-to-video. Same LTXV sampler chain as the 0.9.8 editor, but the model is a GGUF unet
 /// (UnetLoaderGGUF) and the text encoder is the Gemma + LTX-connectors pair (DualCLIPLoader, type "ltxv") — both

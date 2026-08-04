@@ -19,6 +19,7 @@
     "cfg": 3.8,
     "sampler": "euler",
     "scheduler": "beta",
+    "negative": "low quality, ugly, unfinished, out of focus, deformed, disfigure, blurry, smudged, restricted palette, flat colors",
     "shift": 1.0,
     "width": 1024,
     "height": 1024,

@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Video-clip upgrade. Some library images are short video clips, stored as animated webp. A browser only ANIMATES
 // an animated webp inside an <img> — it can't loop it cleanly or treat it as a video. So every <img> that points at
 // a gateway image is checked (one batched /forge/media lookup) and, if it's a clip, swapped in place for a muted,

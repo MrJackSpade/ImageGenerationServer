@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Domain.Entities;
 
 /// <summary>One LoRA's cached preview media: the raw bytes and their content type (e.g. <c>image/jpeg</c> or

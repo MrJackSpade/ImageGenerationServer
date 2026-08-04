@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>NVIDIA PixelDiT-1300M — diffuses directly in pixel space, so it has no VAE: the shared txt2img
 /// topology is reused with latent="pixel" (EmptyChromaRadianceLatentImage) and the identity pixel-space VAE,

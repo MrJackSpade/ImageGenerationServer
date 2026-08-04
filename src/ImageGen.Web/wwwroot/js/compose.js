@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Compose page: generate images, live progress, the Recent strip, batch, and tag/artist autocomplete.
 // Browsing/editing live on their own routes, so a result/recent thumbnail navigates to /image/{id} and
 // "Edit" to /edit/{id}. Uses core.js.

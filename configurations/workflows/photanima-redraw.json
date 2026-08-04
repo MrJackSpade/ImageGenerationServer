@@ -19,6 +19,7 @@
     "cfg": 4,
     "sampler": "er_sde",
     "scheduler": "simple",
+    "negative": "toon (style), anime coloring, painting (medium), airbrushed, mutation, distortion, ai-assisted, glossy, shiny, shiny skin, worst quality, score_3, score_4",
     "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,",
     "native_pixels": 1044480,
     "denoise": {

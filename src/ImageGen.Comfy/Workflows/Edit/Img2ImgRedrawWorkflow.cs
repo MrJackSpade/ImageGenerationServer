@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -53,8 +54,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         var wf = new Dictionary<string, object>();
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        int clipSkip = p.Int("clip_skip");
-        if (clipSkip > 0 && (p.Str("loader") ?? "checkpoint") == "checkpoint")
+        if (p.StrReq("loader") == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["19"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clip0 = ComfyGraph.Ref("19", 0);
@@ -99,7 +99,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         // re-render; no point up-scaling it back). Only downscales; needs the source dims the edit path supplies (falls
         // back to the raw source if unavailable, or if the config declares no budget).
         static int Snap16(int v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
-        long budget = p.Int("native_pixels");
+        long budget = p.Has("native_pixels") ? p.IntReq("native_pixels") : 0;   // no budget declared → sample the source at its own resolution
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
         object encPixels = ComfyGraph.Ref("10", 0);
         if (budget > 0 && sw > 0 && sh > 0)
@@ -123,14 +123,14 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         // < 1 the source's own structure survives; the prompt + the checkpoint's prior restyle it.
         wf["12"] = ComfyGraph.Node("VAEEncode", new { pixels = encPixels, vae = vae0 });
 
-        double dn = p.Dbl("denoise", 0.6);
+        double dn = p.DblReq("denoise");
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 40),
-            cfg = p.Dbl("cfg", 4.5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = dn,
             model = model0,
             positive = posSrc,

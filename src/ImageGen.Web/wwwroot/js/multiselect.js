@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Image-grid multi-select + batch delete (history/recents pages only — NOT bookmarks, which it isn't loaded on).
 // Android-style: long-press an image card to enter selection mode, then tap cards to toggle. A fixed top-right
 // bar shows the count + a Delete button that batch-deletes the selected images from history. Operates on the same

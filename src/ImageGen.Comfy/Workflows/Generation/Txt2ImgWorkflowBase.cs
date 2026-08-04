@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Base for the text-to-image workflows. Every generation model has its OWN workflow subclass (its own name and
@@ -61,10 +62,9 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
 
     public virtual Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var file = req.Checkpoint;
-        var loader = p.Str("loader") ?? "checkpoint";
-        int sw = p.Int("width", 1024), sh = p.Int("height", 1024);
-        var (w, h) = p.Dims("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect), sw, sh);
+        var file = req.RequiredCheckpoint();
+        var loader = p.StrReq("loader");
+        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         var wf = new Dictionary<string, object>();
         object modelSrc, clipSrc, vaeSrc;
@@ -78,21 +78,19 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         {
             wf["4"] = ComfyGraph.DiffusionLoader(file);
             modelSrc = ComfyGraph.Ref("4", 0);
-            var enc = req.TextEncoders;
-            var clipType = p.Str("clip_type");
+            var clipType = p.StrReq("clip_type");
             wf["20"] = p.Bool("dual")
-                ? ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = enc.ElementAtOrDefault(0) ?? "", clip_name2 = enc.ElementAtOrDefault(1) ?? "", type = clipType, device = "default" })
-                : ComfyGraph.Node("CLIPLoader", new { clip_name = enc.ElementAtOrDefault(0) ?? "", type = clipType, device = "default" });
+                ? ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = clipType, device = "default" })
+                : ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = clipType, device = "default" });
             clipSrc = ComfyGraph.Ref("20", 0);
-            wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+            wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
             vaeSrc = ComfyGraph.Ref("21", 0);
         }
 
         modelSrc = ComfyGraph.ApplyLora(wf, modelSrc, p);   // optional LoRA on the base model
 
-        // clip-skip applies only to a checkpoint's baked CLIP (SD/SDXL)
-        int clipSkip = p.Int("clip_skip");
-        if (clipSkip > 0 && loader == "checkpoint")
+        // clip-skip applies only to a checkpoint's baked CLIP (SD/SDXL); absent = no skip — an optional feature, not a default value.
+        if (loader == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["10"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clipSrc, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clipSrc = ComfyGraph.Ref("10", 0);
@@ -118,7 +116,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         }
         posSrc = PostEncodePositive(wf, posSrc, p);   // model-specific positive-conditioning transform (default: identity)
 
-        var latent = p.Str("latent") ?? "std";
+        var latent = p.StrReq("latent");
         var latentClass = latent == "sd3" ? "EmptySD3LatentImage"
                         : latent == "flux2" ? "EmptyFlux2LatentImage"
                         : latent == "pixel" ? "EmptyChromaRadianceLatentImage" : "EmptyLatentImage";
@@ -127,10 +125,10 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 25),
-            cfg = p.Dbl("cfg", 7),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = modelSrc,
             positive = posSrc,

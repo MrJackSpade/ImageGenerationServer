@@ -40,7 +40,7 @@ public abstract class MageFlowEditBase : EditWorkflowBase
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         var refNames = inputs.ReferenceImageNames;
-        int rn = Math.Min(refNames.Count, p.Int("reference_max"));
+        int rn = p.Has("reference_max") ? Math.Min(refNames.Count, p.IntReq("reference_max")) : 0;   // no reference_max declared → no extra refs
         for (int i = 0; i < rn; i++)
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
@@ -56,10 +56,10 @@ public abstract class MageFlowEditBase : EditWorkflowBase
         wf["6"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 30),
-            cfg = p.Dbl("cfg", 5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = model0,
             positive = ComfyGraph.Ref("5", 0),

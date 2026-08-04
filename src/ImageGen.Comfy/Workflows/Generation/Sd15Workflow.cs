@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// One workflow class per generation model. Each owns its identity + VRAM band; the topology comes from the base

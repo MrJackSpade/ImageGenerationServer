@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // The LoRA manager (/settings/loras): every LoRA on this box with its cover / CivitAI preview, model name, and trigger
 // words. You can redefine the trigger words, choose whether they auto-attach, and refresh a file's CivitAI data (or all
 // of them). Consumes JSON from /forge/loras/manage and saves via /api/lora/settings. Turning CivitAI lookups on/off is a

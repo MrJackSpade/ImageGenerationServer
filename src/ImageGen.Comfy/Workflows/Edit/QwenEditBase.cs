@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Qwen-Image-Edit (<c>TextEncodeQwenImageEditPlus</c>). Two models run this topology — the standard split model
@@ -86,7 +87,7 @@ public abstract class QwenEditBase : EditWorkflowBase
         wf["11"] = ComfyGraph.Node("FluxKontextImageScale", new { image = ComfyGraph.Ref("10", 0) });
         var enc = new Dictionary<string, object> { ["clip"] = clip0, ["image1"] = ComfyGraph.Ref("11", 0), ["prompt"] = instruction };
         var qInputs = p.StrArray("reference_inputs");
-        int qn = Math.Min(refNames.Count, Math.Min(p.Int("reference_max"), qInputs.Length));
+        int qn = Math.Min(refNames.Count, Math.Min(p.Has("reference_max") ? p.IntReq("reference_max") : 0, qInputs.Length));
         for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
@@ -122,8 +123,9 @@ public abstract class QwenEditBase : EditWorkflowBase
         // rectangle's offset. The model's fill-the-frame bias then works FOR us: given a 66%-tall frame it draws a
         // crouch at native scale. The conditioning is untouched — node 13 still encodes the FULL source and node 30's
         // reference latent is still the full-frame latent — so identity and the character's true scale are preserved.
+        int Pct(string k) => p.Has(k) ? p.IntReq(k) : 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
         var rect = inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-            ? MaskGeom(p.Int("mask_left_pct"), p.Int("mask_right_pct"), p.Int("mask_top_pct"), p.Int("mask_bottom_pct"),
+            ? MaskGeom(Pct("mask_left_pct"), Pct("mask_right_pct"), Pct("mask_top_pct"), Pct("mask_bottom_pct"),
                        inputs.SourceWidth, inputs.SourceHeight)
             : null;
 
@@ -140,10 +142,10 @@ public abstract class QwenEditBase : EditWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed,
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 1),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = ksModel,
             positive = cond,

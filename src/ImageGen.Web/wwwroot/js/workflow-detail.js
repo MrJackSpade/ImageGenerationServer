@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // A single workflow's page: its info (architecture/summary), kind, average render time, file size, a ★ favorite
 // toggle, a hide-from-picker toggle, an editable list of your custom tags, and a recents grid of images this
 // workflow produced (history filtered by its config id, reusing the imgcard markup + lightbox). Uses core.js.

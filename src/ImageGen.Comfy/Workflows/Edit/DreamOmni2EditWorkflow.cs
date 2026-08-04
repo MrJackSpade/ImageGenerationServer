@@ -1,3 +1,5 @@
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -19,7 +21,7 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") }),
         };
         // The Editor requires a reference image; use the first attached reference, else the source itself.
         object refImg;
@@ -34,8 +36,8 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflowBase
             src_image = ComfyGraph.Ref("10", 0),
             ref_image = refImg,
             prompt = inputs.Positive,
-            num_inference_steps = p.Int("steps", 30),
-            guidance_scale = p.Dbl("cfg", 3.5),
+            num_inference_steps = p.IntReq("steps"),
+            guidance_scale = p.DblReq("cfg"),
             seed = ComfyGraph.Seed(p),
         });
         wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("2", 0), filename_prefix = "forgemcp_edit" });

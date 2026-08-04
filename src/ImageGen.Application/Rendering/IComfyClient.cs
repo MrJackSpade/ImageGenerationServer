@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 using System.Net.WebSockets;
 using System.Text.Json;
 using ImageGen.Domain.Repositories;

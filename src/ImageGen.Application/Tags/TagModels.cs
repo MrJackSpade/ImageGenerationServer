@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Application.Tags;
 
 /// <summary>One autocomplete row: the tag/artist name, how many images carry it (for ranking), and its raw category

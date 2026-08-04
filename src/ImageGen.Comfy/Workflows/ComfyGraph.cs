@@ -17,6 +17,12 @@ public static class ComfyGraph
     /// <summary>An edge reference to another node's output: <c>[nodeId, outputIndex]</c>.</summary>
     public static object Ref(string nodeId, int outputIndex) => new object[] { nodeId, outputIndex };
 
+    /// <summary>ComfyUI's <c>UNETLoader.weight_dtype</c> is a REQUIRED input (its validator rejects a graph that omits
+    /// it), so a value must be sent. This is that enum's <c>"default"</c> option, which means "load the model's native
+    /// precision — apply no cast." Named so the emitted graph reads as an explicit AUTOMATIC-precision choice rather
+    /// than an unexplained literal; a configuration overrides it (e.g. <c>fp8_e4m3fn</c>) to force a cast.</summary>
+    public const string AutoWeightDtype = "default";
+
     /// <summary>
     /// The diffusion-model loader for a file, chosen BY THE FILE: a <c>.gguf</c> needs <c>UnetLoaderGGUF</c>,
     /// anything else <c>UNETLoader</c>.
@@ -29,14 +35,14 @@ public static class ComfyGraph
     /// <para>The text encoders already worked this way (<c>CLIPLoaderGGUF</c> is picked off the same extension
     /// test); this is the diffusion loader catching up.</para>
     /// </summary>
-    public static Dictionary<string, object> DiffusionLoader(string file, string? weightDtype = null) =>
+    public static Dictionary<string, object> DiffusionLoader(string file, string weightDtype = AutoWeightDtype) =>
         IsGguf(file)
             ? Node("UnetLoaderGGUF", new { unet_name = file })
-            : Node("UNETLoader", new { unet_name = file, weight_dtype = weightDtype ?? "default" });
+            : Node("UNETLoader", new { unet_name = file, weight_dtype = weightDtype });
 
     /// <summary>Whether a bound filename is a GGUF, and so needs the GGUF loader for its kind.</summary>
-    public static bool IsGguf(string? file) =>
-        (file ?? "").EndsWith(".gguf", StringComparison.OrdinalIgnoreCase);
+    public static bool IsGguf(string file) =>
+        file.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The catalog's recommended settings use Forge/A1111 sampler+scheduler names; ComfyUI uses its own. Map the
@@ -50,10 +56,14 @@ public static class ComfyGraph
     };
 
     public static string MapSampler(string? s) =>
-        string.IsNullOrWhiteSpace(s) ? "euler" : (SamplerMap.TryGetValue(s, out var v) ? v : s);
+        string.IsNullOrWhiteSpace(s)
+            ? throw new RenderValidationException("This configuration has no sampler set; a sampler is required.")
+            : (SamplerMap.TryGetValue(s, out var v) ? v : s);
 
     public static string MapScheduler(string? s) =>
-        string.IsNullOrWhiteSpace(s) ? "normal" : (s.Equals("automatic", StringComparison.OrdinalIgnoreCase) ? "normal" : s);
+        string.IsNullOrWhiteSpace(s)
+            ? throw new RenderValidationException("This configuration has no scheduler set; a scheduler is required.")
+            : (s.Equals("automatic", StringComparison.OrdinalIgnoreCase) ? "normal" : s);
 
     public static long Seed() => Random.Shared.NextInt64(0, long.MaxValue);
 
@@ -74,7 +84,7 @@ public static class ComfyGraph
     {
         var lora = p.Str("lora");
         if (string.IsNullOrWhiteSpace(lora)) return model;
-        wf[nodeId] = Node("LoraLoaderModelOnly", new { model, lora_name = lora, strength_model = p.Dbl("lora_strength", 1.0) });
+        wf[nodeId] = Node("LoraLoaderModelOnly", new { model, lora_name = lora, strength_model = p.DblReq("lora_strength") });
         return Ref(nodeId, 0);
     }
 
@@ -105,30 +115,28 @@ public static class ComfyGraph
         return (model, clip);
     }
 
-    /// <summary>The standard quality/anatomy negative used by the txt2img workflows when a model supports negatives
-    /// and its config declares no model-specific default.</summary>
-    public const string DefaultNegative =
-        "lowres, bad anatomy, bad hands, missing fingers, extra digit, cropped, worst quality, low quality, jpeg artifacts, blurry, text, watermark, signature";
-
-    /// <summary>Compose the effective negative conditioning: the user's UI negative FIRST, then the model's DEFAULT
-    /// negative (a config <c>negative</c> param, or the shared <see cref="DefaultNegative"/> when the config declares
-    /// none). The user's tags lead so they aren't buried behind the baseline quality tags; the default is always
-    /// present (never replaced). A blank user negative yields just the default; a blank default yields just the
-    /// user's. Tags are comma-joined verbatim (no dedup). Single-sourced here so the generate path
-    /// (<c>ApplyGenPromptRules</c>) and every edit workflow resolve the negative identically.</summary>
-    public static string ComposeNegative(string? modelDefault, string? userNegative)
+    /// <summary>Compose the effective negative conditioning: the user's UI negative FIRST, then the model's OWN
+    /// documented negative (the config's <c>negative</c> param). There is NO shared/implicit baseline — a model gets a
+    /// negative only if its configuration deliberately sets one (relevant to that model, documented by its trainers).
+    /// Either side blank yields just the other; both blank yields an empty negative (unconditioned). Comma-joined
+    /// verbatim (no dedup). Single-sourced here so the generate path and every edit workflow resolve it identically.</summary>
+    public static string ComposeNegative(string? modelNegative, string? userNegative)
     {
-        var baseNeg = (string.IsNullOrWhiteSpace(modelDefault) ? DefaultNegative : modelDefault).Trim();
-        var user = userNegative?.Trim();
-        if (string.IsNullOrEmpty(user)) return baseNeg;
-        if (baseNeg.Length == 0) return user;
-        return user.TrimEnd(',').TrimEnd() + ", " + baseNeg.TrimEnd(',').TrimEnd();
+        var model = (modelNegative ?? "").Trim().TrimEnd(',').TrimEnd();
+        var user = (userNegative ?? "").Trim().TrimEnd(',').TrimEnd();
+        if (user.Length == 0) return model;
+        if (model.Length == 0) return user;
+        return user + ", " + model;
     }
 
-    /// <summary>Normalize a requested aspect to one of the three the workflows understand.</summary>
+    /// <summary>Normalize a requested aspect to one of the three the workflows understand (case/whitespace-insensitive).
+    /// An unrecognized value is REFUSED, not silently coerced to square — a bad aspect surfaces (log + browser via the
+    /// submit path's FailSlot) instead of quietly rendering the wrong shape.</summary>
     public static string NormalizeAspect(string? a)
     {
-        a = a?.Trim().ToLowerInvariant();
-        return a is "landscape" or "portrait" ? a : "square";
+        var norm = a?.Trim().ToLowerInvariant();
+        return norm is "square" or "landscape" or "portrait"
+            ? norm
+            : throw new RenderValidationException($"Unrecognized aspect '{a}'. Expected one of: square, landscape, portrait.");
     }
 }

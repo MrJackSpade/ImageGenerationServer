@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Press-and-hold (or right-click) a bookmark control — the image star or a tag/artist chip — to file it into
 // categories. Attach it ONLY to controls you click to bookmark; a card or preview image that just links somewhere
 // is not one. A short tap keeps its normal toggle behaviour (owned by detail.js/bookmarks.js); this

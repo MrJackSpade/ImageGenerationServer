@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Reusable multi-select model dropdown — the Style/Model picker shared by the compose, artist, and edit pages.
 // Behavior (the gen page's pattern): a short tap picks exactly one model and closes the menu; a ~450ms long-press
 // enters multi-select mode (per-row checkboxes appear, taps toggle, the menu stays open). Multi mode persists

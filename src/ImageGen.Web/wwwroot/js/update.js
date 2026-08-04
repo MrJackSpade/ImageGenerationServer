@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // The "a newer version exists" banner.
 //
 // Checked on load and then re-checked every 60 seconds by asking the server for its stored answer. The server

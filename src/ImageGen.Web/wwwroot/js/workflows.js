@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Workflows library index: every workflow on this machine, ready or not. Favorites pin to the top with a ★.
 // Each row: ★ toggle | name + gen/edit badge + your tags | avg time | size | hide toggle. Click the name → the
 // workflow's detail page. Star and hide are editable here; tags are edited on the detail page. Uses core.js.

@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Application.Workflows;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Application.Workflows;
 
 /// <summary>Per-configuration booru tagging capability: whether the model speaks '#' tags and/or '@' artists, and how
 /// their markers/underscores are rendered. Drives prompt finalization and the per-job random-artist append.</summary>

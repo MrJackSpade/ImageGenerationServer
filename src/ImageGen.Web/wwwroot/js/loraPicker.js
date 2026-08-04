@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // LoRA picker: a modal grid over GET /forge/loras. Folder navigation, global search across the whole tree, batch
 // checkbox-style selection, cover thumbnails, and compatibility dimming. Pure JSON in — the DOM is built here — and
 // the picked LoRAs are handed back to the composer via opts.onAdd. Consumes JSON, never HTML.

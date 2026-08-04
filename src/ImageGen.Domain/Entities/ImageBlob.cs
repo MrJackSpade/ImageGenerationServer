@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Domain.Entities;
 
 /// <summary>What a stored image is, for housekeeping/diagnostics.</summary>

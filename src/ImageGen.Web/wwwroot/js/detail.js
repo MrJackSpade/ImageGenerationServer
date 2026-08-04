@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Wires up an image card (image bookmark, token-chip bookmarks, delete, download). Uses core.js.
 // Driven both by the standalone /image/{id} page (auto-init below) and by the lightbox, which
 // fetches the same card fragment and calls window.initDetail(root, opts). `root` scopes all queries

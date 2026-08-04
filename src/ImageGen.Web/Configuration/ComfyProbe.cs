@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Web.Configuration;
 
 /// <summary>Whether anything answered, and if not, why not.</summary>

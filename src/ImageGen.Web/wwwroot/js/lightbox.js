@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // In-page image lightbox. Clicking any .imgcard opens a fitted modal viewer (image auto-fits the
 // viewport, full detail/meta beside it) instead of navigating to /image/{id}, and the ‹ › / arrow
 // keys step through every .imgcard on the page it was opened from — stopping at the ends, no wrap-around.

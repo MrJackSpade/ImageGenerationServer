@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>Shared schema fragments + projection/quantize node emitters for the per-model pixelizers, so the
 /// grid/palette/virtual-resolution + projection-ramp knobs stay identical across them.</summary>

@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Settings page: per-model banned tags/artists. Uses core.js.
 // (The random-prompt temperature moved to the composer's Random prompt slider, where 0 means off.)
 

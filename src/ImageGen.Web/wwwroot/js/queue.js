@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Queue page: a paginated, cross-user feed of every generation on this box (all users). Unfinished work comes FIRST,
 // in the order the queue will serve it (the row on the GPU is the top row), with a progress bar + time-remaining
 // countdown; finished jobs follow, newest first. 25 per page, polled every 2s whichever page is shown. The prompt is

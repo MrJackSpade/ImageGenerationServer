@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Pixelizer on DreamOmni2. DreamOmni2 runs its whole diffusion inside the self-contained

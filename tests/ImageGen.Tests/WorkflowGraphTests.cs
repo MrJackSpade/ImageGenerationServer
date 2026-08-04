@@ -1,5 +1,7 @@
-﻿using System.Text.Json;
+﻿//TODO: CHECK FOR FALLBACKS
+using System.Text.Json;
 using ImageGen.Comfy;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ImageGen.Tests;
@@ -36,34 +38,10 @@ public sealed class WorkflowGraphTests
         // .gguf off. WHICH loader node a graph emits is a property of the bound file now, and is asserted by
         // The_diffusion_loader_is_chosen_by_the_bound_file rather than by every workflow test in passing.
         catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
-        IWorkflow[] all =
-        {
-            new PonyV6Workflow(), new ZImageTurboWorkflow(), new Sd35MediumWorkflow(), new Flux1DevWorkflow(),
-            new SdxlWorkflow(), new Sd15Workflow(),
-            new FluxKontextEditWorkflow(), new WanI2VWorkflow(), new LtxvI2VWorkflow(),
-            new QwenImageEditWorkflow(), new AnimateDiffSd15Workflow(), new Flux2Klein4bEditWorkflow(),
-            new AnimaWorkflow(), new PixelAnimaWorkflow(),
-            new AnimaInpaintWorkflow(), new Img2ImgRedrawWorkflow(), new AnimaOutpaintWorkflow(),
-            new QwenImageInpaintWorkflow(), new QwenImageOutpaintWorkflow(),
-            new FluxFillInpaintWorkflow(), new FluxFillOutpaintWorkflow(),
-            new AnimateDiffLightningI2VWorkflow(), new AnimateLcmI2VWorkflow(),
-            // 24GB-tier generation models
-            new QwenImageWorkflow(), new Flux2DevWorkflow(), new HiDreamWorkflow(),
-            new Sd35TripleClipWorkflow(), new ChromaWorkflow(), new Krea2Workflow(), new Krea2RefineWorkflow(),
-            new Krea2RedrawWorkflow(),
-            // 24GB-tier generation models (HunyuanImage 2.1)
-            new HunyuanImage21Workflow(),
-            // 24GB-tier video models
-            new WanA14bI2VWorkflow(), new WanA14bT2VWorkflow(), new HunyuanVideo15T2VWorkflow(),
-            new HunyuanVideoT2VWorkflow(), new LtxV2I2VWorkflow(), new HunyuanVideo15I2VWorkflow(),
-            new MiniMaxH3T2VWorkflow(), new MiniMaxH3I2VWorkflow(),
-            // Model-free pixel-quantize video-to-video.
-            new PixelQuantizeVideoWorkflow(),
-            // The generic diffusion pixelizer, which serves pixelize-sd35 and pixelize-hidream among others.
-            new PixelizeWorkflow(),
-            // Model-free feed-forward upscalers (anime PLKSR 2x / photo DAT2 4x) + the SeedVR2 diffusion restorer.
-            new UpscaleWorkflow(), new SeedVr2UpscaleWorkflow(),
-        };
+        // The FULL workflow set from the real DI registration — the exact set the app serves, including the
+        // factory-registered decorators (the PixelVideoWorkflow wrappers). A hardcoded list drifted out of date (new
+        // workflows silently escaped the graph tests); this stays complete on its own.
+        IWorkflow[] all = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetServices<IWorkflow>().ToArray();
         return (catalog, new WorkflowRegistry(all));
     }
 
@@ -115,6 +93,39 @@ public sealed class WorkflowGraphTests
         Assert.Equal(onDisk, catalog.AllConfigs().Count);
         Assert.NotNull(catalog.FindConfig("pony-v6"));
         Assert.NotNull(catalog.FindRequirement(catalog.FindConfig("pony-v6")!.Requirements.Checkpoint));
+    }
+
+    /// <summary>
+    /// EVERY configuration builds a graph from only the parameters it (and its machine overrides) actually declare —
+    /// with schema-level <c>ParamSpec.Default</c> stripped, a value a workflow needs must live in that workflow's
+    /// JSON, never in code. Any workflow that reaches for a required parameter the config never set refuses the build;
+    /// this turns that render-time refusal into a build-time failure naming the exact config and message.
+    /// </summary>
+    [Fact]
+    public void Every_configuration_builds_from_only_its_declared_params()
+    {
+        var (catalog, registry) = Build();
+
+        // Maximal inputs so NO input-related refusal (missing source/mask/end/refs) fires — every failure that remains
+        // is then a config that failed to supply a parameter its workflow requires.
+        var inputs = new WorkflowInputs
+        {
+            Positive = "a cat", Negative = "blurry", Aspect = "square",
+            SourceImageName = "src.png", MaskImageName = "mask.png", EndImageName = "end.png",
+            SourceVideoName = "src.mp4", SourceWidth = 1216, SourceHeight = 832,
+            ReferenceImageNames = new[] { "ref1.png", "ref2.png" },
+        };
+
+        var failures = new List<string>();
+        foreach (var cfg in catalog.AllConfigs())
+        {
+            var wf = registry.Find(cfg.WorkflowName);
+            if (wf is null) { failures.Add($"{cfg.Id}: no workflow '{cfg.WorkflowName}'"); continue; }
+            try { wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs); }
+            catch (Exception ex) { failures.Add($"{cfg.Id} ({cfg.WorkflowName}): {ex.Message}"); }
+        }
+
+        Assert.True(failures.Count == 0, $"{failures.Count} config(s) could not build:\n" + string.Join("\n", failures));
     }
 
     /// <summary>
@@ -289,12 +300,14 @@ public sealed class WorkflowGraphTests
         => Assert.Equal(expected, ComfyGraph.ComposeNegative(modelDefault, user));
 
     [Fact]
-    public void ComposeNegative_falls_back_to_the_shared_default_when_config_has_none()
+    public void ComposeNegative_has_no_shared_baseline_when_config_declares_none()
     {
-        // No config default → the shared DefaultNegative is the baseline; a user negative leads, the default follows.
-        Assert.Equal(ComfyGraph.DefaultNegative, ComfyGraph.ComposeNegative(null, null));
-        Assert.Equal(ComfyGraph.DefaultNegative, ComfyGraph.ComposeNegative("  ", ""));
-        Assert.Equal("mutated, " + ComfyGraph.DefaultNegative, ComfyGraph.ComposeNegative(null, "mutated"));
+        // There is NO shared/implicit baseline: a model gets a negative only if its config sets one.
+        // Both sides blank → an empty negative (unconditioned).
+        Assert.Equal("", ComfyGraph.ComposeNegative(null, null));
+        Assert.Equal("", ComfyGraph.ComposeNegative("  ", ""));
+        // A user negative with no model negative stands alone.
+        Assert.Equal("mutated", ComfyGraph.ComposeNegative(null, "mutated"));
     }
 
     [Fact]
@@ -365,7 +378,7 @@ public sealed class WorkflowGraphTests
         // Real CFG with a working negative — NOT distilled guidance.
         Assert.Contains("\"cfg\":3.8", json);
         Assert.DoesNotContain("FluxGuidance", json);
-        Assert.Contains("bad anatomy", json);   // no config `negative` → the shared baseline stands in
+        Assert.Contains("restricted palette, flat colors", json);   // chroma1-hd's OWN documented negative (from its config JSON), not a shared baseline
     }
 
     [Fact]
@@ -412,8 +425,8 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("score_7", json);
         Assert.Contains("\"sampler_name\":\"er_sde\"", json);
         Assert.Contains("\"steps\":40", json);
-        // No config `negative` → the shared baseline stands in, matching photanima's generate path.
-        Assert.Contains("bad anatomy", json);
+        // photanima's OWN documented negative (from its config JSON), not a shared baseline.
+        Assert.Contains("toon (style)", json);
     }
 
     [Fact]
@@ -1661,6 +1674,7 @@ public sealed class WorkflowGraphTests
         {
             ["reference"] = 80, ["virtual_resolution"] = 256, ["snap_resolution"] = true,
             ["loader"] = "unet_gguf", ["clip_type"] = "qwen_image",
+            ["sampler"] = "euler", ["scheduler"] = "simple",   // required now that MapSampler/MapScheduler refuse a blank
         });
         var inputs = new WorkflowInputs { SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
         var graph = new QwenPixelizeWorkflow().Build(pv, req, inputs);

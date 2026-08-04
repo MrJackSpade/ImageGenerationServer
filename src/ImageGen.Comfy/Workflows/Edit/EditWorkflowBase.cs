@@ -1,4 +1,7 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Base for the image-EDIT workflows. Each edit MODEL has its own subclass with its own self-contained graph
@@ -77,8 +80,8 @@ public abstract class EditWorkflowBase : IWorkflow
     protected static void LoadModel(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req, WorkflowInputs inputs,
         out object model0, out object clip0, out object vae0)
     {
-        var file = req.Checkpoint;
-        var loader = p.Str("loader") ?? "checkpoint";
+        var file = req.RequiredCheckpoint();
+        var loader = p.StrReq("loader");
         if (loader == "checkpoint")                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
         {
             wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = file });
@@ -93,12 +96,14 @@ public abstract class EditWorkflowBase : IWorkflow
         }
         else                                                 // split loaders (unet/gguf + clip + vae)
         {
-            wf["4"] = ComfyGraph.DiffusionLoader(file, p.Str("weight_dtype"));
-            wf["6"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+            wf["4"] = p.Has("weight_dtype")
+                ? ComfyGraph.DiffusionLoader(file, p.StrReq("weight_dtype"))   // config's explicit precision override (e.g. flux1-fill fp8)
+                : ComfyGraph.DiffusionLoader(file);                            // no override → AutoWeightDtype
+            wf["6"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
             model0 = ComfyGraph.Ref("4", 0); vae0 = ComfyGraph.Ref("6", 0);
             clip0 = BuildClipLoader(wf, "5", req.TextEncoders, p.Str("clip_type"));
         }
-        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" });
+        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") });
     }
 
     /// <summary>
@@ -114,7 +119,9 @@ public abstract class EditWorkflowBase : IWorkflow
     private static object BuildClipLoader(
         Dictionary<string, object> wf, string nodeId, IReadOnlyList<string> encoders, string? clipType)
     {
-        string At(int i) => encoders.ElementAtOrDefault(i) ?? "";
+        string At(int i) => i < encoders.Count && !string.IsNullOrWhiteSpace(encoders[i])
+            ? encoders[i]
+            : throw new RenderValidationException($"This configuration needs text encoder #{i + 1} and none is bound to that slot on this machine.");
 
         wf[nodeId] = encoders.Count switch
         {

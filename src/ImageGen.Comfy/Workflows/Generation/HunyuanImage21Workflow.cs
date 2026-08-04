@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// HunyuanImage 2.1 text→image (2K native). A diffusion-transformer image model with dual text encoders
@@ -21,16 +22,14 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflowBase
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
-        var enc = req.TextEncoders;
-        int sw = p.Int("width", 2048), sh = p.Int("height", 2048);
-        var (w, h) = p.Dims("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect), sw, sh);
+        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
 
-        wf["4"] = ComfyGraph.DiffusionLoader(req.Checkpoint);
-        wf["30"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("4", 0), shift = p.Dbl("shift", 5.0) });
+        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf["30"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("4", 0), shift = p.DblReq("shift") });
         object model = ComfyGraph.ApplyLora(wf, ComfyGraph.Ref("30", 0), p);
-        wf["20"] = ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = enc.ElementAtOrDefault(0) ?? "", clip_name2 = enc.ElementAtOrDefault(1) ?? "", type = p.Str("clip_type") ?? "hunyuan_image", device = "default" });
+        wf["20"] = ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_image", device = "default" });
         object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
         object vae = ComfyGraph.Ref("21", 0);
 
         wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip });
@@ -39,10 +38,10 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 8),
-            cfg = p.Dbl("cfg", 2.5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model,
             positive = ComfyGraph.Ref("6", 0),

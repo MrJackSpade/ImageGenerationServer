@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -63,11 +64,11 @@ public sealed class Krea2RedrawWorkflow : EditWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 8),
-            cfg = p.Dbl("cfg", 1.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
-            denoise = p.Dbl("denoise", 0.35),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            denoise = p.DblReq("denoise"),
             model = model0,
             positive = posSrc,
             negative = ComfyGraph.Ref("14", 0),

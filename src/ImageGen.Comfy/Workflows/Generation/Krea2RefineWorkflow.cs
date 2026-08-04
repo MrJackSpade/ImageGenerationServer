@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -37,18 +38,15 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        int sw = p.Int("width", 1024), sh = p.Int("height", 1024);
-        var (w, h) = p.Dims("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect), sw, sh);
-        var enc = req.TextEncoders;
-        var clipType = p.Str("clip_type") ?? "krea2";
+        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         var wf = new Dictionary<string, object>();
 
         // Base diffusion model (req.Checkpoint) + Turbo refiner (req.MotionModel slot). Shared Qwen3-VL encoder + VAE.
-        wf["4"]  = ComfyGraph.DiffusionLoader(req.Checkpoint);
-        wf["40"] = ComfyGraph.DiffusionLoader(req.MotionModel ?? "");
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = enc.ElementAtOrDefault(0) ?? "", type = clipType, device = "default" });
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+        wf["4"]  = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf["40"] = ComfyGraph.DiffusionLoader(req.RequiredMotionModel());
+        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "krea2", device = "default" });
+        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
 
         object baseModel = ComfyGraph.ApplyLora(wf, ComfyGraph.Ref("4", 0), p);   // optional LoRA on the base model only
         object turboModel = ComfyGraph.Ref("40", 0);
@@ -66,10 +64,10 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 28),
-            cfg = p.Dbl("cfg", 4.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = baseModel,
             positive = posSrc,
@@ -82,11 +80,11 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
         wf["30"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("refiner_steps", 8),
-            cfg = p.Dbl("refiner_cfg", 1.0),
-            sampler_name = ComfyGraph.MapSampler(p.Str("refiner_sampler") ?? p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("refiner_scheduler") ?? p.Str("scheduler")),
-            denoise = p.Dbl("polish_denoise", 0.35),
+            steps = p.IntReq("refiner_steps"),
+            cfg = p.DblReq("refiner_cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.Has("refiner_sampler") ? p.StrReq("refiner_sampler") : p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.Has("refiner_scheduler") ? p.StrReq("refiner_scheduler") : p.StrReq("scheduler")),
+            denoise = p.DblReq("polish_denoise"),
             model = turboModel,
             positive = posSrc,
             negative = negSrc,

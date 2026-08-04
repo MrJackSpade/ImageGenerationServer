@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -52,8 +53,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         var wf = new Dictionary<string, object>();
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        int clipSkip = p.Int("clip_skip");
-        if (clipSkip > 0 && (p.Str("loader") ?? "checkpoint") == "checkpoint")
+        if (p.StrReq("loader") == "checkpoint" && p.Has("clip_skip") && p.IntReq("clip_skip") is int clipSkip && clipSkip > 0)
         {
             wf["19"] = ComfyGraph.Node("CLIPSetLastLayer", new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
             clip0 = ComfyGraph.Ref("19", 0);
@@ -68,14 +68,15 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
 
         // Pad the source on each side — the enlarged canvas (slot 0) + the added-border mask (slot 1). Feathering
         // softens the mask edge so the generated margin blends into the original instead of leaving a hard seam.
-        int feather = Math.Max(0, p.Int("feather", 24));
+        int Pad(string k) => p.Has(k) ? Math.Max(0, p.IntReq(k)) : 0;   // per-side extend px, absent = 0 (no pad on that side)
+        int feather = Math.Max(0, p.IntReq("feather"));
         wf["20"] = ComfyGraph.Node("ImagePadForOutpaint", new
         {
             image = ComfyGraph.Ref("10", 0),
-            left = Math.Max(0, p.Int("pad_left")),
-            top = Math.Max(0, p.Int("pad_top")),
-            right = Math.Max(0, p.Int("pad_right")),
-            bottom = Math.Max(0, p.Int("pad_bottom")),
+            left = Pad("pad_left"),
+            top = Pad("pad_top"),
+            right = Pad("pad_right"),
+            bottom = Pad("pad_bottom"),
             feathering = feather,
         });
 
@@ -87,12 +88,12 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         wf["40"] = ComfyGraph.Node("AnimaLLLiteApply", new
         {
             model = model0,
-            lllite_name = req.ControlNet ?? "",
+            lllite_name = req.RequiredControlNet(),
             image = ComfyGraph.Ref("20", 0),
             mask = ComfyGraph.Ref("20", 1),
-            strength = p.Dbl("lllite_strength", 1.0),
-            start_percent = p.Dbl("lllite_start", 0.0),
-            end_percent = p.Dbl("lllite_end", 1.0),
+            strength = p.DblReq("lllite_strength"),
+            start_percent = p.DblReq("lllite_start"),
+            end_percent = p.DblReq("lllite_end"),
             preserve_wrapper = true,
         });
         var ksModel = ComfyGraph.Ref("40", 0);
@@ -101,7 +102,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
         wf["12"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("20", 0), vae = vae0 });
         object maskSrc = ComfyGraph.Ref("20", 1);
-        int grow = p.Int("mask_grow", 8);
+        int grow = p.IntReq("mask_grow");
         if (grow > 0)
         {
             wf["30"] = ComfyGraph.Node("GrowMask", new { mask = maskSrc, expand = grow, tapered_corners = true });
@@ -109,15 +110,14 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         }
         wf["31"] = ComfyGraph.Node("SetLatentNoiseMask", new { samples = ComfyGraph.Ref("12", 0), mask = maskSrc });
 
-        double dn = p.Dbl("denoise", 1.0);
-        if (dn <= 0 || dn > 1) dn = 1.0;
+        double dn = p.DblReq("denoise");
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 40),
-            cfg = p.Dbl("cfg", 4.5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = dn,
             model = ksModel,
             positive = ComfyGraph.Ref("13", 0),

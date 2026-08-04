@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // This machine's configuration. JSON in, DOM built here — /api/machine-settings returns the key list, its current
 // values, and per key whether a change bites now or waits for a restart. The server owns that list: a key it doesn't
 // know is a 400, so this page cannot write arbitrary configuration into the process.

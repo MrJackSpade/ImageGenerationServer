@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // patches.js — what this app changes in ComfyUI's own code, and whether those changes are in place.
 //
 // Every state on this page is DERIVED from the files on disk each time it is asked for: a patch is "applied"

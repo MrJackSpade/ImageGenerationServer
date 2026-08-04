@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Edit page: four modes behind a tab bar, all over one source image (seeded from /edit/{id}).
 //   • Edit    — instruction image-editing (Flux Kontext / Qwen), gen-style: source on the left, prompt box +
 //               controls on the right, outputs underneath. Each "Apply" edits the SAME source image.

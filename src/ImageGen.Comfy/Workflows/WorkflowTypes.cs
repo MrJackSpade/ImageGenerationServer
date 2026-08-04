@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿//TODO: CHECK FOR FALLBACKS
+using System.Text.Json;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -113,6 +114,12 @@ public sealed class ParamValues
 
     public int Int(string key, int dflt = 0) => (int)Math.Round(Dbl(key, dflt));
 
+    /// <summary>Required int: the value must be present and numeric, or the render is REFUSED — no silent 0 for an
+    /// absent key, no rounding of an invented number. Rounds a required <see cref="DblReq"/>. Extends the
+    /// <see cref="Model"/> "don't guess — say what's missing" contract to scalar params; the thrown
+    /// <see cref="RenderValidationException"/> naming the key reaches the log and the browser via FailSlot.</summary>
+    public int IntReq(string key) => (int)Math.Round(DblReq(key));
+
     /// <summary>Coerce a raw param to a 64-bit int (seeds need the full long range, which <see cref="Int"/> truncates).</summary>
     public long Long(string key, long dflt = 0)
     {
@@ -162,6 +169,24 @@ public sealed class ParamValues
         };
     }
 
+    /// <summary>Required double: present and numeric, or the render is REFUSED. An absent key OR an uncoercible value
+    /// throws a <see cref="RenderValidationException"/> naming the key, instead of substituting a made-up number.</summary>
+    public double DblReq(string key)
+    {
+        var v = Raw(key);
+        return v switch
+        {
+            null => throw MissingParam(key),
+            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var d) ? d : throw NotNumeric(key, je.ToString()),
+            double d => d,
+            float f => f,
+            long l => l,
+            int i => i,
+            string s => double.TryParse(s, out var p) ? p : throw NotNumeric(key, s),
+            _ => throw NotNumeric(key, v.ToString())
+        };
+    }
+
     public string? Str(string key)
     {
         var v = Raw(key);
@@ -174,6 +199,10 @@ public sealed class ParamValues
             _ => v.ToString()
         };
     }
+
+    /// <summary>Required string: present and non-empty, or the render is REFUSED — never an empty-string stand-in.</summary>
+    public string StrReq(string key) =>
+        Str(key) is { } s && s.Length > 0 ? s : throw MissingParam(key);
 
     /// <summary>A model-ref parameter the graph cannot be built without — the resolved FILENAME, or a failure naming
     /// the parameter.
@@ -188,6 +217,14 @@ public sealed class ParamValues
             : throw new RenderValidationException(
                 $"This configuration needs a model for '{key}' and none is set. The configuration should name a slot "
                 + "there, and this machine should have a file bound to it.");
+
+    /// <summary>The refusal for a required param that isn't set — the scalar sibling of <see cref="Model"/>'s message.</summary>
+    private static RenderValidationException MissingParam(string key) =>
+        new($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
+
+    /// <summary>The refusal for a required param whose value can't be read as a number.</summary>
+    private static RenderValidationException NotNumeric(string key, string? got) =>
+        new($"The value for '{key}' must be a number, but was \"{got}\".");
 
     public bool Bool(string key, bool dflt = false)
     {
@@ -244,6 +281,21 @@ public sealed class ParamValues
             return (arr[0].GetInt32(), arr[1].GetInt32());
         return (fallbackW, fallbackH);
     }
+
+    /// <summary>Required render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height params
+    /// — all declared in the config JSON — or a refusal when the configuration declares neither. No invented pixel
+    /// size ever reaches the graph.</summary>
+    public (int w, int h) DimsReq(string aspectKey, string sub)
+    {
+        if (Raw(aspectKey) is JsonElement je && je.ValueKind == JsonValueKind.Object
+            && je.TryGetProperty(sub, out var arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
+            && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
+            return (arr[0].GetInt32(), arr[1].GetInt32());
+        if (Has("width") && Has("height"))
+            return (IntReq("width"), IntReq("height"));
+        throw new RenderValidationException(
+            $"This configuration needs a render size — an '{aspectKey}' map with a '{sub}' entry, or width/height — and declares neither.");
+    }
 }
 
 /// <summary>Runtime data a workflow build consumes that is NOT a stored parameter: the finalized prompt text,
@@ -288,6 +340,44 @@ public sealed class ResolvedRequirements
     /// <summary>The checkpoint model's documented resolution envelope (null if the model has no resolution block),
     /// for snapping the render size onto a clean grid multiple.</summary>
     public ModelResolution? Resolution { get; init; }
+
+    /// <summary>The resolved filename for text encoder <paramref name="index"/>, or a refusal naming it — the
+    /// requirement sibling of <see cref="ParamValues.Model"/> for a REQUIRED encoder slot. An unbound slot fails
+    /// loudly rather than loading an empty name that only "works" on a machine that happens to hold the right file.</summary>
+    public string TextEncoder(int index) =>
+        index >= 0 && index < TextEncoders.Count && !string.IsNullOrWhiteSpace(TextEncoders[index])
+            ? TextEncoders[index]
+            : throw new RenderValidationException(
+                $"This configuration needs text encoder #{index + 1} and none is bound to that slot on this machine.");
+
+    /// <summary>The resolved VAE filename, or a refusal — for a workflow that cannot decode without one. Never an
+    /// empty stand-in.</summary>
+    public string RequiredVae() =>
+        !string.IsNullOrWhiteSpace(Vae)
+            ? Vae!
+            : throw new RenderValidationException("This configuration needs a VAE and none is bound on this machine.");
+
+    /// <summary>The resolved checkpoint/diffusion filename, or a refusal — no empty name that fails obscurely at the
+    /// loader. Presence-gating normally keeps an unbound config off the menu; this refuses the render if one slips
+    /// through.</summary>
+    public string RequiredCheckpoint() =>
+        !string.IsNullOrWhiteSpace(Checkpoint)
+            ? Checkpoint
+            : throw new RenderValidationException("This configuration needs a checkpoint/diffusion model and none is bound on this machine.");
+
+    /// <summary>The resolved second-model filename from the MotionModel slot, or a refusal — for a workflow that
+    /// needs it (AnimateDiff motion module; Ideogram/Krea2's unconditional/refiner UNet) and cannot proceed without.</summary>
+    public string RequiredMotionModel() =>
+        !string.IsNullOrWhiteSpace(MotionModel)
+            ? MotionModel!
+            : throw new RenderValidationException("This configuration needs a second model (the motion_model slot) and none is bound on this machine.");
+
+    /// <summary>The resolved ControlNet filename, or a refusal — for a workflow that needs one (line-art ControlNet,
+    /// the outpaint LLLite) and cannot build its graph without it.</summary>
+    public string RequiredControlNet() =>
+        !string.IsNullOrWhiteSpace(ControlNet)
+            ? ControlNet!
+            : throw new RenderValidationException("This configuration needs a ControlNet and none is bound on this machine.");
 }
 
 /// <summary>A model's documented supported output-resolution envelope (side bounds + the latent step its render

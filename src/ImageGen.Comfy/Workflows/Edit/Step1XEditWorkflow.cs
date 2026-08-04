@@ -1,3 +1,6 @@
+//TODO: CHECK FOR FALLBACKS
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -31,7 +34,7 @@ public sealed class Step1XEditWorkflow : EditWorkflowBase
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" }),
+            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Step1X-Edit needs a source image, but none was provided.") }),
             ["1"] = ComfyGraph.Node("Step1XEditModelLoader", new
             {
                 diffusion_model = p.Model("diffusion_model"),
@@ -48,8 +51,8 @@ public sealed class Step1XEditWorkflow : EditWorkflowBase
             input_image = ComfyGraph.Ref("10", 0),
             prompt = inputs.Positive,
             negative_prompt = "",
-            num_steps = p.Int("steps", 28),
-            cfg_guidance = p.Dbl("cfg", 6),
+            num_steps = p.IntReq("steps"),
+            cfg_guidance = p.DblReq("cfg"),
             seed = ComfyGraph.Seed(p),
             size_level = p.Int("width") > 0 ? p.Int("width") : 1024,
         });

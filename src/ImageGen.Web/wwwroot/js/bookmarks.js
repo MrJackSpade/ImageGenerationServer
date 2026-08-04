@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Bookmarks page: card/chip controls. Remove a starred tag (chip) or artist (card) via its × button, and pin/unpin
 // an artist card via its 📌 button. Delegated so it covers every shape; the host carries data-name/data-kind.
 // After a pin toggle we reload so the server re-renders the Pinned vs Artists rows in their canonical order.

@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Masked INPAINT on base Qwen-Image + the InstantX inpainting ControlNet. The region to regenerate arrives as a

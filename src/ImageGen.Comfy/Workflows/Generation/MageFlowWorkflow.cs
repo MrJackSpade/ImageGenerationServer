@@ -13,14 +13,12 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflowBase
 {
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        int sw = p.Int("width", 1024), sh = p.Int("height", 1024);
-        var (w, h) = p.Dims("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect), sw, sh);
-        var enc = req.TextEncoders;
+        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
         var wf = new Dictionary<string, object>();
 
-        wf["4"]  = ComfyGraph.DiffusionLoader(req.Checkpoint);   // UNETLoader (.safetensors int8_convrot / bf16)
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = enc.ElementAtOrDefault(0) ?? "", type = p.Str("clip_type") ?? "mage", device = "default" });
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+        wf["4"]  = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)
+        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "mage", device = "default" });
+        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
 
         // Mage's unified conditioning node in its text-only mode: no image inputs -> pure t2i, and it also produces
         // the zero latent (batch×128×h/16×w/16) so the sampler's shape always matches the model. vae is unused here
@@ -38,10 +36,10 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflowBase
         wf["3"] = ComfyGraph.Node("KSampler", new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.Int("steps", 20),
-            cfg = p.Dbl("cfg", 5),
-            sampler_name = ComfyGraph.MapSampler(p.Str("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")),
+            steps = p.IntReq("steps"),
+            cfg = p.DblReq("cfg"),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
             denoise = 1.0,
             model = ComfyGraph.Ref("4", 0),
             positive = ComfyGraph.Ref("5", 0),

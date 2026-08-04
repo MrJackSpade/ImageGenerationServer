@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Shared live tracker — loaded app-wide by _Layout, after the page's core.js (which defines GATEWAY + gwWs).
 //
 // Every "live" page updates by RE-PULLING the server when it hears `imagegen:generated` (a new image landed) or

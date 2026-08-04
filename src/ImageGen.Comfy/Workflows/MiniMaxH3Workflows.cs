@@ -1,3 +1,5 @@
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -39,31 +41,31 @@ file static class H3
         // Loaders. Diffusion via DiffusionLoader → plain UNETLoader (int8 ConvRot loads natively, weight_dtype default
         // keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames) and audio
         // (the native stereo track); the audio VAE is the audio_vae model-ref slot.
-        wf["4"] = ComfyGraph.DiffusionLoader(req.Checkpoint, p.Str("weight_dtype"));
+        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
         object model = ComfyGraph.Ref("4", 0);
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoders.ElementAtOrDefault(0) ?? "", type = p.Str("clip_type") ?? "minimax", device = "default" });
+        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "minimax", device = "default" });
         object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.Vae ?? "" });
+        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
         object videoVae = ComfyGraph.Ref("21", 0);
-        wf["22"] = ComfyGraph.Node("VAELoader", new { vae_name = p.Str("audio_vae") ?? "" });
+        wf["22"] = ComfyGraph.Node("VAELoader", new { vae_name = p.Model("audio_vae") });
         object audioVae = ComfyGraph.Ref("22", 0);
 
-        int len = p.Int("length") > 0 ? p.Int("length") : 124;   // 124 = 17*7+5 ≈ 5s @ 24fps; FrameRule snaps user input
-        double fps = p.Dbl("fps") > 0 ? p.Dbl("fps") : 24;
+        int len = p.IntReq("length");   // frames; the default (124 = 17*7+5 ≈ 5s @ 24fps) lives in the config JSON, not here
+        double fps = p.DblReq("fps");
 
         // The single H3 conditioning+latent node. It encodes the prompt itself and emits (positive CONDITIONING, LATENT).
         var h3 = new Dictionary<string, object>
         {
             ["clip"] = clip,
             ["vae"] = videoVae,
-            ["prompt"] = inputs.Positive ?? "",
+            ["prompt"] = inputs.Positive,
             ["length"] = len,
         };
         if (i2v)
         {
             // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
             // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
-            wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? "" });
+            wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") });
             wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 32 });
             wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
             h3["width"] = ComfyGraph.Ref("15", 0);
@@ -77,8 +79,7 @@ file static class H3
         }
         else
         {
-            int sw = p.Int("width", 1344), sh = p.Int("height", 768);
-            var (w, h) = p.Dims("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect), sw, sh);
+            var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
             h3["width"] = w;
             h3["height"] = h;
         }
@@ -86,8 +87,8 @@ file static class H3
         object positive = ComfyGraph.Ref("14", 0), latent = ComfyGraph.Ref("14", 1);
 
         // Distilled sampling: BasicGuider (no CFG, no negative) + a res_multistep SamplerCustomAdvanced chain.
-        wf["55"] = ComfyGraph.Node("BasicScheduler", new { model, scheduler = ComfyGraph.MapScheduler(p.Str("scheduler")), steps = p.Int("steps", 20), denoise = 1.0 });
-        wf["56"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.Str("sampler")) });
+        wf["55"] = ComfyGraph.Node("BasicScheduler", new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("steps"), denoise = 1.0 });
+        wf["56"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
         wf["57"] = ComfyGraph.Node("RandomNoise", new { noise_seed = ComfyGraph.Seed(p) });
         wf["58"] = ComfyGraph.Node("BasicGuider", new { model, conditioning = positive });
         wf["3"] = ComfyGraph.Node("SamplerCustomAdvanced", new { noise = ComfyGraph.Ref("57", 0), guider = ComfyGraph.Ref("58", 0), sampler = ComfyGraph.Ref("56", 0), sigmas = ComfyGraph.Ref("55", 0), latent_image = latent });

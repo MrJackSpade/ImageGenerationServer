@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Artist page: the user's generations for this artist — server-rendered first page, infinite scroll for the
 // rest (/api/history?artist=), and live additions from the composer's `imagegen:generated` event (every gen
 // here is locked to this artist). Plus choosing/clearing the artist's display image. Uses core.js.

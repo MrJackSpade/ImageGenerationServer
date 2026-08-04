@@ -1,4 +1,5 @@
-﻿namespace ImageGen.Comfy;
+﻿//TODO: CHECK FOR FALLBACKS
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Model-free OUTLINE-ONLY thickener — XDoG line extraction → thicken the extracted lines → multiply

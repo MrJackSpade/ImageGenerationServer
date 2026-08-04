@@ -1,3 +1,4 @@
+//TODO: CHECK FOR FALLBACKS
 // Shared client foundation, loaded before every page script. window.GATEWAY is injected by _Layout.
 
 const $ = id => document.getElementById(id);
