@@ -71,7 +71,12 @@ internal static class WebpTranscoder
     public static byte[] WebpToMp4(byte[] webp, MediaOptions options, int? maxEdge, CancellationToken ct)
     {
         using var image = Image.Load<Rgba32>(webp);
-        if (image.Frames.Count < 1) throw new InvalidOperationException("webp has no frames to encode.");
+        // Only ever reached after IsAnimatedWebp, so a webp that is not a genuine multi-frame animation here means that
+        // gate was bypassed or the source is malformed. There is no still-image-to-mp4 conversion to fall back to — a
+        // single frame has no timing to preserve — so this is a broken state to surface, not a shape to handle.
+        if (image.Frames.Count < 2)
+            throw new InvalidOperationException(
+                $"WebpToMp4 received a webp with {image.Frames.Count} frame(s); only an animated (multi-frame) webp converts to an mp4.");
         if (maxEdge is int edge && Math.Max(image.Width, image.Height) > edge)
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(edge, edge) }));
 

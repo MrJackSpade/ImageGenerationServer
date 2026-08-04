@@ -110,13 +110,14 @@ public sealed class WebpToMp4Tests
     }
 
     [Fact]
-    public async Task A_still_webp_has_a_frame_and_encodes_rather_than_throwing()
+    public async Task A_still_webp_is_rejected_rather_than_silently_encoded()
     {
-        // Not an error case: IsAnimatedWebp gates the call, but a single-frame source must still produce a
-        // one-frame mp4 rather than dividing by a frame count of zero.
+        // IsAnimatedWebp gates the call, so a single-frame webp reaching WebpToMp4 means that gate was bypassed or the
+        // source is malformed. A still image has no frame timing, so there is nothing to convert and no rate to read —
+        // it must surface as a broken state rather than be encoded with an invented frame rate.
         var processor = new MediaProcessor(new MediaOptions());
-        var mp4 = await processor.WebpToMp4Async(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100), null, Ct);
-        Assert.True(LooksLikeMp4(mp4));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            processor.WebpToMp4Async(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100), null, Ct));
     }
 
     [Fact]
