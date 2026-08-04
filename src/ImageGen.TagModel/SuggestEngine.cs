@@ -55,9 +55,11 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         {
             var tag = raw.Trim();
             if (tag.Length == 0) continue;
-            var id = vocab.IdOf(tag);
-            if (id < 0) unknown.Add(tag);
-            else if (presentSet.Add(id)) present.Add(id);
+            if (vocab.IdOf(tag) is int id)
+            {
+                if (presentSet.Add(id)) present.Add(id);
+            }
+            else unknown.Add(tag);
         }
 
         float[] conditional;

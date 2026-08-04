@@ -42,12 +42,12 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
     public async Task<IReadOnlyList<TagSuggestion>?> QueryAsync(
         string context, string fragment, int limit, CancellationToken ct)
     {
-        var contextTags = (context ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var contextTags = context.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         await _gate.WaitAsync(ct);
         try
         {
-            var result = _suggest.Query(contextTags, fragment ?? "", Math.Max(1, limit));
+            var result = _suggest.Query(contextTags, fragment, Math.Max(1, limit));
             if (result.Results.Count == 0)
                 return null;   // "no match" is a non-failure, and the port says null for it
 

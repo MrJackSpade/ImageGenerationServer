@@ -128,8 +128,8 @@ public sealed class TagModelParityTests : IDisposable
                 Assert.DoesNotContain(tag, seed);       // the seed is conditioning, never echoed back
                 Assert.DoesNotContain(tag, banned);
                 var id = vocab.IdOf(tag);
-                Assert.True(id >= 0, $"generated '{tag}' is not in the vocabulary");
-                Assert.False(vocab.IsArtist(id), $"generated artist '{tag}' under a no-artist mask");
+                Assert.True(id.HasValue, $"generated '{tag}' is not in the vocabulary");
+                Assert.False(vocab.IsArtist(id.Value), $"generated artist '{tag}' under a no-artist mask");
             }
             Assert.Equal(result.Tags.Distinct().Count(), result.Tags.Count);
         }
@@ -151,7 +151,9 @@ public sealed class TagModelParityTests : IDisposable
 
         foreach (var tag in result.Tags)
         {
-            var category = vocab.Types[vocab.IdOf(tag)];
+            var id = vocab.IdOf(tag);
+            Assert.True(id.HasValue, $"generated '{tag}' is not in the vocabulary");
+            var category = vocab.Types[id.Value];
             Assert.True(
                 category is TypeMask.CategoryCharacter or TypeMask.CategoryCopyright,
                 $"'{tag}' is category {category}, which a character+copyright mask forbids");

@@ -66,19 +66,13 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         var current = new List<int>();
         var seen = new HashSet<int>();
         foreach (var raw in seedTags)
-        {
-            var id = vocab.IdOf(raw.Trim());
-            if (id >= 0 && seen.Add(id)) current.Add(id);
-        }
+            if (vocab.IdOf(raw.Trim()) is int id && seen.Add(id)) current.Add(id);
         var seedIds = new HashSet<int>(current);
 
         var banned = new HashSet<int>();
         if (bannedTags is not null)
             foreach (var raw in bannedTags)
-            {
-                var id = vocab.IdOf(raw.Trim());
-                if (id >= 0) banned.Add(id);
-            }
+                if (vocab.IdOf(raw.Trim()) is int id) banned.Add(id);
 
         // Categories the caller switched off are zeroed every step. The mask ALSO conditions the model (above), and
         // both are needed: conditioning makes the stop head judge completeness by the right standard, zeroing enforces

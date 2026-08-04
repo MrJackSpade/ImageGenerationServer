@@ -64,8 +64,8 @@ public sealed class TagVocab
     /// <summary>Number of tags.</summary>
     public int Count => Tags.Length;
 
-    /// <summary>Vocab id for an exact tag name, or -1.</summary>
-    public int IdOf(string tag) => _byName.TryGetValue(tag, out var id) ? id : -1;
+    /// <summary>Vocab id for an exact tag name, or null when the vocabulary has no such tag.</summary>
+    public int? IdOf(string tag) => _byName.TryGetValue(tag, out var id) ? id : null;
 
     /// <summary>True when this tag is a gelbooru artist tag — what decides '@' versus '#' for a sampled name.</summary>
     public bool IsArtist(int id) => Types[id] == TypeMask.CategoryArtist;
