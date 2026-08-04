@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Comfy.Patches;
 
 /// <summary>Where a patch stands against one ComfyUI installation. Derived every time it is asked for.</summary>

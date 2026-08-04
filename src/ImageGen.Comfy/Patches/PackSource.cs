@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Formats.Tar;
 using System.IO.Compression;
 

@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Text;
 
 namespace ImageGen.Comfy.Patches;
