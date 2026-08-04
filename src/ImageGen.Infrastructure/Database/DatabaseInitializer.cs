@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Data.Common;
 using System.Reflection;
 using System.Text;

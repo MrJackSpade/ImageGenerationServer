@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Platform;
 using ImageGen.Application.Security;
 using ImageGen.Domain.Repositories;
