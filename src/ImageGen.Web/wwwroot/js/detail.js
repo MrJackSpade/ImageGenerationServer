@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Wires up an image card (image bookmark, token-chip bookmarks, delete, download). Uses core.js.
 // Driven both by the standalone /image/{id} page (auto-init below) and by the lightbox, which
 // fetches the same card fragment and calls window.initDetail(root, opts). `root` scopes all queries
@@ -45,7 +44,8 @@ function initDetail(root, opts) {
         toast("Removed image bookmark");
       }
       if (opts.onBookmark) opts.onBookmark(id, bookmarked);
-    } catch (_) {
+    } catch (e) {
+      console.error("bookmark save failed:", e);
       bookmarked = !bookmarked; paintStar();
       toast("Couldn't save bookmark");
     }
@@ -110,7 +110,7 @@ function initDetail(root, opts) {
         if (prev === "none") { await postToken(key, kind); toast("★ Bookmarked " + kind + " " + pretty); }
         else if (prev === "bookmarked") { await deleteToken(key, kind); await postBan(modelId, key, kind); toast("⊘ Banned " + kind + " " + pretty + " for this workflow"); }
         else { await deleteBan(modelId, key, kind); toast("Removed ban"); }
-      } catch (_) { state = prev; paint(); toast("Couldn't save"); }
+      } catch (e) { console.error("save failed:", e); state = prev; paint(); toast("Couldn't save"); }
     });
 
     // Press-and-hold / right-click the chip: file this artist/tag into categories (also bookmarks it if it wasn't).
@@ -132,7 +132,7 @@ function initDetail(root, opts) {
           // Same contract as the tap handler: if the call fails, put the chip back rather than leave it
           // asserting a state the server disagrees with.
           try { await deleteBan(modelId, key, kind); }
-          catch (_) { state = prev; paint(); toast("Couldn't lift the ban"); }
+          catch (e) { console.error("lift ban failed:", e); state = prev; paint(); toast("Couldn't lift the ban"); }
         },
       }));
     }
@@ -151,7 +151,7 @@ function initDetail(root, opts) {
       document.dispatchEvent(new CustomEvent("imagegen:refresh"));
       if (opts.onDelete) opts.onDelete(id);
       else location.href = "/gallery";
-    } catch (_) { toast("Delete failed"); }
+    } catch (e) { console.error("delete failed:", e); toast("Delete failed"); }
   });
 
   // Force a real download even though the image is cross-origin (the gateway): fetch -> blob -> anchor.
@@ -166,7 +166,7 @@ function initDetail(root, opts) {
       const u = URL.createObjectURL(blob); const a = document.createElement("a");
       a.href = u; a.download = /\.\w+$/.test(id) ? id : (id || "picture") + ".png";
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000);
-    } catch (_) { window.open(viewUrl(id), "_blank"); }
+    } catch (e) { console.error("download failed, opening in a tab:", e); window.open(viewUrl(id), "_blank"); }
   });
 
   // The LoRAs this image was generated with, shown as their own chips BEFORE the tag chips (distinct cyan). Display
@@ -273,7 +273,7 @@ async function assignPortrait(g, name) {
     if (!r || !r.ok) throw 0;
     toast("Portrait set — " + g.label(name));
     closePortraitModal();
-  } catch (_) { toast("Couldn't set portrait"); }
+  } catch (e) { console.error("set portrait failed:", e); toast("Couldn't set portrait"); }
 }
 
 function openPortraitPicker(groups) {

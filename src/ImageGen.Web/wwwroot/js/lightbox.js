@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // In-page image lightbox. Clicking any .imgcard opens a fitted modal viewer (image auto-fits the
 // viewport, full detail/meta beside it) instead of navigating to /image/{id}, and the ‹ › / arrow
 // keys step through every .imgcard on the page it was opened from — stopping at the ends, no wrap-around.
@@ -52,7 +51,8 @@
     let r;
     try {
       r = await fetch("/image/" + eid + "/card", { credentials: "same-origin" });
-    } catch (_) {
+    } catch (e) {
+      console.error("lightbox card load failed, navigating to the page:", e);
       if (my === token) location.href = a.href;      // network error — fall back to the full page
       return;
     }
@@ -129,7 +129,7 @@
     const h = m ? (m.naturalHeight || m.videoHeight) : 0;
     if (w && h) { card.classList.toggle("lb-wide", w > h); return; }
     let rec = null;
-    try { rec = JSON.parse(content.querySelector("#detailRecord").textContent); } catch (_) { }
+    try { rec = JSON.parse(content.querySelector("#detailRecord").textContent); } catch (e) { console.debug("lightbox: aspect record unreadable:", e); }
     card.classList.toggle("lb-wide", !!rec && rec.aspect === "landscape");
   }
   // load/loadedmetadata don't bubble — capture them. On the container, not the media, so a clip that

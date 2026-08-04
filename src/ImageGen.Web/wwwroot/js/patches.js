@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // patches.js — what this app changes in ComfyUI's own code, and whether those changes are in place.
 //
 // Every state on this page is DERIVED from the files on disk each time it is asked for: a patch is "applied"
@@ -149,7 +148,7 @@
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { toast(body.error || "Couldn’t apply them all"); return; }
       toast((body.notes && body.notes.length) ? body.notes.join(" ") : "Applied");
-    } catch (_) { toast("Couldn’t apply them all"); }
+    } catch (e) { console.error("apply-all failed:", e); toast("Couldn’t apply them all"); }
     finally { btn.disabled = false; await load(); }
   });
 
@@ -162,7 +161,7 @@
     try {
       const q = await fetch(`${GATEWAY}/queue?page=1&pageSize=1`).then((r) => (r.ok ? r.json() : null));
       if (q && q.outstanding) outstanding = q.outstanding.jobs || 0;
-    } catch (_) { /* the count is a courtesy; not having it is not a reason to refuse */ }
+    } catch (e) { console.debug("outstanding count unavailable:", e); /* the count is a courtesy; not having it is not a reason to refuse */ }
 
     const warning = outstanding
       ? `${outstanding} job(s) are still queued or rendering and will be lost.\n\nRestart the renderer anyway?`
@@ -175,7 +174,7 @@
       const res = await fetch(`${api}/restart`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       toast(res.ok ? "Restarting — it will be back shortly" : (body.error || "Couldn’t restart it"));
-    } catch (_) { toast("Couldn’t restart it"); }
+    } catch (e) { console.error("patch restart failed:", e); toast("Couldn’t restart it"); }
     finally { btn.disabled = false; btn.textContent = "Restart the renderer"; }
   });
 

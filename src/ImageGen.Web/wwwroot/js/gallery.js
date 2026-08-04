@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-// History page: filters + infinite scroll. The first page is server-rendered; as the sentinel nears the viewport we
+﻿// History page: filters + infinite scroll. The first page is server-rendered; as the sentinel nears the viewport we
 // fetch the next /api/history page and append cards built to match the server markup, so the lightbox
 // (delegated on a.imgcard) and the grid styles apply unchanged. Uses core.js (GATEWAY, escapeHtml, Api).
 //
@@ -33,7 +32,7 @@
   // its rows must not land in the grid (typing fast otherwise interleaves two result sets).
   let seq = 0;
 
-  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (_) { return ""; } };
+  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { console.debug("date format failed:", e); return ""; } };
   // Cards carry the UTC millisecond epoch in <time data-ts>; the text is always written here, in the
   // browser's zone — the server never bakes in its own local time.
   const fillDates = () => grid.querySelectorAll("time[data-ts]").forEach(t => { if (!t.textContent) t.textContent = fmtDate(Number(t.dataset.ts)); });
@@ -90,7 +89,8 @@
         loaded += d.items.length;
       }
       if (!d.items || !d.items.length || loaded >= total) done = true;
-    } catch (_) {
+    } catch (e) {
+      console.debug("gallery: page load failed (will retry):", e);
       // Transient (network/500): stop the spinner but leave `done` false so scrolling can retry later.
     } finally {
       if (mine === seq) {
@@ -137,7 +137,8 @@
       // imgqueue.js watches the document with a MutationObserver, so the prepended cards are claimed for
       // lazy loading without being told.
       render();
-    } catch (_) {
+    } catch (e) {
+      console.debug("gallery: refresh failed (will retry):", e);
       // Transient: the next generation event tries again.
     } finally {
       refreshing = false;
@@ -216,7 +217,7 @@
       // With the unviewed filter on, every card on screen no longer belongs to the query that fetched it. Re-run it
       // rather than leaving a grid that contradicts its own filter until the next reload.
       if (unviewed && n) restart();
-    } catch (_) { toast("Couldn't mark them viewed"); }
+    } catch (e) { console.error("mark viewed failed:", e); toast("Couldn't mark them viewed"); }
     finally { markAll.disabled = false; syncMarkAll(); }
   });
 
