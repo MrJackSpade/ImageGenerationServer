@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Press-and-hold (or right-click) a bookmark control — the image star or a tag/artist chip — to file it into
 // categories. Attach it ONLY to controls you click to bookmark; a card or preview image that just links somewhere
 // is not one. A short tap keeps its normal toggle behaviour (owned by detail.js/bookmarks.js); this
@@ -78,7 +77,7 @@
     ensureModal();
     listEl.innerHTML = ""; newInput.value = "";
     let data = { all: [], selected: [] };
-    try { data = await fetchCategories(queryFor(desc)); } catch (_) { toast("Couldn't load categories"); }
+    try { data = await fetchCategories(queryFor(desc)); } catch (e) { console.error("categories load failed:", e); toast("Couldn't load categories"); }
 
     const selected = new Set((data.selected || []).map(s => s.toLowerCase()));
     const seen = new Set();
@@ -113,7 +112,7 @@
       // has to be able to land before the success one rather than after it.
       if (desc.onSaved) await desc.onSaved(cats);
       toast(cats.length ? ("Filed under " + cats.join(", ")) : "Saved to Global");
-    } catch (_) { toast("Couldn't save categories"); }
+    } catch (e) { console.error("categories save failed:", e); toast("Couldn't save categories"); }
   }
 
   // ---- press-and-hold + right-click trigger ----------------------------------------------------

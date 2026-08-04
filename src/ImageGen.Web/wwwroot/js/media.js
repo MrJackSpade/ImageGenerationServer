@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Video-clip upgrade. Some library images are short video clips, stored as animated webp. A browser only ANIMATES
 // an animated webp inside an <img> — it can't loop it cleanly or treat it as a video. So every <img> that points at
 // a gateway image is checked (one batched /forge/media lookup) and, if it's a clip, swapped in place for a muted,
@@ -26,7 +25,7 @@
   function idOf(img) {
     const m = srcOf(img).match(imgRe);
     if (!m) return null;
-    try { return decodeURIComponent(m[1]); } catch (_) { return m[1]; }
+    try { return decodeURIComponent(m[1]); } catch (e) { console.debug("media: id decode failed, using raw:", e); return m[1]; }
   }
 
   function widthParam(img) {
@@ -55,9 +54,9 @@
       // plays; leaving pauses back to that first frame.
       v.preload = "metadata";
       v.src = mp4;
-      v.addEventListener("loadedmetadata", () => { try { v.currentTime = 0.001; } catch (_) {} }, { once: true });
-      v.addEventListener("mouseenter", () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); });
-      v.addEventListener("mouseleave", () => { v.pause(); try { v.currentTime = 0.001; } catch (_) {} });
+      v.addEventListener("loadedmetadata", () => { try { v.currentTime = 0.001; } catch (e) { console.debug("media: seek to first frame failed:", e); } }, { once: true });
+      v.addEventListener("mouseenter", () => { const p = v.play(); if (p && p.catch) p.catch(e => console.debug("media: hover play interrupted:", e)); });
+      v.addEventListener("mouseleave", () => { v.pause(); try { v.currentTime = 0.001; } catch (e) { console.debug("media: seek to first frame failed:", e); } });
     } else {
       // An animated-webp clip: the cheap server still-frame poster works (ImageSharp reads webp), so keep
       // preload=none + the imgqueue-throttled poster; the clip only loads + plays while hovered.
@@ -66,7 +65,7 @@
       // exactly what imgqueue.js exists to prevent. It assigns the real poster when a slot frees.
       v.setAttribute("data-poster", `${GW}/image/${enc}?` + (w ? `w=${w}&` : "") + "still=true");
       v.src = mp4;
-      v.addEventListener("mouseenter", () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); });
+      v.addEventListener("mouseenter", () => { const p = v.play(); if (p && p.catch) p.catch(e => console.debug("media: hover play interrupted:", e)); });
       // The HTML poster only shows until playback starts, so a plain pause would leave the last frame (or nothing).
       // load() resets the element back to its poster without re-downloading the clip (preload=none).
       v.addEventListener("mouseleave", () => { v.pause(); v.load(); });

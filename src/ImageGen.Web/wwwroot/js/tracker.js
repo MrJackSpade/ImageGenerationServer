@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Shared live tracker — loaded app-wide by _Layout, after the page's core.js (which defines GATEWAY + gwWs).
 //
 // Every "live" page updates by RE-PULLING the server when it hears `imagegen:generated` (a new image landed) or
@@ -22,7 +21,7 @@
 
   async function sync() {
     let res;
-    try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+    try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("tracker jobs poll failed:", e); return; }
     const jobs = res.jobs || [];
     const active = new Set(jobs.map(j => j.jobId));
     for (const j of jobs) {
@@ -44,12 +43,12 @@
       ws = new WebSocket(gwWs("/ws"));
       ws.onmessage = (ev) => {
         if (typeof ev.data !== "string") return;
-        let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+        let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("tracker ws non-JSON message:", e); return; }
         if (m.type === "executed" || m.type === "execution_success" || m.type === "execution_error") sync();
       };
       ws.onclose = () => { ws = null; };
-      ws.onerror = () => { try { ws && ws.close(); } catch (_) {} ws = null; };
-    } catch (_) { ws = null; }
+      ws.onerror = (ev) => { console.debug("tracker ws error:", ev); try { ws && ws.close(); } catch (e) { console.debug("tracker ws close failed:", e); } ws = null; };
+    } catch (e) { console.debug("tracker ws open failed:", e); ws = null; }
   }
 
   sync(); openWs();

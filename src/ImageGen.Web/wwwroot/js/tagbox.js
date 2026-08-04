@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Reusable booru tag / artist autocomplete for a prompt <textarea>. Ported verbatim from the compose page's
 // inlined logic so behavior stays identical, but parameterized over the target input + popup + the active model.
 //
