@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Prompting;
 using ImageGen.Domain;
 
@@ -14,10 +13,11 @@ public sealed class ImageDetailViewModel
     /// <summary>
     /// This image's prompt VERBATIM as it was submitted, in marker form ("#bad_anatomy, @greg_rutkowski, a plain
     /// phrase") — <see cref="ImageGen.Domain.Entities.HistoryEntry.RawPrompt"/>, loaded as-is from the row the worker
-    /// wrote. It rides the record blob and is what the card's copy button and its Reload both submit. Empty only for a
-    /// row written before the column existed and not yet backfilled.
+    /// wrote. It rides the record blob and is what the card's copy button and its Reload both submit. Null (NOT "")
+    /// for a row written before the column existed and not yet backfilled — carried as the null RawPrompt actually is,
+    /// so "no marker prompt" stays a distinct state (the client's `||` then falls back to the finalized prompt).
     /// </summary>
-    public required string MarkerPrompt { get; init; }
+    public string? MarkerPrompt { get; init; }
 
     /// <summary>
     /// This image's NEGATIVE prompt verbatim, in the same marker form — <c>HistoryEntry.RawNegativePrompt</c>, loaded
@@ -66,7 +66,7 @@ public sealed class ImageDetailViewModel
             var marks = Entry.Marks;
             var segments = PromptMarkers.Segments(Entry.Prompt);
             if (segments.Length == 0)
-                return [new PromptChip(Entry.Prompt ?? "(no prompt)", null, "")];
+                return [new PromptChip(string.IsNullOrWhiteSpace(Entry.Prompt) ? "(no prompt)" : Entry.Prompt, null, "")];
 
             var chips = new List<(PromptChip Chip, int Rank)>(segments.Length);
             foreach (var seg in segments)

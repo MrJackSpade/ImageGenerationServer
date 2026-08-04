@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Domain;
@@ -66,7 +65,7 @@ public sealed class ImageController(
         {
             Entry = entry.ToDetailView(),
             TagTypeByToken = tagTypeByToken,
-            MarkerPrompt = entry.RawPrompt ?? "",          // stored verbatim at render time; loaded as-is, never rebuilt
+            MarkerPrompt = entry.RawPrompt,                // stored verbatim at render time; loaded as-is (null = pre-column), never rebuilt
             MarkerNegativePrompt = entry.RawNegativePrompt,   // null = none submitted; NOT the same as ""
             OriginalPrompt = entry.OriginalPrompt,            // null = never recorded (pre-column, unbackfillable)
             IsBookmarked = isBookmarked,
