@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;

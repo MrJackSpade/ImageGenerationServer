@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Text;
