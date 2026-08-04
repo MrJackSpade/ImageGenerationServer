@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Compose page: generate images, live progress, the Recent strip, batch, and tag/artist autocomplete.
 // Browsing/editing live on their own routes, so a result/recent thumbnail navigates to /image/{id} and
 // "Edit" to /edit/{id}. Uses core.js.
@@ -69,11 +68,11 @@ function faviconRing(p) {
 function setTabProgress(p) {
   const pct = Math.round(Math.min(1, Math.max(0, p)) * 100);
   document.title = `⏳ ${pct}% · Make a Picture`;
-  try { if (FAVICON_OURS && !$favicon.parentNode) document.head.appendChild($favicon); $favicon.href = faviconRing(p); } catch (_) {}
+  try { if (FAVICON_OURS && !$favicon.parentNode) document.head.appendChild($favicon); $favicon.href = faviconRing(p); } catch (e) { console.debug("favicon update failed:", e); }
 }
 function clearTabProgress() {
   document.title = DEFAULT_TITLE;
-  try { if (FAVICON_OURS) { $favicon.remove(); } else if (DEFAULT_FAVICON_HREF) { $favicon.href = DEFAULT_FAVICON_HREF; } } catch (_) {}
+  try { if (FAVICON_OURS) { $favicon.remove(); } else if (DEFAULT_FAVICON_HREF) { $favicon.href = DEFAULT_FAVICON_HREF; } } catch (e) { console.debug("favicon reset failed:", e); }
 }
 function showBar(p) { const w = Math.round(p * 100) + "%"; $bar.classList.add("show"); $barFill.style.width = w; setTabProgress(p); }
 function hideBar() { $bar.classList.remove("show"); $barFill.style.width = "0"; clearTabProgress(); stopEta($("eta")); setGenModel(""); }
@@ -239,9 +238,9 @@ const genCount = attachCountPicker($generate, {
 
 // --- batch --------------------------------------------------------------------------------------
 const BATCH_KEY = "makeapicture_batch";
-function saveBatch(o) { try { localStorage.setItem(BATCH_KEY, JSON.stringify(o)); } catch (_) {} }
-function loadBatch() { try { return JSON.parse(localStorage.getItem(BATCH_KEY) || "null"); } catch (_) { return null; } }
-function clearBatch() { try { localStorage.removeItem(BATCH_KEY); } catch (_) {} }
+function saveBatch(o) { try { localStorage.setItem(BATCH_KEY, JSON.stringify(o)); } catch (e) { console.debug("saveBatch failed:", e); } }
+function loadBatch() { try { return JSON.parse(localStorage.getItem(BATCH_KEY) || "null"); } catch (e) { console.debug("loadBatch failed:", e); return null; } }
+function clearBatch() { try { localStorage.removeItem(BATCH_KEY); } catch (e) { console.debug("clearBatch failed:", e); } }
 // Single entry for the composer's Generate (and the count picker): fan the prompt across every checked model,
 // n images PER model. One checked model is the classic path (runGeneration for n=1, single-model batch for n>1,
 // honoring its param overrides + random-artist/prompt + autocomplete). Two-or-more checked goes through the
@@ -299,7 +298,7 @@ async function submitItems(items, meta) {
     const resp = await r.json(); const jobId = resp.jobId, total = resp.total || n;
     if (!jobId) throw new Error("The queue accepted no jobs.");
     saveBatch({ jobId, total, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, recorded: [], slotModels: meta.slotModels || null, slotAspects: meta.slotAspects || null });
-    postPending({ jobId, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, aspect: meta.aspect }).catch(() => {});
+    postPending({ jobId, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, aspect: meta.aspect }).catch(e => console.debug("record pending job failed:", e));
     await trackBatch();
   } catch (e) { if (cancelRequested || (e && e.name === "AbortError")) setStatus("Cancelled."); else setStatus(friendlyError(e), { error: true }); hideBar(); }
   finally { setBusy(false); }
@@ -357,12 +356,12 @@ function trackBatch() {
   const b = loadBatch();
   if (!b || !b.jobId) { clearBatch(); return Promise.resolve(); }
   const jobId = b.jobId, N = b.total || 1, recorded = new Set(b.recorded || []);   // recorded = image ids done
-  activeGen = { cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (_) {} } };
+  activeGen = { cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } } };
   return new Promise((resolve) => {
     let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
     const prog = newBatchProgress();
     const drawBar = () => showBar(prog.value(N));
-    const finish = () => { if (settled) return; settled = true; if (timer) clearInterval(timer); try { ws && ws.close(); } catch (_) {} document.removeEventListener("visibilitychange", onVis); activeGen = null; clearBatch(); resolve(); };
+    const finish = () => { if (settled) return; settled = true; if (timer) clearInterval(timer); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } document.removeEventListener("visibilitychange", onVis); activeGen = null; clearBatch(); resolve(); };
     function recordSlot(s) {
       if (!s || !s.id || recorded.has(s.id)) return;
       recorded.add(s.id);
@@ -375,22 +374,22 @@ function trackBatch() {
         ws = new WebSocket(gwWs("/ws"));
         ws.onmessage = (ev) => {
           if (typeof ev.data !== "string") return;
-          let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("gen ws non-JSON message:", e); return; }
           const id = m.data && m.data.prompt_id;
           if (id && id === runningId) { const f = wsFraction(m); if (f != null) { prog.fraction(f); drawBar(); } }
           if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") poll();
         };
-        ws.onclose = () => { ws = null; }; ws.onerror = () => { try { ws && ws.close(); } catch (_) {} ws = null; };
-      } catch (_) { ws = null; }
+        ws.onclose = () => { ws = null; }; ws.onerror = (ev) => { console.debug("gen ws error:", ev); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
+      } catch (e) { console.debug("gen ws open failed:", e); ws = null; }
     }
     async function poll() {
       if (settled) return;
-      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
       const job = (res.jobs || []).find(j => j.jobId === jobId);
       if (!job) {
         // Vanished from the active feed -> finalized. Collect the final array, record any stragglers, then finish.
         let final = null;
-        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (_) {}
+        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (e) { console.debug("final job fetch failed:", e); }
         const failed = N - recorded.size;
         // The job's own final status, not this tab's cancel flag: the batch may have been stopped from another
         // device, and either way the missing images weren't images that "couldn't be made" — they weren't asked for
@@ -434,7 +433,7 @@ async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, 
     const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides(), loras }) });
     if (!r.ok) throw new Error(await gwError(r));
     const promptId = (await r.json()).promptId;
-    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect }).catch(() => {});
+    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect }).catch(e => console.debug("record pending job failed:", e));
     const result = await trackPrompt(promptId, trackPromptHooks());
     recordResult(result, prompt, model.friendly_name, model.id, aspect);
     setStatus(""); hideBar();
@@ -472,7 +471,8 @@ async function queueAnother(n) {
     toast(count > 1
       ? `Queued ${count} more — they start when the current one finishes.`
       : "Queued another — starts when the current one finishes.");
-  } catch (_) {
+  } catch (e) {
+    console.error("queue-more failed:", e);
     toast("Couldn't queue another.");
   }
 }
@@ -777,8 +777,8 @@ function syncTagTypesBar() {
 
 // --- wake lock + busy + cancel ------------------------------------------------------------------
 let wakeLock = null;
-async function acquireWakeLock() { try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (_) { wakeLock = null; } }
-function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch (_) {} wakeLock = null; }
+async function acquireWakeLock() { try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { console.debug("wake lock request failed:", e); wakeLock = null; } }
+function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch (e) { console.debug("wake lock release failed:", e); } wakeLock = null; }
 function setBusy(b) {
   busy = b;
   $generate.textContent = b ? "Cancel" : "Generate"; $generate.classList.toggle("is-cancel", b);
@@ -841,7 +841,7 @@ async function downloadImage(r) {
   // cache:"no-store" avoids the <img> no-CORS cache entry (no Access-Control-Allow-Origin), which a plain
   // cors fetch would reuse and get blocked on — force a fresh request that carries Origin. See detail.js.
   try { const res = await fetch(viewUrl(r), { cache: "no-store" }); const blob = await res.blob(); const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = /\.\w+$/.test(id) ? id : (id || "picture") + ".png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); }
-  catch (_) { window.open(viewUrl(r), "_blank"); }
+  catch (e) { console.error("download failed, opening in a tab:", e); window.open(viewUrl(r), "_blank"); }
 }
 
 // uploadToInput (device photo → upload → /edit/{id}) is shared from core.js.
@@ -969,12 +969,12 @@ async function finalizeJob(jobId) {
   try {
     const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`);
     if (r.ok) { const j = await r.json(); for (const id of (j.imageIds || [])) if (id) announceImage(j, id); }
-  } catch (_) {}
+  } catch (e) { console.debug("finalizeJob straggler fetch failed:", e); }
   document.dispatchEvent(new CustomEvent("imagegen:refresh"));   // strips re-pull /api/history (authoritative)
 }
 
 async function liveSync() {
-  let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (_) { return; }
+  let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
   const jobs = res.jobs || [];
   const activeIds = new Set(jobs.map(j => j.jobId));
 
@@ -998,8 +998,8 @@ async function liveSync() {
       liveRemote = true;
       // Cancel works cross-device: /interrupt stops the rendering image, /cancel drops the rest of each active job.
       activeGen = { cancel: async () => {
-        try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (_) {}
-        for (const j of active) { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(j.jobId)}`, { method: "POST" }); } catch (_) {} }
+        try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (e) { console.debug("interrupt request failed:", e); }
+        for (const j of active) { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(j.jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } }
       } };
       setBusy(true);
     }
@@ -1028,14 +1028,14 @@ function liveOpenWs() {
     liveWs = new WebSocket(gwWs("/ws"));
     liveWs.onmessage = (ev) => {
       if (typeof ev.data !== "string") return;
-      let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+      let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("live ws non-JSON message:", e); return; }
       const id = m.data && m.data.prompt_id;
       if (liveRemote && id && id === liveRunning) { const f = wsFraction(m); if (f != null) { liveProgress.fraction(f); showBar(liveProgress.value(liveTotal)); } }
       if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") liveSync();
     };
     liveWs.onclose = () => { liveWs = null; };
-    liveWs.onerror = () => { try { liveWs && liveWs.close(); } catch (_) {} liveWs = null; };
-  } catch (_) { liveWs = null; }
+    liveWs.onerror = (ev) => { console.debug("live ws error:", ev); try { liveWs && liveWs.close(); } catch (e) { console.debug("ws close failed:", e); } liveWs = null; };
+  } catch (e) { console.debug("live ws open failed:", e); liveWs = null; }
 }
 
 function startLiveSync() {
