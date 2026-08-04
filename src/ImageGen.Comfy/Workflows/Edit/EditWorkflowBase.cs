@@ -1,5 +1,4 @@
-﻿//TODO: CHECK FOR FALLBACKS
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -30,17 +29,17 @@ public abstract class EditWorkflowBase : IWorkflow
 
     protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" }, Default = "checkpoint" },
+        new() { Key = "loader",    Type = ParamType.Enum,   Choices = new[] { "checkpoint", "unet", "unet_gguf" } },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
         // model fits a 24GB card alongside its text encoder instead of swapping against it.
         new() { Key = "weight_dtype", Type = ParamType.String },
         new() { Key = "clip_type", Type = ParamType.String },
-        new() { Key = "dual",      Type = ParamType.Bool,   Default = false },
-        new() { Key = "steps",     Type = ParamType.Int,    Default = 20, Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
-        new() { Key = "cfg",       Type = ParamType.Double, Default = 1,  Min = 1, Max = 30,  Label = "CFG scale" },
+        new() { Key = "dual",      Type = ParamType.Bool },
+        new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
+        new() { Key = "cfg",       Type = ParamType.Double, Min = 1, Max = 30,  Label = "CFG scale" },
         new() { Key = "guidance",  Type = ParamType.Double },
-        new() { Key = "sampler",   Type = ParamType.String, Default = "euler" },
-        new() { Key = "scheduler", Type = ParamType.String, Default = "simple" },
+        new() { Key = "sampler",   Type = ParamType.String },
+        new() { Key = "scheduler", Type = ParamType.String },
         // Video shapes (wan/animatediff/ltxv): frame-size budget, clip length (frames), playback fps. 0 = builder default.
         new() { Key = "width",     Type = ParamType.Int },
         new() { Key = "height",    Type = ParamType.Int },
@@ -66,12 +65,12 @@ public abstract class EditWorkflowBase : IWorkflow
                                   "linear (HotshotXL/default)", "avg(sqrt_linear,linear)", "lcm avg(sqrt_linear,linear)",
                                   "lcm", "lcm[100_ots]", "lcm >> sqrt_linear", "sqrt", "cosine", "squaredcos_cap_v2" } },
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
-        new() { Key = "reference_max",    Type = ParamType.Int, Default = 0 },
+        new() { Key = "reference_max",    Type = ParamType.Int },
         new() { Key = "reference_inputs", Type = ParamType.String },   // ["image2","image3"]
         // Optional style/quality LoRA applied on top of the base model — lets a config be a "base + anime LoRA"
         // variant (e.g. WAN i2v + Flat Color) with no new graph code.
         new() { Key = "lora",          Type = ParamType.String, IsModelRef = true },
-        new() { Key = "lora_strength", Type = ParamType.Double, Default = 1.0, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
+        new() { Key = "lora_strength", Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
     };
 
     /// <summary>Emit the common edit head: the model/CLIP/VAE loaders (from the loader param + resolved
