@@ -5,9 +5,9 @@
 //
 // A generation announces "a new image exists" via `imagegen:generated` (and the live cross-device tracker fires
 // `imagegen:refresh` when a job finalizes); this strip treats those purely as TRIGGERS to re-pull. Nothing about what
-// to show is accumulated here — that is what made a reload crop the last batch to its newest 48, since the batch size
-// only ever existed in the page that watched it happen. The outline is the same story: it means "you haven't opened
-// this", which is a per-user fact the server keeps, not a set of ids this tab happened to witness.
+// to show is accumulated here — accumulating it would crop the last batch to its newest 48 on a reload, since the
+// batch size would only ever exist in the page that watched it happen. The outline is the same story: it means "you
+// haven't opened this", which is a per-user fact the server keeps, not a set of ids this tab happened to witness.
 // Uses core.js.
 (function () {
   const wrap = document.getElementById("recent-wrap");
@@ -42,7 +42,7 @@
       render();
     } catch (e) {
       // The strip keeps whatever it last showed rather than blanking on a blip; the next trigger refreshes it. That
-      // is deliberate, but it used to be indistinguishable from "nothing new has been generated".
+      // is deliberate — logged so it stays distinguishable from "nothing new has been generated".
       console.error("Recents strip could not be refreshed; showing the last known set:", e);
     }
   }

@@ -1,8 +1,8 @@
 // models.js — the models page: which file on this machine fills each catalogue slot.
 //
-// Models only. Which WORKFLOWS a missing file leaves unavailable is the workflow library's business, and it used
-// to be answered here — a page about models carrying a second list about workflows. They are two concepts and
-// they get two pages; the library greys out what it cannot run and offers the fix in place.
+// Models only. Which WORKFLOWS a missing file leaves unavailable is the workflow library's business, not this page's
+// — they are two concepts and they get two pages; the library greys out what it cannot run and offers the fix in
+// place.
 //
 // The catalogue ships no filenames, because a filename is a fact about a disk rather than about a model. What the
 // app knows is a slot and how to recognise it; what THIS machine knows is which file fills it. Recognised slots
@@ -122,9 +122,7 @@
   };
   const KIND_ORDER = Object.keys(KIND_LABELS);
 
-  // Grouped by kind, which now names one loader's file list each. This used to group by a separate `category`
-  // field because the kind folded LoRAs, IP-Adapters, CLIP vision and the rest into "Other" — two fields for one
-  // fact, because the first had thrown it away.
+  // Grouped by kind, which now names one loader's file list each.
   function groupedSlots() {
     const seen = new Map();
     for (const s of state.slots) {

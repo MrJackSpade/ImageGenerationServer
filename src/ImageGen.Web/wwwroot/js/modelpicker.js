@@ -32,8 +32,8 @@ function createModelPicker(opts) {
   const cbs = () => Array.from(menu.querySelectorAll('input[type="checkbox"]'));
   const selectedIds = () => cbs().filter(c => c.checked).map(c => c.value);
   const selected = () => selectedIds().map(id => byId[id]).filter(Boolean);
-  // ★ favorites first, then by name — the order both pages used before they shared this. sensitivity:'base' so the
-  // name sort ignores case ('Zephyr' does not jump above 'anima'); ties among case-equal names keep input order.
+  // ★ favorites first, then by name. sensitivity:'base' so the name sort ignores case ('Zephyr' does not jump above
+  // 'anima'); ties among case-equal names keep input order.
   const sortItems = arr => arr.slice().sort((a, b) => { const af = favOf(a) ? 0 : 1, bf = favOf(b) ? 0 : 1; return af !== bf ? af - bf : nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" }); });
 
   function row(m) {

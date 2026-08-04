@@ -3,9 +3,8 @@
 // workflow's detail page. Star and hide are editable here; tags are edited on the detail page. Uses core.js.
 //
 // A workflow missing a model file is shown, greyed, with a ⚠ that opens a dialog for setting the files it needs.
-// It used to be absent here and listed on the MODELS page instead, which put workflows on the page about models
-// and left this page quietly claiming the box could run less than it can. Models and workflows are two things:
-// the models page binds files to slots, this page is the workflows and what each one is waiting for.
+// Models and workflows are two things: the models page binds files to slots, this page is the workflows and what
+// each one is waiting for.
 (function () {
   const $list = document.getElementById("workflowsList");
   if (!$list) return;
@@ -38,8 +37,8 @@
 
   async function load() {
     const [rows, status, prefs] = await Promise.all([
-      // A failed catalog call is not an empty catalog. It used to resolve to [], which rendered as "No workflows are
-      // installed on this machine" — a confident statement about the box, made because a fetch failed.
+      // A failed catalog call is not an empty catalog. Resolving it to [] would render as "No workflows are installed
+      // on this machine" — a confident statement about the box, made because a fetch failed.
       fetch(`${GATEWAY}/workflows`).then(r => {
         if (!r.ok) throw new Error(`the catalog answered ${r.status}`);
         return r.json();

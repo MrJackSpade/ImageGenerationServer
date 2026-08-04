@@ -78,7 +78,7 @@
     const ids = Array.from(pending.keys()).filter(id => !verdict.has(id));
     if (!ids.length) { resolvePending(); return; }
     // POST the ids in the body, not the query string. This is one lookup for EVERY image on the page — hundreds of
-    // ids — and a GET stuffed them all into the URL, which sailed past Kestrel's ~8 KB request line and got the
+    // ids — and a GET would stuff them all into the URL, sailing past Kestrel's ~8 KB request line and getting the
     // connection aborted before the server saw it (ERR_CONNECTION_ABORTED), the more so the more thumbnails loaded.
     fetch(`${GW}/media`, {
       method: "POST",
@@ -96,7 +96,7 @@
         }
       })
       .catch(err => {
-        // Deliberately caches NOTHING. `verdict` is permanent for the page, so writing false here turned one
+        // Deliberately caches NOTHING. `verdict` is permanent for the page, so writing false here would turn one
         // transient failure into "this is not a video" forever — every clip in that batch stuck as a static <img>,
         // no loop, no scrubber, nothing logged. The public edge truncates proxied responses under concurrency, so
         // this path is real, not theoretical. Unresolved ids stay in `pending` and the next batch retries them.

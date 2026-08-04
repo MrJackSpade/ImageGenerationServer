@@ -1,9 +1,9 @@
 // Bounded-concurrency thumbnail loader.
 //
 // A grid page (bookmarks, gallery, an artist's gens, the recents strip) can put hundreds of thumbnails on screen at
-// once. Left to the browser, HTTP/2 will happily open ~100 concurrent streams for them — over the public HTTPS edge
-// that burst is what made thumbs randomly fail; over a plain-HTTP local IP the browser's own 6-connection cap hid it.
-// Relying on a transport's connection limit for backpressure was the mistake; this queue makes the limit ours, so the
+// once. Left to the browser, HTTP/2 will happily open ~100 concurrent streams for them — a burst that makes thumbs
+// randomly fail over the public HTTPS edge, while over a plain-HTTP local IP the browser's own 6-connection cap
+// masks it. A transport's connection limit is not reliable backpressure; this queue makes the limit ours, so the
 // page behaves identically on HTTP/1.1 and HTTP/2, local or public.
 //
 // Contract for render sites: emit `data-src` instead of `src` on an <img> (and `data-poster` instead of `poster` on a

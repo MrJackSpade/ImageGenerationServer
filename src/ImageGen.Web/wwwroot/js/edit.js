@@ -40,15 +40,15 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
 //
 // Having a source is a precondition of APPLYING an edit, not of loading the editor, so the check lives at each
 // mode's submit path — sendEdit, inpaintGenerate and outpaintGenerate each refuse with "Select a file to … first".
-// Asserting it here instead threw at page init, which aborted the whole script and took the file picker with it:
-// the one entry point whose job is choosing a source was the one that couldn't. Checking at the point of use also
-// catches what an init assertion can't, a source that goes away or is replaced mid-session.
+// Asserting it here instead would throw at page init, aborting the whole script and taking the file picker with it:
+// the one entry point whose job is choosing a source would be the one that couldn't. Checking at the point of use
+// also catches what an init assertion can't, a source that goes away or is replaced mid-session.
 //
 // A MISSING or unparseable #editSeed is a different failure and still stops the page here — it throws inside
-// JSON.parse, so it stays distinguishable without guessing. And the fallback this guard originally replaced is
-// not coming back: seeding { id: "", prompt: "(image)" } left a page that looked fully functional pointed at an
-// image id the browser had invented, so every Apply was rejected server-side. An empty id must never be submitted
-// as a render source — which is exactly what the submit-path checks now guarantee.
+// JSON.parse, so it stays distinguishable without guessing. There is deliberately no fallback that seeds
+// { id: "", prompt: "(image)" }: that would leave a page looking fully functional but pointed at an image id the
+// browser invented, so every Apply would be rejected server-side. An empty id must never be submitted as a render
+// source — which is exactly what the submit-path checks guarantee.
 const seed = (() => {
   try {
     const s = JSON.parse($("editSeed").textContent);
@@ -137,8 +137,8 @@ function savePrefs() {
     // carrying a prior image's margins onto a new source would silently extend it by the wrong number of pixels.
   });
   clearTimeout(prefsTimer);
-  // A failed save was `.catch(() => {})` — the editor went on looking exactly like one whose settings were being
-  // kept, and the next page load quietly came back with older state. Say it once, where the user is looking.
+  // A silently-swallowed save would leave the editor looking exactly like one whose settings were being kept, and the
+  // next page load would quietly come back with older state. Say it once, where the user is looking.
   prefsTimer = setTimeout(() => {
     saveEditPrefs(json).catch(e => {
       console.error("Editor settings could not be saved:", e);
@@ -266,9 +266,10 @@ async function loadEditModels() {
       };
     });
     // Restore the editor's last state from the account blob (mode, workflows, flat params, inpaint workflow, brush).
-    // editPrefsLoaded is set ONLY on a clean read, and savePrefs refuses to write until it is: the swallow here used
-    // to drop the user back to defaults and then persist those defaults on the first knob they touched, so a one-off
-    // bad read permanently became their saved editor state. A missing blob is a first visit, which is safe to write.
+    // editPrefsLoaded is set ONLY on a clean read, and savePrefs refuses to write until it is: swallowing a failure
+    // here would drop the user back to defaults and then persist those defaults on the first knob they touched, so a
+    // one-off bad read would permanently become their saved editor state. A missing blob is a first visit, which is
+    // safe to write.
     if (!s) {
       toast("Your saved editor settings couldn’t be loaded — reload before changing them");
     } else {
@@ -775,7 +776,7 @@ $brushSize.addEventListener("change", savePrefs);   // brush size rides along in
 
 // Build a SEPARATE white-on-black mask PNG (white = the painted region to regenerate) and upload it; returns its id.
 // The source image is sent untouched, so the model keeps the original pixels outside the mask AND has the real face
-// inside it to partially-denoise from. (Baking the mask into the source's alpha blacked out the masked region,
+// inside it to partially-denoise from. (Baking the mask into the source's alpha would black out the masked region,
 // because PNG drops the RGB under transparent pixels.)
 async function buildMaskPng() {
   if (!maskCanvas || !maskCtx) throw new Error("Paint the area to change first.");
@@ -1047,7 +1048,7 @@ $outPads.addEventListener("change", e => { if (e.target.closest("input[data-side
 addEventListener("resize", () => { if (activeMode === "outpaint") outLayout(); });
 
 // Clicking opens the LIGHTBOX rather than navigating, so the staged frame and the pad amounts survive a look at the
-// result — same as inpaint. (Navigating away threw the whole stage out.)
+// result — same as inpaint. (Navigating away would throw the whole stage out.)
 function renderOutpaintResult(id) {
   $outpaintResult.innerHTML = "";
   const c = document.createElement("div"); c.className = "result-card";
@@ -1141,8 +1142,8 @@ async function outpaintGenerate(n) {
   //
   // Do NOT reintroduce readOverrides() here. The editor's param map (editParamPrefs) is flat and keyed by param NAME
   // across every panel, and `denoise` is "Change amount" (default 0.6, min 0.2) to anima-inpaint but "Fill strength"
-  // (default 1.0, min 0.5) to anima-outpaint. Feeding inpaint's denoise in half-denoised the grey padding that
-  // ImagePadForOutpaint lays down, so the border came back grey instead of painted.
+  // (default 1.0, min 0.5) to anima-outpaint. Feeding inpaint's denoise in would half-denoise the grey padding that
+  // ImagePadForOutpaint lays down, so the border would come back grey instead of painted.
   const overrides = { pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
   beginOutpaintBatch(n);
   try {
@@ -1229,7 +1230,7 @@ let recovering = false;
 const inpaintWorkflowIds = () => new Set(inpaintModelList().map(gwModel));
 const outpaintWorkflowIds = () => new Set(outpaintModelList().map(gwModel));
 // Reconnect to EVERY chat edit still running for this source — a fan-out across N workflows is N separate jobs, so
-// re-attaching to only the running one left the other N-1 to finish invisibly. Same shape as recoverInpaintJob.
+// re-attaching to only the running one would leave the other N-1 to finish invisibly. Same shape as recoverInpaintJob.
 let editRecovering = false;   // set BEFORE the /jobs await so overlapping calls (boot + tab-enter + interval) can't double-attach
 async function recoverEditJob() {
   if (busy || recovering || editRecovering || activeMode === "inpaint" || activeMode === "outpaint") return;

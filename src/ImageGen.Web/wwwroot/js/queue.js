@@ -86,11 +86,11 @@
     fetchPage(p, false).then(schedulePolling);
   }
 
-  // Poll whatever page is on screen. This used to poll page 1 only, on the assumption that in-flight jobs sit there —
-  // but the queue serves the OLDEST job first, so during any backlog the live rows were on the LAST page, which never
-  // refreshed. A row left mid-render there kept its progress bar ticking (tickAll below runs regardless of page) and
-  // sat on "finishing…" indefinitely while the queue drained behind it. A page showing a live row must refresh it;
-  // whether that page is the first one is not something this can assume.
+  // Poll whatever page is on screen. Polling page 1 only, on the assumption that in-flight jobs sit there, would miss
+  // them: the queue serves the OLDEST job first, so during any backlog the live rows are on the LAST page. A row left
+  // mid-render there keeps its progress bar ticking (tickAll below runs regardless of page) and sits on "finishing…"
+  // indefinitely while the queue drains behind it. A page showing a live row must refresh it; whether that page is
+  // the first one is not something this can assume.
   function schedulePolling() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     pollTimer = setInterval(() => fetchPage(page, true), 2000);
@@ -129,8 +129,8 @@
   }
 
   // The bar tracks the JOB, not the picture on the GPU. `expectedSeconds`/`startedAt` describe the running slot only
-  // (ForgeApi.QueueRowOf), so feeding them straight to the bar made a batch of ten fill and snap back to zero ten
-  // times — while the label beside it already read "running 4/10". `progress` is the count of finished slots, so
+  // (ForgeApi.QueueRowOf), so feeding them straight to the bar would make a batch of ten fill and snap back to zero
+  // ten times — while the label beside it already read "running 4/10". `progress` is the count of finished slots, so
   // whole images done plus the fraction of the one in flight is the honest number.
   //
   // Without an estimate the in-flight fraction is unknown, but progress/total still isn't: the bar then steps once
@@ -232,8 +232,8 @@
     }
 
     // Right-side stat: expected time while live, relative finish time once done. Appended LAST, after any button, so
-    // it always sits at the row's right edge — behind the button it was pushed left on the rows that have one, and
-    // the column zig-zagged down a page that mixes both.
+    // it always sits at the row's right edge — behind the button it would be pushed left on the rows that have one,
+    // and the column would zig-zag down a page that mixes both.
     const time = document.createElement("span"); time.className = "listrow-stat";
     if (j.active) { time.title = "Expected time"; time.textContent = exp ? fmtDuration(exp) : ""; }
     else { time.title = "Finished"; time.textContent = timeAgo(j.finishedAt || j.createdAt); }

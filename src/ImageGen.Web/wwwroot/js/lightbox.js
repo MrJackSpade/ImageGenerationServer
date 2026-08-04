@@ -6,10 +6,10 @@
 //
 // WHERE IT IS is an image ID, never a position. The grid changes underneath an open lightbox — gallery.js
 // prepends live arrivals on every imagegen:generated, recents.js rebuilds its strip from scratch, a delete
-// removes a card — and a remembered index then points at a different image than it did a moment ago. This
-// used to hold a snapshot array plus an integer into it: after any prepend, the two paths that re-read the
-// DOM (a card that 404s, and onDelete) kept the integer, so stepping jumped back by however many images had
-// arrived and re-showed them. The live list IS the list; the id is the only thing that survives it changing.
+// removes a card — and a remembered index then points at a different image than it did a moment ago. Holding a
+// snapshot array plus an integer into it would, after any prepend, make the two paths that re-read the DOM (a card
+// that 404s, and onDelete) keep the integer, so stepping would jump back by however many images had arrived and
+// re-show them. The live list IS the list; the id is the only thing that survives it changing.
 (function () {
   // Build the overlay shell once, lazily reused for every open.
   const overlay = document.createElement("div");
@@ -34,7 +34,7 @@
   // href is "/image/<escaped-id>"; keep the escaped id for fetching the fragment.
   const escId = a => { const m = (a.getAttribute("href") || "").match(/^\/image\/([^?#]+)/); return m ? m[1] : null; };
   const idOf = a => { const e = escId(a); return e ? decodeURIComponent(e) : null; };
-  // Asked fresh every time. A cached copy is exactly what went stale.
+  // Asked fresh every time. A cached copy is exactly what goes stale.
   const liveCards = () => Array.from(document.querySelectorAll("a.imgcard"));
   const positionOf = (id, cards) => cards.findIndex(a => idOf(a) === id);
 
@@ -139,9 +139,9 @@
 
   // Warm what stepping actually costs, so ‹ › land on something already fetched.
   //
-  // This used to warm the neighbour's THUMBNAIL, which is the picture the grid behind the overlay shows —
-  // already loaded, and not what the lightbox displays. Stepping fetches the card fragment and then the
-  // FULL image inside it, and neither was warm, so every press paid both round trips.
+  // Warming the neighbour's THUMBNAIL would be pointless: it is the picture the grid behind the overlay already
+  // shows, not what the lightbox displays. Stepping fetches the card fragment and then the FULL image inside it —
+  // the part actually worth warming.
   //
   // The full image is the same URL as the thumbnail without the ?w= that shrinks it (core.js: thumbUrl is
   // viewUrl + "?w="), so it can be derived from the card already in the DOM without asking the server what
@@ -159,7 +159,7 @@
       preloaded.add(eid);
 
       // Warm ONLY the picture, never the /card fragment. Fetching /card is how the server records a VIEW
-      // (ImageController marks viewed on that GET), so pre-warming the card marked neighbours viewed before you
+      // (ImageController marks viewed on that GET), so pre-warming the card would mark neighbours viewed before you
       // ever stepped to them — corrupting the unviewed outline and the unviewed-only filter. The card is a small
       // fragment, re-fetched on the real step; the picture is the multi-megabyte part worth warming.
       //

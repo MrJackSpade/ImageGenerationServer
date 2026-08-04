@@ -37,8 +37,8 @@
   }
 
   function renderInfo() {
-    // "Not installed here" is a claim about the MACHINE, and it was being made whenever the catalog call failed —
-    // the empty list a failed fetch resolved to is indistinguishable from a list this id is genuinely absent from.
+    // "Not installed here" is a claim about the MACHINE; making it whenever the catalog call fails would be wrong —
+    // the empty list a failed fetch resolves to is indistinguishable from a list this id is genuinely absent from.
     if (listError) {
       $root.innerHTML = `<div class="wf-head"><h2>Workflow unavailable</h2></div>`
         + `<p class="muted">The workflow catalog couldn’t be loaded — ${escapeHtml(listError)}. `
@@ -46,9 +46,9 @@
       return;
     }
     if (!workflow) {
-      // "Not installed here" was said about anything absent from the ELIGIBLE list, which is mostly wrong: the
-      // common reason a workflow is not eligible is that a model slot it needs is unset, and it is very much
-      // installed. The status list knows the difference, and the fix lives in the library's dialog.
+      // Saying "not installed here" about anything absent from the ELIGIBLE list is mostly wrong: the common reason
+      // a workflow is not eligible is that a model slot it needs is unset, and it is very much installed. The status
+      // list knows the difference, and the fix lives in the library's dialog.
       const known = STATUS && STATUS.workflows.find(w => w.id === id);
       $root.innerHTML = known
         ? `<div class="wf-head"><h2>${escapeHtml(known.friendlyName || id)}</h2></div>`
@@ -145,7 +145,7 @@
   // --- this machine's settings for this workflow ---------------------------------------------------
   // What it renders with here, against what the catalogue shipped. Saving writes one override; clearing a field
   // removes it and the shipped value comes back. The render size for each aspect lives here rather than being a
-  // second workflow per size, which is what the "-hq" siblings were.
+  // second workflow per size.
   let settingsData = null;
   const eff = (s) => (s.override !== null && s.override !== undefined ? s.override : s.shipped);
   const overridden = (s) => s.override !== null && s.override !== undefined;

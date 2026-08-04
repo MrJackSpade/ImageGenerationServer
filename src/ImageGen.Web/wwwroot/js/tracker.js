@@ -1,11 +1,11 @@
 // Shared live tracker — loaded app-wide by _Layout, after the page's core.js (which defines GATEWAY + gwWs).
 //
 // Every "live" page updates by RE-PULLING the server when it hears `imagegen:generated` (a new image landed) or
-// `imagegen:refresh` (a job finalized). Those two signals were produced only by compose.js's own tracker, so they
-// only ever fired on the compose page — which is why /gallery (History) never picked up a running batch until a
-// reload. This makes the same signals available on every page: poll /forge/jobs (this user's ACTIVE jobs, so it
-// is cross-device for the signed-in user) and listen on /forge/ws, firing `imagegen:generated` for each newly
-// produced image and `imagegen:refresh` when a tracked job leaves the active set.
+// `imagegen:refresh` (a job finalized). Produced only by compose.js's own tracker, those two signals fire only on
+// the compose page — which would leave /gallery (History) unable to pick up a running batch until a reload. This
+// makes the same signals available on every page: poll /forge/jobs (this user's ACTIVE jobs, so it is cross-device
+// for the signed-in user) and listen on /forge/ws, firing `imagegen:generated` for each newly produced image and
+// `imagegen:refresh` when a tracked job leaves the active set.
 //
 // The handlers are idempotent — they re-pull the authoritative server state — so producing these here is harmless
 // even where another script also would. The compose page owns its own tracker (it also drives the compose bar and

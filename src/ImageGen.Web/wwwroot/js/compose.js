@@ -273,7 +273,7 @@ function startBatch(n) { generateSelected(n); }   // kept for any external calle
 // single-model batch and the multi-model fan-out, so both report progress and record results identically.
 // The slots one model contributes to a submission: every explode variant ({a|b} sets), n times each, each
 // rolling its own aspect from the picked set. Shared so queueing while busy builds exactly what generating
-// while idle builds -- the two used to construct their requests independently and drifted.
+// while idle builds.
 function composeItems(model, prompt, n) {
   const base = {
     workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model),
@@ -393,7 +393,7 @@ function trackBatch() {
         const failed = N - recorded.size;
         // The job's own final status, not this tab's cancel flag: the batch may have been stopped from another
         // device, and either way the missing images weren't images that "couldn't be made" — they weren't asked for
-        // any more. Reporting a deliberate stop as a batch of failures is the same defect the queue row had.
+        // any more. Reporting a deliberate stop as a batch of failures would itself be a defect.
         setStatus(final && final.status === "cancelled"
           ? (recorded.size ? `Cancelled — made ${recorded.size} of ${N}.` : "Cancelled.")
           : failed > 0 ? `Done — made ${recorded.size} of ${N} (${failed} couldn't be made).`
@@ -448,10 +448,10 @@ function generate() { generateSelected(1); }
 // current job finishes; this deliberately does not take over the busy/progress UI, which the running generation
 // owns.
 //
-// It submits through the SAME path a fresh generation uses, and that is the point. It used to loop
-// `POST /generate` once per image, so the identical gesture produced a different queue shape depending only on
-// whether something happened to be running: idle gave one job with n slots, busy gave n separate jobs. It also
-// skipped the explode fan, so {a|b} sets quietly stopped varying the moment you queued while busy.
+// It submits through the SAME path a fresh generation uses, and that is the point. Looping `POST /generate` once
+// per image would make the identical gesture produce a different queue shape depending only on whether something
+// happened to be running: idle gives one job with n slots, busy would give n separate jobs. It would also skip the
+// explode fan, so {a|b} sets would quietly stop varying the moment you queued while busy.
 async function queueAnother(n) {
   const models = selectedModels();
   if (!models.length) { toast("Pick a workflow first."); return; }
@@ -484,8 +484,8 @@ async function queueAnother(n) {
 // Submits rec.markerPrompt AND rec.negativePrompt — both stored verbatim at render time, in the marker form a prompt box
 // speaks ('#tag, @artist'). rec.prompt is the FINALIZED text (markers stripped, underscores folded): re-submitting that
 // renders the same picture but the finalizer can no longer see which segments were tags, so the image comes back with an
-// empty marks map — no chips, nothing to bookmark or ban. The negative used to be dropped outright (null), so reloading
-// an image silently re-rendered it WITHOUT the negative that shaped it. Both now come from the image, not the composer.
+// empty marks map — no chips, nothing to bookmark or ban. Dropping the negative (null) would silently re-render the
+// image WITHOUT the negative that shaped it, so both come from the image, not the composer.
 function regenerate(rec, n) {
   if (busy) { toast("A generation is already running — wait for it to finish before reloading."); return false; }
   const model = rec && rec.modelId && MODELS[rec.modelId];
@@ -515,11 +515,9 @@ window.attachComposerRegenerate = function (btn, rec, onStarted) {
 
 // --- tag & artist autocomplete ('#'/'@', Advanced only) -----------------------------------------
 const tagModel = () => { const m = primaryModel(); return (m && m.tagging) ? m : null; };
-// The '#'/'@'/'~' autocomplete on the main prompt box. This used to be ~70 lines inlined here, a near-verbatim twin
-// of tagbox.js — and the two drifted the moment one of them changed: /forge/tags moved to POST (the request carries
-// the prompt being typed, which does not belong in a URL) and only the shared copy was updated, so this box quietly
-// started 405ing and the popup stopped appearing at all. One implementation now, the same one the negative box and
-// the whole edit page already use.
+// The '#'/'@'/'~' autocomplete on the main prompt box. One shared implementation (tagbox.js) — the same one the
+// negative box and the whole edit page use — rather than an inlined twin that would drift the moment either side
+// changed.
 //
 // The popup consumes Enter/Tab to accept the highlighted suggestion while it is open, and preventDefault keeps
 // that from also inserting a newline. Nothing downstream competes for Enter any more: it does not generate.
@@ -552,13 +550,12 @@ function currentNegative() { return $negPrompt ? $negPrompt.value.trim() : ""; }
 // composer's negative onto an exact Reload.
 function negFor(model) { return (model && model.negativeSupported && currentNegative()) ? currentNegative() : null; }
 // Same booru '#'/'@' autocomplete the positive prompt has, on the negative box. Uses the shared tagbox module
-// (a verbatim port of the inline positive logic) gated on the primary model's tagging; onAccept persists the draft.
+// gated on the primary model's tagging; onAccept persists the draft.
 if ($negPrompt && $negTagPop) initTagBox({ input: $negPrompt, pop: $negTagPop, getModel: primaryModel, onAccept: savePrefs });
 // Random-prompt strength: ONE per-generation slider where 0 is off and anything above it is the tag model's sampling
-// temperature (1 = its natural sampling, 5 = wildest). It replaced a composer checkbox plus a separate account-level
+// temperature (1 = its natural sampling, 5 = wildest). One slider rather than a checkbox plus a separate account-level
 // temperature on the Settings page — two controls for one idea, neither reachable while composing. The value rides in
-// the composer prefs blob, so it follows the user across devices like the rest of the draft state. Unset = 0 = off,
-// the same place the old checkbox started.
+// the composer prefs blob, so it follows the user across devices like the rest of the draft state. Unset = 0 = off.
 function promptTempValue() { return $promptTemp ? Number($promptTemp.value) || 0 : 0; }
 function setPromptTemp(v) {
   if (!$promptTemp) return;
@@ -726,8 +723,9 @@ if ($loraAdd) {
 // --- the generation mask: which kinds of tag Random prompt may emit -----------------------------
 // A PER-GENERATION control, exactly like the slider it sits under and the rest of the composer: the picked kinds ride
 // in the generate/enqueue body as `tagTypes`, and the draft selection rides in the composer prefs blob (so it follows
-// the account across devices). It used to be an account setting on the Settings page — two pages from the control it
-// qualifies, and impossible to vary per batch. A queued job keeps the mask it was submitted with.
+// the account across devices). A per-generation control rather than an account setting on the Settings page — an
+// account setting would sit two pages from the control it qualifies and couldn't vary per batch. A queued job keeps
+// the mask it was submitted with.
 //
 // The options come from the server (the tag model decides which types are suppressible, so nothing is hardcoded), and
 // the first-load selection comes from the account's stored mask — which is still what the server falls back to for a
@@ -863,8 +861,8 @@ function savePrefs() {
   // "none of them" — the empty array is a real selection).
   const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
   clearTimeout(prefsTimer);
-  // A failed save was `.catch(() => {})`. This blob holds the user's draft PROMPT, so a silent failure means they
-  // keep typing into a composer that is no longer being kept, and find an older draft on the next load.
+  // This blob holds the user's draft PROMPT, so a silent failure means they keep typing into a composer that is no
+  // longer being kept, and find an older draft on the next load.
   prefsTimer = setTimeout(() => {
     saveComposerPrefs(json).catch(e => {
       console.error("Composer state could not be saved:", e);
@@ -941,9 +939,9 @@ $composer.addEventListener("submit", e => { e.preventDefault(); if (genCount.ope
 // grew, and the strip's truth is always /api/history (so deletes stick and nothing resurrects).
 let liveWs = null, liveRunning = null, liveRemote = false;
 // The observed run's bar. Both writers — the 2.5s /jobs tick and the ws progress frames — go through this one
-// tracker, so the bar always shows progress through the BATCH. The ws handler used to call showBar itself with
-// the raw per-image fraction, which on a batch of 10 meant it painted "70% through image 3" over the tick's
-// "25% of the batch", back and forth, for the whole run.
+// tracker, so the bar always shows progress through the BATCH. A ws handler that called showBar itself with the
+// raw per-image fraction would, on a batch of 10, paint "70% through image 3" over the tick's "25% of the batch",
+// back and forth, for the whole run.
 let liveProgress = newBatchProgress(), liveTotal = 1, liveJobId = null;
 const watching = new Set();        // active job ids currently being tracked (to detect a vanish)
 const announcedIds = new Set();    // image ids already announced this session (dedupe the diff)
@@ -982,11 +980,11 @@ async function liveSync() {
   for (const j of jobs) { watching.add(j.jobId); for (const id of (j.imageIds || [])) announceImage(j, id); }
   for (const jobId of [...watching]) if (!activeIds.has(jobId)) { watching.delete(jobId); finalizeJob(jobId); }
 
-  // NOTE: this used to publish an `imagegen:batch` event so the Recent strip could size itself to the work in flight.
-  // It doesn't any more, and nothing should: the strip's window is a server-side fact (/api/recents reads the batch off
-  // the job table). Assembling it here meant the size lived only in a tab that watched the batch happen, so a reload
-  // after it finished silently cropped the last batch. announceImage's `imagegen:generated` remains the trigger to
-  // re-pull; what to show is not this file's to decide.
+  // The strip's window is a server-side fact (/api/recents reads the batch off the job table), so this file does not
+  // publish an `imagegen:batch` event to size the Recent strip to the work in flight. Assembling that size here would
+  // make it live only in a tab that watched the batch happen, so a reload after it finished would silently crop the
+  // last batch. announceImage's `imagegen:generated` remains the trigger to re-pull; what to show is not this file's
+  // to decide.
 
   // Gen-state reflection — skip while THIS tab runs its own gen (the local Generate/Batch flow owns the UI then).
   if (activeGen && !liveRemote) return;
@@ -1049,10 +1047,10 @@ function startLiveSync() {
   await loadModels();
   // Composer state comes from the account now (per user, cross-device), not localStorage.
   //
-  // composerPrefsLoaded gates every later write. Both failures below used to resolve to "no stored state" — a
-  // failed GET became null, an unreadable blob became an empty catch — and the composer then persisted its blank
-  // defaults over the user's real draft the moment they touched anything. Absent state and unknown state are not
-  // the same thing, and only the first one is safe to overwrite.
+  // composerPrefsLoaded gates every later write. Resolving either failure below to "no stored state" — a failed GET
+  // becoming null, an unreadable blob becoming an empty catch — would let the composer persist its blank defaults over
+  // the user's real draft the moment they touched anything. Absent state and unknown state are not the same thing,
+  // and only the first one is safe to overwrite.
   let s = null;
   try {
     s = await fetchSettings();

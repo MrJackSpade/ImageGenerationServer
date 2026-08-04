@@ -104,12 +104,12 @@
   //
   // A generation announces itself with `imagegen:generated`, and the live cross-device tracker fires
   // `imagegen:refresh` when a job finalizes. artist.js, compose.js, edit.js and recents.js all treat those as
-  // triggers to re-pull; the gallery listened to neither, so this was the one page where a batch you were
-  // watching never showed up and you had to reload to see your own images.
+  // triggers to re-pull, and so does the gallery — otherwise it would be the one page where a batch you were
+  // watching never showed up until you reloaded.
   //
   // The events are only a SIGNAL that something changed. What to show comes from re-asking the server for
-  // page 1 — accumulating ids this tab happened to witness is what previously made a reload disagree with a
-  // tab that watched the batch run (recents.js carries the same note). Thumbnails only: nothing opens,
+  // page 1 — accumulating ids this tab happened to witness would make a reload disagree with a tab that watched
+  // the batch run (recents.js carries the same note). Thumbnails only: nothing opens,
   // nothing expands, and someone scrolled into last month does not get the view moved under them.
   let refreshing = false;
   async function refreshNewest() {
@@ -145,8 +145,8 @@
     }
   }
   // The emitters dispatch these on `document` with bubbles:false (compose.js, edit.js, detail.js, multiselect.js),
-  // so a `window` listener never sees them — /gallery sat dead while every other page updated live. Listen on the
-  // element the event is actually dispatched on, exactly as artist.js and recents.js do.
+  // so a `window` listener never sees them — listening on `window` would leave /gallery dead while every other page
+  // updated live. Listen on the element the event is actually dispatched on, exactly as artist.js and recents.js do.
   document.addEventListener("imagegen:generated", refreshNewest);
   document.addEventListener("imagegen:refresh", refreshNewest);
 

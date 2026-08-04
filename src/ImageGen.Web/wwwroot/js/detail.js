@@ -6,9 +6,9 @@ function initDetail(root, opts) {
   opts = opts || {};
   const card = root.querySelector(".detail-card");
   if (!card) return;
-  // Everything below is wired from this record. Returning silently on a parse failure — which is what this did —
-  // left the card rendered and looking normal with bookmark, delete and download all inert, and nothing anywhere
-  // said why. The controls still cannot be wired, but the failure is now visible and logged.
+  // Everything below is wired from this record. Returning silently on a parse failure would leave the card rendered
+  // and looking normal with bookmark, delete and download all inert, and nothing anywhere saying why. The controls
+  // still cannot be wired, but the failure is made visible and logged.
   let rec;
   try {
     rec = JSON.parse(root.querySelector("#detailRecord").textContent);
@@ -117,10 +117,10 @@ function initDetail(root, opts) {
     //
     // Filing a BANNED tag has to lift the ban, the same way the tap cycle's bookmarked -> banned step deletes the
     // bookmark. The gesture says "I want this tag"; the ban says "never use this tag here"; one of them has to go,
-    // and it is the one the user did not just perform. Without this the save bookmarked the token, paint() dropped
-    // the outline, and deleteBan was never called — so the tag stayed excluded from this model's auto-gen while the
-    // chip claimed otherwise, and a reload contradicted it (banned is rendered from the DB, bookmarked was this
-    // chip's own guess). Scoped to THIS model's ban, because that is the only one the chip ever represented.
+    // and it is the one the user did not just perform. Without this the save would bookmark the token, paint() would
+    // drop the outline, and deleteBan would never be called — so the tag would stay excluded from this model's auto-gen
+    // while the chip claimed otherwise, and a reload would contradict it (banned is rendered from the DB, bookmarked is
+    // this chip's own guess). Scoped to THIS model's ban, because that is the only one the chip ever represented.
     if (window.attachCategoryLongPress) {
       window.attachCategoryLongPress(chip, () => ({
         scope: "token", name: key, kind,
@@ -184,7 +184,7 @@ function initDetail(root, opts) {
 
   // One portrait button for the whole image: choose whether this picture represents one of its artists, tags, or
   // LoRAs. A category with nothing in it is omitted; one with a single member assigns straight through; one with
-  // several opens a second list to pick which. Replaces the old per-artist 🖼 buttons and the per-LoRA chip click.
+  // several opens a second list to pick which.
   const portraitBtn = root.querySelector("#detailPortrait");
   if (portraitBtn) {
     const marks = rec.marks || {};

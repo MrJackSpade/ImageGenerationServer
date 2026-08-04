@@ -1,5 +1,5 @@
 // Settings page: per-model banned tags/artists. Uses core.js.
-// (The random-prompt temperature moved to the composer's Random prompt slider, where 0 means off.)
+// (The random-prompt temperature is on the composer's Random prompt slider, where 0 means off.)
 
 // --- banned tags/artists (per model) ------------------------------------------------------------
 (async function () {
@@ -12,9 +12,10 @@
   // Present, tagging-capable generate configurations from the gateway. /workflows already returns only runnable
   // (present + VRAM-fitting) configs, so no client-side presence check is needed.
   //
-  // Both loads below record WHY they came back empty. Swallowing that produced an empty `models`, which fell through
-  // to "No tagging workflows found" with the ban form hidden — a definite statement about this machine's catalog,
-  // printed because a fetch failed. Worse, it hid the editor for bans that do exist and were simply not fetched.
+  // Both loads below record WHY they came back empty. Swallowing that would produce an empty `models`, which falls
+  // through to "No tagging workflows found" with the ban form hidden — a definite statement about this machine's
+  // catalog, printed because a fetch failed. Worse, it would hide the editor for bans that do exist and were simply
+  // not fetched.
   let loadError = "";
   try {
     const r = await fetch(`${GATEWAY}/workflows`);
@@ -100,9 +101,9 @@
   render();
 })();
 
-// NOTE: the generation mask (which tag kinds Random prompt may emit) used to be built here. It now lives on the
-// composer, under the Random prompt slider that it qualifies, and is built by compose.js (buildTagTypes) from the
-// same /api/settings response. It is still the same account setting on the same PUT route — only the UI moved.
+// NOTE: the generation mask (which tag kinds Random prompt may emit) lives on the composer, under the Random prompt
+// slider that it qualifies, and is built by compose.js (buildTagTypes) from the same /api/settings response. It is
+// the same account setting on the same PUT route — surfaced there, not here.
 
 // --- free VRAM ----------------------------------------------------------------------------------
 // Asks the renderer to unload its models. It applies the request between prompts, so clicking this mid-render is

@@ -337,8 +337,8 @@ function wsFraction(m) {
 // Hence `fraction`: one image's fraction only ever climbs, so a DROP is unambiguously the next image starting, and
 // the finished count is credited right then instead of waiting for the poll to catch up.
 //
-// Both bar writers must go through one of these — a bar with two writers computing two different quantities is
-// what made it bounce. Make one per run; its state is that run's.
+// Both bar writers must go through one of these — a bar with two writers computing two different quantities
+// bounces. Make one per run; its state is that run's.
 function newBatchProgress() {
   let frac = 0, done = 0;
   return {
@@ -626,7 +626,7 @@ const saveEditPrefs = json => Api.send("/api/settings/edit-prefs", "PUT", { edit
 const saveBookmarkPrefs = json => Api.send("/api/settings/bookmarks", "PUT", { bookmarkPrefs: json });
 // Favorited workflow ids (JSON array string) + custom per-workflow tags (JSON map string, encrypted server-side).
 // Favourites, hidden workflows and per-workflow labels are RELATIONS server-side (rows, not blobs), so these send
-// and receive real arrays/maps. They used to be JSON strings the client stringified and the server stored opaquely.
+// and receive real arrays/maps.
 const saveFavoriteWorkflows = ids => Api.send("/api/settings/favorites", "PUT", { favoriteWorkflowIds: ids });
 const saveWorkflowTags = map => Api.send("/api/settings/workflow-tags", "PUT", { customWorkflowTags: map });
 const saveHiddenWorkflows = ids => Api.send("/api/settings/hidden", "PUT", { hiddenWorkflowIds: ids });
@@ -662,10 +662,10 @@ function parseWorkflowTags(s) {
 
 // The per-user workflow preferences (favorites / hidden / custom tags), loaded as ONE unit with an explicit ok flag.
 //
-// `ok:false` means UNKNOWN, not empty, and that distinction is the whole point. Every caller used to write
-// `fetchSettings().catch(() => ({}))` and feed the empty object to parsers that also answered empty on failure — so a
-// single failed GET produced a perfectly plausible "this user has no favorites". That value is not inert: the pages
-// hold it in memory and PUT the entire set back on the next star or hide, which quietly replaced the user's real
+// `ok:false` means UNKNOWN, not empty, and that distinction is the whole point. A caller that wrote
+// `fetchSettings().catch(() => ({}))` and fed the empty object to parsers that also answer empty on failure would let
+// a single failed GET produce a perfectly plausible "this user has no favorites". That value is not inert: the pages
+// hold it in memory and PUT the entire set back on the next star or hide, which would quietly replace the user's real
 // favorites with nothing. Pages that write MUST refuse to when ok is false; pages that only read may show the
 // un-personalized list.
 // `settings` is the whole settings response, or null when the GET itself failed — callers that also need a different

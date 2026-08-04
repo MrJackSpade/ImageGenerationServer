@@ -1,5 +1,5 @@
-// Reusable booru tag / artist autocomplete for a prompt <textarea>. Ported verbatim from the compose page's
-// inlined logic so behavior stays identical, but parameterized over the target input + popup + the active model.
+// Reusable booru tag / artist autocomplete for a prompt <textarea>, parameterized over the target input + popup +
+// the active model.
 //
 //   initTagBox({ input, pop, getModel, onAccept })
 //     input    : the <textarea> to attach to
@@ -78,15 +78,15 @@ function initTagBox(opts) {
       if (tags.length) ctx = tags.join(",");
     }
     try {
-      // POST, with the prompt context in the BODY. This fires on every keystroke; as a query string it wrote the
-      // prompt into the browser's history and address-bar autocomplete as it was being typed.
+      // POST, with the prompt context in the BODY. This fires on every keystroke; as a query string it would write
+      // the prompt into the browser's history and address-bar autocomplete as it is being typed.
       const r = await fetch(`${GATEWAY}/tags`, {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ q: tok.frag, kind, limit: 10, ctx }),
       });
       // A failed lookup is REPORTED, not just closed. Closing the popup is visually identical to "no tags matched",
-      // which is how a dead /tags route went unnoticed on the composer's main prompt (see compose.js queryTags).
+      // so a dead /tags route would go unnoticed.
       if (!r.ok) { console.error(`tags: POST ${GATEWAY}/tags -> ${r.status}`); close(); return; }
       const items = await r.json();
       if (s !== seq) return;
