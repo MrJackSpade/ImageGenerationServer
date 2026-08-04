@@ -111,9 +111,9 @@ public sealed class RenderStorageException(string message) : Exception(message);
 
 /// <summary>
 /// Render-pipeline options resolved from configuration at composition.
-/// <para>This used to carry <c>LogPrompts</c>, which duplicated prompt-bearing diagnostics into the PLAINTEXT app
-/// log. It is gone rather than defaulted off: "off by default" plus a file sink means prompts are one config toggle
-/// from being written to disk permanently, and the same content already goes to the per-user ENCRYPTED log
+/// <para>There is deliberately no <c>LogPrompts</c> option: it would duplicate prompt-bearing diagnostics into the
+/// PLAINTEXT app log, and "off by default" plus a file sink means prompts would be one config toggle from being
+/// written to disk permanently. The same content already goes to the per-user ENCRYPTED log
 /// (Logging:AuditUserPrompts), which is the channel that exists for it.</para>
 /// </summary>
 public sealed record RenderOptions();

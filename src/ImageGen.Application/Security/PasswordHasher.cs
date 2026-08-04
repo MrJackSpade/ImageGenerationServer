@@ -23,12 +23,12 @@ public static class PasswordHasher
 
     /// <summary>Check <paramref name="password"/> against a stored hash. The ONLY thing false means is that the
     /// password does not match.
-    /// <para>A defect in <paramref name="stored"/> itself THROWS. Every branch below used to answer false for it,
-    /// which reported a corrupt credential row as "wrong password": the account could never be logged into, the
-    /// person was told the one thing that was not true and would keep retrying, and nothing anywhere recorded that
-    /// the record was damaged. A row that cannot be evaluated is a server fault and reads as one — a 500 the
-    /// operator can see and fix, not a login failure the user is blamed for. Messages describe the defect only;
-    /// the stored value is credential material and never appears in them.</para></summary>
+    /// <para>A defect in <paramref name="stored"/> itself THROWS. Answering false for it would report a corrupt
+    /// credential row as "wrong password": the account could never be logged into, the person would be told the one
+    /// thing that is not true and keep retrying, and nothing anywhere would record that the record was damaged. A row
+    /// that cannot be evaluated is a server fault and reads as one — a 500 the operator can see and fix, not a login
+    /// failure the user is blamed for. Messages describe the defect only; the stored value is credential material and
+    /// never appears in them.</para></summary>
     public static bool Verify(string password, string stored)
     {
         if (string.IsNullOrEmpty(stored))

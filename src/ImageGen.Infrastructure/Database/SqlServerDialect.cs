@@ -1,8 +1,8 @@
 namespace ImageGen.Infrastructure.Database;
 
 /// <summary>
-/// <see cref="ISqlDialect"/> for SQL Server. Every member here is the wording the app shipped with, moved behind the
-/// interface unchanged — so introducing the second provider could not alter what runs against the existing database.
+/// <see cref="ISqlDialect"/> for SQL Server. Every member here is the canonical SQL Server wording, kept behind the
+/// interface unchanged so the second provider cannot alter what runs against a SQL Server database.
 /// </summary>
 public sealed class SqlServerDialect : ISqlDialect
 {

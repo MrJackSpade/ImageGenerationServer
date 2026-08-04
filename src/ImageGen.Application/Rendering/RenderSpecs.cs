@@ -12,9 +12,9 @@ public sealed record LoraSelection(string Name, double Weight);
 /// configuration id; <see cref="Overrides"/> are optional values for its UI-exposed parameters. The spec carries no ban
 /// list: the user's banned tags/artists are read from the store at render time, so a job resumed after a restart honours
 /// the bans as they stand THEN, not as they stood at submit.
-/// <para>This is an in-memory shape only. It used to be serialized whole into an encrypted <c>RequestJson</c> column,
-/// which made its property NAMES a durable contract — and a rename then deserialized silently into a null. The slot's
-/// spec is typed columns now, so renaming a property here is an ordinary refactor.</para>
+/// <para>This is an in-memory shape only: the slot's spec is stored as typed columns, so these property NAMES are not
+/// a durable contract and renaming one here is an ordinary refactor. Serializing the spec whole into an encrypted
+/// <c>RequestJson</c> column would make the names a durable contract, where a rename deserializes silently into a null.</para>
 /// </summary>
 /// <param name="TagTypes">
 /// The generation mask for THIS render: which tag types the random-prompt model may emit. Per-slot like

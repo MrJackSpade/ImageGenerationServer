@@ -5,10 +5,10 @@ namespace ImageGen.Application.Platform;
 /// as long as their job waits in the queue and are never evicted, so the box's free memory is a real admission
 /// constraint — and the ONLY correct moment to act on it is before the work is accepted.
 /// <para>
-/// This replaces the previous arrangement, where the upload store silently dropped the least-recently-used input past
-/// a byte budget. That answered a full box by destroying work already accepted: a bulk submission evicted its own
-/// earlier sources, and 16,831 jobs the API had returned a jobId for failed later with "source image not found".
-/// Refusing at the door tells the caller the truth at the one moment they can still do something about it.
+/// The alternative — letting the upload store silently drop the least-recently-used input past a byte budget — answers
+/// a full box by destroying work already accepted: a bulk submission would evict its own earlier sources, and jobs the
+/// API had returned a jobId for would fail later with "source image not found". Refusing at the door tells the caller
+/// the truth at the one moment they can still do something about it.
 /// </para>
 /// </summary>
 /// <param name="memory">Reports the machine's available physical memory.</param>

@@ -10,10 +10,10 @@ namespace ImageGen.Application.Logging;
 /// <c>dbo.UserLog</c>. A no-op when auditing is disabled (<c>Logging:AuditUserPrompts</c> = false), so callers can
 /// log unconditionally. Best-effort by design: it never throws into a render/request path — a logging failure must
 /// not fail the work it was observing.
-/// <para>"Best-effort" means it does not RETHROW; it never meant the failure goes unrecorded. This swallowed every
-/// exception into an empty block, so an audit trail that had silently stopped being written — a broken cipher key, a
-/// table that would not accept a row — was invisible precisely where a gap in the record matters most. The failure
-/// now goes to the application log, which is the one place still working when the audit table is not.</para>
+/// <para>"Best-effort" means it does not RETHROW; it does not mean the failure goes unrecorded. Swallowing every
+/// exception into an empty block would leave an audit trail that had silently stopped being written — a broken cipher
+/// key, a table that would not accept a row — invisible precisely where a gap in the record matters most. The failure
+/// goes to the application log, which is the one place still working when the audit table is not.</para>
 /// </summary>
 public sealed class UserLogService(IUserCipher cipher, IUserLogRepository repository, bool enabled,
     ILogger<UserLogService> log) : IUserLogService

@@ -2,10 +2,9 @@ namespace ImageGen.Domain.Entities;
 
 /// <summary>
 /// A user's relationships to workflows: which they starred, which they hid, and the labels they put on them.
-/// <para>These are RELATIONS — user × workflow, and user × workflow × tag — and they are now stored as such
-/// (dbo.UserFavoriteWorkflow, dbo.UserHiddenWorkflow, dbo.UserWorkflowTag). They used to be three JSON blobs on the
-/// user row, which meant nothing could ask which users favourited a workflow, and nothing cleaned up when a workflow
-/// left the catalog.</para>
+/// <para>These are RELATIONS — user × workflow, and user × workflow × tag — stored as such
+/// (dbo.UserFavoriteWorkflow, dbo.UserHiddenWorkflow, dbo.UserWorkflowTag). As JSON blobs on the user row nothing
+/// could ask which users favourited a workflow, and nothing would clean up when a workflow left the catalog.</para>
 /// <para>Deliberately NOT part of <see cref="User"/>. Every authenticated request loads the user; these are read on
 /// the settings path only, and hanging three more queries off the hot path to carry data almost nobody asks for is
 /// how a relation becomes "too slow to normalise".</para>

@@ -4,10 +4,10 @@ namespace ImageGen.Infrastructure.Database;
 /// The handful of SQL fragments that genuinely have no shared spelling between SQL Server and SQLite.
 ///
 /// <para>This is deliberately tiny. Of ~130 statements in this assembly, all but these are already portable — the
-/// non-portable ones were rewritten in place (see <c>ImageDeletionRepository</c>, <c>HistoryRepository</c>,
-/// <c>ArtistDisplayRepository</c>) rather than hidden behind a dialect member, because a rewrite is readable
-/// afterwards and a per-provider branch is not. What is left is only where the two engines spell the same idea with
-/// different words.</para>
+/// ones that would otherwise differ are spelled portably in place (see <c>ImageDeletionRepository</c>,
+/// <c>HistoryRepository</c>, <c>ArtistDisplayRepository</c>) rather than hidden behind a dialect member, because a
+/// portable rewrite is readable and a per-provider branch is not. What is left is only where the two engines spell
+/// the same idea with different words.</para>
 /// </summary>
 public interface ISqlDialect
 {

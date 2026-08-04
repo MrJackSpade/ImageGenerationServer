@@ -249,10 +249,10 @@ ORDER BY Uses DESC, ModelFriendly ASC;";
     /// <summary>
     /// The entries either side of this one in the user's history, ordered by <c>(CreatedAtUtc, Id)</c> so that entries
     /// sharing a timestamp still have a stable order.
-    /// <para>This was a single batch that stashed the anchor row's <c>(CreatedAtUtc, Id)</c> in <c>DECLARE</c>d local
-    /// variables. SQLite has no local variables, so the anchor is now fetched into C# and passed back as parameters —
-    /// three round trips instead of one, for a two-arrow navigation control. A missing anchor still yields
-    /// <c>(null, null)</c>: previously because comparisons against NULL matched nothing, now because we return early.</para>
+    /// <para>SQLite has no local variables, so the anchor row's <c>(CreatedAtUtc, Id)</c> cannot be stashed in a
+    /// <c>DECLARE</c> and reused within one batch: it is fetched into C# and passed back as parameters — three round
+    /// trips instead of one, for a two-arrow navigation control. A missing anchor returns early with
+    /// <c>(null, null)</c>.</para>
     /// </summary>
     public async Task<HistoryNeighbors> GetNeighborsAsync(
         long userId, string gatewayImageId, CancellationToken ct)

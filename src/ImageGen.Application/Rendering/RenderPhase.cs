@@ -21,12 +21,12 @@ public enum RenderPhase
 /// <summary>
 /// The ONE derivation of a render phase, for every caller.
 ///
-/// <para>It exists because "running" was decided independently in four view builders and three of them meant something
-/// weaker than "on the GPU": a batch that had merely started (one finished slot, the rest waiting), an Active database
-/// row (any non-terminal job, including ones no live worker owned), and a slot the scheduler had picked but not yet
-/// submitted. On a single-GPU box that read back as dozens of jobs "running" at once while nothing was generating.</para>
+/// <para>It exists so "running" is not decided independently by each view builder, where it drifts into meaning
+/// something weaker than "on the GPU": a batch that has merely started (one finished slot, the rest waiting), an Active
+/// database row (any non-terminal job, including ones no live worker owns), or a slot the scheduler has picked but not
+/// yet submitted. On a single-GPU box those read back as dozens of jobs "running" at once while nothing is generating.</para>
 ///
-/// <para>The rule that replaces them: <b>running is a live fact about a GPU</b>. It is entered only on the backend's
+/// <para>The rule: <b>running is a live fact about a GPU</b>. It is entered only on the backend's
 /// report that the prompt is executing (<see cref="SlotState.Running"/>), it lives only in the owning instance's
 /// memory, and it is never inferred from anything else — least of all from a durable row, which is a claim from some
 /// earlier moment with no GPU behind it any more.</para>
@@ -82,7 +82,7 @@ public static class RenderPhases
 
     /// <summary>
     /// The durable spelling of a live slot state. A running slot persists as <see cref="JobSlotState.Queued"/>: the
-    /// row cannot keep "on the GPU" true past this process's life, and writing it anyway is what left crashed and
+    /// row cannot keep "on the GPU" true past this process's life, and writing it anyway would leave crashed and
     /// orphaned rows claiming to render forever. Everything resuming actually needs is stored beside it — the slot is
     /// non-terminal and carries its <c>ComfyPromptId</c>.
     /// </summary>

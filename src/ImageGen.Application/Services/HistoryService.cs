@@ -26,10 +26,10 @@ public sealed class HistoryService(
     /// them, and enough of them to cover their current-or-last batch whenever that batch has produced more than the
     /// minimum. A batch's images are the newest in history, so a window that size shows the batch and only the batch.
     ///
-    /// The WINDOW is decided here, not by the browser. It used to be assembled client-side from live job events, which
-    /// meant the size existed only in the page that watched the batch happen: reload after it finished and the strip
-    /// forgot, falling back to the minimum and cropping the last batch (50 made, 48 shown). The batch is a fact in the
-    /// job table — read it from there, every time, and a page that just loaded is as right as one that watched.
+    /// The WINDOW is decided here, not by the browser. Assembling it client-side from live job events would put the
+    /// size only in the page that watched the batch happen: reload after it finished and the strip would forget,
+    /// falling back to the minimum and cropping the last batch. The batch is a fact in the job table — read it from
+    /// there, every time, and a page that just loaded is as right as one that watched.
     /// </summary>
     public async Task<IReadOnlyList<HistoryEntry>> GetRecentsAsync(long userId, int minimum, CancellationToken ct)
     {

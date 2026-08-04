@@ -13,7 +13,7 @@ namespace ImageGen.Application.Prompting;
 ///
 /// There is deliberately no inverse here. Rebuilding the marker form from a finalized prompt is lossy — finalization
 /// folds underscores and strips markers, and no amount of care recovers underscores inside unmarked prose or the
-/// original casing — and it is how copy, the inpaint box and Reload each ended up with a different answer for the same
+/// original casing — so copy, the inpaint box and Reload would each end up with a different answer for the same
 /// image ("#long_hair", "#long hair", "long hair"). If something needs the raw prompt, store it; do not reconstruct it.
 /// </summary>
 public static partial class PromptMarkers

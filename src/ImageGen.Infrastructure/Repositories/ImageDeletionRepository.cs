@@ -28,12 +28,11 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
     /// <item><c>ImageView</c> is named here rather than left to accumulate: the whole point of the cascade is that a
     /// deleted image leaves nothing behind that references it.</item>
     /// </list>
-    /// <para>This was one multi-statement T-SQL batch built on a <c>DECLARE @jobs TABLE</c> variable,
-    /// <c>DELETE ... OUTPUT deleted.JobId INTO</c>, <c>@@ROWCOUNT</c> and the <c>DELETE alias FROM</c> form — four
-    /// constructs with no SQLite equivalent, and the single least portable statement in the codebase. It is now the
-    /// same sequence expressed as ordinary statements the caller orchestrates: the rowcount comes from
-    /// <c>ExecuteNonQuery</c>, and the set of touched jobs is read out before the delete instead of captured by it.
-    /// Identical semantics on either engine, and the transaction still makes it all-or-nothing.</para>
+    /// <para>The cascade is expressed as ordinary statements the caller orchestrates rather than one multi-statement
+    /// T-SQL batch: <c>DECLARE @jobs TABLE</c>, <c>DELETE ... OUTPUT deleted.JobId INTO</c>, <c>@@ROWCOUNT</c> and the
+    /// <c>DELETE alias FROM</c> form all lack a SQLite equivalent. The rowcount comes from <c>ExecuteNonQuery</c>, and
+    /// the set of touched jobs is read out before the delete instead of captured by it. Identical semantics on either
+    /// engine, and the transaction makes it all-or-nothing.</para>
     /// </summary>
     public async Task<bool> DeleteEverywhereAsync(long userId, string gatewayImageId, CancellationToken ct)
     {
@@ -61,7 +60,7 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
         }
 
         // 3. Which finalized jobs of this user hold a slot for the image. Read FIRST, because after the delete
-        //    below there is nothing left to identify them by (this is what the OUTPUT ... INTO clause was for).
+        //    below there is nothing left to identify them by.
         var jobIds = new List<string>();
         await using (var cmd = conn.Command(
             "SELECT DISTINCT s.JobId FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId " +

@@ -41,6 +41,6 @@ public interface IHistoryRepository
     Task<bool> AddAsync(HistoryEntry entry, CancellationToken ct);
 
     // Deliberately no Delete here. Removing the history row is only one part of deleting an image, and doing just
-    // that is what stranded the bytes, bookmark, artist display, frames, and job slot behind it. Deleting an image
+    // that strands the bytes, bookmark, artist display, frames, and job slot behind it. Deleting an image
     // goes through IImageDeletionRepository, which erases every table that names the id in one transaction.
 }

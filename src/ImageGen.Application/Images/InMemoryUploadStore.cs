@@ -5,10 +5,10 @@ namespace ImageGen.Application.Images;
 /// <para>
 /// An upload is an input to a render that has been ACCEPTED, and the queue it waits in is durable and unbounded — a
 /// batch can sit for hours before its slot comes up. So this store keeps what it is given: nothing here may expire,
-/// be evicted, or be reclaimed while the process runs. It previously held a byte budget and dropped the
-/// least-recently-used past it, which meant queue depth silently destroyed queued work — a bulk submission evicted
-/// its own earlier sources long before the worker reached them, and 16,831 accepted jobs failed with "source image
-/// not found" for inputs the app itself had thrown away. A render input is not cache.
+/// be evicted, or be reclaimed while the process runs. A byte budget that dropped the least-recently-used past it
+/// would let queue depth silently destroy queued work — a bulk submission would evict its own earlier sources long
+/// before the worker reached them, and accepted jobs would fail with "source image not found" for inputs the app
+/// itself had thrown away. A render input is not cache.
 /// </para>
 /// <para>Registered as a singleton — it IS the storage, so there is exactly one per process.</para>
 /// </summary>

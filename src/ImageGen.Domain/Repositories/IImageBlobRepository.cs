@@ -3,10 +3,10 @@ using ImageGen.Domain.Entities;
 namespace ImageGen.Domain.Repositories;
 
 /// <summary>
-/// Durable database storage for image bytes, keyed by a globally-unique opaque id. Replaces serving images by
-/// proxying ComfyUI's /view (where the id was a ComfyUI filename that could collide across the app + MCP, or
-/// disappear when ComfyUI's output dir rotated). New images are stored here on generation/upload and served
-/// DB-first.
+/// Durable database storage for image bytes, keyed by a globally-unique opaque id. The bytes live here rather than
+/// being served by proxying ComfyUI's /view, where the id would be a ComfyUI filename that can collide across the
+/// app + MCP or disappear when ComfyUI's output dir rotates. New images are stored here on generation/upload and
+/// served DB-first.
 /// </summary>
 public interface IImageBlobRepository
 {

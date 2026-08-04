@@ -9,15 +9,15 @@ namespace ImageGen.Application.Tags;
 /// the set completes to a real alternative instead of coming back one tag short — and the model is *told* it is off,
 /// so its completeness head stops at the right place.
 ///
-/// EVERY type the model can suppress is switchable (2026-07-26). Since 2026-07-25 the model is conditioned on every
-/// drop-subset of all five member-bearing categories (<c>tagmodel/s2srec2/typemask.py</c>, <c>DROPPABLE</c>) —
-/// <c>general</c> included — so the five below ARE that list, and the user's selection is therefore the whole wire
-/// list. <c>general</c> off is a real condition, not a broken one: it is how a set like
-/// <c>{traditional_media, colored_pencil}</c> gets to be a complete thought.
+/// EVERY type the model can suppress is switchable. The model is conditioned on every drop-subset of all five
+/// member-bearing categories (<c>tagmodel/s2srec2/typemask.py</c>, <c>DROPPABLE</c>) — <c>general</c> included — so
+/// the five below ARE that list, and the user's selection is therefore the whole wire list. <c>general</c> off is a
+/// real condition, not a broken one: it is how a set like <c>{traditional_media, colored_pencil}</c> gets to be a
+/// complete thought.
 ///
 /// Stored per user as the JSON this class parses/serialises; <b>null means unset</b>, which resolves to
-/// <see cref="Default"/> — artists off, everything else on, the behaviour that was hardcoded before this was
-/// configurable (an artist is a style, not a subject, and the composer picks one with its own '@artist' toggle).
+/// <see cref="Default"/> — artists off, everything else on (an artist is a style, not a subject, and the composer
+/// picks one with its own '@artist' toggle).
 /// </summary>
 public static class GenerationTagTypes
 {
@@ -34,9 +34,7 @@ public static class GenerationTagTypes
     /// category is switchable this is the selection itself — but callers still go through here rather than passing the
     /// selection straight to the wire, because this is the one place that has to change if the model ever gains a
     /// category the user is offered no switch for. Sending a list short one category does not error; it just quietly
-    /// generates under a mask nobody chose (the bare-selection bug: once the model learned to drop <c>general</c>, the
-    /// standing <c>types=character,copyright,meta</c> read as "general off" and collapsed every prompt to
-    /// <c>[highres, original]</c>).</summary>
+    /// generates under a mask nobody chose.</summary>
     public static IReadOnlyList<string> ForWire(IReadOnlyList<string> selected) => selected;
 
     /// <summary>Stored-form version. v1 was a bare JSON array written when <c>general</c> was not switchable; v2 is an
@@ -51,8 +49,7 @@ public static class GenerationTagTypes
     ///
     /// A v1 value (bare array) is UPGRADED on read, never taken at face value: it was written when <c>general</c> was
     /// always allowed and unlistable, so reading it under today's rules would switch general off for every user who had
-    /// ever touched this setting — the collapsed-prompt bug, re-introduced silently. It is rewritten in v2 form the next
-    /// time the user saves.</summary>
+    /// ever touched this setting. It is rewritten in v2 form the next time the user saves.</summary>
     public static IReadOnlyList<string> Resolve(string? storedJson)
     {
         if (string.IsNullOrWhiteSpace(storedJson)) return Default;

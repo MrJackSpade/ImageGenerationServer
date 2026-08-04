@@ -3,10 +3,10 @@ namespace ImageGen.Domain.Entities;
 /// <summary>
 /// A registered user, identified by a unique username and authenticated by a locally-stored password
 /// hash. Owns all history and bookmarks.
-/// <para>The user's favourited workflows, hidden workflows and custom workflow tags used to be three JSON blobs
-/// here. They are RELATIONS — user × workflow, and user × workflow × tag — and are stored as such now; see
-/// <see cref="UserWorkflowPrefs"/>. They are deliberately not loaded with the user either: every authenticated
-/// request reads this record, and they are wanted on the settings path only.</para>
+/// <para>The user's favourited workflows, hidden workflows and custom workflow tags are RELATIONS — user × workflow,
+/// and user × workflow × tag — stored separately; see <see cref="UserWorkflowPrefs"/>. They are deliberately not
+/// loaded with the user either: every authenticated request reads this record, and they are wanted on the settings
+/// path only.</para>
 /// </summary>
 public sealed class User
 {

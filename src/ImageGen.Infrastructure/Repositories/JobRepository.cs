@@ -19,7 +19,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// RawNegativePrompt / Prompt / NegativePrompt — is randomized-encrypted under the job owner's key. A slot's MARK
 /// tokens are deterministically encrypted, so equality and IN (…) still work over them. Everything else — ids,
 /// workflow, states, flags, numbers, timings — is plaintext, because none of it is protected and hiding it behind a
-/// key is exactly what made four image foreign keys unjoinable.</para>
+/// key would leave four image foreign keys unjoinable.</para>
 /// </summary>
 public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, TimeProvider clock, ISqlDialect dialect)
     : IJobRepository
@@ -28,7 +28,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
     private readonly ISqlDialect _dialect = dialect;
     private readonly IUserCipher _cipher = cipher;
-    /// <summary>Supplies <c>FinishedAtUtc</c>, which the database used to stamp itself via <c>SYSUTCDATETIME()</c>.</summary>
+    /// <summary>Supplies <c>FinishedAtUtc</c>, stamped from the app clock rather than a database-side <c>SYSUTCDATETIME()</c>.</summary>
     private readonly TimeProvider _clock = clock;
 
     /// <summary>Positional: MapSlot reads by ordinal, so append — never insert — a column here.</summary>
@@ -203,11 +203,11 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         // ORDERING: unfinished work FIRST, in the order the queue will actually serve it (oldest enqueued renders
         // next), then finished jobs newest-first.
         //
-        // This used to be newest-created-first for everything, which put the page's ordering in direct contradiction
-        // with the scheduler's: the fair queue renders the OLDEST queued job, so the one actually on the GPU sat at
-        // the BOTTOM of the backlog — page 3 of a 64-job burst — while page 1, the only page the client polls, held
-        // 25 jobs that could not change until the drain was nearly over. The queue page looked frozen for as long as
-        // the backlog took, and any live row a user did scroll to was on a page that never refreshed.
+        // Newest-created-first for everything would put the page's ordering in direct contradiction with the
+        // scheduler's: the fair queue renders the OLDEST queued job, so the one actually on the GPU would sit at the
+        // BOTTOM of the backlog — page 3 of a 64-job burst — while page 1, the only page the client polls, would hold
+        // 25 jobs that cannot change until the drain is nearly over. The queue page would look frozen for as long as
+        // the backlog takes, and any live row a user scrolled to would be on a page that never refreshes.
         var jobs = new List<JobRecord>();
         await using (var cmd = conn.Command(
             "SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc " +
@@ -334,9 +334,9 @@ WHERE JobId = @jobId
 
     /// <summary>
     /// The request that produced an image, as JSON for the caller to hand back.
-    /// <para>It used to be one stored blob read straight out of a column; it is now ASSEMBLED from the typed columns
-    /// and the reference child rows. That is the point of the change — the same answer, from a row a query can also
-    /// filter, join and count, instead of from an opaque string only a key could open.</para>
+    /// <para>It is ASSEMBLED from the typed columns and the reference child rows rather than read from one opaque
+    /// stored blob — the same answer, but from a row a query can also filter, join and count instead of a string only
+    /// a key could open.</para>
     /// </summary>
     public async Task<ImageRequestRecord?> GetRequestByImageAsync(string imageId, CancellationToken ct)
     {

@@ -20,7 +20,7 @@ public enum SlotState
     /// <summary>Failed: something went wrong. NOT cancellation — see <see cref="Cancelled"/>.</summary>
     Error,
     /// <summary>Stopped on the user's request. Terminal like <see cref="Error"/>, but nothing went wrong: the user
-    /// asked for this, and reporting it as a failure is how a deliberate stop came to read as one.</summary>
+    /// asked for this, and reporting it as a failure would misrepresent a deliberate stop.</summary>
     Cancelled,
 }
 

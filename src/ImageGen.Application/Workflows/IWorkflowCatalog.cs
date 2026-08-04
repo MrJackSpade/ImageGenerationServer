@@ -34,9 +34,9 @@ public interface IWorkflowCatalog
     /// <summary>
     /// Every workflow with the reason it is or is not available, and every model slot with what is bound to it.
     ///
-    /// <para>This exists because unavailability used to be silent: a workflow whose files were not recognised
-    /// simply did not appear, and there was no surface anywhere that said which slot was empty. Runs
-    /// auto-matching first, so a fresh install has already recognised what it can before anyone looks.</para>
+    /// <para>This exists so unavailability is not silent: without it a workflow whose files are not recognised
+    /// simply does not appear, and no surface anywhere says which slot is empty. Runs auto-matching first, so a
+    /// fresh install has already recognised what it can before anyone looks.</para>
     /// </summary>
     Task<CatalogStatus> GetStatusAsync(CancellationToken ct);
 

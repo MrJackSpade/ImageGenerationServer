@@ -70,9 +70,9 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
     {
         // Upsert: a user setting their own pick isn't concurrent, so update-then-insert is fine.
         //
-        // The branch used to be `IF @@ROWCOUNT = 0` inside one batch. SQLite has neither, so the rowcount comes back
-        // from ExecuteNonQuery and the branch is here. Same two statements, same order, one extra round trip only on
-        // the first-ever set for an artist.
+        // The branch lives in C#, not SQL: SQLite has neither `IF` nor `@@ROWCOUNT` inside one batch, so the rowcount
+        // comes back from ExecuteNonQuery and the branch is here. Same two statements, same order, one extra round
+        // trip only on the first-ever set for an artist.
         var name = await _cipher.DeterministicAsync(d.UserId, d.ArtistName, ct);
         await using var conn = await _connectionFactory.OpenAsync(ct);
 

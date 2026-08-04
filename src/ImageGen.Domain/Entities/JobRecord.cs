@@ -14,18 +14,18 @@ public enum JobStatus : byte { Active = 0, Done = 1, Error = 2, Cancelled = 3 }
 /// <summary>
 /// One image slot's DURABLE lifecycle. A slot is <see cref="Queued"/> from enqueue until it resolves, whether or not
 /// its prompt has been submitted (the <c>ComfyPromptId</c> beside it says that, and is what a restart resumes from).
-/// <para><see cref="Cancelled"/> is a terminal state of its own, not a flavour of <see cref="Error"/>. The two were
-/// one value with the difference living only in a human-readable reason string, so everything downstream reported a
-/// deliberate stop as a failure. Nothing went wrong when a user cancels, and the row should not claim otherwise.</para>
+/// <para><see cref="Cancelled"/> is a terminal state of its own, not a flavour of <see cref="Error"/>. Folding the two
+/// into one value — the difference living only in a human-readable reason string — would make everything downstream
+/// report a deliberate stop as a failure. Nothing went wrong when a user cancels, and the row should not claim otherwise.</para>
 /// <para><see cref="Running"/> is LEGACY and is never written any more. "Running" means the GPU is generating this
 /// image right now — something only the live orchestrator can know and no row can keep true past the writing process's
-/// life. Persisting it is exactly how crashed and orphaned jobs ended up claiming to render forever. The value stays
+/// life. Persisting it is exactly how crashed and orphaned jobs end up claiming to render forever. The value stays
 /// because rows written under the old rule still hold it; they read back as <see cref="Queued"/>.</para>
 /// </summary>
 public enum JobSlotState : byte { Queued = 0, Running = 1, Done = 2, Error = 3, Cancelled = 4 }
 
 /// <summary>
-/// The durable, write-through record of a render job (the former in-memory-only <c>JobQueue</c> state). One job owns N
+/// The durable, write-through record of a render job. One job owns N
 /// ordered <see cref="JobSlotRecord"/>s — one slot per image (one ComfyUI prompt). The owning instance
 /// (<see cref="MachineName"/>) reconciles it against ComfyUI and writes every state transition here; the in-memory
 /// queue is a cache over these rows. A finalized job is readable by id from any instance (durable), but only the
@@ -54,14 +54,12 @@ public sealed class JobRecord
 /// One image slot of a <see cref="JobRecord"/>. Mirrors dbo.JobSlot; carries everything the worker needs to (re)render
 /// it — the SPEC, from <see cref="Workflow"/> down — and everything needed to write its HistoryEntry on completion
 /// (<see cref="ImageId"/>, <see cref="EffectivePrompt"/>, <see cref="RawPrompt"/>, <see cref="Marks"/>).
-/// <para>The spec used to be one encrypted JSON blob (<c>RequestJson</c>) holding eleven fields because two of them
-/// are protected, which dragged four image FOREIGN KEYS behind an opaque wall — and a foreign key inside an encrypted
-/// blob is not a foreign key: nothing can join it, count it, or garbage-collect against it. That is not hypothetical;
-/// it is how 19,329 upload rows became unreachable. Encryption is a property of a FIELD, so the two text fields are
-/// encrypted and the ids, flags and numbers beside them are not.</para>
-/// <para>Typed columns also delete a whole failure class. <c>RequestJson</c> was a serialization contract, and a
-/// renamed property deserialized SILENTLY into a null — an object with a hole in it, which is how one job sat Active
-/// for five weeks. A renamed column fails at the database instead, loudly.</para>
+/// <para>Encryption is a property of a FIELD: the two protected text fields are encrypted and the ids, flags and
+/// numbers beside them are not. A foreign key sealed inside an encrypted JSON blob is not a foreign key — nothing can
+/// join it, count it, or garbage-collect against it, so the images it references leak.</para>
+/// <para>Typed columns also delete a whole failure class. In a serialized JSON contract a renamed property
+/// deserializes SILENTLY into a null — an object with a hole in it, which can leave a job stuck Active indefinitely.
+/// A renamed column fails at the database instead, loudly.</para>
 /// </summary>
 public sealed class JobSlotRecord
 {
@@ -88,8 +86,7 @@ public sealed class JobSlotRecord
     /// <summary>The negative verbatim in marker form; null when none was submitted.</summary>
     public string? RawNegativePrompt { get; set; }
     /// <summary>The produced image's marks. A real child table (dbo.JobSlotMark), mirroring dbo.HistoryMark, rather
-    /// than the encrypted { token -> kind } blob it replaces — which was the one copy of this data nothing could
-    /// query, join or count.</summary>
+    /// than an encrypted { token -> kind } blob — so this data can be queried, joined and counted.</summary>
     public List<Mark> Marks { get; set; } = [];
     public DateTime? GenStartedAtUtc { get; set; }
     public double? ExpectedGenSeconds { get; set; }

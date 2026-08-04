@@ -47,7 +47,7 @@ public static class PromptFinalizer
             if (canonical.Length > 0) marks[canonical] = m == PromptMarkers.ArtistMarker ? TokenKinds.Artist : TokenKinds.Tag;
         }
 
-        // 2) Render (mirrors the old client finalizePrompt): strip the LEADING '#' of a segment always; the leading '@'
+        // 2) Render: strip the LEADING '#' of a segment always; the leading '@'
         //    unless kept; '_'->space per non-score_ segment when the model wants spaces.
         var s = string.Join(",", raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
         if (tg.UnderscoresToSpaces)
@@ -60,8 +60,8 @@ public static class PromptFinalizer
     /// Drop a comma-segment's LEADING marker, preserving the segment's leading whitespace. Only position 0 (after
     /// whitespace) is a marker — the same rule step 1 reads marks by. A '#'/'@' anywhere else is part of the token and
     /// must survive: booru tags natively contain all three ('#compass', 'genei_ibunroku_#fe', '@_@', 'j@ck', '!?',
-    /// '!-shaped_pupils'), and HTML entities in scraped tag names carry a '#' too ('&amp;#039;'). A blanket Replace ate
-    /// all of those. A tag that genuinely BEGINS with a marker is written with its own marker in front ('#!!', '#@_@').
+    /// '!-shaped_pupils'), and HTML entities in scraped tag names carry a '#' too ('&amp;#039;'). A blanket Replace would
+    /// eat all of those. A tag that genuinely BEGINS with a marker is written with its own marker in front ('#!!', '#@_@').
     /// </summary>
     private static string StripMarker(string seg, bool keepArtistMarker)
     {

@@ -25,8 +25,7 @@ public sealed class HistoryEntry
     /// it is what the copy button, Reload and the Edit page hand back — loaded as-is, never reconstructed. Finalizing it
     /// reproduces <see cref="Prompt"/> and <see cref="Marks"/> exactly, which is what makes a reload faithful.
     ///
-    /// Null only for rows the worker wrote before this column existed. Those were backfilled once (from the finalized
-    /// prompt + marks, the best reconstruction available); nothing rebuilds it at read time any more.
+    /// Null only for rows the worker wrote before this column existed.
     /// </summary>
     public string? RawPrompt { get; init; }
 

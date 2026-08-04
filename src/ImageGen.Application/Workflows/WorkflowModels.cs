@@ -17,8 +17,7 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// <param name="PreservesComposition">True when the workflow intentionally preserves composition (inpaint / pixel
 /// transforms) so the whole-image no-change gate must be skipped for it.</param>
 /// <param name="ProducesVideo">The workflow's DECLARED output: true for a video workflow. Not a guess from the
-/// output's file extension — a single-frame render comes back as .webp exactly like a clip does, which is how seven
-/// LTX configurations reported success having produced stills.</param>
+/// output's file extension — a single-frame render comes back as .webp exactly like a clip does.</param>
 public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false);
 

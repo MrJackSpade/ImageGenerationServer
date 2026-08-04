@@ -12,9 +12,9 @@ public enum ImageBlobKind
 }
 
 /// <summary>
-/// A binary image persisted in the database — the durable home for generated images. Replaces the
-/// old scheme where an image id was a ComfyUI view-ref served by proxy, which collided when ComfyUI's per-prefix
-/// filename counter reset (the app and the MCP share one ComfyUI) and vanished when its output dir rotated.
+/// A binary image persisted in the database — the durable home for generated images. The bytes live here rather
+/// than being served by proxy from a ComfyUI view-ref: a view-ref collides when ComfyUI's per-prefix filename
+/// counter resets (the app and the MCP share one ComfyUI) and vanishes when its output dir rotates.
 /// <see cref="ImageId"/> is a freshly minted, globally-unique opaque key (a GUID), and the bytes are
 /// authoritative; HistoryEntry/ImageBookmark/ArtistDisplay reference images by this id.
 /// </summary>

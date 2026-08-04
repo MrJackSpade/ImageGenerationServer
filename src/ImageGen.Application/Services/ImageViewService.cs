@@ -8,7 +8,7 @@ namespace ImageGen.Application.Services;
 /// and because that has to survive a reload and follow the user between devices it is durable per-user state, not
 /// something a page accumulates while it happens to be open.
 /// <para>Unviewed is the ABSENCE of a record, so a newly generated image is unviewed by definition and no special
-/// case is needed to light up a fresh batch — the useful part of the old behaviour falls out of the correct rule.</para>
+/// case is needed to light up a fresh batch.</para>
 /// </summary>
 public sealed class ImageViewService(IImageViewRepository views, TimeProvider clock)
 {

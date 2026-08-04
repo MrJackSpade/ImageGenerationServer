@@ -9,7 +9,7 @@ namespace ImageGen.Infrastructure.Database;
 /// <para>SQL Server hands back exactly the type the column was declared as: <c>TINYINT</c> arrives as
 /// <see cref="byte"/>, <c>INT</c> as <see cref="int"/>, <c>BIT</c> as <see cref="bool"/>, <c>FLOAT</c> as
 /// <see cref="double"/>. So <c>reader.GetByte(3)</c> and <c>(int)await cmd.ExecuteScalarAsync()</c> both work, and
-/// the codebase used them everywhere.</para>
+/// the codebase relies on them throughout.</para>
 ///
 /// <para>SQLite has <b>one</b> integer type, so every one of those columns comes back as a <see cref="long"/>.
 /// Measured against <c>Microsoft.Data.Sqlite</c> (see <c>SqliteAttachSpikeTests</c>), the split is:</para>
@@ -19,8 +19,8 @@ namespace ImageGen.Infrastructure.Database;
 /// <c>IMGDB001</c> keeps true.</item>
 /// <item>Unboxing a scalar <b>does</b> fail, on any provider and unavoidably: <c>ExecuteScalar</c> returns
 /// <see cref="object"/>, a SQLite <c>COUNT(*)</c> boxes a <c>long</c>, and <c>(int)</c> on a boxed <c>long</c> is an
-/// <see cref="InvalidCastException"/>. This codebase had ~8 of those and <b>the compiler could see none of them</b>.
-/// <c>IMGDB002</c> exists for exactly that.</item>
+/// <see cref="InvalidCastException"/>. <b>The compiler can see none of these</b>, so <c>IMGDB002</c> exists for
+/// exactly that.</item>
 /// </list>
 ///
 /// <para><c>GetString</c>, <c>GetInt64</c>, <c>GetDateTime</c> and <c>GetFieldValue&lt;byte[]&gt;</c> are

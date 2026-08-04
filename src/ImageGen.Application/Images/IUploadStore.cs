@@ -13,10 +13,7 @@ public sealed record UploadedImage(byte[] Bytes, string ContentType, int? Width,
 /// <para>
 /// Uploads are deliberately NOT persisted. They are inputs to a render, never outputs: nothing in the UI can retrieve
 /// one after the fact (they never enter history, the library, or a bookmark), so a durable row would be write-only
-/// data. They were previously written to <c>dbo.ImageBlob</c> with <c>Kind=1</c>, where they accumulated at roughly
-/// one per inpaint stroke — 19,329 rows / 7.1 GB, none of it reachable — and their only reference lived inside the
-/// encrypted <c>JobSlot.RequestJson</c>, so nothing could even tell which were still in use. (That blob is gone —
-/// a slot's image ids are plain columns and a child table now — but uploads still do not belong in the database.)
+/// data.
 /// </para>
 /// <para>
 /// Nothing here expires. An id this store has issued resolves for the life of the process, however long its job waits

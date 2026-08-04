@@ -25,8 +25,8 @@ internal static class DbCommandExtensions
 
     /// <summary>
     /// Adds a named parameter. A null <paramref name="value"/> becomes <see cref="DBNull"/> — ADO.NET treats a CLR
-    /// null as "no value supplied" and would fail the call rather than send SQL NULL, which is why the call sites
-    /// were all littered with <c>(object?)x ?? DBNull.Value</c>.
+    /// null as "no value supplied" and would fail the call rather than send SQL NULL, which is why every call site
+    /// would otherwise need <c>(object?)x ?? DBNull.Value</c>.
     /// </summary>
     internal static DbCommand AddParam(this DbCommand cmd, string name, object? value)
     {
@@ -40,10 +40,10 @@ internal static class DbCommandExtensions
     /// <summary>
     /// Adds a parameter carrying a large payload — an image blob, or a JSON document with no length bound.
     ///
-    /// <para>The call sites used to say <c>Parameters.Add("@b", SqlDbType.VarBinary, -1)</c>. The <c>-1</c> was the
-    /// point: it declares MAX so SQL Server does not infer a length from the first value and then truncate or
-    /// re-prepare on the next one. Inferring is exactly what plain <see cref="AddParam"/> does, so these keep their
-    /// own method — SQLite needs no such hint, and gets a plain parameter.</para>
+    /// <para>Declares <c>-1</c> (MAX) explicitly — <c>Parameters.Add("@b", SqlDbType.VarBinary, -1)</c> — so SQL
+    /// Server does not infer a length from the first value and then truncate or re-prepare on the next one.
+    /// Inferring is exactly what plain <see cref="AddParam"/> does, so these keep their own method — SQLite needs no
+    /// such hint, and gets a plain parameter.</para>
     /// </summary>
     internal static DbCommand AddLargeParam(this DbCommand cmd, string name, object? value)
     {

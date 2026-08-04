@@ -111,9 +111,9 @@ public sealed class RenderOrchestrator
             //
             // This is NOT wrapped in a catch. NormalizeForQueue already answers the one expected non-failure — an
             // unknown or mis-kinded config — as a documented no-op, so anything that throws out of it is a real fault
-            // in the workflow's own Normalize. Logging that and "enqueuing the request as-is" handed the GPU the very
-            // parameters normalization exists to correct, and the enqueue still returned a job id as though the request
-            // had been accepted intact. The job has not been published or persisted yet (that happens below the loop),
+            // in the workflow's own Normalize. Logging it and "enqueuing the request as-is" would hand the GPU the very
+            // parameters normalization exists to correct, and still return a job id as though the request had been
+            // accepted intact. The job has not been published or persisted yet (that happens below the loop),
             // so throwing here abandons it cleanly and the caller gets the real error instead of a bad render later.
             if (edit is not null)
             {
@@ -291,8 +291,8 @@ public sealed class RenderOrchestrator
         {
             // The cancel itself has already succeeded — these slots are terminal in our state regardless of what the
             // backend does next, so a failed interrupt does not undo it and must not fail the caller. What it must not
-            // do is vanish: this was an empty catch over a method that also swallowed internally, so a backend no
-            // longer honouring interrupts left the GPU rendering cancelled work with nothing anywhere to say so.
+            // do is vanish: an empty catch here would let a backend that no longer honours interrupts leave the GPU
+            // rendering cancelled work with nothing anywhere to say so.
             try { _comfy.InterruptAsync(CancellationToken.None).GetAwaiter().GetResult(); }
             catch (Exception ex) { _log.LogError(ex, "Job {JobId} was cancelled but the backend interrupt failed; its render may still be running.", jobId); }
         }
@@ -383,10 +383,10 @@ public sealed class RenderOrchestrator
         foreach (var sr in missing)
         {
             var which = $"image {sr.SlotIndex + 1}";
-            // One check, on a real column. This used to deserialize a blob and then have to ask whether the object it
-            // got back was actually usable — System.Text.Json ignores members it doesn't recognise, so a request
-            // written under an older property name produced a spec with a null workflow and no error. A column either
-            // has a workflow in it or it does not.
+            // One check, on a real column: a column either has a workflow in it or it does not. Deserializing a blob
+            // instead would force a second question — is the object usable? — because System.Text.Json ignores members
+            // it doesn't recognise, so a request written under an older property name yields a spec with a null
+            // workflow and no error.
             if (string.IsNullOrWhiteSpace(sr.Workflow))
                 return new RequeueOutcome(RequeueStatus.Unrunnable, Reason: $"{which} didn't record the workflow that would remake it");
             try
@@ -476,8 +476,7 @@ public sealed class RenderOrchestrator
     {
         // Rehydration must EVENTUALLY happen, not merely be attempted once: if the database is
         // unreachable at boot, giving up permanently orphans this instance's in-flight jobs as
-        // "running" rows that no worker owns and no API call can cancel (observed 2026-07-24:
-        // a DB outage during a bulk batch left thousands of such tombstones). Retry in the
+        // "running" rows that no worker owns and no API call can cancel. Retry in the
         // background with backoff until one pass succeeds — new work is accepted meanwhile,
         // and the merge skips jobs already in memory so a retry after a partial pass cannot
         // duplicate slots.
@@ -637,9 +636,9 @@ public sealed class RenderOrchestrator
                     : (Tags: new HashSet<string>(StringComparer.Ordinal), Artists: new HashSet<string>(StringComparer.Ordinal));
                 // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed tags,
                 // but only when the model speaks tags. This does NOT fail soft: a tag model that is down or erroring
-                // throws out of GenerateAsync and fails the slot (see the catch at the bottom of ServeSlotAsync). That
-                // is deliberate as of deb8c66 -- silently rendering the typed seed instead of the generated prompt
-                // produced an image the user did not ask for and gave no hint why.
+                // throws out of GenerateAsync and fails the slot (see the catch at the bottom of RunSlotAsync). This is
+                // deliberate: silently rendering the typed seed instead of the generated prompt would produce an image
+                // the user did not ask for and give no hint why.
                 if (slot.Gen.RandomPrompt == true && info?.Tagging is { Tags: true })
                 {
                     var (seed, suppressKeys) = TagSeed(raw, info.Tagging);
@@ -665,10 +664,10 @@ public sealed class RenderOrchestrator
                     var allowedTypes = await AllowedTagTypesAsync(slot.Job.Owner, slot.Gen.TagTypes, ct);
                     var gen = await _tagModel.GenerateAsync(seed, slot.Gen.Temperature, bannedTags, allowedTypes, ct);
                     var genOut = gen is null ? "(null)" : string.Join(", ", gen);
-                    // The predictor's in/out goes to the PER-USER ENCRYPTED log and nowhere else. It used to be
-                    // duplicated to the plaintext app log behind a config flag, which is one toggle away from
-                    // writing prompts to disk permanently once a file sink exists — and the encrypted line below
-                    // already carries the same content, so the flag bought nothing but the risk.
+                    // The predictor's in/out goes to the PER-USER ENCRYPTED log and nowhere else. Duplicating it to
+                    // the plaintext app log would be one toggle away from writing prompts to disk permanently once a
+                    // file sink exists — and the encrypted line below already carries the same content, so that
+                    // duplication would buy nothing but the risk.
                     await _userLog.LogAsync(slot.Job.Owner, "random_prompt", $"IN seed=[{seed}]  OUT=[{genOut}]", ct);
                     if (gen is { Count: > 0 })
                     {
@@ -729,8 +728,8 @@ public sealed class RenderOrchestrator
                 catch (Exception ex)
                 {
                     // The ETA is a decoration on a render that is already submitted; losing it must not fail the
-                    // render. But a timings table that has stopped answering is worth knowing about, and this said
-                    // nothing at all — so "no model ever shows an ETA" had no trail leading anywhere.
+                    // render. But a timings table that has stopped answering is worth knowing about; saying nothing
+                    // would leave "no model ever shows an ETA" with no trail leading anywhere.
                     _log.LogWarning(ex, "ETA lookup failed for {Model}; this slot renders without one.", slot.Model);
                 }
                 lock (_lock) { slot.ComfyPromptId = promptId; _comfyToSlot[promptId] = slot; slot.GenStartedAt = startedAt; slot.ExpectedGenSeconds = expected; }
@@ -796,19 +795,18 @@ public sealed class RenderOrchestrator
             var contentType = isMp4 ? "video/mp4" : isVideo ? "image/webp" : "image/png";
 
             // A workflow that DECLARES video must have produced a clip. SaveAnimatedWEBP writes a .webp whether it was
-            // handed one frame or forty, so the extension says nothing: seven LTX i2v configurations asked for nine
-            // frames, stored a 2.8KB single-frame still, and reported done. The failure only surfaced three
-            // configurations later, as an unreadable source in an editor that consumes clips — blamed on the
-            // consumer, while the producer looked healthy. A render that did not make the thing it exists to make is
-            // a failed render. An mp4 is a video container by construction (CreateVideo), so it counts as a clip.
+            // handed one frame or forty, so the extension says nothing — a single-frame still can come back from a
+            // workflow that asked for many frames and still read as "done", surfacing only later as an unreadable
+            // source in an editor that consumes clips. A render that did not make the thing it exists to make is a
+            // failed render. An mp4 is a video container by construction (CreateVideo), so it counts as a clip.
             var declared = _catalog.ResolveInfo(slot.IsEdit ? slot.RequireEdit().Workflow : slot.RequireGen().Workflow);
             if (declared?.ProducesVideo == true && !(isMp4 || _media.IsAnimatedWebp(img.Png)))
                 throw new RenderValidationException(
                     "This is a video workflow and the render came back as a single frame, not a clip. "
                     + "The frame count reaching the graph is the thing to look at.");
-            // An output whose header will not read is a FAILED render, not a 0x0 image. Substituting (0, 0) here wrote
-            // the fabricated size into the blob row and into history, where nothing downstream can tell it from a real
-            // measurement. Let it throw: the handler at the bottom of this method fails the slot with the real reason.
+            // An output whose header will not read is a FAILED render, not a 0x0 image. Substituting (0, 0) here would
+            // write a fabricated size into the blob row and into history, where nothing downstream could tell it from a
+            // real measurement. Let it throw: the handler at the bottom of this method fails the slot with the real reason.
             // ImageSharp reads a still/webp; an mp4 needs the container's own box tree (ImageSharp can't read it).
             var dims = isMp4 ? _media.IdentifyVideo(img.Png) : _media.Identify(img.Png);
             var (w, h) = (dims.Width, dims.Height);
@@ -816,9 +814,9 @@ public sealed class RenderOrchestrator
             if (slot.IsEdit && src is not null)
             {
                 // 1.0 ("fully changed") is the honest answer for a video, which has no still pHash to compare against.
-                // For a still it has to be MEASURED: defaulting a failed comparison to 1.0 waved the result straight
-                // past the no-change gate — the one case the gate exists to catch — so a declined edit was stored as a
-                // successful one. A comparison that cannot run fails the slot instead.
+                // For a still it has to be MEASURED: defaulting a failed comparison to 1.0 would wave the result
+                // straight past the no-change gate — the one case the gate exists to catch — storing a declined edit
+                // as a successful one. A comparison that cannot run fails the slot instead.
                 double diff = isVideo ? 1.0 : _media.Difference(src, img.Png);
                 // Some edits intentionally preserve composition (inpaint; pixel transforms). Their whole-image pHash
                 // diff is tiny BY DESIGN and would trip the no-change gate, so those workflows opt out.
@@ -984,7 +982,7 @@ public sealed class RenderOrchestrator
             var modelId = slot.Model;
             var friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
             // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
-            // without going through RunSlotAsync's prompt build — the same shape the EffectivePrompt line has always had.
+            // without going through RunSlotAsync's prompt build — the same fallback shape the EffectivePrompt line uses.
             var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
             var rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
             var prompt = slot.EffectivePrompt ?? raw;
@@ -1123,7 +1121,7 @@ public sealed class RenderOrchestrator
                 SlotIndex = s.Index,
                 IsEdit = s.IsEdit,
                 // A running slot persists as Queued. "Running" is a live fact about a GPU that this row cannot keep
-                // true past the process's life, and writing it anyway is what left every crashed or orphaned job
+                // true past the process's life, and writing it anyway would leave every crashed or orphaned job
                 // claiming to render forever. Resuming needs no more than what's already here: non-terminal, plus the
                 // ComfyPromptId to pick the poll back up.
                 State = RenderPhases.Persisted(s.State),
@@ -1140,8 +1138,8 @@ public sealed class RenderOrchestrator
                 Marks = s.Marks is null ? [] : s.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList(),
                 GenStartedAtUtc = s.GenStartedAt?.UtcDateTime,
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
-                // The spec, field by field. It was one serialized blob; the columns it becomes are the same values
-                // with the ids left legible so the database can join and cascade on them.
+                // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the
+                // database can join and cascade on them.
                 Workflow = s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
                 Prompt = s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
                 NegativePrompt = s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
@@ -1345,10 +1343,8 @@ public sealed class RenderOrchestrator
                 if (s.Gen is null && s.Edit is null) { s.State = SlotState.Error; s.Error = "lost on restart"; continue; }
 
                 // A slot with no workflow can never render, and left Queued it keeps its job Active forever, so it is
-                // failed here with a reason. This used to be the common case rather than the impossible one: the spec
-                // was a JSON blob, System.Text.Json ignores members it doesn't recognise, and a property renamed since
-                // the row was written deserialized into an object with a null Workflow and no error. The workflow is a
-                // column now — this only fires for a row that was migrated without one.
+                // failed here with a reason. The workflow is its own column, so this only fires for a row migrated
+                // without one.
                 var workflow = s.IsEdit ? s.Edit?.Workflow : s.Gen?.Workflow;
                 if (string.IsNullOrWhiteSpace(workflow))
                 {
