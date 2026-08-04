@@ -602,14 +602,16 @@ $editLastFrameFile.addEventListener("change", async e => {
 });
 
 // --- chat edit: fan the instruction across every selected model --------------------------------
-async function sendEdit() {
+// n comes from the Apply button's hold-to-reveal count picker (a plain click = 1), exactly like the gen page. It
+// multiplies ON TOP of the model fan-out: models × n runs, so two checked models held to 4 makes eight edits.
+async function sendEdit(n) {
   const instruction = $instruction.value.trim();
   const models = editModels();
   if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return; }
   if (busy) return;
   if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return; }
   // Empty prompts are allowed — never block submit on a blank instruction.
-  await runEdit(instruction, models);   // keep the prompt in the box so it can be tweaked + re-applied
+  await runEdit(instruction, models, Math.max(1, n || 1));   // keep the prompt in the box so it can be tweaked + re-applied
 }
 // Every run of a fan-out is its OWN queued job, so Cancel has to reach all of them: /interrupt (what trackPrompt's own
 // canceller posts) only kills the graph ComfyUI happens to be rendering, which leaves the rest of the fan-out to render
@@ -674,8 +676,11 @@ async function runOneEdit(model, instruction, refIds, overrides, single) {
   }
   await trackEditRun(promptId, model, instruction, notice);
 }
-async function runEdit(instruction, models) {
+async function runEdit(instruction, models, n) {
+  n = Math.max(1, n || 1);
   if (busy || !editCurrent || !models.length) return;
+  // "single" is about the number of MODELS (reference images and the end frame have no primary when 2+ are checked);
+  // the n copies of one model are still that model's single-model affordances.
   const single = models.length === 1;
   // Reference images stay a single-model affordance (no primary when 2+). Shared params (the intersection panel,
   // params common to every selected model) apply to all of them.
@@ -683,17 +688,30 @@ async function runEdit(instruction, models) {
   const overrides = readOverrides($("editParams"));
   if (single) { editRefs = []; renderEditRefs(); }
   renderResultLoading();
-  // Seed the cumulative-ETA pool with every model's estimate; each onStart peels its own off as it begins.
-  beginEditBatch(models.length, single ? 0 : models.reduce((a, m) => a + Number(m.avgSeconds || 0), 0));
-  setStatus(single ? "" : `Editing across ${models.length} workflows…`);
+  const total = models.length * n;   // one queued job per model, n times over
+  // Seed the cumulative-ETA pool with every model's estimate, once per run; each onStart peels its own off as it begins.
+  beginEditBatch(total, models.reduce((a, m) => a + Number(m.avgSeconds || 0), 0) * n);
+  setStatus(total === 1 ? "" : `Making ${total}…`);
   try {
-    // Re-roll [a|b|…] randomization per model so a multi-model fan-out can differ across workflows.
-    await Promise.all(models.map(m => runOneEdit(m, expandRandomPrompt(instruction), refIds, overrides, single)));
+    // Re-roll [a|b|…] randomization per run so both the model fan-out AND the n copies of one model can differ.
+    const runs = [];
+    for (const m of models)
+      for (let i = 0; i < n; i++)
+        runs.push(runOneEdit(m, expandRandomPrompt(instruction), refIds, overrides, single));
+    await Promise.all(runs);
     if (cancelRequested) return;
-    if (!single) setStatus(editMade === models.length ? `Done — made all ${models.length}.` : `Done — made ${editMade} of ${models.length}.`);
+    if (total > 1) setStatus(editMade === total ? `Done — made all ${total}.` : `Done — made ${editMade} of ${total}.`);
   } finally { endEditBatch(); }
 }
-$editComposer.addEventListener("submit", e => { e.preventDefault(); if (busy) cancelGeneration(); else sendEdit(); });
+// Hold Apply to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
+// Generate). A plain click makes 1; a hold while busy is swallowed rather than offering a count, exactly like inpaint
+// (the button reads "Cancel" then).
+const editCount = attachCountPicker($editSend, { onPick: n => sendEdit(n), onHold: () => busy });
+$editComposer.addEventListener("submit", e => {
+  e.preventDefault();
+  if (editCount.opened) { editCount.opened = false; return; }   // the press was a long-press; the pick submits
+  if (busy) cancelGeneration(); else sendEdit(1);
+});
 // The chat instruction box doubles as the full TAG prompt for whole-image redraws (Anima/Photanima): same '#'/'@'
 // autocomplete, gated on the primary editor's tagging — inert for instruction/animate editors, which have none.
 // Enter does NOT apply the edit; Apply is the only way to start one. The popup still consumes Enter to accept a
@@ -1038,18 +1056,35 @@ function renderOutpaintResult(id) {
   $outpaintResult.appendChild(c);
 }
 function showOutpaintBar(show) { $outpaintBar.classList.toggle("show", show); if (!show) $outpaintBar.querySelector("i").style.width = "0"; }
+// Every run of a batch is its OWN queued job (n takes of the same base + pads), so Cancel has to reach all of them —
+// same reasoning as the inpaint/chat-edit batches: collect each id as the server accepts it and cancel BY ID.
+let outpaintJobIds = [];
+let outpaintMade = 0;   // images actually produced this batch (excludes no-change / failed runs)
+const cancelOutpaintBatch = () => Promise.all(outpaintJobIds.map(id =>
+  fetch(`${GATEWAY}/cancel/${encodeURIComponent(id)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e))));
+// The whole batch drives ONE shared page bar; the backend renders the queued jobs one at a time and only the running
+// run emits frames, so the overall fraction is (finished + this run's p) / total — the idle siblings stay silent.
+function outpaintHooks() {
+  return {
+    onFraction: p => showBar(Math.min(1, (multiDone + p) / Math.max(1, multiTotal))),
+    onStart: res => startEta($outpaintEta, res.expectedSeconds, res.startedAt),
+    setActiveGen: () => {},   // the batch canceller (cancelOutpaintBatch) owns activeGen — a per-run one would clobber it
+  };
+}
 // Progress lives in the page-level bar (#outpaintBar), not in a card, so the result box holds ONLY finished pictures —
 // the gen page's arrangement, and inpaint's. Shared by a fresh Generate and reconnect-on-return.
-function beginOutpaintRun() {
-  multiDone = 0; multiTotal = 1; barBase = 0; barSpan = 1; etaPending = 0;
+function beginOutpaintBatch(n) {
+  multiDone = 0; multiTotal = n; outpaintMade = 0; outpaintJobIds = [];
+  barBase = 0; barSpan = 1; etaPending = 0;
   cancelRequested = false; setBusy(true);
+  activeGen = { cancel: cancelOutpaintBatch };   // Cancel stops the WHOLE batch, not just the one being rendered
   showOutpaintBar(true); editProgressEl = $outpaintBar.querySelector("i"); editEtaEl = $outpaintEta;
   showBar(0.02);
 }
-function endOutpaintRun() {
+function endOutpaintBatch() {
   hideBar();   // stops the ETA countdown on editEtaEl — must run BEFORE we drop the reference
   showOutpaintBar(false); editProgressEl = null; editEtaEl = null;
-  setBusy(false); activeGen = null; multiTotal = 1;
+  setBusy(false); activeGen = null; outpaintJobIds = []; multiDone = 0; multiTotal = 1;
 }
 // A finished outpaint: the extended image becomes the new base so you can keep pushing the frame out, side by side.
 function applyOutpaintOutput(result) {
@@ -1061,23 +1096,46 @@ function applyOutpaintOutput(result) {
 // Track ONE queued/running outpaint into the page bar + big box. Shared by a fresh Generate and reconnect-on-return.
 async function trackOutpaintRun(promptId) {
   try {
-    const result = await trackPrompt(promptId, editTrackHooks());
-    if (applyOutpaintOutput(result)) setStatus("");
+    const result = await trackPrompt(promptId, outpaintHooks());
+    if (applyOutpaintOutput(result)) { outpaintMade++; setStatus(""); }
     else { setStatus("No visible change — try extending further or a different prompt.", { error: true }); renderOutpaintResult(outpaintBase); }
   } catch (e) {
     setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
     renderOutpaintResult(outpaintBase);
+  } finally {
+    multiDone++;
+    if (!cancelRequested && multiTotal > 1 && multiDone < multiTotal) setStatus(`Made ${multiDone} of ${multiTotal}…`);
   }
 }
-async function outpaintGenerate() {
-  const prompt = expandRandomPrompt($outpaintPrompt.value.trim());
+// POST one outpaint, then track it. Every run of a batch posts the IDENTICAL base + pads; the server fills a fresh
+// random seed per job, so n runs give n different takes on the same extension.
+async function runOneOutpaint(model, prompt, overrides) {
+  let promptId;
+  try {
+    const r = await fetch(`${GATEWAY}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), instruction: prompt, negativePrompt: outpaintNegFor(model), imageId: outpaintBase, referenceImageIds: [], overrides }) });
+    if (!r.ok) throw new Error(await gwError(r));
+    promptId = (await r.json()).promptId;
+    outpaintJobIds.push(promptId);
+    // Cancel can land while this POST is still in flight — the job exists on the server now, so cancel it by id.
+    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e));
+    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
+  } catch (e) {
+    setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
+    multiDone++; return;
+  }
+  await trackOutpaintRun(promptId);
+}
+// Outpaint n takes of the same base + pads + prompt. n comes from the Generate button's hold-to-reveal count picker
+// (a plain click = 1), exactly like inpaint. The runs are posted together and the queue renders them one at a time.
+async function outpaintGenerate(n) {
+  const prompt = $outpaintPrompt.value.trim();
   const model = outpaintModel();
   if (busy || !model) return;
   if (!outpaintBase) { setStatus("Select a file to outpaint first.", { error: true }); return; }
   // Zero pads would pad by nothing and hand back the source — the outpaint equivalent of an unpainted mask.
   if (!padsTotal()) { setStatus("Drag an edge outward to extend the canvas first.", { error: true }); return; }
-  setStatus("");
-  beginOutpaintRun();
+  n = Math.max(1, n || 1);
+  setStatus(n === 1 ? "" : `Making ${n}…`);
   // The pads are the ONLY override. Everything else (fill strength, feather, mask grow, LLLite) stays at the
   // configuration's defaults, exactly as a bare API call gets them.
   //
@@ -1086,22 +1144,26 @@ async function outpaintGenerate() {
   // (default 1.0, min 0.5) to anima-outpaint. Feeding inpaint's denoise in half-denoised the grey padding that
   // ImagePadForOutpaint lays down, so the border came back grey instead of painted.
   const overrides = { pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
+  beginOutpaintBatch(n);
   try {
-    const r = await fetch(`${GATEWAY}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), instruction: prompt, negativePrompt: outpaintNegFor(model), imageId: outpaintBase, referenceImageIds: [], overrides }) });
-    if (!r.ok) throw new Error(await gwError(r));
-    const promptId = (await r.json()).promptId;
-    // Cancel can land while this POST is still in flight — the job exists on the server now, so cancel it by id.
-    if (cancelRequested) await fetch(`${GATEWAY}/cancel/${encodeURIComponent(promptId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e));
-    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
-    await trackOutpaintRun(promptId);
-  } catch (e) {
-    setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
-    renderOutpaintResult(outpaintBase);
-  } finally { endOutpaintRun(); }
+    // Re-roll [a|b|…] randomization per run so the n takes can differ, not just via the server's random seed.
+    await Promise.all(Array.from({ length: n }, () => runOneOutpaint(model, expandRandomPrompt(prompt), overrides)));
+    if (cancelRequested) return;
+    if (n > 1) setStatus(outpaintMade === n ? `Done — made all ${n}.` : `Done — made ${outpaintMade} of ${n}.`);
+    else if (outpaintMade === 0) renderOutpaintResult(outpaintBase);   // single run failed/no-change: don't leave the box empty
+  } finally { endOutpaintBatch(); }
 }
 initTagBox({ input: $outpaintPrompt, pop: $outpaintTagPop, getModel: outpaintModel });
 if ($outpaintNeg && $outpaintNegTagPop) initTagBox({ input: $outpaintNeg, pop: $outpaintNegTagPop, getModel: outpaintModel });
-$outpaintComposer.addEventListener("submit", e => { e.preventDefault(); if (busy) cancelGeneration(); else outpaintGenerate(); });
+// Hold Generate to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
+// Generate). A plain click makes 1; a hold while busy is swallowed rather than offering a count, exactly like inpaint
+// (the button reads "Cancel" then).
+const outpaintCount = attachCountPicker($outpaintGo, { onPick: n => outpaintGenerate(n), onHold: () => busy });
+$outpaintComposer.addEventListener("submit", e => {
+  e.preventDefault();
+  if (outpaintCount.opened) { outpaintCount.opened = false; return; }   // the press was a long-press; the pick submits
+  if (busy) cancelGeneration(); else outpaintGenerate(1);
+});
 function enterOutpaint() {
   if (!$outpaintPrompt.value.trim() && seedPrompt()) $outpaintPrompt.value = seedPrompt();
   if ($outpaintNeg && !$outpaintNeg.value.trim() && seedNegative()) $outpaintNeg.value = seedNegative();
@@ -1218,8 +1280,9 @@ async function recoverInpaintJob() {
     } finally { endInpaintBatch(); recovering = false; }
   } finally { inpaintRecovering = false; }
 }
-// Reconnect to an outpaint still running for THIS base image, so a reload shows Cancel, the live bar, and the result
-// when it lands — the last tab that had no recovery at all.
+// Reconnect to an outpaint batch still running for THIS base image, so a reload shows Cancel, the live bar, and each
+// result as it lands. Every run of the batch is its own job; we re-attach to all of them at once and drive the same
+// shared bar a fresh Generate uses — exactly like the inpaint recovery.
 let outpaintRecovering = false;
 async function recoverOutpaintJob() {
   if (busy || recovering || outpaintRecovering || activeMode !== "outpaint") return;
@@ -1230,11 +1293,15 @@ async function recoverOutpaintJob() {
     const mine = (res.jobs || []).filter(j => j.kind === "edit" && (j.status === "running" || j.status === "queued")
       && j.sourceImageId === outpaintBase && out.has(j.model));
     if (!mine.length) return;
-    const job = mine.find(j => j.status === "running") || mine[0];
     recovering = true;
-    beginOutpaintRun();
-    setStatus("Reconnecting to your outpaint…");
-    try { await trackOutpaintRun(job.jobId); } finally { endOutpaintRun(); recovering = false; }
+    beginOutpaintBatch(mine.length);
+    outpaintJobIds = mine.map(j => j.jobId);   // the batch canceller cancels exactly these
+    setStatus(mine.length > 1 ? `Making ${mine.length}…` : "Reconnecting to your outpaint…");
+    try {
+      await Promise.all(mine.map(j => trackOutpaintRun(j.jobId)));
+      if (cancelRequested) return;
+      if (mine.length > 1) setStatus(outpaintMade === mine.length ? `Done — made all ${mine.length}.` : `Done — made ${outpaintMade} of ${mine.length}.`);
+    } finally { endOutpaintBatch(); recovering = false; }
   } finally { outpaintRecovering = false; }
 }
 
