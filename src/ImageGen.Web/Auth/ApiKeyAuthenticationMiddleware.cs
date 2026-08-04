@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 using System.Security.Claims;
 using ImageGen.Domain.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;

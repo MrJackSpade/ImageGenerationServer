@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 namespace ImageGen.Web.Auth;
 
 /// <summary>
@@ -13,10 +12,11 @@ public sealed class AuthOptions(IConfiguration configuration)
     private readonly IConfiguration _configuration = configuration;
 
     /// <summary>
-    /// Shared code required to register a new account. When non-empty, registration must present it
-    /// (protects the internet-reachable endpoint). Empty means open registration.
+    /// Shared code required to register a new account. Null means open registration — "no code has been set" is the
+    /// honest meaning of an unset setting, carried by the nullable itself rather than by a "" the app would have to
+    /// re-interpret. When present, registration must supply this code (it protects the internet-reachable endpoint).
     /// </summary>
-    public string RegistrationCode => _configuration["Auth:RegistrationCode"] ?? "";
+    public string? RegistrationCode => _configuration["Auth:RegistrationCode"];
 
     public bool RegistrationRequiresCode => !string.IsNullOrEmpty(RegistrationCode);
 }
