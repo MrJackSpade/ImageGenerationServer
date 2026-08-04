@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Settings page: per-model banned tags/artists. Uses core.js.
 // (The random-prompt temperature moved to the composer's Random prompt slider, where 0 means off.)
 
@@ -82,14 +81,14 @@
     const arr = kind === "artist" ? curBans().artists : curBans().tags;
     if (arr.includes(name)) { toast("Already banned"); return; }
     arr.push(name); render();
-    try { const r = await postBan(curId(), name, kind); if (!r.ok) throw 0; toast("⊘ Banned " + kind + " " + name.replace(/_/g, " ")); }
-    catch (_) { const i = arr.indexOf(name); if (i >= 0) arr.splice(i, 1); render(); toast("Couldn't save"); }
+    try { const r = await postBan(curId(), name, kind); if (!r.ok) throw new Error(`the server answered ${r.status}`); toast("⊘ Banned " + kind + " " + name.replace(/_/g, " ")); }
+    catch (e) { console.error("ban save failed:", e); const i = arr.indexOf(name); if (i >= 0) arr.splice(i, 1); render(); toast("Couldn't save"); }
   }
   async function removeBan(kind, name) {
     const arr = kind === "artist" ? curBans().artists : curBans().tags; const i = arr.indexOf(name);
     if (i >= 0) arr.splice(i, 1); render();
-    try { const r = await deleteBan(curId(), name, kind); if (!r.ok && r.status !== 404) throw 0; toast("Removed ban"); }
-    catch (_) { arr.push(name); render(); toast("Couldn't remove"); }
+    try { const r = await deleteBan(curId(), name, kind); if (!r.ok && r.status !== 404) throw new Error(`the server answered ${r.status}`); toast("Removed ban"); }
+    catch (e) { console.error("ban remove failed:", e); arr.push(name); render(); toast("Couldn't remove"); }
   }
 
   sel.addEventListener("change", render);
@@ -116,7 +115,7 @@
     try {
       const r = await fetch(`${GATEWAY}/free-vram`, { method: "POST" });
       toast(r.ok ? "Models unloaded" : "Couldn't free VRAM");
-    } catch (_) { toast("Couldn't free VRAM"); }
+    } catch (e) { console.error("free-vram failed:", e); toast("Couldn't free VRAM"); }
     btn.disabled = false;
   });
 })();
@@ -132,7 +131,7 @@
     try {
       const r = await fetch("/api/comfy-patches/restart", { method: "POST" });
       toast(r.ok ? "ComfyUI restarting…" : "Couldn't restart ComfyUI");
-    } catch (_) { toast("Couldn't restart ComfyUI"); }
+    } catch (e) { console.error("comfy restart failed:", e); toast("Couldn't restart ComfyUI"); }
     btn.disabled = false;
   });
 })();

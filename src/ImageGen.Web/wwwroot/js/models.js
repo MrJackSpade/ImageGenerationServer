@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // models.js — the models page: which file on this machine fills each catalogue slot.
 //
 // Models only. Which WORKFLOWS a missing file leaves unavailable is the workflow library's business, and it used

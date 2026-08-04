@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // Artist page: the user's generations for this artist — server-rendered first page, infinite scroll for the
 // rest (/api/history?artist=), and live additions from the composer's `imagegen:generated` event (every gen
 // here is locked to this artist). Plus choosing/clearing the artist's display image. Uses core.js.
@@ -49,7 +48,7 @@
       if (note) note.textContent = "Showing the image you chose.";
       if (clearBtn) clearBtn.classList.remove("hidden");
       toast("Display image set");
-    } catch (_) { toast("Couldn't set display image"); }
+    } catch (e) { console.error("set display image failed:", e); toast("Couldn't set display image"); }
   });
   if (clearBtn) clearBtn.addEventListener("click", async () => {
     try {
@@ -60,7 +59,7 @@
       if (note) note.textContent = id ? "Showing your latest generation." : "No images yet.";
       clearBtn.classList.add("hidden");
       toast("Using your latest generation");
-    } catch (_) { toast("Couldn't clear"); }
+    } catch (e) { console.error("clear display image failed:", e); toast("Couldn't clear"); }
   });
 
   // --- live: a gen from the composer (locked to this artist) lands at the top of the grid --------
@@ -115,7 +114,8 @@
       }
       loaded += (d.items || []).length;
       if (!d.items || !d.items.length || loaded >= total) done = true;
-    } catch (_) {
+    } catch (e) {
+      console.error("artist: page load failed", e);
     } finally { loading = false; render(); keepFilling(); }
   }
   function keepFilling() { if (done || loading) return; if (sentinel.getBoundingClientRect().top < window.innerHeight + 400) loadNext(); }

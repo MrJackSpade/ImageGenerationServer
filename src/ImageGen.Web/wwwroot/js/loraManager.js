@@ -1,4 +1,3 @@
-//TODO: CHECK FOR FALLBACKS
 // The LoRA manager (/settings/loras): every LoRA on this box with its cover / CivitAI preview, model name, and trigger
 // words. You can redefine the trigger words, choose whether they auto-attach, and refresh a file's CivitAI data (or all
 // of them). Consumes JSON from /forge/loras/manage and saves via /api/lora/settings. Turning CivitAI lookups on/off is a
@@ -116,7 +115,7 @@
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         try { await postLoraSettings(l.name, trig.value, aacb.checked); }
-        catch (_) { toast("Couldn't save"); }
+        catch (e) { console.error("lora meta save failed:", e); toast("Couldn't save"); }
       }, 400);
     };
     trig.addEventListener("input", () => { entry.edited = true; save(); });
@@ -159,7 +158,7 @@
       if (pollCancel) pollCancel();
       pollCancel = (typeof pollLoraMeta === "function") ? pollLoraMeta(names, applyMeta) : null;
       toast(names.length > 1 ? `Refreshing ${names.length} LoRAs…` : "Refreshing…");
-    } catch (_) { toast("Couldn't refresh"); }
+    } catch (e) { console.error("lora refresh failed:", e); toast("Couldn't refresh"); }
     finally { if (btn) btn.disabled = false; }
   }
 
