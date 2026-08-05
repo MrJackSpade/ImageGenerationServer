@@ -70,6 +70,8 @@
                    interpolates from the source (first frame) to this picked final frame. *@
                 <div id="editLastFrame" class="edit-refs hidden"></div>
                 <button type="button" id="editLastFrameBtn" class="edit-ref-btn hidden" title="Interpolate from the source to this final frame">＋ last frame</button>
+                @* Loop — offered on the same first/last-frame editors; sends the source as the last frame so the clip ends where it starts. *@
+                <label class="opt-chk hidden" id="editLoopWrap" title="Uses the first frame as the last frame"><span>Loop</span><input type="checkbox" id="editLoop"></label>
                 <div id="editParams" class="edit-params hidden"></div>
                 <div class="gen-wrap side-gen">
                     <button id="editSend" class="primary-btn" type="submit">Apply edit</button>

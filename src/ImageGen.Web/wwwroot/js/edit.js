@@ -16,6 +16,7 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $instruction = $("instruction"), $instructionTagPop = $("instructionTagPop"), $editSend = $("editSend"), $status = $("status"),
       $editRefs = $("editRefs"), $editRefBtn = $("editRefBtn"), $editRefFile = $("editRefFile"), $editRefHint = $("editRefHint"),
       $editLastFrame = $("editLastFrame"), $editLastFrameBtn = $("editLastFrameBtn"), $editLastFrameFile = $("editLastFrameFile"),
+      $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"),
       $editSrcFile = $("editSrcFile"),
       // inpaint
       $inpaintModelSelect = $("inpaintModelSelect"), $inpaintModelToggle = $("inpaintModelToggle"), $inpaintModelMenu = $("inpaintModelMenu"),
@@ -117,7 +118,7 @@ const seedNegative = () => (seed.negativePrompt || "").trim();
 // the blob is restored on boot in loadEditModels. The instruction/prompt text is intentionally NOT retained: it's
 // tied to the specific source image being edited, so carrying a prior image's instruction to a new source is wrong.
 let editParamPrefs = {};            // flat { paramKey: value }, shared across every param panel (edit + inpaint + outpaint)
-let savedMode = null, savedInpaintWorkflowId = null, savedOutpaintWorkflowId = null, savedBrushSize = null;   // seeded from the account blob on boot
+let savedMode = null, savedInpaintWorkflowId = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null;   // seeded from the account blob on boot
 
 let prefsTimer = null;
 // False until the stored blob has actually been read. savePrefs writes the WHOLE editor state, so writing before we
@@ -133,6 +134,7 @@ function savePrefs() {
     outpaintWorkflowId: selectedOutpaintId,
     params: editParamPrefs,
     brushSize: $brushSize ? $brushSize.value : null,
+    loop: $editLoop ? $editLoop.checked : false,   // per-user, cross-device like the rest of the editor state
     // The pad amounts are NOT retained: like the instruction text they're tied to the specific source image, so
     // carrying a prior image's margins onto a new source would silently extend it by the wrong number of pixels.
   });
@@ -281,6 +283,7 @@ async function loadEditModels() {
           if (typeof p.inpaintWorkflowId === "string") savedInpaintWorkflowId = p.inpaintWorkflowId;
           if (typeof p.outpaintWorkflowId === "string") savedOutpaintWorkflowId = p.outpaintWorkflowId;
           if (p.brushSize != null) savedBrushSize = p.brushSize;
+          if (typeof p.loop === "boolean") savedLoop = p.loop;
           // Selection (multi) restored if still installed.
           const ids = Array.isArray(p.modelIds) ? p.modelIds.filter(id => EDIT_MODELS[id]) : [];
           if (ids.length) selectedEditIds = ids;
@@ -578,20 +581,30 @@ $editRefFile.addEventListener("change", async e => {
 // one is picked (only one end frame). runOneEdit sends it as lastFrameImageId so the graph swaps to
 // WanFirstLastFrameToVideo, interpolating from the source (first frame) to this one.
 const editSupportsLastFrame = () => { const m = editModel(); return !!(m && m.supportsLastFrame); };
-function updateEditLastFrameBtn() { $editLastFrameBtn.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId); }
+// Loop is live only when the primary editor accepts a last frame AND the box is checked — the same gate as the button.
+// While active it hides the pick-a-distinct-last-frame affordances: the source stands in as the final frame instead.
+const editLoopActive = () => editSupportsLastFrame() && !!($editLoop && $editLoop.checked);
+// Show the Loop checkbox on exactly the editors that show the last-frame button (supportsLastFrame).
+function updateEditLoop() { if ($editLoopWrap) $editLoopWrap.classList.toggle("hidden", !editSupportsLastFrame()); }
+// The pick-a-last-frame button hides once one is picked, when the model doesn't support one, or while looping.
+function updateEditLastFrameBtn() { $editLastFrameBtn.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId || editLoopActive()); }
 function renderEditLastFrame() {
   $editLastFrame.innerHTML = "";
-  const supported = editSupportsLastFrame();
-  if (lastFrameId && supported) {
+  // While looping, hide any picked end frame (the source stands in) WITHOUT dropping lastFrameId, so unchecking restores it.
+  const showPick = editSupportsLastFrame() && !editLoopActive();
+  if (lastFrameId && showPick) {
     const chip = document.createElement("div"); chip.className = "ref-chip";
     const im = document.createElement("img"); im.src = viewUrl(lastFrameId); im.alt = "last frame"; chip.appendChild(im);
     const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove last frame";
     x.addEventListener("click", () => { lastFrameId = null; renderEditLastFrame(); });
     chip.appendChild(x); $editLastFrame.appendChild(chip);
   }
-  $editLastFrame.classList.toggle("hidden", !(lastFrameId && supported));
+  $editLastFrame.classList.toggle("hidden", !(lastFrameId && showPick));
+  updateEditLoop();
   updateEditLastFrameBtn();
 }
+// Checking/unchecking Loop only reshapes the last-frame UI and persists the pref; the source itself is sent on submit.
+if ($editLoop) $editLoop.addEventListener("change", () => { renderEditLastFrame(); savePrefs(); });
 $editLastFrameBtn.addEventListener("click", () => $editLastFrameFile.click());
 $editLastFrameFile.addEventListener("change", async e => {
   const f = e.target.files && e.target.files[0]; e.target.value = "";
@@ -660,7 +673,8 @@ async function runOneEdit(model, instruction, refIds, overrides, single) {
   let promptId, notice;
   try {
     // The end frame is a single-model affordance (no primary with 2+ checked) and only for editors that accept one.
-    const lastFrame = (single && model.supportsLastFrame) ? lastFrameId : null;
+    // Loop sends the source itself (editCurrent — the same id already in imageId) as the last frame, so the clip loops.
+    const lastFrame = (single && model.supportsLastFrame) ? (editLoopActive() ? editCurrent : lastFrameId) : null;
     const r = await fetch(`${GATEWAY}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), instruction, negativePrompt: editNegFor(model), imageId: editCurrent, referenceImageIds: refIds, lastFrameImageId: lastFrame, overrides }) });
     if (!r.ok) throw new Error(await gwError(r));
     const resp = await r.json();
@@ -1312,6 +1326,7 @@ async function recoverOutpaintJob() {
   setTagBoxPinBookmarks(settings.pinBookmarks);   // one account toggle governs every tag box on this page
   editCurrent = seed.id;
   srcIsVideo = await detectSrcVideo(seed.id);   // a clip seed → collapse the editor to the single V2V mode
+  if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders
   renderSrc(); renderEditRefs(); renderEditLastFrame();
   applySourceMediaUi();
   if (savedBrushSize != null) $brushSize.value = savedBrushSize;
