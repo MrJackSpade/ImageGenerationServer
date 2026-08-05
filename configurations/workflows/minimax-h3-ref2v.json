@@ -1,0 +1,93 @@
+{
+  "id": "minimax-h3-ref2v",
+  "workflow": "minimax-h3-ref2v",
+  "friendly_name": "MiniMax-H3 (reference)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-fl2va",
+    "text_encoders": [
+      "qwen3vl-32b-minimax-h3"
+    ],
+    "vae": "minimax-h3-video-vae",
+    "extra": [
+      "minimax-h3-audio-vae"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "minimax",
+    "audio_vae": "minimax-h3-audio-vae",
+    "steps": 20,
+    "sampler": "res_multistep",
+    "scheduler": "simple",
+    "length": {
+      "value": 124,
+      "exposed": true,
+      "min": 5,
+      "max": 209,
+      "step": 17
+    },
+    "fps": 24,
+    "reference_max": 3
+  },
+  "card": {
+    "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) — REFERENCE-TO-VIDEO with native audio",
+    "summary": "Generate a clip whose SUBJECT is taken from your reference image(s), with NATIVE stereo audio — voice, sound effects and music generated together with the motion. The current image is the primary subject reference; add more via the ＋ ref picker. The references condition identity/appearance (they are NOT the first frame). Output is an mp4 with a baked-in audio track.",
+    "use_cases": [
+      "reference→video: place a referenced subject into a new clip with synchronized sound",
+      "multi-reference identity (subject from several angles / a few characters)",
+      "generate motion + audio around a subject without pinning a first frame"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want a NEW clip featuring the subject from your reference image(s) — not to animate the current picture as its literal first frame (use MiniMax-H3 image→video for that).",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the SCENE and MOTION you want built around the referenced subject, then add an 'Audio:' line; the references define the subject's appearance/identity.",
+      "example": "she walks through a neon-lit street at night, looking around, hair moving as she turns. Slow tracking shot alongside her. Audio: distant city traffic, footsteps on wet pavement, a moody synth line.",
+      "overview": "The reference image(s) define WHO/WHAT appears — describe the setting, action and camera, not the subject's static appearance, then add an 'Audio:' line so H3 generates the soundtrack (ambience, effects, dialogue, score) jointly with the motion.",
+      "instructions": "Describe the scene and the subject's action using concrete verbs with explicit speed and direction, specify a distinct camera move, and add atmosphere. Then add an 'Audio:' section describing ambience, timed sound effects, any dialogue, and score. Don't re-describe the referenced subject's static appearance (the references define it). Quote spoken lines. Timeline cues like [0s-2s] help place motion and audio beats.",
+      "do": [
+        "Describe the scene/setting the subject is placed into",
+        "Lead the subject's action with concrete verbs (speed + direction)",
+        "Specify a camera move (slow push-in, dolly out, pan, orbit, static)",
+        "Add an explicit 'Audio:' line: ambience, timed effects, dialogue, score",
+        "Quote spoken lines; use [0s-2s] cues to time beats"
+      ],
+      "dont": [
+        "Don't re-describe the referenced subject's static appearance (the references define it)",
+        "Don't rely on negative prompts — this is a distilled model",
+        "Don't forget the audio: leaving it out wastes H3's main capability"
+      ],
+      "examples": [
+        "The referenced woman walks slowly toward the camera across a sunlit plaza, glancing to her side. Steady dolly-back keeping her centered, shallow depth of field, warm afternoon light. Audio: soft crowd murmur, distant fountain, a gentle acoustic guitar motif."
+      ],
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/Comfy-Org/MiniMax-H3"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled (BasicGuider, no CFG)"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "large video model with a 32B text encoder; reference tokens ride every sampling step. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Generate a clip WITH sound featuring the subject from your reference image(s). Describe the scene, motion and audio.",
+      "good_for": "reference→video with native audio"
+    },
+    "edit_use_cases": [
+      "reference-to-video: generate a clip featuring the referenced subject, with native audio"
+    ],
+    "reference": {
+      "max": 3,
+      "hint": "The current image is the primary subject reference; add more subject references here. Describe the scene and motion — the references define the subject's appearance."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1344,
+    "max_h": 1344,
+    "step": 32
+  }
+}

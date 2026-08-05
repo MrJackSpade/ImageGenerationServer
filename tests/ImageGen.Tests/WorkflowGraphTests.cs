@@ -239,6 +239,55 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
+    /// <summary>H3 reference→video (ref2va) conditions on the SUBJECT via reference images — the open image is
+    /// ref_image_0 and picker references follow — through the <c>MiniMaxH3ReferenceToVideo</c> node, NOT as a first
+    /// frame. The references ride the node's autogrow input as the flat dotted wire keys <c>ref_images.ref_image_{i}</c>
+    /// (ComfyUI re-nests them server-side), and the audio VAE is a direct node input. Same native-audio topology.</summary>
+    [Fact]
+    public void MiniMaxH3_ref2v_conditions_on_references_not_a_first_frame()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "she walks through a neon-lit street. Audio: city traffic, a moody synth line.",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            ReferenceImageNames = new[] { "ref1.png", "ref2.png" },
+        };
+        string json = BuildJson("minimax-h3-ref2v", inputs);
+        Assert.Contains("MiniMaxH3ReferenceToVideo", json);      // the ref2va conditioning+latent node
+        Assert.DoesNotContain("MiniMaxH3ImageToVideo", json);    // NOT the i2v/t2v node
+        Assert.DoesNotContain("first_frame", json);              // references are NOT first frames
+        // Source is ref_image_0; the two picker references follow as ref_image_1/_2 — flat DOTTED autogrow keys.
+        Assert.Contains("ref_images.ref_image_0", json);
+        Assert.Contains("ref_images.ref_image_1", json);
+        Assert.Contains("ref_images.ref_image_2", json);
+        Assert.DoesNotContain("ref_images.ref_image_3", json);   // exactly 1 source + 2 picker refs
+        Assert.Contains("audio_vae", json);                      // the ref node takes the audio VAE directly
+        Assert.Contains("ref_image_size", json);
+        Assert.Contains("\"match\"", json);
+        Assert.Contains("VAEDecodeAudio", json);                 // native audio path intact
+        Assert.Contains("CreateVideo", json);
+        Assert.Contains("SaveVideo", json);
+        Assert.DoesNotContain("SaveAnimatedWEBP", json);
+    }
+
+    /// <summary>ref2va refuses more picker references than the configured cap (reference_max=3), rather than silently
+    /// dropping them.</summary>
+    [Fact]
+    public void MiniMaxH3_ref2v_rejects_more_references_than_the_cap()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "a scene. Audio: ambience.",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            ReferenceImageNames = new[] { "r1.png", "r2.png", "r3.png", "r4.png" },
+        };
+        Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
+    }
+
     [Fact]
     public void PixelAnima_is_a_generate_workflow_txt2img_under_projection_plus_final_quantize()
     {

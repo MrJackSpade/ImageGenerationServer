@@ -105,9 +105,11 @@ public static class WorkflowRegistration
         services.AddSingleton<IWorkflow, HunyuanVideo15T2VWorkflow>();
         services.AddSingleton<IWorkflow, HunyuanVideoT2VWorkflow>();
         // MiniMax-H3 — omni-modal video with NATIVE audio (mp4, not the silent SaveAnimatedWEBP). One fl2va model
-        // serves both: T2V (generation) and I2V (edit, optional last frame). Needs ComfyUI >= v0.30.1.
+        // serves all three: T2V (generation), I2V (edit, optional last frame) and ref2va (edit, subject-reference
+        // conditioning). Needs ComfyUI >= v0.30.1.
         services.AddSingleton<IWorkflow, MiniMaxH3T2VWorkflow>();
         services.AddSingleton<IWorkflow, MiniMaxH3I2VWorkflow>();
+        services.AddSingleton<IWorkflow, MiniMaxH3Ref2VWorkflow>();
 
         services.AddSingleton<WorkflowRegistry>();
         return services;

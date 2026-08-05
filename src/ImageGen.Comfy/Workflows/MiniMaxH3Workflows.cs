@@ -23,6 +23,10 @@ namespace ImageGen.Comfy;
 /// <c>UNETLoader</c>/<c>CLIPLoader</c> that read the embedded ConvRot metadata. Requires ComfyUI ≥ v0.30.1, which
 /// adds <c>MiniMaxH3ImageToVideo</c> and the CLIPLoader <c>minimax</c> type.</para>
 /// </summary>
+/// <summary>Which H3 task the shared graph builds: text→video (no source), image→video (source is the first frame),
+/// or reference→video (source + picker images condition the subject/identity, never a first frame).</summary>
+file enum H3Mode { T2V, I2V, Ref2V }
+
 file static class H3
 {
     /// <summary>The audio VAE — a SECOND vae slot beyond the video VAE (<c>req.Vae</c>). A model-ref param resolved to
@@ -47,6 +51,9 @@ file static class H3
         public const string SourceSize = "15";
         public const string EndFrame = "12";
         public const string Encode = "14";
+        /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v (the source is ref_image_0, in-place
+        /// at <see cref="Source"/>); each picker reference gets <c>RefImageBase + i</c>. Kept clear of every id above.</summary>
+        public const int RefImageBase = 60;
         public const string Scheduler = "55";
         public const string SamplerSelect = "56";
         public const string Noise = "57";
@@ -64,8 +71,8 @@ file static class H3
     /// (video+audio) decode, one mp4-with-audio. The scalar knobs are read TYPED off each workflow's params record and
     /// passed in; <paramref name="seed"/> is already resolved (<c>ComfyGraph.Seed</c>) and
     /// <paramref name="sampler"/>/<paramref name="scheduler"/> are the RAW Forge names (mapped here).</summary>
-    public static ComfyWorkflowGraph Build(ResolvedRequirements req, WorkflowInputs inputs, bool i2v,
-        string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler, (int w, int h)? t2vDims)
+    public static ComfyWorkflowGraph Build(ResolvedRequirements req, WorkflowInputs inputs, H3Mode mode,
+        string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler, (int w, int h)? t2vDims, int refMax = 0)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
 
@@ -82,35 +89,74 @@ file static class H3
         Output<Slot.Vae> audioVaeRef = VAELoader.VaeOut(Nodes.AudioVae);
 
         // The single H3 conditioning+latent node. It encodes the prompt itself and emits (positive CONDITIONING, LATENT).
-        if (i2v)
+        switch (mode)
         {
-            // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
-            // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
-            g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
-            g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
-            g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
-            Output<Slot.Image>? lastFrame = null;
-            if (!string.IsNullOrEmpty(inputs.EndImageName))
+            case H3Mode.I2V:
             {
-                g[Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
-                lastFrame = LoadImage.ImageOut(Nodes.EndFrame);
+                // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
+                // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
+                g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
+                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+                Output<Slot.Image>? lastFrame = null;
+                if (!string.IsNullOrEmpty(inputs.EndImageName))
+                {
+                    g[Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
+                    lastFrame = LoadImage.ImageOut(Nodes.EndFrame);
+                }
+                g[Nodes.Encode] = new MiniMaxH3ImageToVideoI2V
+                {
+                    Clip = clip,
+                    Vae = videoVae,
+                    Prompt = inputs.Positive,
+                    Length = length,
+                    Width = GetImageSize.WidthOut(Nodes.SourceSize),
+                    Height = GetImageSize.HeightOut(Nodes.SourceSize),
+                    FirstFrame = ImageScaleToTotalPixels.Out(Nodes.ScaledSource),
+                    LastFrame = lastFrame,
+                };
+                break;
             }
-            g[Nodes.Encode] = new MiniMaxH3ImageToVideoI2V
+            case H3Mode.Ref2V:
             {
-                Clip = clip,
-                Vae = videoVae,
-                Prompt = inputs.Positive,
-                Length = length,
-                Width = GetImageSize.WidthOut(Nodes.SourceSize),
-                Height = GetImageSize.HeightOut(Nodes.SourceSize),
-                FirstFrame = ImageScaleToTotalPixels.Out(Nodes.ScaledSource),
-                LastFrame = lastFrame,
-            };
-        }
-        else
-        {
-            (int w, int h) = t2vDims ?? throw new RenderValidationException("MiniMax-H3 text→video needs a render size, but none was resolved.");
-            g[Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = clip, Vae = videoVae, Prompt = inputs.Positive, Length = length, Width = w, Height = h };
+                // Reference→video: the open image is the PRIMARY subject reference (ref_image_0) and sets the output
+                // canvas (scaled to H3's ~1 MP budget, exactly like i2v); any picker references follow as
+                // ref_image_1…N. They condition the subject/identity — NOT a first frame — so they enter the ref node's
+                // autogrow ref_images input, which resizes each internally (down only). The audio VAE is a direct input.
+                g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
+                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+
+                IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+                if (refNames.Count > refMax)
+                    throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {refNames.Count}.");
+                List<Output<Slot.Image>> refs = new(refNames.Count + 1) { LoadImage.ImageOut(Nodes.Source) };
+                for (int i = 0; i < refNames.Count; i++)
+                {
+                    string id = (Nodes.RefImageBase + i).ToString();
+                    g[id] = new LoadImage { Image = refNames[i] };
+                    refs.Add(LoadImage.ImageOut(id));
+                }
+                g[Nodes.Encode] = new MiniMaxH3ReferenceToVideo
+                {
+                    Clip = clip,
+                    Vae = videoVae,
+                    AudioVae = audioVaeRef,
+                    Prompt = inputs.Positive,
+                    Length = length,
+                    Width = GetImageSize.WidthOut(Nodes.SourceSize),
+                    Height = GetImageSize.HeightOut(Nodes.SourceSize),
+                    RefImageSize = "match",
+                    RefImages = MiniMaxH3ReferenceToVideo.Refs(refs),
+                };
+                break;
+            }
+            default:
+            {
+                (int w, int h) = t2vDims ?? throw new RenderValidationException("MiniMax-H3 text→video needs a render size, but none was resolved.");
+                g[Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = clip, Vae = videoVae, Prompt = inputs.Positive, Length = length, Width = w, Height = h };
+                break;
+            }
         }
         Output<Slot.Conditioning> positive = new(Nodes.Encode, 0);
         Output<Slot.Latent> latent = new(Nodes.Encode, 1);
@@ -127,7 +173,7 @@ file static class H3
         g[Nodes.VideoDecode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = videoVae };
         g[Nodes.AudioDecode] = new VAEDecodeAudio { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = audioVaeRef };
         g[Nodes.CreateVideo] = new CreateVideo { Images = VAEDecode.Out(Nodes.VideoDecode), Fps = fps, Audio = VAEDecodeAudio.Out(Nodes.AudioDecode) };
-        g[Nodes.Save] = new SaveVideo { Video = CreateVideo.Out(Nodes.CreateVideo), FilenamePrefix = i2v ? "forgemcp_edit" : "forgemcp", Format = "auto", Codec = "auto" };
+        g[Nodes.Save] = new SaveVideo { Video = CreateVideo.Out(Nodes.CreateVideo), FilenamePrefix = mode == H3Mode.T2V ? "forgemcp" : "forgemcp_edit", Format = "auto", Codec = "auto" };
         return g;
     }
 }
@@ -171,7 +217,7 @@ public sealed class MiniMaxH3T2VWorkflow : Txt2ImgWorkflow<MiniMaxH3Params>
     public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Params p, ResolvedRequirements req, WorkflowInputs inputs)
-        => H3.Build(req, inputs, i2v: false, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,
+        => H3.Build(req, inputs, H3Mode.T2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,
             p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)));
 }
 
@@ -189,5 +235,40 @@ public sealed class MiniMaxH3I2VWorkflow : EditWorkflow<MiniMaxH3I2VParams>
     public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
-        => H3.Build(req, inputs, i2v: true, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null);
+        => H3.Build(req, inputs, H3Mode.I2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null);
+}
+
+/// <summary>MiniMax-H3 reference→video parameters — the same native-audio + sampler knobs as i2v, plus the
+/// <c>reference_max</c> cap (nullable: absent → no picker references beyond the source). The audio VAE (resolved model
+/// ref), clip <c>length</c>, playback <c>fps</c> and sampler settings are <c>required</c>; <c>seed</c> is the app's
+/// single-sourced seed (defaulted).</summary>
+public sealed record MiniMaxH3Ref2VParams
+{
+    [JsonPropertyName(WorkflowParamKeys.AudioVae)]     public required string AudioVae { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
+}
+
+/// <summary>MiniMax-H3 reference→video (ref2va, with native audio). The open image is the primary subject reference and
+/// the edit page's ＋ ref picker (<c>reference.max &gt; 0</c>) adds more; unlike i2v NONE of them is a first frame — they
+/// condition the subject/identity through the <see cref="MiniMaxH3ReferenceToVideo"/> node. Same fl2va model, text
+/// encoder and dual VAEs as the T2V/I2V siblings — no new weights. Buckets into the Animate section (<c>media:video</c>).</summary>
+public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
+{
+    public override string Name => "minimax-h3-ref2v";
+    public override WorkflowMedia Media => WorkflowMedia.Video;
+    /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>
+    public override bool HasAudio => true;
+    /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
+    public override FrameRule? FrameRule => new(5, 17);
+    public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
+
+    protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
+        => H3.Build(req, inputs, H3Mode.Ref2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null, refMax: p.ReferenceMax ?? 0);
 }

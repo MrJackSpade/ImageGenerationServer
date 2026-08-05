@@ -49,6 +49,47 @@ public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
 }
 
+/// <summary>MiniMax-H3's conditioning+latent node in REFERENCE→video mode (ref2va): the prompt plus one or more
+/// reference images that condition the SUBJECT/IDENTITY (not a first frame), emitting the same (positive, joint
+/// video+audio latent) as the i2v/t2v node. The node resizes each reference internally (down only, per
+/// <c>ref_image_size</c>) and injects them as reference conditioning that rides every sampling step.
+///
+/// <para>The references are the node's <c>COMFY_AUTOGROW_V3</c> input: on the wire each one is a FLAT, DOTTED key
+/// <c>ref_images.ref_image_{i}</c> at the top of the node's <c>inputs</c> (ComfyUI re-nests them into the
+/// <c>ref_images</c> dict server-side via <c>build_nested_inputs</c>), so they are emitted through
+/// <see cref="JsonExtensionDataAttribute"/> rather than a fixed property per slot. Unlike the i2v/t2v node this one
+/// also takes the audio VAE directly. Output 0 = positive conditioning, 1 = video+audio latent.</para></summary>
+public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.MiniMaxH3ReferenceToVideo;
+    [JsonPropertyName("clip")]           public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")]            public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("audio_vae")]      public required Output<Slot.Vae> AudioVae { get; init; }
+    [JsonPropertyName("prompt")]         public required string Prompt { get; init; }
+    [JsonPropertyName("length")]         public required int Length { get; init; }
+    [JsonPropertyName("width")]          public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")]         public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("ref_image_size")] public required string RefImageSize { get; init; }
+
+    /// <summary>The autogrow reference images, keyed by the exact flat dotted wire key <c>ref_images.ref_image_{i}</c>
+    /// and serialized as sibling inputs via STJ extension data. Populated by <see cref="Refs"/>.</summary>
+    [JsonExtensionData] public Dictionary<string, object> RefImages { get; init; } = new();
+
+    /// <summary>Build the <c>ref_images.ref_image_{i}</c> extension-data map from the ordered reference outputs. Each
+    /// value is the two-element <c>[nodeId, index]</c> edge ComfyUI expects — byte-identical to an
+    /// <see cref="Output{TSlot}"/> edge, but keyed dynamically since the count is not known at compile time.</summary>
+    public static Dictionary<string, object> Refs(IReadOnlyList<Output<Slot.Image>> images)
+    {
+        Dictionary<string, object> map = new(images.Count);
+        for (int i = 0; i < images.Count; i++)
+            map[$"ref_images.ref_image_{i}"] = new object[] { images[i].NodeId, images[i].Index };
+        return map;
+    }
+
+    public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
+    public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
+}
+
 /// <summary>Decodes the SAME video latent to the native stereo audio track through the audio VAE (ComfyUI core). Output
 /// 0 = the audio waveform, muxed with the frames by <see cref="CreateVideo"/>.</summary>
 public sealed record VAEDecodeAudio : ComfyNode
