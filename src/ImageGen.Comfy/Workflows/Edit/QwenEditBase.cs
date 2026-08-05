@@ -60,9 +60,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     {
         if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no mask
         foreach ((string? name, int pct) in new[] { (WorkflowParamKeys.MaskLeftPct, pctL), (WorkflowParamKeys.MaskRightPct, pctR), (WorkflowParamKeys.MaskTopPct, pctT), (WorkflowParamKeys.MaskBottomPct, pctB) })
-            if (pct < CanvasMaskConstants.MinSidePct || pct > CanvasMaskConstants.MaxSidePct)
-                throw new ArgumentOutOfRangeException(name, pct,
-                    $"must be {CanvasMaskConstants.MinSidePct}–{CanvasMaskConstants.MaxSidePct}");
+            Ensure.Between(pct, CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct, name);
 
         if (pctL + pctR > 100 - CanvasMaskConstants.MinOpenPctPerAxis)
             throw new ArgumentException($"mask_left_pct + mask_right_pct = {pctL + pctR}% leaves no width for the model to draw in.");

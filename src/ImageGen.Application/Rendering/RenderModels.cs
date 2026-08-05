@@ -98,7 +98,13 @@ public sealed record BackendQueue(IReadOnlySet<string> Executing, IReadOnlySet<s
 /// Thrown for expected, user-correctable render problems (e.g. an unknown workflow configuration). Callers turn it
 /// into a clean message instead of an unhandled stack trace.
 /// </summary>
-public sealed class RenderValidationException(string message) : Exception(message);
+public sealed class RenderValidationException : Exception
+{
+    public RenderValidationException(string message) : base(message) { }
+
+    /// <summary>Wraps the precise inner failure (e.g. an <c>Ensure</c> guard) behind context-specific prose.</summary>
+    public RenderValidationException(string message, Exception innerException) : base(message, innerException) { }
+}
 
 /// <summary>
 /// Thrown when work could not be ACCEPTED because it could not be written down. The front door turns it into a clean
