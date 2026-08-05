@@ -1,4 +1,5 @@
 using ImageGen.Application.Tags;
+using ImageGen.Domain;
 
 namespace ImageGen.TagModel;
 
@@ -74,7 +75,7 @@ public sealed class VocabTagCatalog : ITagCatalog
     /// <inheritdoc />
     public IReadOnlyList<TagEntry> Query(string query, bool artist, int limit)
     {
-        if (limit < 1) return [];
+        Ensure.GreaterThanZero(limit);   // an empty ask is the caller's mistake to see, not a silent [] (as the model path also refuses)
         var needle = query.Trim();
 
         // Pre-sorted by count, so the first `limit` substring matches ARE the top `limit` by count -- no scoring pass

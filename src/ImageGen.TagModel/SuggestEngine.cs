@@ -182,7 +182,8 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             result[i] = (float)e;
             sum += e;
         }
-        if (sum <= 0) return result;
+        // sum >= 1 here: `max` is finite (the all-unemittable case returned above), so the max element contributes
+        // exp(0) = 1 — there is no divide-by-zero to guard against.
         for (var i = 0; i < result.Length; i++)
             result[i] = (float)(result[i] / sum);
         return result;
