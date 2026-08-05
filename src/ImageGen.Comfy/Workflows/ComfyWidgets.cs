@@ -15,6 +15,8 @@ internal static class ComfyWidgets
         public const string Lanczos = "lanczos";
         public const string NearestExact = "nearest-exact";
         public const string Bilinear = "bilinear";
+        public const string Bicubic = "bicubic";
+        public const string Area = "area";
     }
 
     /// <summary>The <c>crop</c> combo on the scale nodes.</summary>
@@ -125,6 +127,79 @@ internal static class ComfyWidgets
     {
         public const string IndexTimestepZero = "index_timestep_zero";
     }
+
+    /// <summary>The per-step projection / final-render cell-method combo on the pixelize custom nodes
+    /// (PixelManifoldProjection <c>method</c>, PixelQuantize <c>method</c>) — shared verbatim by every pixelizer.</summary>
+    internal static class Pixelize
+    {
+        public const string Median = "median";
+        public const string Mode = "mode";
+        public const string Box = "box";
+        public const string NearestPresent = "nearest_present";
+        public const string MeanSrgb = "mean_srgb";
+        public const string MeanLinear = "mean_linear";
+        public const string MeanOklab = "mean_oklab";
+        public const string Lanczos = "lanczos";
+        public const string VarHybrid = "var_hybrid";
+        public const string SupersampleMode = "supersample_mode";
+    }
+
+    /// <summary>The PixelQuantize <c>engine</c> selector — median (named-palette per-frame snap) vs fp
+    /// (feature-preserving + one global palette).</summary>
+    internal static class PixelEngine
+    {
+        public const string Median = "median";
+        public const string Fp = "fp";
+    }
+
+    /// <summary>The AnimateDiff <c>beta_schedule</c> combo on ADE_UseEvolvedSampling — several values carry the module
+    /// they belong to as prose inside the token itself, so the token is the value ComfyUI matches verbatim.</summary>
+    internal static class BetaSchedule
+    {
+        public const string Autoselect = "autoselect";
+        public const string UseExisting = "use existing";
+        public const string SqrtLinearAnimateDiff = "sqrt_linear (AnimateDiff)";
+        public const string LinearAnimateDiffSdxl = "linear (AnimateDiff-SDXL)";
+        public const string LinearHotshotXlDefault = "linear (HotshotXL/default)";
+        public const string AvgSqrtLinearLinear = "avg(sqrt_linear,linear)";
+        public const string LcmAvgSqrtLinearLinear = "lcm avg(sqrt_linear,linear)";
+        public const string Lcm = "lcm";
+        public const string Lcm100Ots = "lcm[100_ots]";
+        public const string LcmThenSqrtLinear = "lcm >> sqrt_linear";
+        public const string Sqrt = "sqrt";
+        public const string Cosine = "cosine";
+        public const string SquaredcosCapV2 = "squaredcos_cap_v2";
+    }
+
+    /// <summary>The SeedVR2 <c>color_match</c> combo — how the upscaled frames are colour-matched to the source.</summary>
+    internal static class ColorMatch
+    {
+        public const string Lab = "lab";
+        public const string Wavelet = "wavelet";
+        public const string WaveletAdaptive = "wavelet_adaptive";
+        public const string Hsv = "hsv";
+        public const string Adain = "adain";
+        public const string None = "none";
+    }
+}
+
+/// <summary>Dropdown vocabularies (a schema's <see cref="ImageGen.Comfy.ParamSpec.Choices"/>) built from the
+/// <see cref="ComfyWidgets"/> consts — kept out of the pure holders so those stay const-only (IMGSTR003), mirroring how
+/// <c>LoaderKindWire.Choices</c> sits beside <c>LoaderKinds</c>. One array per combo that more than one schema offers,
+/// so every pixelizer's dropdown carries a single spelling of each token.</summary>
+internal static class ComfyWidgetChoices
+{
+    /// <summary>The pixelize projection/cell-method vocabulary in dropdown order, shared by every pixelizer schema.</summary>
+    public static readonly string[] PixelizeMethods =
+    {
+        ComfyWidgets.Pixelize.Median, ComfyWidgets.Pixelize.Mode, ComfyWidgets.Pixelize.Box,
+        ComfyWidgets.Pixelize.NearestPresent, ComfyWidgets.Pixelize.MeanSrgb, ComfyWidgets.Pixelize.MeanLinear,
+        ComfyWidgets.Pixelize.MeanOklab, ComfyWidgets.Pixelize.Lanczos, ComfyWidgets.Pixelize.VarHybrid,
+        ComfyWidgets.Pixelize.SupersampleMode,
+    };
+
+    /// <summary>The PixelQuantize engine-selector vocabulary in dropdown order.</summary>
+    public static readonly string[] PixelEngines = { ComfyWidgets.PixelEngine.Median, ComfyWidgets.PixelEngine.Fp };
 }
 
 /// <summary>The output-image filename prefix this app writes on a Save node — its own identifier, not a ComfyUI token.

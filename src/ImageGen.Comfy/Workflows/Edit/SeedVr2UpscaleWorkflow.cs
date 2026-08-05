@@ -57,7 +57,8 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         new() { Key = WorkflowParamKeys.MaxResolution, Type = ParamType.Int },
         // How the output's colour is re-matched to the source. Diffusion restorers drift; 'lab' is the pack's default.
         new() { Key = WorkflowParamKeys.ColorCorrection, Type = ParamType.Enum,
-                Choices = new[] { "lab", "wavelet", "wavelet_adaptive", "hsv", "adain", "none" }, Label = "Colour match" },
+                Choices = new[] { ComfyWidgets.ColorMatch.Lab, ComfyWidgets.ColorMatch.Wavelet, ComfyWidgets.ColorMatch.WaveletAdaptive,
+                                  ComfyWidgets.ColorMatch.Hsv, ComfyWidgets.ColorMatch.Adain, ComfyWidgets.ColorMatch.None }, Label = "Colour match" },
         // Compute + memory placement. cuda:0 / cpu on this single-GPU box.
         new() { Key = WorkflowParamKeys.Device,         Type = ParamType.String },
         new() { Key = WorkflowParamKeys.OffloadDevice, Type = ParamType.String },

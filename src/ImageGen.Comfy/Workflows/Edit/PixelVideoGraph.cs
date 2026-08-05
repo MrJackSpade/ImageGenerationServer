@@ -167,7 +167,7 @@ internal static class PixelVideoGraph
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         new() { Key = WorkflowParamKeys.Palette, Type = ParamType.String, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = WorkflowParamKeys.Method,  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = WorkflowParamKeys.Method,  Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // The toggle: false = fast post-quantize only; true = also project the latent onto the manifold every step
         // (pixels baked into the motion, no shimmer — much slower).
         new() { Key = WorkflowParamKeys.Guided, Type = ParamType.Bool, Label = "Pixel-guided", Help = "Project the latent every step — kills shimmer, but much slower" },

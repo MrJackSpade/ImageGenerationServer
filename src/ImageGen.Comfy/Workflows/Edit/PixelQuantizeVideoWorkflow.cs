@@ -41,14 +41,14 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
         // A named (locked) palette is the same every frame → temporally consistent. 'adaptive' would re-derive a
         // palette per frame and flicker, so a locked palette is the default for video.
         new() { Key = WorkflowParamKeys.Palette, Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // 0 (default) = keep the source clip's frame rate (wired from GetVideoComponents); >0 overrides it.
         new() { Key = WorkflowParamKeys.Fps, Type = ParamType.Double, Min = 0, Max = 60, Label = "Output FPS", Help = "0 = keep the source clip's frame rate" },
         // Engine selector. 'median' = the original per-frame PixelQuantize (named/locked palette). 'fp' =
         // PixelQuantizeFP: L0 flatten + XDoG line-thicken + de-AA edge-collapse, then ONE global per-video
         // palette (DIN99d) so it's temporally consistent WITHOUT a named palette (the palette/final_method
         // params are ignored for 'fp'). The fp_* knobs below tune it.
-        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
+        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelEngines, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
         new() { Key = WorkflowParamKeys.Thicken, Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
         new() { Key = WorkflowParamKeys.Tau, Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
         new() { Key = WorkflowParamKeys.Lam, Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
@@ -83,7 +83,7 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
             frames = BiRefNetMatte.Out(Nodes.Matte);
         }
         // Both engines process the whole (N,H,W,C) frame batch and return N quantized frames at the same resolution.
-        if (p.Engine == Nodes.FpEngine)
+        if (p.Engine == ComfyWidgets.PixelEngine.Fp)
         {
             // Feature-preserving: derives ONE global palette across all frames, so 'palette'/'final_method' are unused.
             g[Nodes.Quantize] = new PixelQuantizeFP
@@ -147,9 +147,6 @@ file static class Nodes
     public const string Matte = "15";
     public const string Quantize = "20";
     public const string Save = "9";
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    public const string FpEngine = "fp";
 }
 
 /// <summary>Video pixel-quantizer parameters — the grid/virtual-resolution snap, the output frame rate, the engine

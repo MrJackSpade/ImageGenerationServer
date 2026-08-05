@@ -33,8 +33,8 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         new() { Key = WorkflowParamKeys.Palette, Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
-        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method" },
-        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
+        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Cell method" },
+        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelEngines, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
         new() { Key = WorkflowParamKeys.Thicken, Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px" },
         new() { Key = WorkflowParamKeys.Tau, Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau" },
         new() { Key = WorkflowParamKeys.Lam, Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
@@ -78,7 +78,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
 
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == Nodes.FpEngine)
+        if (p.Engine == ComfyWidgets.PixelEngine.Fp)
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
             // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
@@ -119,9 +119,6 @@ file static class Nodes
     public const string Matte = "15";
     public const string Quantize = "20";
     public const string Save = "9";
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    public const string FpEngine = "fp";
 }
 
 /// <summary>Batch pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the

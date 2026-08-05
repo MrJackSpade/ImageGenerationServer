@@ -19,7 +19,10 @@ namespace ImageGen.Analyzers;
 /// (<c>new StringBuilder("x")</c>), or indexer (<c>map["x"]</c>, <c>map?["x"]</c>, the <c>["x"] = …</c> form
 /// in a collection initializer). <b>Object-initializer values</b>: a literal assigned to a member in an object
 /// initializer (<c>new ParamSpec { Key = "steps" }</c>) — the mirror of a constructor argument — except for a
-/// well-known display-prose property (see <see cref="IsExemptWellKnownProperty"/>).</para>
+/// well-known display-prose property (see <see cref="IsExemptWellKnownProperty"/>). When such a value is an array or
+/// collection creation (<c>Choices = new[] { "median", … }</c>), every literal <i>element</i> is flagged too — the same
+/// magic-identifier shape as a scalar assignment (see <see cref="GetCollectionElements"/>); a nested object initializer
+/// among the elements is left to the visitors that reach it directly.</para>
 ///
 /// <para>Several built-in carve-outs skip an argument by its (parameter, method) name — see
 /// <see cref="IsExemptWellKnownParameter"/>: an exception or <c>ILogger</c> <c>message</c> (diagnostic prose),
@@ -262,8 +265,33 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         if (context.SemanticModel.GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol is { } member
             && (HasAllowAttribute(member) || IsExemptWellKnownProperty(member.Name)))
             return;
+        if (GetCollectionElements(assignment.Right) is { } elements)
+        {
+            foreach (ExpressionSyntax element in elements)
+                ReportIfLiteral(context, element);
+            return;
+        }
         ReportIfLiteral(context, assignment.Right);
     }
+
+    /// <summary>
+    /// When <paramref name="expression"/> is an array or collection creation — <c>new[] { … }</c>,
+    /// <c>new string[] { … }</c>, <c>new List&lt;string&gt; { … }</c>, or a collection expression <c>[ … ]</c> — returns
+    /// its element expressions, so a literal element (<c>Choices = new[] { "median", … }</c>) is flagged exactly like a
+    /// scalar assignment. Returns <see langword="null"/> for any other RHS, which the caller flags directly. A nested
+    /// <b>object</b> initializer among the elements is left to the object-creation/initializer visitors that reach it
+    /// directly — here it is simply not a literal, so <see cref="ReportIfLiteral"/> passes it over.
+    /// </summary>
+    private static System.Collections.Generic.IEnumerable<ExpressionSyntax>? GetCollectionElements(ExpressionSyntax expression) =>
+        expression switch
+        {
+            ImplicitArrayCreationExpressionSyntax { Initializer: { } init } => init.Expressions,
+            ArrayCreationExpressionSyntax { Initializer: { } init } => init.Expressions,
+            ObjectCreationExpressionSyntax { Initializer.RawKind: (int)SyntaxKind.CollectionInitializerExpression } creation
+                => creation.Initializer!.Expressions,
+            CollectionExpressionSyntax collection => collection.Elements.OfType<ExpressionElementSyntax>().Select(e => e.Expression),
+            _ => null,
+        };
 
     /// <summary>
     /// True for a well-known display-prose property whose string value is human-readable UI text, not a magic

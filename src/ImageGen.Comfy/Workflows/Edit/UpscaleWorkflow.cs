@@ -56,7 +56,8 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
                 Label = "Scale (×)", Help = "Output size relative to the source. Above the model's native factor the result is stretched, not resolved." },
         // Resampler for the fit-to-scale step. lanczos keeps the SR pass's sharpness on the way down.
         new() { Key = WorkflowParamKeys.Resample,      Type = ParamType.Enum,
-                Choices = new[] { "lanczos", "bicubic", "bilinear", "area", "nearest-exact" } },
+                Choices = new[] { ComfyWidgets.Upscale.Lanczos, ComfyWidgets.Upscale.Bicubic, ComfyWidgets.Upscale.Bilinear,
+                                  ComfyWidgets.Upscale.Area, ComfyWidgets.Upscale.NearestExact } },
     };
 
     protected override ComfyWorkflowGraph Build(UpscaleParams p, ResolvedRequirements req, WorkflowInputs inputs)

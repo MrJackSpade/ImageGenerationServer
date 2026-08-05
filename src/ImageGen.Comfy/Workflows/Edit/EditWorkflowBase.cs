@@ -41,9 +41,13 @@ internal static class EditWorkflowBase
         // garbage, so it's a per-module setting, not an artistic one — exposed for iterative testing, to be locked
         // down once dialed in. No schema default: each AnimateDiff workflow falls back to its module's correct value.
         new() { Key = WorkflowParamKeys.BetaSchedule, Type = ParamType.Enum, Label = "AnimateDiff schedule",
-                Choices = new[] { "autoselect", "use existing", "sqrt_linear (AnimateDiff)", "linear (AnimateDiff-SDXL)",
-                                  "linear (HotshotXL/default)", "avg(sqrt_linear,linear)", "lcm avg(sqrt_linear,linear)",
-                                  "lcm", "lcm[100_ots]", "lcm >> sqrt_linear", "sqrt", "cosine", "squaredcos_cap_v2" } },
+                Choices = new[] { ComfyWidgets.BetaSchedule.Autoselect, ComfyWidgets.BetaSchedule.UseExisting,
+                                  ComfyWidgets.BetaSchedule.SqrtLinearAnimateDiff, ComfyWidgets.BetaSchedule.LinearAnimateDiffSdxl,
+                                  ComfyWidgets.BetaSchedule.LinearHotshotXlDefault, ComfyWidgets.BetaSchedule.AvgSqrtLinearLinear,
+                                  ComfyWidgets.BetaSchedule.LcmAvgSqrtLinearLinear, ComfyWidgets.BetaSchedule.Lcm,
+                                  ComfyWidgets.BetaSchedule.Lcm100Ots, ComfyWidgets.BetaSchedule.LcmThenSqrtLinear,
+                                  ComfyWidgets.BetaSchedule.Sqrt, ComfyWidgets.BetaSchedule.Cosine,
+                                  ComfyWidgets.BetaSchedule.SquaredcosCapV2 } },
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]

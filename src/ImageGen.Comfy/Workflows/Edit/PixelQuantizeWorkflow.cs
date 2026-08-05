@@ -39,12 +39,12 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         // Named final_method (not method) to match the diffusion pixelizers' final-render param, so the key is shared
         // across every pixelizer and stays in the multi-select intersection panel. (The PixelQuantize node input is
         // still "method" — see Build.)
-        new() { Key = WorkflowParamKeys.FinalMethod,  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = WorkflowParamKeys.FinalMethod,  Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // Engine selector, mirroring pixel-quantize-video. 'fp' routes to PixelQuantizeFP (L0 flatten + XDoG
         // thicken + de-AA + DIN99d palette). For a SINGLE frame the fp result is only identical to that frame's
         // whole-batch run when BOTH batch globals are replayed via fp_palette + fp_frequencies below; deriving
         // them from one frame is valid fp but not batch-exact. palette/final_method are ignored for 'fp'.
-        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
+        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = ComfyWidgetChoices.PixelEngines, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
         new() { Key = WorkflowParamKeys.Thicken, Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
         new() { Key = WorkflowParamKeys.Tau, Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
         new() { Key = WorkflowParamKeys.Lam, Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
@@ -84,7 +84,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         }
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == Nodes.FpEngine)
+        if (p.Engine == ComfyWidgets.PixelEngine.Fp)
         {
             // Feature-preserving engine, same node + knobs as pixel-quantize-video's fp branch, plus the replay
             // globals so a single frame can reproduce its whole-batch result exactly.
@@ -127,9 +127,6 @@ file static class Nodes
     public const string Matte = "15";
     public const string Quantize = "20";
     public const string Save = "9";
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    public const string FpEngine = "fp";
 }
 
 /// <summary>Pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the
