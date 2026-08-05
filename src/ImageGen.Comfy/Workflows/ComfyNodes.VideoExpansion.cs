@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -188,11 +189,13 @@ public sealed record HunyuanVideo15SuperResolution : ComfyNode
     /// <summary>The i2v start image (the SR consistency cue); null on the t2v path, where it is omitted from the node.</summary>
     [JsonPropertyName("start_image")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [AllowNullable("null = no start image is wired (the t2v path has no source frame); the start_image node input is omitted when absent, distinct from a default node handle")]
     public Output<Slot.Image>? StartImage { get; init; }
 
     /// <summary>The i2v clip-vision cue; null on the t2v path, where it is omitted from the node.</summary>
     [JsonPropertyName("clip_vision_output")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [AllowNullable("null = no clip-vision output is wired (the t2v path has no source frame to encode); the clip_vision_output node input is omitted when absent, distinct from a default node handle")]
     public Output<Slot.ClipVision>? ClipVisionOutput { get; init; }
 
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);

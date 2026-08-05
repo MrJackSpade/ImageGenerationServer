@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -138,18 +139,25 @@ public sealed record PixelQuantizeBatchParams
     [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
     [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Thicken)]
+    [AllowNullable("null = the config didn't set the FP line-thicken; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0 (no thicken)")]
     [Range(0.0, 8.0)]                                       public double? Thicken { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Tau)]
+    [AllowNullable("null = the config didn't set the FP de-AA tau; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
     [Range(0.0, 2.0)]                                       public double? Tau { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lam)]
+    [AllowNullable("null = the config didn't set the FP flatten strength; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real value")]
     [Range(0.001, 0.2)]                                     public double? Lam { get; init; }
     [JsonPropertyName(WorkflowParamKeys.K)]
+    [AllowNullable("null = the config didn't set the FP palette k-means count; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
     [Range(2, 128)]                                         public int? K { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Beta)]
+    [AllowNullable("null = the config didn't set the FP rarity bias; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
     [Range(0.0, 4.0)]                                       public double? Beta { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Step)]
+    [AllowNullable("null = the config didn't set the FP DIN99d lattice step; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
     [Range(1.0, 20.0)]                                      public double? Step { get; init; }
     [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]
+    [AllowNullable("null = the config didn't set the matte cutoff; the BiRefNet node input is emitted only when key_background is on, distinct from a real 0 (soft matte)")]
     [Range(0.0, 1.0)]                                       public double? MatteThreshold { get; init; }
 }

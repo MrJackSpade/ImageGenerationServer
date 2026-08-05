@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Application.Tags;
 
 /// <summary>One autocomplete row: the tag/artist name, how many images carry it (for ranking), and its raw category
@@ -12,4 +14,7 @@ public readonly record struct TagEntry(string Name, int Count, int Type);
 /// <param name="Name">The suggested tag name.</param>
 /// <param name="P">Conditional probability P(tag | context tags).</param>
 /// <param name="Lift">Lift over the tag's base rate, or null when unavailable.</param>
-public readonly record struct TagSuggestion(string Name, double P, double? Lift);
+public readonly record struct TagSuggestion(
+    string Name,
+    double P,
+    [property: AllowNullable("null = lift unavailable (no base rate for the tag); 0.0 would be a real lift value")] double? Lift);

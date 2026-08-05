@@ -64,7 +64,8 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
 
     /// <summary>A raw token-bookmark row buffered with its still-encrypted name before deferred decryption.</summary>
     private readonly record struct TokenBookmarkRow(
-        long Id, long UserId, string Name, TokenKind Kind, DateTime Saved, DateTime? Pinned);
+        long Id, long UserId, string Name, TokenKind Kind, DateTime Saved,
+        [property: AllowNullable("null = unpinned; mirrors the nullable dbo.TokenBookmark column. No default timestamp means \"not pinned\"")] DateTime? Pinned);
 
     public async Task<bool> IsImageBookmarkedAsync(long userId, string gatewayImageId, CancellationToken ct)
     {

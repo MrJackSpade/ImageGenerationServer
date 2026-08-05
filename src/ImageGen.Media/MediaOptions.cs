@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using Loxifi.FFmpeg.Transcoding.Codecs;
 
 namespace ImageGen.Media;
@@ -26,6 +27,7 @@ public sealed record MediaOptions
     /// Constant rate factor, for encoders that have one. x264 and x265 do; OpenH264 does not and ignores it,
     /// which is why <see cref="BitRate"/> is what carries quality for the default encoder.
     /// </summary>
+    [AllowNullable("null = no CRF set, so the encoder uses its own default; 0 would be a real (lossless) CRF value")]
     public int? Quality { get; init; }
 
     /// <summary>Encoder speed preset (x264/x265 only). Null leaves the encoder's own default.</summary>

@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Domain.Entities;
 
 /// <summary>Job-level lifecycle. A job is <see cref="Active"/> while any slot is still non-terminal; once every slot
@@ -46,6 +48,7 @@ public sealed class JobRecord
     public JobStatus Status { get; set; } = JobStatus.Active;
     public DateTime CreatedAtUtc { get; set; }
     /// <summary>Set when finalized (all slots terminal).</summary>
+    [AllowNullable("null = not finalized; mirrors the nullable dbo.Job column. default(DateTime) would falsely read as finished in year 1")]
     public DateTime? FinishedAtUtc { get; set; }
     public List<JobSlotRecord> Slots { get; set; } = new();
 }
@@ -75,11 +78,14 @@ public sealed class JobSlotRecord
     public string? ComfyPromptId { get; set; }
     /// <summary>Produced image (dbo.ImageBlob id).</summary>
     public string? ImageId { get; set; }
+    [AllowNullable("null = image not yet produced; mirrors the nullable dbo.JobSlot column. A produced image is never 0px, so a default can't stand in for absent")]
     public int? Width { get; set; }
+    [AllowNullable("null = image not yet produced; mirrors the nullable dbo.JobSlot column. A produced image is never 0px, so a default can't stand in for absent")]
     public int? Height { get; set; }
     /// <summary>Edits: false when the model declined (no new image).</summary>
     public bool Changed { get; set; } = true;
     /// <summary>Edits only (pHash distance).</summary>
+    [AllowNullable("null = not an edit / distance not computed; mirrors the nullable dbo.JobSlot column. 0.0 is a real identical-image score")]
     public double? ChangeScore { get; set; }
     public string? Error { get; set; }
     /// <summary>The finalized prompt this slot rendered.</summary>
@@ -92,7 +98,9 @@ public sealed class JobSlotRecord
     /// <summary>The produced image's marks. A real child table (dbo.JobSlotMark), mirroring dbo.HistoryMark, rather
     /// than an encrypted { token -> kind } blob — so this data can be queried, joined and counted.</summary>
     public List<Mark> Marks { get; set; } = [];
+    [AllowNullable("null = generation not yet started; mirrors the nullable dbo.JobSlot column. default(DateTime) would falsely read as started in year 1")]
     public DateTime? GenStartedAtUtc { get; set; }
+    [AllowNullable("null = no ETA computed yet; mirrors the nullable dbo.JobSlot column. 0.0 would be a real (instant) estimate")]
     public double? ExpectedGenSeconds { get; set; }
 
     /// <summary>The workflow configuration this slot renders. NOT protected — a workflow id names software.</summary>
@@ -104,10 +112,13 @@ public sealed class JobSlotRecord
     /// <summary>"square" | "landscape" | "portrait" (generates only).</summary>
     public string? Aspect { get; set; }
     /// <summary>Whether the worker should sample an artist for this slot. Null = the caller specified none.</summary>
+    [AllowNullable("null = not specified / not applicable to an edit slot (set null for edits); mirrors the nullable dbo.JobSlot column, distinct from an explicit false")]
     public bool? RandomArtist { get; set; }
     /// <summary>Whether the worker should generate the prompt from the tag model. Null = the caller specified none.</summary>
+    [AllowNullable("null = not specified / not applicable to an edit slot (set null for edits); mirrors the nullable dbo.JobSlot column, distinct from an explicit false")]
     public bool? RandomPrompt { get; set; }
     /// <summary>The random-prompt sampling temperature. Null = the caller specified none.</summary>
+    [AllowNullable("null = use the tag model's default sampling; mirrors the nullable dbo.JobSlot column. 0.0 is a real (greedy) temperature")]
     public double? Temperature { get; set; }
     /// <summary>The generation mask for this slot as a JSON array of type NAMES. A value set, not a relation — the
     /// same shape (and the same plain storage) as <c>AppUser.GenerationTagTypes</c>. Null = the caller sent none.</summary>

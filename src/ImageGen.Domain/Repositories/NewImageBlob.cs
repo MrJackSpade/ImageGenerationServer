@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 
 namespace ImageGen.Domain.Repositories;
@@ -14,6 +15,6 @@ namespace ImageGen.Domain.Repositories;
 public sealed record NewImageBlob(
     byte[] Bytes,
     string ContentType,
-    int? Width,
-    int? Height,
+    [property: AllowNullable("null = pixel width unknown at store time; persisted as the nullable dbo.ImageBlob column, distinct from a 0px default")] int? Width,
+    [property: AllowNullable("null = pixel height unknown at store time; persisted as the nullable dbo.ImageBlob column, distinct from a 0px default")] int? Height,
     ImageBlobKind Kind);

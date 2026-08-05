@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -147,11 +148,13 @@ public sealed record PixelizeParams
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]     public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]         public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guidance)]          public double? Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]
+    [AllowNullable("null = the config declares no Flux distilled guidance; the FluxGuidance node is emitted only when set (omitted for non-flux), distinct from a real 0")] public double? Guidance { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]           public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]         public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Reference)]
+    [AllowNullable("null = the config didn't set the reference %; read via the denoise map only when present, distinct from a real 0% (generate fresh)")]
     [Range(0, 100)]                                         public int? Reference { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
     [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }

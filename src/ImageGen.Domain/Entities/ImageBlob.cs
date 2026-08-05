@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Domain.Entities;
 
 /// <summary>What a stored image is, for housekeeping/diagnostics.</summary>
@@ -23,7 +25,9 @@ public sealed class ImageBlob
     public required string ImageId { get; init; }
     public required byte[] Bytes { get; init; }
     public required string ContentType { get; init; }
+    [AllowNullable("null = dimensions not recorded for this row; mirrors the nullable dbo.ImageBlob column, distinct from a 0px default")]
     public int? Width { get; init; }
+    [AllowNullable("null = dimensions not recorded for this row; mirrors the nullable dbo.ImageBlob column, distinct from a 0px default")]
     public int? Height { get; init; }
     public required int ByteSize { get; init; }
     public ImageBlobKind Kind { get; init; }

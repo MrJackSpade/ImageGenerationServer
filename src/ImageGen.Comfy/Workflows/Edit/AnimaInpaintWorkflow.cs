@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -132,7 +133,8 @@ public sealed record AnimaInpaintParams
     [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]
+    [AllowNullable("null = the config didn't set clip skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
     [Range(0, 64)]                                       public required int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }

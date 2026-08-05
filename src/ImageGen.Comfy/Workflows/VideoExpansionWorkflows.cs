@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -304,19 +305,19 @@ public sealed record WanA14bI2VParams
     [JsonPropertyName(WorkflowParamKeys.Length)]          public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)]             public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefinerSteps)]
-    [Range(0, 40)]                                        public int? RefinerSteps { get; init; }
+    [Range(0, 40)]                                        [AllowNullable("null = the config didn't set refiner_steps; absent means the legacy shared-schedule tail, distinct from a real 0 (decode the handoff as-is)")] public int? RefinerSteps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeftPct)]
-    [Range(0, 2000)]                                      public int? PadLeftPct { get; init; }
+    [Range(0, 2000)]                                      [AllowNullable("null = the config didn't set this pad percentage; distinct from a real 0%")] public int? PadLeftPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadRightPct)]
-    [Range(0, 2000)]                                      public int? PadRightPct { get; init; }
+    [Range(0, 2000)]                                      [AllowNullable("null = the config didn't set this pad percentage; distinct from a real 0%")] public int? PadRightPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTopPct)]
-    [Range(0, 2000)]                                      public int? PadTopPct { get; init; }
+    [Range(0, 2000)]                                      [AllowNullable("null = the config didn't set this pad percentage; distinct from a real 0%")] public int? PadTopPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottomPct)]
-    [Range(0, 2000)]                                      public int? PadBottomPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.EndPadLeftPct)]   public int? EndPadLeftPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.EndPadRightPct)]  public int? EndPadRightPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.EndPadTopPct)]    public int? EndPadTopPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.EndPadBottomPct)] public int? EndPadBottomPct { get; init; }
+    [Range(0, 2000)]                                      [AllowNullable("null = the config didn't set this pad percentage; distinct from a real 0%")] public int? PadBottomPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPadLeftPct)]   [AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadLeftPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPadRightPct)]  [AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadRightPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPadTopPct)]    [AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadTopPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPadBottomPct)] [AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadBottomPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]        public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]            public long Seed { get; init; }
 }
@@ -377,7 +378,7 @@ public sealed record WanA14bT2VParams : Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.CfgLow)]       public required double CfgLow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)] public int? RefinerSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)] [AllowNullable("null = the config didn't set refiner_steps; absent means the legacy shared-schedule tail, distinct from a real 0 (decode the handoff as-is)")] public int? RefinerSteps { get; init; }
 }
 
 /// <summary>HunyuanVideo 1.5 text→video (720p). UNETLoader + the Qwen2.5-VL/ByT5 DualCLIPLoader (type
@@ -443,18 +444,18 @@ public sealed record HunyuanVideo15T2VParams : Txt2ImgParams, IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.Sr)]          public bool Sr { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrModel)]     public string? SrModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrUpsampler)] public string? SrUpsampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrWidth)]     public int? SrWidth { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrHeight)]    public int? SrHeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrWidth)]     [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrWidth { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrHeight)]    [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrHeight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrSteps)]
-    [Range(1, 50)]                                    public int? SrSteps { get; init; }
+    [Range(1, 50)]                                    [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrSteps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
-    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public double? SrDenoise { get; init; }
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrDenoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
-    [Range(0.0, 1.0)]                                 public double? SrNoiseAug { get; init; }
+    [Range(0.0, 1.0)]                                 [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrNoiseAug { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrCfg)]
-    [Range(1.0, 12.0)]                                public double? SrCfg { get; init; }
+    [Range(1.0, 12.0)]                                [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrCfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrShift)]
-    [Range(1.0, 12.0)]                                public double? SrShift { get; init; }
+    [Range(1.0, 12.0)]                                [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrShift { get; init; }
 }
 
 /// <summary>Original HunyuanVideo 13B text→video. The diffusion loader follows the bound file; the LLaVA-Llama3/CLIP-L DualCLIPLoader

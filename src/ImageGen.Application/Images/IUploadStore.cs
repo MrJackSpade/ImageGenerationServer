@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Application.Images;
 
 /// <summary>An image the user handed us — an edit source, a reference image, an inpaint mask, an i2v end frame.
@@ -6,7 +8,11 @@ namespace ImageGen.Application.Images;
 /// <param name="ContentType">The declared content type (defaulted to image/png when the client sent none).</param>
 /// <param name="Width">Pixel width, or null when the bytes had no identifiable image header.</param>
 /// <param name="Height">Pixel height, or null when the bytes had no identifiable image header.</param>
-public sealed record UploadedImage(byte[] Bytes, string ContentType, int? Width, int? Height);
+public sealed record UploadedImage(
+    byte[] Bytes,
+    string ContentType,
+    [property: AllowNullable("null = the bytes had no identifiable image header, so no dimensions; distinct from a 0px default")] int? Width,
+    [property: AllowNullable("null = the bytes had no identifiable image header, so no dimensions; distinct from a 0px default")] int? Height);
 
 /// <summary>
 /// Process-local store for uploaded images, keyed by a minted id.

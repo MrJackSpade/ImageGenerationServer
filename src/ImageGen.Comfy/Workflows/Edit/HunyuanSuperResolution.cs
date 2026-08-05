@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -15,18 +16,25 @@ public interface IHunyuanSrParams
     /// <summary>The latent upsampler filename (resolved model ref).</summary>
     string? SrUpsampler { get; }
     /// <summary>The SR latent-upscale target width.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     int? SrWidth { get; }
     /// <summary>The SR latent-upscale target height.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     int? SrHeight { get; }
     /// <summary>The SR refine step count.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     int? SrSteps { get; }
     /// <summary>The SR refine denoise fraction.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     double? SrDenoise { get; }
     /// <summary>The SR noise-augmentation amount fed to the SR conditioning node.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     double? SrNoiseAug { get; }
     /// <summary>The SR real-CFG scale.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     double? SrCfg { get; }
     /// <summary>The SR model's flow shift.</summary>
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
     double? SrShift { get; }
 }
 

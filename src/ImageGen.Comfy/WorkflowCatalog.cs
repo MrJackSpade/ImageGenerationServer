@@ -30,6 +30,7 @@ public sealed class WorkflowCatalog
     private (DateTime Newest, int Count) _wfStamp, _modelStamp;
     /// <summary>The directory-stamp pair whose load threw, so the same broken version is reported once instead of
     /// on every catalog read until someone saves a file again.</summary>
+    [AllowNullable("null = no broken catalog version recorded (no load has thrown); distinct from a default stamp pair")]
     private ((DateTime, int)? Wf, (DateTime, int)? Models)? _badVersion;
 
     /// <summary>The fixed tokens the loader spells out: the <c>*.json</c> glob it enumerates, the <c>param.</c>
@@ -652,6 +653,7 @@ public sealed class ModelCard
     public string[] PromptDont { get; init; } = Array.Empty<string>();
     public string[] PromptExamples { get; init; } = Array.Empty<string>();
     public string? PromptSource { get; init; }
+    [AllowNullable("null = the card doesn't declare negative-prompt support (unknown); distinct from an explicit false")]
     public bool? NegativeSupported { get; init; }
     public string? NegativeGuidance { get; init; }
     public string[] EditUseCases { get; init; } = Array.Empty<string>();
@@ -661,6 +663,7 @@ public sealed class ModelCard
     /// <summary>A short qualitative speed note (e.g. "Fastest model here"), distinct from the benchmarked
     /// <see cref="ExpectedGenNote"/>. Card <c>speed.note</c>.</summary>
     public string? SpeedNote { get; init; }
+    [AllowNullable("null = no benchmarked ETA declared for this card; 0.0 would be a real (instant) estimate")]
     public double? ExpectedGenSeconds { get; init; }
     public string? ExpectedGenNote { get; init; }
     public string? NsfwCapable { get; init; }

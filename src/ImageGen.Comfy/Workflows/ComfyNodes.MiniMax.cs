@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -44,6 +45,7 @@ public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
     [JsonPropertyName("first_frame")] public required Output<Slot.Image> FirstFrame { get; init; }
     [JsonPropertyName("last_frame")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [AllowNullable("null = no end/last frame is wired for this graph; the last_frame node input is omitted when absent, distinct from a default node handle")]
     public Output<Slot.Image>? LastFrame { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);

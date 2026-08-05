@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -100,7 +101,8 @@ public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public double? Cfg { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]
+    [AllowNullable("null = the config didn't set CFG; RequiredCfg() refuses an absent value (this real-CFG guider always has it in the i2v configs), distinct from a real 0")] public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Shift)]
@@ -115,18 +117,25 @@ public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.Sr)]           public bool Sr { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrModel)]      public string? SrModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrUpsampler)]  public string? SrUpsampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrWidth)]      public int? SrWidth { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrHeight)]     public int? SrHeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrWidth)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrWidth { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrHeight)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrHeight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrSteps)]
-    [Range(1, 50)]                                     public int? SrSteps { get; init; }
+    [Range(1, 50)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrSteps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
-    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public double? SrDenoise { get; init; }
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrDenoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
-    [Range(0.0, 1.0)]                                  public double? SrNoiseAug { get; init; }
+    [Range(0.0, 1.0)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrNoiseAug { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrCfg)]
-    [Range(1.0, 12.0)]                                 public double? SrCfg { get; init; }
+    [Range(1.0, 12.0)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrCfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrShift)]
-    [Range(1.0, 12.0)]                                 public double? SrShift { get; init; }
+    [Range(1.0, 12.0)]
+    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrShift { get; init; }
 
     /// <summary>CFG, required by this graph's real-CFG guider — the base's nullable <c>cfg</c>, or a refusal naming it
     /// (the typed form of <c>DblReq(cfg)</c>).</summary>

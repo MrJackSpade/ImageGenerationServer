@@ -175,7 +175,7 @@ public sealed record EditPrefsRequest
 /// results (deduped against the ranked suggestions). Absent/false = the results are exactly the ranked suggestions, as
 /// before the toggle existed — so the per-keystroke bookmark load only happens for users who turned it on.</param>
 public sealed record TagQueryRequest(
-    string? Q = null, string? Kind = null, int? Limit = null, string? Ctx = null, bool PinBookmarks = false);
+    string? Q = null, string? Kind = null, int Limit = 10, string? Ctx = null, bool PinBookmarks = false);
 
 /// <summary>
 /// A history page query. In a BODY for the same reason as <see cref="TagQueryRequest"/>: <see cref="Search"/> is
@@ -187,8 +187,8 @@ public sealed record TagQueryRequest(
 /// total describe the filtered set — a client that filtered a returned page instead would report the wrong count and
 /// stall its scroll on any page that happened to be entirely viewed.</param>
 public sealed record HistoryQueryRequest(
-    int? Page = null, int? PageSize = null, string? Artist = null, string? Tag = null, string? Workflow = null,
-    string? Search = null, bool? UnviewedOnly = null);
+    int Page = 1, int PageSize = 40, string? Artist = null, string? Tag = null, string? Workflow = null,
+    string? Search = null, bool UnviewedOnly = false);
 
 /// <summary>The ids the media-type lookup should answer about. In a BODY, not the query string: the caller asks about
 /// every gateway image currently on the page at once — hundreds of 32-char ids — and that URL runs well past the ~8 KB

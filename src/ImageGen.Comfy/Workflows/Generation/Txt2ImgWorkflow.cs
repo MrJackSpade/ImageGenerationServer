@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -12,21 +13,21 @@ public record Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Dual)]         public bool Dual { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Latent)]       public string? Latent { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Auraflow)]     public double? Auraflow { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public double? Guidance { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]     public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Auraflow)]     [AllowNullable("null = the config didn't set auraflow shift; the ModelSamplingAuraFlow node is emitted only when set, distinct from a real 0")] public double? Auraflow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]     [AllowNullable("null = the config didn't set guidance; the FluxGuidance node input is emitted only when set, distinct from a real 0")] public double? Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]     [AllowNullable("null = the config didn't set clip-skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public double? Cfg { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    [AllowNullable("null = the config didn't set CFG (a custom-build model supplies its own guidance); 0 is a real CFG value, and RequiredCfg() throws when it's needed and unset")] public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.GenLoraStrengthMin, ParamBounds.GenLoraStrengthMax)] public double LoraStrength { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Width)]        public int? Width { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Height)]       public int? Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]        [AllowNullable("null = the config didn't set a flat width (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)]       [AllowNullable("null = the config didn't set a flat height (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)]       public Dictionary<string, int[]>? Aspect { get; init; }
 
     /// <summary>The required render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height,

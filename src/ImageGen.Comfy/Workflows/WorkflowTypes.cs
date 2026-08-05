@@ -97,11 +97,14 @@ public sealed class ParamSpec
     public required ParamType Type { get; init; }
     /// <summary>Workflow-level fallback used when a configuration doesn't set this key.</summary>
     public object? Default { get; init; }
+    [AllowNullable("null = the control declares no minimum bound; 0 is a real minimum, distinct from unbounded")]
     public double? Min { get; init; }
+    [AllowNullable("null = the control declares no maximum bound; 0 is a real maximum, distinct from unbounded")]
     public double? Max { get; init; }
     /// <summary>UI numeric-input increment for an exposed int/double control. Null → the frontend's per-type default
     /// (1 for int, 0.1 for double). Set it to match the value's precision so the default is reachable (e.g. a 0.35
     /// default on a 0.1 step is not — it needs 0.01).</summary>
+    [AllowNullable("null = no explicit step, so the frontend uses its per-type default (1 for int, 0.1 for double); distinct from a 0 step")]
     public double? Step { get; init; }
     /// <summary>Enum.</summary>
     public string[]? Choices { get; init; }
@@ -229,14 +232,17 @@ public static class ParamsCodec
 public sealed record SubmissionCommon
 {
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]     public int? Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Length)]            public int? Length { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]
+    [AllowNullable("null = the config didn't set steps in the merged bag; the client reads the value only when present, distinct from a real 0")] public int? Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]
+    [AllowNullable("null = the config didn't set a clip length; distinct from a real 0-frame length")] public int? Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)]            public Dictionary<string, int[]>? Aspect { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)]   public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]        public double? Cfg { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]
+    [AllowNullable("null = the config didn't set CFG (a custom-build model supplies its own guidance); 0 is a real CFG value")] public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.Negative)]         public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SnapResolution)]   public bool SnapResolution { get; init; }
@@ -436,9 +442,12 @@ public sealed class ConfigParam
     /// scalar defaults (e.g. <c>"steps": 8</c>) are NOT locked and remain freely overridable via the request.</summary>
     public bool Locked { get; init; }
     /// <summary>Optional per-config range override for an exposed numeric control.</summary>
+    [AllowNullable("null = no per-config minimum override, so the schema's Min stands; distinct from a real 0 bound")]
     public double? Min { get; init; }
+    [AllowNullable("null = no per-config maximum override, so the schema's Max stands; distinct from a real 0 bound")]
     public double? Max { get; init; }
     /// <summary>Optional per-config UI increment override for an exposed numeric control (falls back to the schema's Step).</summary>
+    [AllowNullable("null = no per-config step override, so the schema's Step stands; distinct from a real 0 step")]
     public double? Step { get; init; }
 }
 

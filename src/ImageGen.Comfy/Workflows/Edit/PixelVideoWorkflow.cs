@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -60,11 +61,16 @@ public sealed record PixelVideoParams
     [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Method)]            public required string Method { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Guided)]            public bool Guided { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WStart)]            public double? WStart { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WEnd)]              public double? WEnd { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.StartPercent)]      public double? StartPercent { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.EndPercent)]        public double? EndPercent { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]      public int? ProjectEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WStart)]
+    [AllowNullable("null = the config didn't set the projection ramp w_start; read only when guided (via RequiredWStart), distinct from a real 0 weight")] public double? WStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WEnd)]
+    [AllowNullable("null = the config didn't set the projection ramp w_end; read only when guided (via RequiredWEnd), distinct from a real 0 weight")] public double? WEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StartPercent)]
+    [AllowNullable("null = the config didn't set the projection window start_percent; read only when guided (via RequiredStartPercent), distinct from a real 0")] public double? StartPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPercent)]
+    [AllowNullable("null = the config didn't set the projection window end_percent; read only when guided (via RequiredEndPercent), distinct from a real 0")] public double? EndPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]
+    [AllowNullable("null = the config didn't set project_every; read only when guided (via RequiredProjectEvery), distinct from a real 0")] public int? ProjectEvery { get; init; }
 
     public double RequiredWStart() => WStart ?? throw Missing(WorkflowParamKeys.WStart);
     public double RequiredWEnd() => WEnd ?? throw Missing(WorkflowParamKeys.WEnd);

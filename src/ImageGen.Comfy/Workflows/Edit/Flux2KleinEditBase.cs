@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -80,6 +81,7 @@ public sealed record Flux2KleinEditParams
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
+    [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

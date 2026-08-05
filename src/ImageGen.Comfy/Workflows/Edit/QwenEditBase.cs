@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -231,15 +232,20 @@ public sealed record QwenEditParams
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]       public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]         public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]       public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]    public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
+    [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceInputs)] public string[]? ReferenceInputs { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]
-    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskLeftPct { get; init; }
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskLeftPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskRightPct)]
-    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskRightPct { get; init; }
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskRightPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskTopPct)]
-    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskTopPct { get; init; }
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskTopPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskBottomPct)]
-    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskBottomPct { get; init; }
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskBottomPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]            public long Seed { get; init; }
 }

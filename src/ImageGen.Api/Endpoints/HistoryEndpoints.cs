@@ -22,8 +22,8 @@ public static class HistoryEndpoints
             long userId = context.User.GetRequiredUserId();
             // An out-of-range page/window is REFUSED, not clamped — a silently clamped page comes back looking exactly
             // like a satisfied one (ask for a 10,000-row window and the 200 you get reads as "that's everything").
-            int page = req.Page ?? 1;
-            int pageSize = req.PageSize ?? 40;
+            int page = req.Page;
+            int pageSize = req.PageSize;
             if (page < HistoryQuery.MinPage)
                 return Results.BadRequest(new { error = $"page must be >= {HistoryQuery.MinPage}, got {page}" });
             if (pageSize is < HistoryQuery.MinPageSize or > HistoryQuery.MaxPageSize)
@@ -31,7 +31,7 @@ public static class HistoryEndpoints
             // `search` is the history page's search box: space-separated terms, ALL of which must appear in the prompt.
             HistoryQuery query = new HistoryQuery(
                 userId, page, pageSize, req.Artist, req.Tag, req.Workflow, req.Search,
-                req.UnviewedOnly ?? false);
+                req.UnviewedOnly);
             PagedResult<HistoryEntry> result = await history.GetPageAsync(query, context.RequestAborted);
             // One lookup for the page's ids: the grid outlines what this user hasn't opened, and only the server
             // knows that — it has to be the same answer on every device, and it outlives any browser.

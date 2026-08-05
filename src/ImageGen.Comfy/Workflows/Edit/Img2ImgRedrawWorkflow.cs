@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -186,9 +187,13 @@ public sealed record Img2ImgRedrawParams
     [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guidance)]       public double? Guidance { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Shift)]          public double? Shift { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.NativePixels)]   public int? NativePixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]
+    [AllowNullable("null = the config didn't set clip skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]
+    [AllowNullable("null = the config declares no distilled guidance; the FluxGuidance node is emitted only when set, distinct from a real 0")] public double? Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]
+    [AllowNullable("null = the config declares no flow shift; the ModelSamplingAuraFlow node is emitted only when set, distinct from a real 0")] public double? Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.NativePixels)]
+    [AllowNullable("null = the config declares no native pixel budget (source sampled at its own resolution); distinct from a real 0")] public int? NativePixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
 }

@@ -34,7 +34,11 @@ public sealed record WorkflowInfo(
 /// <param name="Help">Optional help text.</param>
 /// <param name="Choices">Enum choices, or null.</param>
 public sealed record WorkflowExposedParam(
-    string Key, string Type, object? Value, double? Min, double? Max, double? Step, string Label, string? Help, string[]? Choices);
+    string Key, string Type, object? Value,
+    [property: AllowNullable("null = the numeric control has no minimum bound; 0 is a real minimum, distinct from unbounded")] double? Min,
+    [property: AllowNullable("null = the numeric control has no maximum bound; 0 is a real maximum, distinct from unbounded")] double? Max,
+    [property: AllowNullable("null = the control declares no increment (free-entry); distinct from a 0 step")] double? Step,
+    string Label, string? Help, string[]? Choices);
 
 /// <summary>The reference-image capability of an editor: how many extra images it takes and how to phrase them.</summary>
 /// <param name="Max">Maximum reference images accepted.</param>
@@ -62,8 +66,8 @@ public sealed record WorkflowCardSummary(
     string? NsfwCapable,
     string? CommercialUse,
     string? Speed,
-    double? ExpectedGenSeconds,
-    bool? NegativeSupported,
+    [property: AllowNullable("null = no measured ETA for the card; 0.0 would be a real (instant) estimate")] double? ExpectedGenSeconds,
+    [property: AllowNullable("null = the card doesn't state negative-prompt support (unknown); distinct from an explicit false")] bool? NegativeSupported,
     string[]? EditUseCases,
     WorkflowTagging? Tagging);
 
@@ -86,7 +90,7 @@ public sealed record WorkflowDescriptor(
     bool SupportsLastFrame,
     string? FriendlyName,
     bool Default,
-    int? AvgSeconds,
+    [property: AllowNullable("null = no timing samples yet on this machine; 0 would be a real (instant) average")] int? AvgSeconds,
     IReadOnlyList<WorkflowExposedParam> ExposedParams,
     bool CanEdit,
     WorkflowReference? Reference,
@@ -105,7 +109,7 @@ public sealed record PromptingGuide(
     string? Guidance,
     string? Instructions,
     string? RequiredPrefix,
-    bool? NegativeSupported,
+    [property: AllowNullable("null = the guide doesn't state negative-prompt support (unknown); distinct from an explicit false")] bool? NegativeSupported,
     string? NegativeGuidance,
     string[]? Do,
     string[]? Dont,
@@ -162,7 +166,10 @@ public sealed record ConfigSetting(
     [AllowMagicStrings("human-readable UI setting label")] string Label,
     [AllowMagicStrings("human-readable UI setting help text")] string? Help,
     string Type,
-    double? Min, double? Max, double? Step, IReadOnlyList<string>? Choices,
+    [property: AllowNullable("null = the setting has no minimum bound; 0 is a real minimum, distinct from unbounded")] double? Min,
+    [property: AllowNullable("null = the setting has no maximum bound; 0 is a real maximum, distinct from unbounded")] double? Max,
+    [property: AllowNullable("null = the setting declares no increment (free-entry); distinct from a 0 step")] double? Step,
+    IReadOnlyList<string>? Choices,
     object? Shipped, object? Override);
 
 /// <summary>

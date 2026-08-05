@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -98,6 +99,7 @@ public sealed record DreamOmni2PixelizeParams
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]         public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Reference)]
+    [AllowNullable("null = the config didn't set the reference %; read via the img2img-strength map only when present, distinct from a real 0% (full generation)")]
     [Range(0, 100)]                                         public int? Reference { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
     [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }

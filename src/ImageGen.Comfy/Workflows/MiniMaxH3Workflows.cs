@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -259,7 +260,7 @@ public sealed record MiniMaxH3Ref2VParams
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] [AllowNullable("null = the config didn't set reference_max; absent means no picker references beyond the source (treated as 0), distinct from a config that explicitly caps at a real 0")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }
 

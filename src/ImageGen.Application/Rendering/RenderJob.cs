@@ -78,6 +78,7 @@ public sealed class RenderSlot
     /// <summary>Edits: false when the model declined (no new image).</summary>
     public bool Changed = true;
     /// <summary>Edits only (pHash distance).</summary>
+    [AllowNullable("null = not an edit / distance not computed; 0.0 is a real identical-image score")]
     public double? ChangeScore;
     /// <summary>Failure reason when State == Error.</summary>
     public string? Error;
@@ -93,12 +94,15 @@ public sealed class RenderSlot
     /// <summary>{ canonicalName -&gt; "tag"|"artist" } for the produced image.</summary>
     public Dictionary<string, string>? Marks;
     /// <summary>When the render started (submit time; excludes queue wait).</summary>
+    [AllowNullable("null = render not yet started; default(DateTimeOffset) would falsely read as started in year 1")]
     public DateTimeOffset? GenStartedAt;
     /// <summary>Expected render seconds for the model on this machine (the ETA), or null the first time.</summary>
+    [AllowNullable("null = no ETA yet (first render of this model on this machine); 0.0 would be a real (instant) estimate")]
     public double? ExpectedGenSeconds;
 
     /// <summary>The ETA parameter signature (resolved resolution / steps / frames) captured at submit — stored with the
     /// timing sample and used to param-match this render's ETA. Null until the prompt is submitted.</summary>
+    [AllowNullable("null = prompt not yet submitted, so no signature captured; distinct from any default signature")]
     public ImageGen.Domain.Repositories.EtaSignature? EtaSignature;
 
     /// <summary>Consecutive reconcile passes in which the backend did not list this slot's prompt while no result had
@@ -135,6 +139,7 @@ public sealed class RenderJob
     public List<RenderSlot> Slots { get; } = new();
 
     /// <summary>Set when finalized (all slots terminal).</summary>
+    [AllowNullable("null = not finalized (slots still non-terminal); default(DateTimeOffset) would falsely read as finished in year 1")]
     public DateTimeOffset? FinishedAt;
 
     /// <summary>Number of slots/images in the job.</summary>

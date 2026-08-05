@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 
 namespace ImageGen.Api.Contracts;
@@ -20,13 +21,14 @@ namespace ImageGen.Api.Contracts;
 /// </param>
 public sealed record GenerateRequest(
     string Workflow, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
-    bool? RandomArtist = null, bool? RandomPrompt = null,
-    double? Temperature = null,
+    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomArtist = null,
+    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomPrompt = null,
+    [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
     List<LoraSelection>? Loras = null,
-    bool? Background = null);
+    bool Background = false);
 
 /// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.
 /// Both are non-nullable and non-optional, so the serializer rejects a payload that omits or nulls either. Required
@@ -37,22 +39,23 @@ public sealed record EditRequest(
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
     string? LastFrameImageId = null,
-    bool? Background = null);
+    bool Background = false);
 
 /// <summary>One item of a batch enqueue (Edit=true marks an edit item). <c>Workflow</c> is non-nullable and required for
 /// both item kinds; <c>ImageId</c> stays nullable because a generate item legitimately omits it — its presence is the
 /// discriminated-union concern validated by the <c>Edit == true</c> branch, not a missing-member check.</summary>
 public sealed record EnqueueItem(
-    string Workflow, bool? Edit = null, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
+    string Workflow, bool Edit = false, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     string? Instruction = null, string? ImageId = null, List<string>? ReferenceImageIds = null,
-    bool? RandomArtist = null, bool? RandomPrompt = null,
-    double? Temperature = null,
+    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomArtist = null,
+    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomPrompt = null,
+    [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? LastFrameImageId = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
     List<LoraSelection>? Loras = null,
-    bool? Background = null);
+    bool Background = false);
 
 /// <summary>Batch enqueue payload: a mixed list of generate and edit items.</summary>
 public sealed record EnqueueRequest(List<EnqueueItem>? Jobs = null);
@@ -75,14 +78,14 @@ public static class RenderContractMapping
     /// <summary>Map a batch item to a render item, or null when the item is invalid (skipped).</summary>
     public static RenderItem? ToRenderItem(this EnqueueItem it)
     {
-        if (it.Edit == true)
+        if (it.Edit)
         {
             if (string.IsNullOrWhiteSpace(it.Workflow) || string.IsNullOrWhiteSpace(it.ImageId)) return null;
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
-                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId), it.Background == true);
+                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId), it.Background);
         }
         if (string.IsNullOrWhiteSpace(it.Workflow)) return null;   // empty prompt allowed
         return RenderItem.ForGenerate(new GenerateSpec(it.Workflow, it.Prompt ?? "", it.NegativePrompt, it.Aspect,
-            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras), it.Background == true);
+            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras), it.Background);
     }
 }

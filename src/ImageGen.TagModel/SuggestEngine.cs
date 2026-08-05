@@ -1,4 +1,5 @@
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.TagModel;
 
@@ -21,7 +22,9 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     private readonly TagModelBundle _bundle = bundle;
 
     /// <summary>One ranked suggestion: the tag, its shown probability, and its lift over the tag's base rate.</summary>
-    public readonly record struct Suggestion(string Tag, double P, double? Lift);
+    public readonly record struct Suggestion(
+        string Tag, double P,
+        [property: AllowNullable("null = lift unavailable (no base rate for the tag); 0.0 would be a real lift value")] double? Lift);
 
     /// <summary>How to rank.</summary>
     public enum Mode

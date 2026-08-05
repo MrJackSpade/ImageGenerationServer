@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -43,7 +44,7 @@ internal sealed record WorkflowFileDto
     [JsonPropertyName("params")] public Dictionary<string, ConfigParamDto>? Params { get; init; }
     [JsonPropertyName("effect_type")] public string? EffectType { get; init; }
     [JsonPropertyName("edit_group")] public string? EditGroup { get; init; }
-    [JsonPropertyName("default")] public bool? Default { get; init; }
+    [JsonPropertyName("default")] [AllowNullable("null = the \"default\" key was absent in the config JSON; distinct from an explicit false")] public bool? Default { get; init; }
     [JsonPropertyName("resolution")] public ResolutionDto? Resolution { get; init; }
     [JsonPropertyName("card")] public CardDto? Card { get; init; }
 }
@@ -66,11 +67,11 @@ internal sealed record RequirementLinksDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ResolutionDto
 {
-    [JsonPropertyName("min_w")] public int? MinW { get; init; }
-    [JsonPropertyName("min_h")] public int? MinH { get; init; }
-    [JsonPropertyName("max_w")] public int? MaxW { get; init; }
-    [JsonPropertyName("max_h")] public int? MaxH { get; init; }
-    [JsonPropertyName("step")] public int? Step { get; init; }
+    [JsonPropertyName("min_w")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public int? MinW { get; init; }
+    [JsonPropertyName("min_h")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public int? MinH { get; init; }
+    [JsonPropertyName("max_w")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public int? MaxW { get; init; }
+    [JsonPropertyName("max_h")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public int? MaxH { get; init; }
+    [JsonPropertyName("step")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public int? Step { get; init; }
 }
 
 /// <summary>The <c>card</c> block: the LLM/UI-facing decision + prompting metadata for a configuration.</summary>
@@ -118,7 +119,7 @@ internal sealed record SpeedDto
 {
     [JsonPropertyName("class")] public string? Class { get; init; }
     [JsonPropertyName("note")] public string? Note { get; init; }
-    [JsonPropertyName("measured_seconds")] public double? MeasuredSeconds { get; init; }
+    [JsonPropertyName("measured_seconds")] [AllowNullable("null = no measured timing declared in the card; 0.0 would be a real (instant) measurement")] public double? MeasuredSeconds { get; init; }
     [JsonPropertyName("measured_note")] public string? MeasuredNote { get; init; }
 }
 
@@ -126,7 +127,7 @@ internal sealed record SpeedDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record NegativeDto
 {
-    [JsonPropertyName("supported")] public bool? Supported { get; init; }
+    [JsonPropertyName("supported")] [AllowNullable("null = the \"supported\" key was absent (unknown); distinct from an explicit false")] public bool? Supported { get; init; }
     [JsonPropertyName("note")] public string? Note { get; init; }
 }
 
@@ -151,7 +152,7 @@ internal sealed record UiLinkDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ReferenceDto
 {
-    [JsonPropertyName("max")] public int? Max { get; init; }
+    [JsonPropertyName("max")] [AllowNullable("null = the \"max\" key was absent; distinct from a 0 reference count")] public int? Max { get; init; }
     [JsonPropertyName("hint")] public string? Hint { get; init; }
 }
 
@@ -159,10 +160,10 @@ internal sealed record ReferenceDto
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record TaggingDto
 {
-    [JsonPropertyName("tags")] public bool? Tags { get; init; }
-    [JsonPropertyName("artists")] public bool? Artists { get; init; }
-    [JsonPropertyName("keep_artist_marker")] public bool? KeepArtistMarker { get; init; }
-    [JsonPropertyName("underscores_to_spaces")] public bool? UnderscoresToSpaces { get; init; }
+    [JsonPropertyName("tags")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public bool? Tags { get; init; }
+    [JsonPropertyName("artists")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public bool? Artists { get; init; }
+    [JsonPropertyName("keep_artist_marker")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public bool? KeepArtistMarker { get; init; }
+    [JsonPropertyName("underscores_to_spaces")] [AllowNullable("null = the key was absent; kept nullable so the mapper catches and names a missing field rather than silently defaulting it")] public bool? UnderscoresToSpaces { get; init; }
 }
 
 /// <summary>
@@ -184,9 +185,9 @@ internal sealed record ConfigParamDto
     /// not overridable by the request.</summary>
     public bool Locked { get; init; }
 
-    public double? Min { get; init; }
-    public double? Max { get; init; }
-    public double? Step { get; init; }
+    [AllowNullable("null = the envelope declared no minimum bound; 0 is a real minimum, distinct from unbounded")] public double? Min { get; init; }
+    [AllowNullable("null = the envelope declared no maximum bound; 0 is a real maximum, distinct from unbounded")] public double? Max { get; init; }
+    [AllowNullable("null = the envelope declared no increment (free-entry); distinct from a 0 step")] public double? Step { get; init; }
 }
 
 /// <summary>

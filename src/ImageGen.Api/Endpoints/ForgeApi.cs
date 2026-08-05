@@ -9,6 +9,7 @@ using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.Caching.Memory;
@@ -551,9 +552,9 @@ public static class ForgeApi
             IBookmarkRepository bookmarks, CancellationToken ct) =>
         {
             bool artist = string.Equals(req.Kind, Discriminators.Artist, StringComparison.OrdinalIgnoreCase);
-            // A present limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
-            // to the caller as "that's all there is". An absent limit (null) legitimately means "use the default".
-            int n = req.Limit ?? 10;
+            // A limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
+            // to the caller as "that's all there is". An absent limit binds to the default (10).
+            int n = req.Limit;
             if (n is < 1 or > 50) return Results.BadRequest(new { error = "limit must be between 1 and 50." });
             string frag = req.Q ?? "";
 
@@ -585,7 +586,11 @@ public static class ForgeApi
 
     /// <summary>One autocomplete suggestion on the wire: the token name, its model-ranked probability/lift (null on the
     /// count-ranked path), its catalog count/category, and whether it is one of the caller's bookmarks (pinned).</summary>
-    internal sealed record TagSuggestionItem(string Name, double? P, double? Lift, int Count, int Type, bool Bookmarked);
+    internal sealed record TagSuggestionItem(
+        string Name,
+        [property: AllowNullable("null on the count-ranked path (no model probability); 0.0 would be a real probability")] double? P,
+        [property: AllowNullable("null on the count-ranked path (no model lift); 0.0 would be a real lift value")] double? Lift,
+        int Count, int Type, bool Bookmarked);
 
     /// <summary>Merge the caller's pinned bookmarks in front of the ranked suggestions: the <paramref name="pinned"/>
     /// items first (in the order given), then the <paramref name="ranked"/> items with any whose name a pin already
@@ -646,7 +651,7 @@ public static class ForgeApi
             if (gate.Refusal() is { } full) return LowMemory(full);
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec(), req.Background == true) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec(), req.Background) });
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -658,7 +663,7 @@ public static class ForgeApi
             if (gate.Refusal() is { } full) return LowMemory(full);
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec(), req.Background == true) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec(), req.Background) });
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -1373,7 +1378,9 @@ public static class ForgeApi
 
     /// <summary>The decision for one upstream text frame: whether to forward it, the (id-translated) text to send, and
     /// — when the frame carries a known prompt_id — whether that prompt is mine (gates binary previews).</summary>
-    private readonly record struct WsFrameDecision(bool Forward, string OutText, bool? OwnerIsMe);
+    private readonly record struct WsFrameDecision(
+        bool Forward, string OutText,
+        [property: AllowNullable("null = the frame carries no known prompt_id, so ownership is unknowable; distinct from an explicit false")] bool? OwnerIsMe);
 
     private static WsFrameDecision FilterFrame(string text, RenderOrchestrator queue, long me)
     {

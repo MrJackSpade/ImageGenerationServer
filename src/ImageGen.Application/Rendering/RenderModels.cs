@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 
 namespace ImageGen.Application.Rendering;
@@ -58,7 +59,9 @@ public sealed record WorkloadSnapshot(int ActiveJobs, int InFlightSlots, int Exe
 /// round-robin per owner, so one user's wait is not the sum of their own slots.</para>
 /// </summary>
 public sealed record OutstandingSnapshot(
-    int Jobs, int ViewerJobs, int Images, double? RunningRemainingSeconds, IReadOnlyList<string> WaitingModels);
+    int Jobs, int ViewerJobs, int Images,
+    [property: AllowNullable("null = nothing in flight, or the in-flight slot has no estimate to count down; 0.0 would mean \"done now\"")] double? RunningRemainingSeconds,
+    IReadOnlyList<string> WaitingModels);
 
 /// <summary>Why a requeue did or did not happen. Each value is a distinct answer the caller turns into its own
 /// result — a Requeue button that quietly does nothing is worse than one that says what stopped it.</summary>
