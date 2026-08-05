@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Media;
 
 /// <summary>
@@ -17,6 +19,10 @@ internal static class Mp4Probe
     private static readonly HashSet<string> VideoSampleEntries = new(StringComparer.Ordinal)
         { "avc1", "avc3", "hvc1", "hev1", "av01", "vp09", "vp08", "mp4v", "encv" };
 
+    /// <summary>The sample-description box whose entries carry the visual sample entry.</summary>
+    private const string StsdBox = "stsd";
+
+    [AllowMagicStrings("exception message")]
     public static (int Width, int Height) GetDimensions(ReadOnlySpan<byte> b)
     {
         if (TryFindVideoSize(b, 0, b.Length, out int w, out int h))
@@ -47,7 +53,7 @@ internal static class Mp4Probe
             string type = ReadType(b, pos + 4);
             int contentStart = pos + header;
 
-            if (type == "stsd")
+            if (type == StsdBox)
             {
                 if (TryReadStsd(b, contentStart, (int)boxEnd, out w, out h)) return true;
             }

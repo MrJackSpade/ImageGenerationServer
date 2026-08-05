@@ -1,4 +1,5 @@
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ namespace ImageGen.Infrastructure.Repositories;
 
 /// <summary>Per-user LoRA cover images (dbo.LoraDisplay). Mirrors <see cref="ArtistDisplayRepository"/>: the searchable
 /// LoraName column is deterministically encrypted, so equality and IN (...) still work over it.</summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : ILoraDisplayRepository
 {
     private const string Columns = "Id, UserId, LoraName, GatewayImageId, SetAtUtc";

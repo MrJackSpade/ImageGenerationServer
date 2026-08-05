@@ -12,9 +12,45 @@ namespace ImageGen.Web.Civitai;
 public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration config, ILogger<CivitaiClient> log) : ICivitaiClient
 {
     /// <summary>Opt-out (default on): turning this off stops the box contacting CivitAI at all.</summary>
-    public const string EnabledKey = "Civitai:Enabled";
+    public const string EnabledKey = MachineSettingSpecs.CivitaiEnabled;
 
     private const string ByHash = "https://civitai.com/api/v1/model-versions/by-hash/";
+
+    /// <summary>User-Agent sent on CivitAI requests.</summary>
+    private const string UserAgent = "ImageGen";
+
+    /// <summary>Model-version JSON: the containing model object.</summary>
+    private const string ModelProperty = "model";
+
+    /// <summary>Model-version JSON: a model's display name.</summary>
+    private const string NameProperty = "name";
+
+    /// <summary>Model-version JSON: the array of trigger words.</summary>
+    private const string TrainedWordsProperty = "trainedWords";
+
+    /// <summary>Model-version JSON: the array of preview images.</summary>
+    private const string ImagesProperty = "images";
+
+    /// <summary>Model-version JSON: an image's URL.</summary>
+    private const string UrlProperty = "url";
+
+    /// <summary>The generic media type a CDN sends when it declares nothing specific.</summary>
+    private const string OctetStreamMediaType = "application/octet-stream";
+
+    /// <summary>Preview file extension: MPEG-4 video.</summary>
+    private const string Mp4Extension = ".mp4";
+
+    /// <summary>Preview file extension: WebM video.</summary>
+    private const string WebmExtension = ".webm";
+
+    /// <summary>Preview file extension: PNG image.</summary>
+    private const string PngExtension = ".png";
+
+    /// <summary>Preview file extension: WebP image.</summary>
+    private const string WebpExtension = ".webp";
+
+    /// <summary>Preview file extension: GIF image.</summary>
+    private const string GifExtension = ".gif";
 
     public bool IsEnabled() => config.IsOn(EnabledKey);
 
@@ -26,7 +62,7 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
         try
         {
             var http = httpFactory.CreateClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             using var resp = await http.GetAsync(ByHash + Uri.EscapeDataString(sha256), ct);
             if (!resp.IsSuccessStatusCode)
                 return null;   // 404 = not published on CivitAI; anything else = nothing to add this run
@@ -34,18 +70,18 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             var root = doc.RootElement;
 
-            var model = root.TryGetProperty("model", out var m) && m.TryGetProperty("name", out var mn)
+            var model = root.TryGetProperty(ModelProperty, out var m) && m.TryGetProperty(NameProperty, out var mn)
                 ? mn.GetString() : null;
 
             var words = new List<string>();
-            if (root.TryGetProperty("trainedWords", out var tw) && tw.ValueKind == JsonValueKind.Array)
+            if (root.TryGetProperty(TrainedWordsProperty, out var tw) && tw.ValueKind == JsonValueKind.Array)
                 foreach (var w in tw.EnumerateArray())
                     if (w.GetString() is { Length: > 0 } s) words.Add(s);
 
             string? preview = null;
-            if (root.TryGetProperty("images", out var imgs) && imgs.ValueKind == JsonValueKind.Array)
+            if (root.TryGetProperty(ImagesProperty, out var imgs) && imgs.ValueKind == JsonValueKind.Array)
                 foreach (var img in imgs.EnumerateArray())
-                    if (img.TryGetProperty("url", out var u) && u.GetString() is { Length: > 0 } url) { preview = url; break; }
+                    if (img.TryGetProperty(UrlProperty, out var u) && u.GetString() is { Length: > 0 } url) { preview = url; break; }
 
             return new CivitaiLoraInfo(model, words, preview);
         }
@@ -64,7 +100,7 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
         try
         {
             var http = httpFactory.CreateClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             using var resp = await http.GetAsync(url, ct);
             if (!resp.IsSuccessStatusCode)
                 return null;
@@ -75,7 +111,7 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             // Trust the CDN's declared type; fall back to the URL's extension (some CivitAI clips are .mp4). The
             // browser needs this to decide <img> vs <video>, so a wrong guess would render an mp4 as a broken image.
             var contentType = resp.Content.Headers.ContentType?.MediaType;
-            if (string.IsNullOrWhiteSpace(contentType) || contentType == "application/octet-stream")
+            if (string.IsNullOrWhiteSpace(contentType) || contentType == OctetStreamMediaType)
                 contentType = GuessContentType(url);
             return new CivitaiPreview(bytes, contentType);
         }
@@ -92,11 +128,11 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
         var ext = Path.GetExtension(path).ToLowerInvariant();
         return ext switch
         {
-            ".mp4" => "video/mp4",
-            ".webm" => "video/webm",
-            ".png" => "image/png",
-            ".webp" => "image/webp",
-            ".gif" => "image/gif",
+            Mp4Extension => "video/mp4",
+            WebmExtension => "video/webm",
+            PngExtension => "image/png",
+            WebpExtension => "image/webp",
+            GifExtension => "image/gif",
             _ => "image/jpeg",
         };
     }

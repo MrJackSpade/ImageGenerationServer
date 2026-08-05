@@ -41,6 +41,92 @@ public sealed class ComfyClient : IComfyClient
     private volatile bool _vramProbed;
     private long _vramMb;
 
+    /// <summary>ComfyUI API JSON field names / response keys, read via TryGetProperty/GetProperty.</summary>
+    private static class Field
+    {
+        public const string Input = "input";
+        public const string Required = "required";
+        public const string Options = "options";
+        public const string Outputs = "outputs";
+        public const string Images = "images";
+        public const string Palette = "palette";
+        public const string Frequencies = "frequencies";
+        public const string LosslessFrames = "lossless_frames";
+        public const string Status = "status";
+        public const string StatusStr = "status_str";
+        public const string Error = "error";
+        public const string Filename = "filename";
+        public const string Subfolder = "subfolder";
+        public const string Type = "type";
+        public const string Messages = "messages";
+        public const string ExecutionError = "execution_error";
+        public const string NodeType = "node_type";
+        public const string NodeId = "node_id";
+        public const string ExceptionType = "exception_type";
+        public const string ExceptionMessage = "exception_message";
+        public const string QueueRunning = "queue_running";
+        public const string QueuePending = "queue_pending";
+        public const string PromptId = "prompt_id";
+        public const string Name = "name";
+        public const string Devices = "devices";
+        public const string VramTotal = "vram_total";
+    }
+
+    /// <summary>ComfyUI HTTP endpoint paths (relative to the client's BaseAddress).</summary>
+    private static class Endpoint
+    {
+        public const string FolderPaths = "internal/folder_paths";
+        public const string SystemStats = "system_stats";
+        public const string Queue = "queue";
+        public const string Interrupt = "interrupt";
+        public const string Free = "free";
+        public const string Prompt = "prompt";
+        public const string UploadImage = "upload/image";
+    }
+
+    /// <summary>Operation labels surfaced in EnsureOk failure messages.</summary>
+    private static class Op
+    {
+        public const string GetSystemStats = "GET system_stats";
+        public const string PostInterrupt = "POST interrupt";
+        public const string PostFree = "POST free";
+        public const string PostPrompt = "POST prompt";
+        public const string PostUploadImage = "POST upload/image";
+    }
+
+    /// <summary>URL schemes for deriving the websocket address from the HTTP base url.</summary>
+    private static class Scheme
+    {
+        public const string Https = "https://";
+        public const string Wss = "wss://";
+        public const string Http = "http://";
+        public const string Ws = "ws://";
+    }
+
+    /// <summary>ComfyUI /upload/image multipart form field names and values.</summary>
+    private static class UploadForm
+    {
+        public const string ImageField = "image";
+        public const string OverwriteField = "overwrite";
+        public const string TypeField = "type";
+        public const string OverwriteValue = "true";
+        public const string InputTypeValue = "input";
+    }
+
+    /// <summary>Fixed per-role upload filenames for edit source / mask / last-frame / source-video.</summary>
+    private static class UploadName
+    {
+        public const string EditSource = "forgemcp_edit_src.png";
+        public const string EditMask = "forgemcp_edit_mask.png";
+        public const string EditLast = "forgemcp_edit_last.png";
+        public const string EditSourceVideo = "forgemcp_edit_src.mp4";
+    }
+
+    private const string GateTokenHeader = "X-ImageGen-Token";
+    private const string PngMime = "image/png";
+    private const string Mp4Mime = "video/mp4";
+    private const string NoticeSeparator = "\n";
+
     /// <summary>Construct the ComfyUI adapter.</summary>
     public ComfyClient(IHttpClientFactory httpFactory, IComfyEndpoint endpoint, WorkflowCatalog catalog, WorkflowRegistry registry, IMediaProcessor media, ILogger<ComfyClient> logger)
     {
@@ -91,7 +177,7 @@ public sealed class ComfyClient : IComfyClient
                 // directly — not even with this key. All generate/edit/test work goes through /forge/* on :8080.
                 // Seeing the key here does not grant permission to bypass the queue; doing so jumps the user's whole
                 // queue and can wreck their live gens.
-                http.DefaultRequestHeaders.Add("X-ImageGen-Token", token.Length == 0 ? ComfyOptions.DefaultGateToken : token);
+                http.DefaultRequestHeaders.Add(GateTokenHeader, token.Length == 0 ? ComfyOptions.DefaultGateToken : token);
 
                 _http = http;
                 _baseUrl = url;
@@ -185,7 +271,7 @@ public sealed class ComfyClient : IComfyClient
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetFolderPathsAsync(CancellationToken ct = default)
     {
         var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-        using var resp = await Http.GetAsync("internal/folder_paths", ct);
+        using var resp = await Http.GetAsync(Endpoint.FolderPaths, ct);
         if (!resp.IsSuccessStatusCode) return result;
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
@@ -290,8 +376,8 @@ public sealed class ComfyClient : IComfyClient
             if (!resp.IsSuccessStatusCode) continue;                                  // node not in this build
             using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             if (!doc.RootElement.TryGetProperty(node, out var ne)) continue;           // ditto
-            if (!ne.TryGetProperty("input", out var input)
-                || !input.TryGetProperty("required", out var required)
+            if (!ne.TryGetProperty(Field.Input, out var input)
+                || !input.TryGetProperty(Field.Required, out var required)
                 || !required.TryGetProperty(key, out var keyEl)) continue;             // node has no such input
             foreach (var n in ComboOptions(keyEl))
                 if (n.GetString() is { Length: > 0 } f) files.Add(f);
@@ -334,7 +420,7 @@ public sealed class ComfyClient : IComfyClient
         if (keyEl.ValueKind != JsonValueKind.Array || keyEl.GetArrayLength() == 0) return Array.Empty<JsonElement>();
         if (keyEl[0].ValueKind == JsonValueKind.Array) return keyEl[0].EnumerateArray();
         if (keyEl.GetArrayLength() > 1 && keyEl[1].ValueKind == JsonValueKind.Object
-            && keyEl[1].TryGetProperty("options", out var opts) && opts.ValueKind == JsonValueKind.Array)
+            && keyEl[1].TryGetProperty(Field.Options, out var opts) && opts.ValueKind == JsonValueKind.Array)
             return opts.EnumerateArray();
         return Array.Empty<JsonElement>();
     }
@@ -351,14 +437,14 @@ public sealed class ComfyClient : IComfyClient
     public async Task<long?> GetTotalVramMbAsync(CancellationToken ct = default)
     {
         if (_vramProbed) return _vramMb;
-        using var resp = await Http.GetAsync("system_stats", ct);
-        await EnsureOk(resp, "GET system_stats");
+        using var resp = await Http.GetAsync(Endpoint.SystemStats, ct);
+        await EnsureOk(resp, Op.GetSystemStats);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (!doc.RootElement.TryGetProperty("devices", out var devs) || devs.ValueKind != JsonValueKind.Array || devs.GetArrayLength() == 0)
+        if (!doc.RootElement.TryGetProperty(Field.Devices, out var devs) || devs.ValueKind != JsonValueKind.Array || devs.GetArrayLength() == 0)
             return null;
         long maxTotal = 0;
         foreach (var d in devs.EnumerateArray())
-            if (d.TryGetProperty("vram_total", out var v) && v.ValueKind == JsonValueKind.Number)
+            if (d.TryGetProperty(Field.VramTotal, out var v) && v.ValueKind == JsonValueKind.Number)
                 maxTotal = Math.Max(maxTotal, v.GetInt64());
         if (maxTotal <= 0) return null;
         _vramMb = maxTotal / (1024 * 1024);
@@ -386,8 +472,8 @@ public sealed class ComfyClient : IComfyClient
         var graph = wf.Build(values, resolved, inputs);
         // ETA signature: the aspect-RESOLVED render size (exactly what Build sizes the latent to) + the EtaVariable
         // time drivers, taken from the same merged/normalized values the graph was built from.
-        var (ew, eh) = values.Dims("aspect", ComfyGraph.NormalizeAspect(aspect), values.Int("width", 0), values.Int("height", 0));
-        var eta = new EtaSignature(ew, eh, EtaInt(wf, values, "steps"), EtaInt(wf, values, "length"));
+        var (ew, eh) = values.Dims(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(aspect), values.Int(WorkflowParamKeys.Width, 0), values.Int(WorkflowParamKeys.Height, 0));
+        var eta = new EtaSignature(ew, eh, EtaInt(wf, values, WorkflowParamKeys.Steps), EtaInt(wf, values, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
@@ -437,14 +523,14 @@ public sealed class ComfyClient : IComfyClient
             var inputs0 = new WorkflowInputs { Positive = instruction, SourceVideoName = videoName };
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
-            var eta0 = new EtaSignature(0, 0, EtaInt(wf, values0, "steps"), EtaInt(wf, values0, "length"));
+            var eta0 = new EtaSignature(0, 0, EtaInt(wf, values0, WorkflowParamKeys.Steps), EtaInt(wf, values0, WorkflowParamKeys.Length));
             return new SubmitResult(await SubmitAsync(wf.Build(values0, resolved0, inputs0), ct), eta0);
         }
 
         // Distinct filename per role — a fixed name for every upload would make source and references clobber each
         // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
         // serializes ComfyUI work so these fixed names can't race.
-        var uploadName = await UploadImageAsync(sourcePng, "forgemcp_edit_src.png", ct);
+        var uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
         var refNames = new List<string>();
         if (references is { Count: > 0 })
         {
@@ -454,10 +540,10 @@ public sealed class ComfyClient : IComfyClient
         }
         // Inpaint: a SEPARATE white-on-black mask image (the source stays pristine — baking the mask into the source's
         // alpha would let PNG premultiplication zero the masked RGB, blacking out the region the model must preserve).
-        string? maskName = maskPng is { Length: > 0 } ? await UploadImageAsync(maskPng, "forgemcp_edit_mask.png", ct) : null;
+        string? maskName = maskPng is { Length: > 0 } ? await UploadImageAsync(maskPng, UploadName.EditMask, ct) : null;
         // i2v first/last-frame: the last frame the clip should end on, uploaded under its own role name so it never
         // collides with the source/refs/mask. Consumed via WorkflowInputs.EndImageName by workflows that support it.
-        string? lastName = lastFramePng is { Length: > 0 } ? await UploadImageAsync(lastFramePng, "forgemcp_edit_last.png", ct) : null;
+        string? lastName = lastFramePng is { Length: > 0 } ? await UploadImageAsync(lastFramePng, UploadName.EditLast, ct) : null;
         var dict = MergeParamsDict(wf, cfg, overrides);
         var srcDim = _media.Identify(sourcePng);   // source dims drive the render-resolution snap (no UI width/height)
         var (srcW, srcH) = (srcDim.Width, srcDim.Height);
@@ -466,13 +552,13 @@ public sealed class ComfyClient : IComfyClient
         // so Build reads the cached size rather than recomputing it. Source dims + the model's envelope live here.
         wf.Normalize(dict, new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
         var values = new ParamValues(dict);
-        if (values.Bool("snap_resolution", false))
+        if (values.Bool(WorkflowParamKeys.SnapResolution, false))
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
         var inputs = new WorkflowInputs { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
         var graph = wf.Build(values, resolved, inputs);
         // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
         // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.
-        var eta = new EtaSignature(srcW, srcH, EtaInt(wf, values, "steps"), EtaInt(wf, values, "length"));
+        var eta = new EtaSignature(srcW, srcH, EtaInt(wf, values, WorkflowParamKeys.Steps), EtaInt(wf, values, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
@@ -555,20 +641,20 @@ public sealed class ComfyClient : IComfyClient
         foreach (var k in merged.Keys)
             if (!before.TryGetValue(k, out var ov) || !Equals(ov, merged[k]))
                 outv[k] = JsonSerializer.SerializeToElement(merged[k]);
-        return new QueueNormalizationResult(outv, string.Join("\n", notices));
+        return new QueueNormalizationResult(outv, string.Join(NoticeSeparator, notices));
     }
 
     /// Generation prompt rules: prepend the model's required tag prefix,
     /// and suppress the negative for distilled models (cfg<=1) or models declaring no negative support.
     private static (string pos, string? neg) ApplyGenPromptRules(ParamValues p, string prompt, string? negative)
     {
-        var rp = p.Str("required_prefix");
+        var rp = p.Str(WorkflowParamKeys.RequiredPrefix);
         var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         var pos = prefix + prompt;
         // Negative = the model's default (config `negative`, else the shared DefaultNegative) with the user's UI
         // negative APPENDED — never replaced. Suppressed entirely for distilled (cfg<=1) or negative-less models.
-        var negOk = p.Dbl("cfg", 7) > 1 && p.Bool("negative_supported", true);
-        var neg = negOk ? ComfyGraph.ComposeNegative(p.Str("negative"), negative) : "";
+        var negOk = p.Dbl(WorkflowParamKeys.Cfg, 7) > 1 && p.Bool(WorkflowParamKeys.NegativeSupported, true);
+        var neg = negOk ? ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), negative) : "";
         return (pos, neg);
     }
 
@@ -585,11 +671,11 @@ public sealed class ComfyClient : IComfyClient
         using var hdoc = await JsonDocument.ParseAsync(await hresp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         if (!hdoc.RootElement.TryGetProperty(promptId, out var entry)) return null;
 
-        if (entry.TryGetProperty("status", out var status) &&
-            status.TryGetProperty("status_str", out var ss) && ss.GetString() == "error")
+        if (entry.TryGetProperty(Field.Status, out var status) &&
+            status.TryGetProperty(Field.StatusStr, out var ss) && ss.GetString() == Field.Error)
             throw new RenderValidationException(DescribeComfyError(status, promptId));
 
-        if (!entry.TryGetProperty("outputs", out var outputs)) return null;
+        if (!entry.TryGetProperty(Field.Outputs, out var outputs)) return null;
 
         // Scan ALL output nodes: the produced clip/image is the first node carrying `images` (SaveAnimatedWEBP /
         // SaveImage). The pixel-quantize (fp) node additionally surfaces its derived `palette` (inline #RRGGBB array)
@@ -602,15 +688,15 @@ public sealed class ComfyClient : IComfyClient
         foreach (var node in outputs.EnumerateObject())
         {
             var v = node.Value;
-            if (resultImg is null && v.TryGetProperty("images", out var images) && images.GetArrayLength() > 0)
+            if (resultImg is null && v.TryGetProperty(Field.Images, out var images) && images.GetArrayLength() > 0)
                 resultImg = images[0];
-            if (paletteJson is null && v.TryGetProperty("palette", out var pal) && pal.ValueKind == JsonValueKind.Array)
+            if (paletteJson is null && v.TryGetProperty(Field.Palette, out var pal) && pal.ValueKind == JsonValueKind.Array)
                 paletteJson = pal.GetRawText();
             // The fp quantize also surfaces its pooled label frequencies (floats, indexed by palette order) — the
             // second global a single-frame replay needs to reproduce the batch's rarity weighting exactly.
-            if (frequenciesJson is null && v.TryGetProperty("frequencies", out var fq) && fq.ValueKind == JsonValueKind.Array)
+            if (frequenciesJson is null && v.TryGetProperty(Field.Frequencies, out var fq) && fq.ValueKind == JsonValueKind.Array)
                 frequenciesJson = fq.GetRawText();
-            if (losslessFrames is null && v.TryGetProperty("lossless_frames", out var lf)
+            if (losslessFrames is null && v.TryGetProperty(Field.LosslessFrames, out var lf)
                 && lf.ValueKind == JsonValueKind.Array && lf.GetArrayLength() > 0)
             {
                 losslessFrames = new List<byte[]>(lf.GetArrayLength());
@@ -620,21 +706,21 @@ public sealed class ComfyClient : IComfyClient
         }
         if (resultImg is { } img)
         {
-            var file = img.GetProperty("filename").GetString()
+            var file = img.GetProperty(Field.Filename).GetString()
                 ?? throw new JsonException("ComfyUI history image has a null 'filename'.");
-            var sub = img.TryGetProperty("subfolder", out var sf) ? sf.GetString() ?? "" : "";
-            var type = img.TryGetProperty("type", out var t) ? t.GetString() ?? "output" : "output";
+            var sub = img.TryGetProperty(Field.Subfolder, out var sf) ? sf.GetString() ?? "" : "";
+            var type = img.TryGetProperty(Field.Type, out var t) ? t.GetString() ?? "output" : "output";
             var bytes = await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
-            return new GeneratedImage(bytes, "", file, sub, type, paletteJson, losslessFrames, frequenciesJson);
+            return new GeneratedImage(bytes, string.Empty, file, sub, type, paletteJson, losslessFrames, frequenciesJson);
         }
         return null;
     }
 
     /// <summary>Build a ComfyUI <c>/view</c> url for a saved-output ref (filename/subfolder/type).</summary>
     private static string ViewUrl(JsonElement fileRef) => ViewUrl(
-        fileRef.GetProperty("filename").GetString() ?? throw new JsonException("ComfyUI output ref has a null 'filename'."),
-        fileRef.TryGetProperty("subfolder", out var s) ? s.GetString() ?? "" : "",
-        fileRef.TryGetProperty("type", out var t) ? t.GetString() ?? "output" : "output");
+        fileRef.GetProperty(Field.Filename).GetString() ?? throw new JsonException("ComfyUI output ref has a null 'filename'."),
+        fileRef.TryGetProperty(Field.Subfolder, out var s) ? s.GetString() ?? "" : "",
+        fileRef.TryGetProperty(Field.Type, out var t) ? t.GetString() ?? "output" : "output");
 
     private static string ViewUrl(string file, string sub, string type) =>
         $"view?filename={Uri.EscapeDataString(file)}&subfolder={Uri.EscapeDataString(sub)}&type={type}";
@@ -645,19 +731,19 @@ public sealed class ComfyClient : IComfyClient
     /// shows in the UI — and log the full Python traceback server-side (it's too long for the UI line).</summary>
     private string DescribeComfyError(JsonElement status, string promptId)
     {
-        if (status.TryGetProperty("messages", out var msgs) && msgs.ValueKind == JsonValueKind.Array)
+        if (status.TryGetProperty(Field.Messages, out var msgs) && msgs.ValueKind == JsonValueKind.Array)
             foreach (var m in msgs.EnumerateArray())
             {
-                if (m.ValueKind != JsonValueKind.Array || m.GetArrayLength() < 2 || m[0].GetString() != "execution_error")
+                if (m.ValueKind != JsonValueKind.Array || m.GetArrayLength() < 2 || m[0].GetString() != Field.ExecutionError)
                     continue;
                 var p = m[1];
                 string? Get(string k) => p.TryGetProperty(k, out var v) ? v.GetString() : null;
-                var node = Get("node_type"); var nid = Get("node_id");
+                var node = Get(Field.NodeType); var nid = Get(Field.NodeId);
                 var where = node is null ? "" : $" in {node}{(nid is null ? "" : $" (node {nid})")}";
 
-                _logger.LogError("ComfyUI execution_error (prompt {PromptId}){Where}: {Type}", promptId, where, Get("exception_type"));
+                _logger.LogError("ComfyUI execution_error (prompt {PromptId}){Where}: {Type}", promptId, where, Get(Field.ExceptionType));
 
-                return $"ComfyUI error{where}: {Get("exception_type")}: {Get("exception_message")}";
+                return $"ComfyUI error{where}: {Get(Field.ExceptionType)}: {Get(Field.ExceptionMessage)}";
             }
         return "ComfyUI reported an error but included no execution_error detail.";
     }
@@ -675,15 +761,15 @@ public sealed class ComfyClient : IComfyClient
     {
         try
         {
-            using var resp = await Http.GetAsync("queue", ct);
+            using var resp = await Http.GetAsync(Endpoint.Queue, ct);
             if (!resp.IsSuccessStatusCode)
             {
                 _logger.LogWarning("ComfyUI GET queue answered {Status}; treating the backend queue as unknown.", (int)resp.StatusCode);
                 return null;
             }
             using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            return new BackendQueue(PromptIdsIn(doc.RootElement, "queue_running"),
-                                    PromptIdsIn(doc.RootElement, "queue_pending"));
+            return new BackendQueue(PromptIdsIn(doc.RootElement, Field.QueueRunning),
+                                    PromptIdsIn(doc.RootElement, Field.QueuePending));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -716,8 +802,8 @@ public sealed class ComfyClient : IComfyClient
     /// decide whether a failed interrupt should fail their own operation; none of them may discard the reason.</summary>
     public async Task InterruptAsync(CancellationToken ct = default)
     {
-        using var resp = await Http.PostAsync("interrupt", new ByteArrayContent(Array.Empty<byte>()), ct);
-        await EnsureOk(resp, "POST interrupt");
+        using var resp = await Http.PostAsync(Endpoint.Interrupt, new ByteArrayContent(Array.Empty<byte>()), ct);
+        await EnsureOk(resp, Op.PostInterrupt);
     }
 
     /// <summary>POST <c>/free</c> asking ComfyUI to unload every loaded model and release its cached VRAM. ComfyUI
@@ -726,8 +812,8 @@ public sealed class ComfyClient : IComfyClient
     /// swallowed: this is user-initiated, so the caller reports what ComfyUI actually said.</summary>
     public async Task FreeMemoryAsync(CancellationToken ct = default)
     {
-        using var resp = await Http.PostAsJsonAsync("free", new { unload_models = true, free_memory = true }, ct);
-        await EnsureOk(resp, "POST free");
+        using var resp = await Http.PostAsJsonAsync(Endpoint.Free, new { unload_models = true, free_memory = true }, ct);
+        await EnsureOk(resp, Op.PostFree);
     }
 
     /// <summary>POST a built workflow to /prompt under this client's client_id; return the prompt_id (no polling).</summary>
@@ -738,10 +824,10 @@ public sealed class ComfyClient : IComfyClient
         // prefixes, paren escaping, weights) — would leave prompts one config flip away from being written to disk
         // permanently. The prompt that produced any image is recoverable from the per-user ENCRYPTED log
         // (Logging:AuditUserPrompts), which is the channel that exists for this; the app log gets nothing.
-        using var submit = await Http.PostAsJsonAsync("prompt", new { prompt = workflow, client_id = _clientId }, ct);
-        await EnsureOk(submit, "POST prompt");
+        using var submit = await Http.PostAsJsonAsync(Endpoint.Prompt, new { prompt = workflow, client_id = _clientId }, ct);
+        await EnsureOk(submit, Op.PostPrompt);
         using var sdoc = await JsonDocument.ParseAsync(await submit.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return sdoc.RootElement.GetProperty("prompt_id").GetString()
+        return sdoc.RootElement.GetProperty(Field.PromptId).GetString()
             ?? throw new JsonException("ComfyUI /prompt response has a null 'prompt_id'.");
     }
 
@@ -770,7 +856,7 @@ public sealed class ComfyClient : IComfyClient
     /// progress/preview frames. The upstream carries every client's progress; the caller filters to the owner.</summary>
     public async Task<WebSocket> ConnectProgressSocketAsync(CancellationToken ct)
     {
-        var wsUrl = BaseUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/ws?clientId=" + _clientId;
+        var wsUrl = BaseUrl.Replace(Scheme.Https, Scheme.Wss).Replace(Scheme.Http, Scheme.Ws) + "/ws?clientId=" + _clientId;
         var socket = new ClientWebSocket();
         await socket.ConnectAsync(new Uri(wsUrl), ct);
         return socket;
@@ -778,7 +864,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>Upload PNG bytes to ComfyUI's input folder (POST /upload/image, multipart); returns the stored filename.</summary>
     private Task<string> UploadImageAsync(byte[] png, string filename, CancellationToken ct) =>
-        UploadFileAsync(png, filename, "image/png", ct);
+        UploadFileAsync(png, filename, PngMime, ct);
 
     /// <summary>Upload a file (image OR video) to ComfyUI's input folder. ComfyUI's /upload/image route writes whatever
     /// file it's given to the input dir verbatim, so a video posted here lands where <c>LoadVideo</c> can list it; the
@@ -788,13 +874,13 @@ public sealed class ComfyClient : IComfyClient
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(bytes);
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-        form.Add(file, "image", filename);
-        form.Add(new StringContent("true"), "overwrite");
-        form.Add(new StringContent("input"), "type");
-        using var resp = await Http.PostAsync("upload/image", form, ct);
-        await EnsureOk(resp, "POST upload/image");
+        form.Add(file, UploadForm.ImageField, filename);
+        form.Add(new StringContent(UploadForm.OverwriteValue), UploadForm.OverwriteField);
+        form.Add(new StringContent(UploadForm.InputTypeValue), UploadForm.TypeField);
+        using var resp = await Http.PostAsync(Endpoint.UploadImage, form, ct);
+        await EnsureOk(resp, Op.PostUploadImage);
         using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        return doc.RootElement.GetProperty("name").GetString()
+        return doc.RootElement.GetProperty(Field.Name).GetString()
             ?? throw new JsonException("ComfyUI upload response has a null 'name'.");
     }
 
@@ -807,7 +893,7 @@ public sealed class ComfyClient : IComfyClient
         if (_media.IsAnimatedWebp(bytes))
         {
             var mp4 = await _media.WebpToMp4Async(bytes, null, ct);
-            return await UploadFileAsync(mp4, "forgemcp_edit_src.mp4", "video/mp4", ct);
+            return await UploadFileAsync(mp4, UploadName.EditSourceVideo, Mp4Mime, ct);
         }
         var (ext, mime) = DetectVideoContainer(bytes)
             ?? throw new RenderValidationException("The source isn't a video clip this editor can read (expected an animated WEBP, MP4, or WEBM).");

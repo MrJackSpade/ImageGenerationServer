@@ -21,20 +21,29 @@ public sealed class BiRefNetMatteVideoWorkflow : IWorkflow
 
     private static readonly IReadOnlyList<ParamSpec> MatteSchema = new ParamSpec[]
     {
-        new() { Key = "threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
+        new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
     };
+
+    /// <summary>This standalone graph's node ids, named by role.</summary>
+    private static class Nodes
+    {
+        public const string Source = "10";
+        public const string Components = "11";
+        public const string Matte = "20";
+        public const string Save = "9";
+    }
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video matte needs a source clip, but none was provided.") }),
-            ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video matte needs a source clip, but none was provided.") }),
+            [Nodes.Components] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha).
-            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.DblReq("threshold") }),
+            [Nodes.Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Components, 0), threshold = p.DblReq(WorkflowParamKeys.Threshold) }),
         };
         // Keep the source clip's frame rate (GetVideoComponents output 2). lossless=true so the alpha survives.
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref("11", 2), lossless = true, quality = 100, method = "default" });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Matte, 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref(Nodes.Components, 2), lossless = true, quality = 100, method = "default" });
         return wf;
     }
 }

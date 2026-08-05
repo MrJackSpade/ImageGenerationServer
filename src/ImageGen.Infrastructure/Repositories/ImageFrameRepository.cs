@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
@@ -10,6 +11,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// id. Stateless (a fresh connection per call), registered as a singleton like <see cref="ImageBlobRepository"/> so
 /// the singleton JobQueue can persist frames from the root provider.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory) : IImageFrameRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

@@ -34,7 +34,7 @@ public sealed class PixelVideoWorkflow : IWorkflow
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = _inner.Build(p, req, inputs);
-        if (p.Bool("guided", false))
+        if (p.Bool(WorkflowParamKeys.Guided, false))
             PixelVideoGraph.PatchModelProjection(wf, p);   // steer the latent onto the manifold every step
         PixelVideoGraph.QuantizeFrames(wf, p);              // authoritative crisp final render (always)
         return wf;

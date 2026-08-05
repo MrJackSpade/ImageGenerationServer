@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ImageGen.Comfy;
@@ -32,11 +33,35 @@ public sealed class WorkflowCatalog
     /// on every catalog read until someone saves a file again.</summary>
     private ((DateTime, int)? Wf, (DateTime, int)? Models)? _badVersion;
 
+    /// <summary>The fixed tokens the loader spells out: the <c>*.json</c> glob it enumerates, the <c>param.</c>
+    /// override-key prefix, the two catalog subdirectory names (also the section words its missing-directory errors
+    /// name), and the entity words its duplicate-id errors name.</summary>
+    private static class CatalogText
+    {
+        public const string JsonGlob = "*.json";
+        public const string ParamPrefix = "param.";
+        public const string ModelsSection = "models";
+        public const string WorkflowsSection = "workflows";
+        public const string ModelEntity = "model";
+        public const string WorkflowEntity = "workflow";
+    }
+
+    /// <summary>The resolution block's member names, named when <see cref="BuildResolution"/> reports a missing one —
+    /// kept in step with <see cref="ResolutionDto"/>'s <c>[JsonPropertyName]</c>s.</summary>
+    private static class ResolutionMember
+    {
+        public const string MinW = "min_w";
+        public const string MinH = "min_h";
+        public const string MaxW = "max_w";
+        public const string MaxH = "max_h";
+        public const string Step = "step";
+    }
+
     public WorkflowCatalog(ComfyOptions config, ILogger<WorkflowCatalog> log)
     {
         var root = config.CatalogPath;
-        _workflowsDir = root.Length == 0 ? "" : Path.Combine(root, "workflows");
-        _modelsDir = root.Length == 0 ? "" : Path.Combine(root, "models");
+        _workflowsDir = root.Length == 0 ? "" : Path.Combine(root, CatalogText.WorkflowsSection);
+        _modelsDir = root.Length == 0 ? "" : Path.Combine(root, CatalogText.ModelsSection);
         _log = log;
         Load();   // startup: a catalog that will not parse fails the boot, naming the file and the parse error
     }
@@ -69,8 +94,8 @@ public sealed class WorkflowCatalog
             var parsed = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             foreach (var (key, raw) in settings)
             {
-                if (!key.StartsWith("param.", StringComparison.OrdinalIgnoreCase)) continue;
-                parsed[key["param.".Length..]] = AsJson(raw);
+                if (!key.StartsWith(CatalogText.ParamPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                parsed[key[CatalogText.ParamPrefix.Length..]] = AsJson(raw);
             }
             if (parsed.Count > 0) copy[configId] = parsed;
         }
@@ -282,7 +307,7 @@ public sealed class WorkflowCatalog
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return null;
         var newest = DateTime.MinValue;
         var count = 0;
-        foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(dir, CatalogText.JsonGlob))
         {
             count++;
             var written = File.GetLastWriteTimeUtc(file);
@@ -299,7 +324,7 @@ public sealed class WorkflowCatalog
         // Models first (configurations link to them by slot id).
         var reqById = new Dictionary<string, Requirement>(StringComparer.OrdinalIgnoreCase);
         var modelStamp = _modelStamp;
-        if (RequireConfiguredDirectory(_modelsDir, "models"))
+        if (RequireConfiguredDirectory(_modelsDir, CatalogText.ModelsSection))
         {
             modelStamp = PresentStamp(_modelsDir)
                 ?? throw new InvalidOperationException($"The models catalog directory vanished while loading: {_modelsDir}");
@@ -310,7 +335,7 @@ public sealed class WorkflowCatalog
                 if (string.IsNullOrEmpty(id))
                     throw new InvalidOperationException($"{path}: a model file must have an 'id'.");
                 RequireIdMatchesFileName(path, id);
-                RequireUnique(seen, id, path, "model");
+                RequireUnique(seen, id, path, CatalogText.ModelEntity);
 
                 reqById[id] = new Requirement
                 {
@@ -326,7 +351,7 @@ public sealed class WorkflowCatalog
         var byId = new Dictionary<string, WorkflowConfiguration>(StringComparer.OrdinalIgnoreCase);
         var all = new List<WorkflowConfiguration>();
         var wfStamp = _wfStamp;
-        if (RequireConfiguredDirectory(_workflowsDir, "workflows"))
+        if (RequireConfiguredDirectory(_workflowsDir, CatalogText.WorkflowsSection))
         {
             wfStamp = PresentStamp(_workflowsDir)
                 ?? throw new InvalidOperationException($"The workflows catalog directory vanished while loading: {_workflowsDir}");
@@ -340,7 +365,7 @@ public sealed class WorkflowCatalog
                 if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(wf))
                     throw new InvalidOperationException($"{path}: a workflow file must have 'id' and 'workflow'.");
                 RequireIdMatchesFileName(path, id);
-                RequireUnique(seen, id, path, "workflow");
+                RequireUnique(seen, id, path, CatalogText.WorkflowEntity);
 
                 var entry = BuildConfiguration(dto, id, wf);
                 all.Add(entry);
@@ -371,7 +396,7 @@ public sealed class WorkflowCatalog
     /// </summary>
     private IEnumerable<(string Path, T Dto)> ReadAll<T>(string dir, JsonTypeInfo<T> type)
     {
-        foreach (var path in Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
+        foreach (var path in Directory.EnumerateFiles(dir, CatalogText.JsonGlob).OrderBy(p => p, StringComparer.Ordinal))
         {
             T? dto;
             try
@@ -536,22 +561,23 @@ public sealed class WorkflowCatalog
     /// them; a typo would do the same thing silently. Failing here means a kind that is not wired to a
     /// loader is impossible to ship rather than merely wrong at runtime.</para>
     /// </summary>
+    [AllowMagicStrings("exception message describing an unknown model kind")]
     private static RequirementKind ParseKind(string? k) => (k ?? "").ToLowerInvariant() switch
     {
-        "checkpoint" => RequirementKind.Checkpoint,
-        "unet" => RequirementKind.Unet,
-        "unet_gguf" => RequirementKind.UnetGguf,
-        "vae" => RequirementKind.Vae,
-        "text_encoder" => RequirementKind.TextEncoder,
-        "motion_model" => RequirementKind.MotionModel,
-        "controlnet" => RequirementKind.ControlNet,
-        "upscale_model" => RequirementKind.UpscaleModel,
-        "lora" => RequirementKind.Lora,
-        "clip_vision" => RequirementKind.ClipVision,
-        "ipadapter" => RequirementKind.IpAdapter,
-        "latent_upscale_model" => RequirementKind.LatentUpscaleModel,
-        "seedvr2" => RequirementKind.SeedVr2,
-        "custom_node" => RequirementKind.CustomNode,
+        RequirementKindWire.Checkpoint => RequirementKind.Checkpoint,
+        RequirementKindWire.Unet => RequirementKind.Unet,
+        RequirementKindWire.UnetGguf => RequirementKind.UnetGguf,
+        RequirementKindWire.Vae => RequirementKind.Vae,
+        RequirementKindWire.TextEncoder => RequirementKind.TextEncoder,
+        RequirementKindWire.MotionModel => RequirementKind.MotionModel,
+        RequirementKindWire.ControlNet => RequirementKind.ControlNet,
+        RequirementKindWire.UpscaleModel => RequirementKind.UpscaleModel,
+        RequirementKindWire.Lora => RequirementKind.Lora,
+        RequirementKindWire.ClipVision => RequirementKind.ClipVision,
+        RequirementKindWire.IpAdapter => RequirementKind.IpAdapter,
+        RequirementKindWire.LatentUpscaleModel => RequirementKind.LatentUpscaleModel,
+        RequirementKindWire.SeedVr2 => RequirementKind.SeedVr2,
+        RequirementKindWire.CustomNode => RequirementKind.CustomNode,
         _ => throw new ArgumentException(
             $"Unknown model kind '{k}'. Every kind must name a loader's file list; add it to RequirementKind "
             + "and to ComfyClient.LoaderInputs rather than letting it fall into a shared pool.")
@@ -584,11 +610,11 @@ public sealed class WorkflowCatalog
             + "an omitted field would silently bound the size editor by a number the model never gave.");
         return new ModelResolution
         {
-            MinW = Req(res.MinW, "min_w"),
-            MinH = Req(res.MinH, "min_h"),
-            MaxW = Req(res.MaxW, "max_w"),
-            MaxH = Req(res.MaxH, "max_h"),
-            Step = Req(res.Step, "step"),
+            MinW = Req(res.MinW, ResolutionMember.MinW),
+            MinH = Req(res.MinH, ResolutionMember.MinH),
+            MaxW = Req(res.MaxW, ResolutionMember.MaxW),
+            MaxH = Req(res.MaxH, ResolutionMember.MaxH),
+            Step = Req(res.Step, ResolutionMember.Step),
         };
     }
 

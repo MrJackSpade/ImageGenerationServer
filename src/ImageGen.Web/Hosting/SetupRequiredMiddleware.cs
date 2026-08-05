@@ -14,6 +14,27 @@ namespace ImageGen.Web.Hosting;
 /// </summary>
 public sealed class SetupRequiredMiddleware(RequestDelegate next, MachineConfigService machine)
 {
+    /// <summary>Route segment for the anonymous setup page (also the redirect target).</summary>
+    private const string SetupPath = "/setup";
+
+    /// <summary>Route segment for the drain probe the deploy script polls.</summary>
+    private const string DrainStatusPath = "/drain-status";
+
+    /// <summary>Route segment for stylesheets.</summary>
+    private const string CssPath = "/css";
+
+    /// <summary>Route segment for scripts.</summary>
+    private const string JsPath = "/js";
+
+    /// <summary>Route segment for the favicon.</summary>
+    private const string FaviconPath = "/favicon.ico";
+
+    /// <summary>Route segment prefix for JSON API callers.</summary>
+    private const string ApiPath = "/api";
+
+    /// <summary>Route segment prefix for the forge endpoints.</summary>
+    private const string ForgePath = "/forge";
+
     private readonly RequestDelegate _next = next;
     private readonly MachineConfigService _machine = machine;
 
@@ -21,11 +42,11 @@ public sealed class SetupRequiredMiddleware(RequestDelegate next, MachineConfigS
     {
         var path = context.Request.Path;
         var exempt =
-            path.StartsWithSegments("/setup") ||
-            path.StartsWithSegments("/drain-status") ||
-            path.StartsWithSegments("/css") ||
-            path.StartsWithSegments("/js") ||
-            path.StartsWithSegments("/favicon.ico");
+            path.StartsWithSegments(SetupPath) ||
+            path.StartsWithSegments(DrainStatusPath) ||
+            path.StartsWithSegments(CssPath) ||
+            path.StartsWithSegments(JsPath) ||
+            path.StartsWithSegments(FaviconPath);
 
         if (exempt || _machine.IsConfigured)
         {
@@ -34,7 +55,7 @@ public sealed class SetupRequiredMiddleware(RequestDelegate next, MachineConfigS
         }
 
         // An API caller gets an error it can read, not a redirect into a page it cannot render.
-        if (path.StartsWithSegments("/api") || path.StartsWithSegments("/forge"))
+        if (path.StartsWithSegments(ApiPath) || path.StartsWithSegments(ForgePath))
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             await context.Response.WriteAsJsonAsync(new
@@ -44,6 +65,6 @@ public sealed class SetupRequiredMiddleware(RequestDelegate next, MachineConfigS
             return;
         }
 
-        context.Response.Redirect("/setup");
+        context.Response.Redirect(SetupPath);
     }
 }

@@ -14,7 +14,7 @@ public static class HistoryEndpoints
         // history and address bar on the user's own machine, plus request logs, proxies and Referer headers. Removing
         // the GET is what makes the leak impossible rather than merely unused. (This endpoint is called only by this
         // app's own JS; it has never been a public read surface.)
-        api.MapPost("/history/query", async (
+        api.MapPost(Routes.HistoryQuery, async (
             HistoryQueryRequest req, HttpContext context, HistoryService history, ImageViewService views) =>
         {
             var userId = context.User.GetRequiredUserId();
@@ -38,7 +38,7 @@ public static class HistoryEndpoints
         // The compose page's Recent strip. It asks only how few images it is willing to show; the SERVER decides the
         // rest — how far the window has to stretch to cover the current-or-last batch — because that is a fact of the
         // job table, not of whichever browser tab happened to watch the batch run. The client renders what comes back.
-        api.MapGet("/recents", async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
+        api.MapGet(Routes.Recents, async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
         {
             var userId = context.User.GetRequiredUserId();
             // An out-of-range `min` is REFUSED, not clamped. The response carries no window size (see
@@ -56,7 +56,7 @@ public static class HistoryEndpoints
 
         // Clear the whole unread backlog. Without this an outline that means "you haven't opened this" can only be
         // cleared one image at a time, which is not a thing anyone will do to a library.
-        api.MapPost("/history/viewed", async (HttpContext context, ImageViewService views) =>
+        api.MapPost(Routes.HistoryViewed, async (HttpContext context, ImageViewService views) =>
         {
             var userId = context.User.GetRequiredUserId();
             var marked = await views.MarkAllViewedAsync(userId, context.RequestAborted);
@@ -68,11 +68,27 @@ public static class HistoryEndpoints
         // insert-if-absent repository would let deleted images resurrect, so the browser may only read and delete.
 
         // id carried in the query string (gateway ids may contain characters awkward in a path segment).
-        api.MapDelete("/history", async (HttpContext context, HistoryService history, string id) =>
+        api.MapDelete(Routes.History, async (HttpContext context, HistoryService history, string id) =>
         {
             var userId = context.User.GetRequiredUserId();
             var removed = await history.DeleteAsync(userId, id, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
+    }
+
+    /// <summary>Route templates for the history endpoints.</summary>
+    private static class Routes
+    {
+        /// <summary>The history page's search (POST, so terms never land in a query string).</summary>
+        public const string HistoryQuery = "/history/query";
+
+        /// <summary>The compose page's Recent strip.</summary>
+        public const string Recents = "/recents";
+
+        /// <summary>Mark the whole unread backlog as viewed.</summary>
+        public const string HistoryViewed = "/history/viewed";
+
+        /// <summary>Delete one history entry (id in the query string).</summary>
+        public const string History = "/history";
     }
 }

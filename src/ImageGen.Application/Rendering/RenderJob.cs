@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Application.Rendering;
 
 /// <summary>
@@ -44,9 +46,11 @@ public sealed class RenderSlot
 
     /// <summary>The edit spec, guaranteed non-null. Throws if this is a generate slot — the discriminant
     /// (<see cref="IsEdit"/>) already tells the caller which spec is present, so reaching the wrong one is a bug.</summary>
+    [AllowMagicStrings("exception message")]
     public EditSpec RequireEdit() => Edit ?? throw new InvalidOperationException("Slot is not an edit slot.");
 
     /// <summary>The generate spec, guaranteed non-null. Throws if this is an edit slot.</summary>
+    [AllowMagicStrings("exception message")]
     public GenerateSpec RequireGen() => Gen ?? throw new InvalidOperationException("Slot is not a generate slot.");
 
     /// <summary>Current lifecycle state.</summary>

@@ -13,12 +13,19 @@ public sealed class HelpController(IWebHostEnvironment env) : Controller
     [HttpGet("/help")]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        var path = Path.Combine(_env.WebRootPath, "help.md");
+        var path = Path.Combine(_env.WebRootPath, Files.HelpMarkdown);
         // help.md ships in wwwroot, so a missing one is a broken deployment, not a page to render a placeholder for.
         if (!System.IO.File.Exists(path))
             throw new FileNotFoundException(
                 $"help.md is missing from the web root ({_env.WebRootPath}); it ships with the app.", path);
         var markdown = await System.IO.File.ReadAllTextAsync(path, ct);
         return View(HelpMarkdown.Parse(markdown));
+    }
+
+    /// <summary>Names of files this controller reads from the web root.</summary>
+    private static class Files
+    {
+        /// <summary>The help document shipped in wwwroot.</summary>
+        public const string HelpMarkdown = "help.md";
     }
 }

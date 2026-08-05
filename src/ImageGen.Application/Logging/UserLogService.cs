@@ -1,4 +1,5 @@
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Logging;
 using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,7 @@ public sealed class UserLogService(IUserCipher cipher, IUserLogRepository reposi
     private readonly bool _enabled = enabled;
     private readonly ILogger<UserLogService> _log = log;
 
+    [AllowMagicStrings("log message template")]
     public async Task LogAsync(long userId, string category, string text, CancellationToken ct)
     {
         if (!_enabled)

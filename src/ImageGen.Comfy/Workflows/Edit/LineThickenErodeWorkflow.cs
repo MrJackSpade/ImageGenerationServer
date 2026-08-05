@@ -21,18 +21,22 @@ public sealed class LineThickenErodeWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> ErodeSchema = new ParamSpec[]
     {
         // Growth radius in pixels = iterations of a 3x3 minimum filter. 1 ≈ +1px lines.
-        new() { Key = "thickness", Type = ParamType.Int, Min = 0, Max = 32, Label = "Line thickness (px)" },
+        new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int, Min = 0, Max = 32, Label = "Line thickness (px)" },
     };
+
+    /// <summary>This workflow's own node ids.</summary>
+    private const string Thicken = "20";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
-        wf["20"] = ComfyGraph.Node("LineThicken", new { image = src, thickness = p.IntReq("thickness") });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" });
+        wf[Thicken] = ComfyGraph.Node(ComfyNodeTypes.LineThicken, new { image = src, thickness = p.IntReq(WorkflowParamKeys.Thickness) });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Thicken, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

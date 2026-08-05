@@ -16,6 +16,13 @@ namespace ImageGen.Web.Auth;
 public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
 {
     public const string HeaderName = "X-Api-Key";
+
+    /// <summary><see cref="HttpContext.Items"/> key marking a request as API-key (non-browser) authenticated.</summary>
+    private const string AuthViaApiKeyItemKey = "AuthViaApiKey";
+
+    /// <summary>The <c>Authorization: Bearer &lt;key&gt;</c> scheme prefix.</summary>
+    private const string BearerPrefix = "Bearer ";
+
     private readonly RequestDelegate _next = next;
 
     public async Task InvokeAsync(HttpContext context, IUserRepository users)
@@ -34,7 +41,7 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
                     context.User = new ClaimsPrincipal(identity);
                     // Marks this request as API-key (non-browser) authenticated so downstream can scope by caller —
                     // e.g. /forge/workflows serves the API-visible list to these callers and the UI-visible list to cookies.
-                    context.Items["AuthViaApiKey"] = true;
+                    context.Items[AuthViaApiKeyItemKey] = true;
                 }
             }
         }
@@ -49,8 +56,8 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
             return headerVal.ToString().Trim();
 
         var auth = request.Headers.Authorization.ToString();
-        if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            return auth["Bearer ".Length..].Trim();
+        if (auth.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+            return auth[BearerPrefix.Length..].Trim();
 
         return null;
     }

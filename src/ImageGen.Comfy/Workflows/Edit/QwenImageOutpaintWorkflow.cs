@@ -22,43 +22,49 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
     {
         if (inputs.SourceWidth <= 0 || inputs.SourceHeight <= 0) return (0, 0);
-        return (inputs.SourceWidth + Math.Max(0, p.Int("pad_left")) + Math.Max(0, p.Int("pad_right")),
-                inputs.SourceHeight + Math.Max(0, p.Int("pad_top")) + Math.Max(0, p.Int("pad_bottom")));
+        return (inputs.SourceWidth + Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)) + Math.Max(0, p.Int(WorkflowParamKeys.PadRight)),
+                inputs.SourceHeight + Math.Max(0, p.Int(WorkflowParamKeys.PadTop)) + Math.Max(0, p.Int(WorkflowParamKeys.PadBottom)));
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "denoise",    Type = ParamType.Double, Min = 0.5, Max = 1.0, Step = 0.01, Label = "Fill strength" },
-        new() { Key = "pad_left",   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
-        new() { Key = "pad_top",    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
-        new() { Key = "pad_right",  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
-        new() { Key = "pad_bottom", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
+        new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = 0.5, Max = 1.0, Step = 0.01, Label = "Fill strength" },
+        new() { Key = WorkflowParamKeys.PadLeft,   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
+        new() { Key = WorkflowParamKeys.PadTop,    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
+        new() { Key = WorkflowParamKeys.PadRight,  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
+        new() { Key = WorkflowParamKeys.PadBottom, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
         // With the clamp holding the pad at 1, grow only places the ramp's midpoint: 16 = 2σ puts the 50% blend
         // 16px inside the original and has the descent begin right at the boundary — the shape the seam-free
         // hand-ramp measurement used. The crossfade band sits over ground where the ControlNet saw real adjacent
         // pixels.
-        new() { Key = "mask_grow", Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
         // NOTE: no "feather" knob. ImagePadForOutpaint's own feathering stays 0 (see ResolveCanvas) — the template
         // sets it to 0 too — so seam softening happens in exactly one place: mask_grow + mask_blur.
     }).ToArray();
 
+    /// <summary>This workflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>
+    private const string Pad = "20";
+    private const string StretchScale = "21";
+    private const string PrefillBlur = "22";
+    private const string PrefillComposite = "23";
+
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
         out object image, out object rawMask)
     {
-        int pl = Math.Max(0, p.Int("pad_left")), pt = Math.Max(0, p.Int("pad_top"));
-        int pr = Math.Max(0, p.Int("pad_right")), pb = Math.Max(0, p.Int("pad_bottom"));
+        int pl = Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)), pt = Math.Max(0, p.Int(WorkflowParamKeys.PadTop));
+        int pr = Math.Max(0, p.Int(WorkflowParamKeys.PadRight)), pb = Math.Max(0, p.Int(WorkflowParamKeys.PadBottom));
 
-        wf["20"] = ComfyGraph.Node("ImagePadForOutpaint", new
+        wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
         {
-            image = ComfyGraph.Ref("10", 0),
+            image = ComfyGraph.Ref(Nodes.Source, 0),
             left = pl, top = pt, right = pr, bottom = pb,
             // feathering=0 ON PURPOSE. The node's feathering ramps the mask INWARD from the pad boundary, which would
             // stack with the shared mask_grow/mask_blur softening and give a doubly-wide band of PARTIAL denoise over
             // the original pixels — a mushy seam. Softening happens once, in SoftenMask.
             feathering = 0,
         });
-        rawMask = ComfyGraph.Ref("20", 1);
+        rawMask = ComfyGraph.Ref(Pad, 1);
 
         // GREY MUST NOT EXIST. ImagePadForOutpaint fills the new area with flat 0.5 grey, and that grey is the whole
         // halo family: any mask softness anywhere — the blur ramp, the latent blend, the composite crossfade — mixes
@@ -74,21 +80,21 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         var canvas = CanvasSize(p, inputs);
         if (canvas.W > 0 && canvas.H > 0)
         {
-            wf["21"] = ComfyGraph.Node("ImageScale", new
+            wf[StretchScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
             {
-                image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos",
+                image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos",
                 width = canvas.W, height = canvas.H, crop = "disabled",
             });
             // sigma 10.0 is ImageBlur's node maximum.
-            wf["22"] = ComfyGraph.Node("ImageBlur", new { image = ComfyGraph.Ref("21", 0), blur_radius = 31, sigma = 10.0 });
-            wf["23"] = ComfyGraph.Node("ImageCompositeMasked", new
+            wf[PrefillBlur] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(StretchScale, 0), blur_radius = 31, sigma = 10.0 });
+            wf[PrefillComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new
             {
-                destination = ComfyGraph.Ref("22", 0),
-                source = ComfyGraph.Ref("10", 0),
+                destination = ComfyGraph.Ref(PrefillBlur, 0),
+                source = ComfyGraph.Ref(Nodes.Source, 0),
                 x = pl, y = pt, resize_source = false,
             });
-            image = ComfyGraph.Ref("23", 0);
+            image = ComfyGraph.Ref(PrefillComposite, 0);
         }
-        else image = ComfyGraph.Ref("20", 0);   // source dims unknown: no stretch target, grey canvas as a last resort
+        else image = ComfyGraph.Ref(Pad, 0);   // source dims unknown: no stretch target, grey canvas as a last resort
     }
 }

@@ -21,10 +21,19 @@ public sealed record ComfyInstallInfo(string? Root, bool Ok, string? Error);
 public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpFactory, IComfyEndpoint endpoint)
 {
     /// <summary>The ComfyUI installation directory. Read live, so the settings page can change it.</summary>
-    public const string PathKey = "ComfyUI:Path";
+    public const string PathKey = Configuration.MachineSettingSpecs.ComfyPath;
 
     /// <summary>The interpreter that runs it — used only to install a fetched node pack's requirements.</summary>
-    public const string PythonKey = "ComfyUI:Python";
+    public const string PythonKey = Configuration.MachineSettingSpecs.ComfyPython;
+
+    /// <summary>ComfyUI's entrypoint script; its presence (with <see cref="CoreDirectory"/>) marks an install root.</summary>
+    private const string MainScript = "main.py";
+
+    /// <summary>ComfyUI's core package directory; its presence (with <see cref="MainScript"/>) marks an install root.</summary>
+    private const string CoreDirectory = "comfy";
+
+    /// <summary>The <c>folder_paths</c> key whose first entry is ComfyUI's own <c>models/configs</c>.</summary>
+    private const string ConfigsKey = "configs";
 
     private readonly IConfiguration _config = config;
     private readonly IHttpClientFactory _httpFactory = httpFactory;
@@ -50,7 +59,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
         if (!Directory.Exists(root))
             return new ComfyInstallInfo(root, false, $"{root} is not there.");
 
-        if (!File.Exists(Path.Combine(root, "main.py")) || !Directory.Exists(Path.Combine(root, "comfy")))
+        if (!File.Exists(Path.Combine(root, MainScript)) || !Directory.Exists(Path.Combine(root, CoreDirectory)))
             return new ComfyInstallInfo(root, false, $"{root} does not look like a ComfyUI installation — no main.py and comfy/ in it.");
 
         return new ComfyInstallInfo(root, true, null);
@@ -85,7 +94,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
             if (!response.IsSuccessStatusCode) return null;
 
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            if (!document.RootElement.TryGetProperty("configs", out var configs) ||
+            if (!document.RootElement.TryGetProperty(ConfigsKey, out var configs) ||
                 configs.ValueKind != JsonValueKind.Array ||
                 configs.GetArrayLength() == 0) return null;
 
@@ -98,7 +107,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
             var root = models is null ? null : Path.GetDirectoryName(models);
             if (string.IsNullOrWhiteSpace(root)) return null;
 
-            return File.Exists(Path.Combine(root, "main.py")) && Directory.Exists(Path.Combine(root, "comfy"))
+            return File.Exists(Path.Combine(root, MainScript)) && Directory.Exists(Path.Combine(root, CoreDirectory))
                 ? root
                 : null;
         }

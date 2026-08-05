@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Application.Security;
 
@@ -13,6 +14,7 @@ public static class PasswordHasher
     private const int SaltBytes = 16;
     private const int HashBytes = 32;
     private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
+    private const string Pbkdf2Algorithm = "PBKDF2";
 
     public static string Hash(string password)
     {
@@ -29,6 +31,7 @@ public static class PasswordHasher
     /// that cannot be evaluated is a server fault and reads as one — a 500 the operator can see and fix, not a login
     /// failure the user is blamed for. Messages describe the defect only; the stored value is credential material and
     /// never appears in them.</para></summary>
+    [AllowMagicStrings("exception messages describing a corrupt stored password hash")]
     public static bool Verify(string password, string stored)
     {
         if (string.IsNullOrEmpty(stored))
@@ -38,7 +41,7 @@ public static class PasswordHasher
         if (parts.Length != 4)
             throw new InvalidOperationException(
                 $"Stored password hash is malformed: expected 4 '$'-separated fields, found {parts.Length}.");
-        if (parts[0] != "PBKDF2")
+        if (parts[0] != Pbkdf2Algorithm)
             throw new InvalidOperationException("Stored password hash names an unknown algorithm (expected PBKDF2).");
         if (!int.TryParse(parts[1], out var iterations) || iterations <= 0)
             throw new InvalidOperationException("Stored password hash carries an unreadable iteration count.");

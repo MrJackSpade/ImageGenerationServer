@@ -16,35 +16,44 @@ namespace ImageGen.Comfy;
 /// </summary>
 internal static class PixelVideoGraph
 {
+    /// <summary>Node ids named by role. Only the inserted quantize node has a fixed id (default for
+    /// <see cref="QuantizeFrames"/>'s parameter); the per-consumer projection ids are computed (710+). Value preserved
+    /// exactly.</summary>
+    private static class Nodes
+    {
+        public const string Quantize = "700";
+    }
+
     /// <summary>Terminal model-consumers whose <c>model</c> input drives the actual denoise (and whose post-CFG hook
     /// the projection rides). NOT schedulers/ModelSampling* (those use the model only for sigmas).</summary>
     private static readonly HashSet<string> ModelConsumers = new(StringComparer.Ordinal)
     {
-        "KSampler", "KSamplerAdvanced", "SamplerCustom", "CFGGuider", "BasicGuider",
+        ComfyNodeTypes.KSampler, ComfyNodeTypes.KSamplerAdvanced, ComfyNodeTypes.SamplerCustom,
+        ComfyNodeTypes.CFGGuider, ComfyNodeTypes.BasicGuider,
     };
 
     /// <summary>Reroute the animated-WEBP save node's frames through a <c>PixelQuantize</c> (its exact still-pixelizer
     /// params + defaults). The quantizer flattens the <c>(B,T,H,W,3)</c> video decode into per-frame batches itself.</summary>
-    public static void QuantizeFrames(Dictionary<string, object> wf, ParamValues p, string quantNodeId = "700")
+    public static void QuantizeFrames(Dictionary<string, object> wf, ParamValues p, string quantNodeId = Nodes.Quantize)
     {
         var save = wf.Values.OfType<Dictionary<string, object>>()
-            .FirstOrDefault(n => n.TryGetValue("class_type", out var ct) && ct as string == "SaveAnimatedWEBP");
+            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct) && ct as string == ComfyNodeTypes.SaveAnimatedWEBP);
         if (save is null) return;
-        var inputs = AsInputDict(save["inputs"]);
-        if (!inputs.TryGetValue("images", out var imagesSrc)) return;
+        var inputs = AsInputDict(save[ComfyGraphKeys.Inputs]);
+        if (!inputs.TryGetValue(ComfyGraphKeys.Images, out var imagesSrc)) return;
 
         var (gw, gh) = Grid(p);
-        wf[quantNodeId] = ComfyGraph.Node("PixelQuantize", new
+        wf[quantNodeId] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
         {
             image = imagesSrc,
             grid_w = gw,
             grid_h = gh,
-            palette = p.StrReq("palette"),
-            method = p.StrReq("method"),
-            virtual_resolution = p.IntReq("virtual_resolution"),
+            palette = p.StrReq(WorkflowParamKeys.Palette),
+            method = p.StrReq(WorkflowParamKeys.Method),
+            virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
         });
-        inputs["images"] = ComfyGraph.Ref(quantNodeId, 0);
-        save["inputs"] = inputs;
+        inputs[ComfyGraphKeys.Images] = ComfyGraph.Ref(quantNodeId, 0);
+        save[ComfyGraphKeys.Inputs] = inputs;
     }
 
     /// <summary>Insert a <c>PixelManifoldProjection</c> in front of every terminal model-consumer's <c>model</c> input,
@@ -52,48 +61,48 @@ internal static class PixelVideoGraph
     public static void PatchModelProjection(Dictionary<string, object> wf, ParamValues p)
     {
         var decode = wf.Values.OfType<Dictionary<string, object>>()
-            .FirstOrDefault(n => n.TryGetValue("class_type", out var ct)
-                                 && ct as string is "VAEDecode" or "VAEDecodeTiled");
+            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct)
+                                 && ct as string is ComfyNodeTypes.VAEDecode or ComfyNodeTypes.VAEDecodeTiled);
         if (decode is null) return;
-        var decInputs = AsInputDict(decode["inputs"]);
-        if (!decInputs.TryGetValue("vae", out var vae) || vae is null) return;
+        var decInputs = AsInputDict(decode[ComfyGraphKeys.Inputs]);
+        if (!decInputs.TryGetValue(ComfyGraphKeys.Vae, out var vae) || vae is null) return;
 
         var (gw, gh) = Grid(p);
         var consumers = wf.Values.OfType<Dictionary<string, object>>()
-            .Where(n => n.TryGetValue("class_type", out var ct) && ct is string s && ModelConsumers.Contains(s))
+            .Where(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct) && ct is string s && ModelConsumers.Contains(s))
             .ToList();
 
         int next = 710;
         foreach (var node in consumers)
         {
-            var inputs = AsInputDict(node["inputs"]);
-            if (!inputs.TryGetValue("model", out var modelSrc) || modelSrc is null) continue;
+            var inputs = AsInputDict(node[ComfyGraphKeys.Inputs]);
+            if (!inputs.TryGetValue(ComfyGraphKeys.Model, out var modelSrc) || modelSrc is null) continue;
             var projId = (next++).ToString();
-            wf[projId] = ComfyGraph.Node("PixelManifoldProjection", new
+            wf[projId] = ComfyGraph.Node(ComfyNodeTypes.PixelManifoldProjection, new
             {
                 model = modelSrc,
                 vae,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.StrReq("palette"),
-                method = p.StrReq("method"),
-                w_start = p.DblReq("w_start"),
-                w_end = p.DblReq("w_end"),
-                start_percent = p.DblReq("start_percent"),
-                end_percent = p.DblReq("end_percent"),
-                project_every = p.IntReq("project_every"),
-                virtual_resolution = p.IntReq("virtual_resolution"),
+                palette = p.StrReq(WorkflowParamKeys.Palette),
+                method = p.StrReq(WorkflowParamKeys.Method),
+                w_start = p.DblReq(WorkflowParamKeys.WStart),
+                w_end = p.DblReq(WorkflowParamKeys.WEnd),
+                start_percent = p.DblReq(WorkflowParamKeys.StartPercent),
+                end_percent = p.DblReq(WorkflowParamKeys.EndPercent),
+                project_every = p.IntReq(WorkflowParamKeys.ProjectEvery),
+                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
             });
-            inputs["model"] = ComfyGraph.Ref(projId, 0);
-            node["inputs"] = inputs;
+            inputs[ComfyGraphKeys.Model] = ComfyGraph.Ref(projId, 0);
+            node[ComfyGraphKeys.Inputs] = inputs;
         }
     }
 
     /// <summary>The quantize grid: explicit grid_w/grid_h, falling back to 384×256 (PixelQuantizeWorkflow's default).</summary>
     private static (int gw, int gh) Grid(ParamValues p)
     {
-        int gw = p.IntReq("grid_w");
-        int gh = p.IntReq("grid_h");
+        int gw = p.IntReq(WorkflowParamKeys.GridW);
+        int gh = p.IntReq(WorkflowParamKeys.GridH);
         return (gw, gh);
     }
 
@@ -113,20 +122,20 @@ internal static class PixelVideoGraph
     /// destroys the image — the projection must engage only on the low-noise tail.</summary>
     public static readonly ParamSpec[] Params =
     {
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
-        new() { Key = "palette", Type = ParamType.String, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = "method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = WorkflowParamKeys.Palette, Type = ParamType.String, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
+        new() { Key = WorkflowParamKeys.Method,  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // The toggle: false = fast post-quantize only; true = also project the latent onto the manifold every step
         // (pixels baked into the motion, no shimmer — much slower).
-        new() { Key = "guided", Type = ParamType.Bool, Label = "Pixel-guided", Help = "Project the latent every step — kills shimmer, but much slower" },
+        new() { Key = WorkflowParamKeys.Guided, Type = ParamType.Bool, Label = "Pixel-guided", Help = "Project the latent every step — kills shimmer, but much slower" },
         // Projection ramp/window (used only when guided). project_every and the start/end window trade fidelity for
         // speed; start_percent skips the destructive noisy steps.
-        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight start", Help = "Projection blend weight at the start of the window" },
-        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight end", Help = "Projection blend weight at the end of the window" },
-        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project from %", Help = "Step % to begin projecting (skips the noisy early steps)" },
-        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project until %", Help = "Step % to stop projecting" },
-        new() { Key = "project_every", Type = ParamType.Int,    Min = 1,   Max = 8,   Label = "Project every", Help = "Project every Nth step (higher = faster, less faithful)" },
+        new() { Key = WorkflowParamKeys.WStart,       Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight start", Help = "Projection blend weight at the start of the window" },
+        new() { Key = WorkflowParamKeys.WEnd,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Proj weight end", Help = "Projection blend weight at the end of the window" },
+        new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project from %", Help = "Step % to begin projecting (skips the noisy early steps)" },
+        new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project until %", Help = "Step % to stop projecting" },
+        new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1,   Max = 8,   Label = "Project every", Help = "Project every Nth step (higher = faster, less faithful)" },
     };
 }

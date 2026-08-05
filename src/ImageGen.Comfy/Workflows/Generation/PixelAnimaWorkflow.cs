@@ -19,40 +19,40 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
     {
         // Virtual resolution = the sprite's pixel count on its longest edge; the grid follows the render aspect. This is
         // the knob the UI exposes. 0 = use explicit grid_w/grid_h instead.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096 },
-        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096 },
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
-        new() { Key = "proj_method",  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
-        new() { Key = "w_start",       Type = ParamType.Double, Min = 0.0, Max = 1.0 },
-        new() { Key = "w_end",         Type = ParamType.Double, Min = 0.0, Max = 1.0 },
-        new() { Key = "start_percent", Type = ParamType.Double, Min = 0.0, Max = 1.0 },
-        new() { Key = "end_percent",   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
-        new() { Key = "project_every", Type = ParamType.Int,    Min = 1, Max = 8 },
+        new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096 },
+        new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096 },
+        new() { Key = WorkflowParamKeys.Palette, Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
+        new() { Key = WorkflowParamKeys.ProjMethod,  Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
+        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },
+        new() { Key = WorkflowParamKeys.WStart,       Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = WorkflowParamKeys.WEnd,         Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
+        new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     }).ToArray();
 
     /// <summary>Grid + palette + virtual resolution shared by the projection patch and the final quantize.</summary>
     private static (int gw, int gh, string palette, int vres) Pixel(ParamValues p)
     {
-        int gw = p.IntReq("grid_w");
-        int gh = p.IntReq("grid_h");
-        return (gw, gh, p.StrReq("palette"), p.IntReq("virtual_resolution"));
+        int gw = p.IntReq(WorkflowParamKeys.GridW);
+        int gh = p.IntReq(WorkflowParamKeys.GridH);
+        return (gw, gh, p.StrReq(WorkflowParamKeys.Palette), p.IntReq(WorkflowParamKeys.VirtualResolution));
     }
 
-    /// <summary>Patch the denoise model with the per-step pixel-manifold projection (node "35").</summary>
+    /// <summary>Patch the denoise model with the per-step pixel-manifold projection (the base's reserved patch node).</summary>
     protected override object PatchDenoiseModel(Dictionary<string, object> wf, object model, object vae, ParamValues p)
     {
         var (gw, gh, palette, vres) = Pixel(p);
-        wf["35"] = PixelizeSchema.Projection(model, vae, gw, gh, palette, vres, p);
-        return ComfyGraph.Ref("35", 0);
+        wf[Nodes.DenoisePatch] = PixelizeSchema.Projection(model, vae, gw, gh, palette, vres, p);
+        return ComfyGraph.Ref(Nodes.DenoisePatch, 0);
     }
 
-    /// <summary>Render the authoritative crisp output with a final PixelQuantize (node "36").</summary>
+    /// <summary>Render the authoritative crisp output with a final PixelQuantize (the base's reserved post-decode node).</summary>
     protected override object PostDecodeImage(Dictionary<string, object> wf, object image, ParamValues p)
     {
         var (gw, gh, palette, vres) = Pixel(p);
-        wf["36"] = PixelizeSchema.FinalQuantize(image, gw, gh, palette, vres, p);
-        return ComfyGraph.Ref("36", 0);
+        wf[Nodes.PostDecode] = PixelizeSchema.FinalQuantize(image, gw, gh, palette, vres, p);
+        return ComfyGraph.Ref(Nodes.PostDecode, 0);
     }
 }

@@ -1,0 +1,7 @@
+# The magic-string ban (IMGSTR001) does not apply to test code. A test that asserts an exact
+# expected value — Assert.Equal("expected", actual), status == "checkpoint" — is meant to hard-code
+# that literal; it is the specification, not a magic string. Turning the rule off for the whole test
+# assembly is cleaner than annotating every test class. IMGSTR002 still applies, so any
+# [AllowMagicStrings] used inside a test must still carry a justification.
+[*.cs]
+dotnet_diagnostic.IMGSTR001.severity = none

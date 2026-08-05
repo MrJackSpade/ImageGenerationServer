@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ namespace ImageGen.Infrastructure.Repositories;
 
 /// <summary>The machine-level CivitAI cache for LoRA files (dbo.LoraMeta). LoraName is the plain filename — a shared
 /// machine asset, not per-user content — so nothing here is encrypted.</summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) : ILoraMetaRepository
 {
     private const string Columns = "LoraName, Sha256, TrainedWords, ModelName, PreviewUrl, FetchedAtUtc";

@@ -42,6 +42,9 @@ public static class GenerationTagTypes
     /// turned general off" — the two are the same array of four names.</summary>
     private const int StoredVersion = 2;
 
+    private const string GeneralType = "general";
+    private const string ListSeparator = ", ";
+
     /// <summary>The types <paramref name="storedJson"/> allows — <see cref="Default"/> when it is null/blank (unset).
     /// A stored value that is not a known form holding known type names THROWS: it can only be corruption or a rename
     /// that skipped its migration, and silently generating under the wrong mask would put tags in prompts that the user
@@ -78,7 +81,7 @@ public static class GenerationTagTypes
         }
         catch (JsonException ex) { throw new InvalidOperationException($"Stored generation mask is not JSON: {storedJson}", ex); }
         if (parsed is null) throw new InvalidOperationException($"Stored generation mask holds no types: {storedJson}");
-        if (legacy) parsed = parsed.Append("general").ToArray();
+        if (legacy) parsed = parsed.Append(GeneralType).ToArray();
         if (!TryNormalize(parsed, out var types, out var error)) throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
         return types;
     }
@@ -103,7 +106,7 @@ public static class GenerationTagTypes
             if (!Selectable.Contains(name, StringComparer.OrdinalIgnoreCase))
             {
                 types = Default;
-                error = $"unknown tag type '{name}'; the switchable types are {string.Join(", ", Selectable)}";
+                error = $"unknown tag type '{name}'; the switchable types are {string.Join(ListSeparator, Selectable)}";
                 return false;
             }
             wanted.Add(name);

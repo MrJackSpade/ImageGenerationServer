@@ -11,7 +11,7 @@ public static class LoraEndpoints
     public static void MapLoraEndpoints(this RouteGroupBuilder api)
     {
         // Save a LoRA's trigger-word override + auto-attach preference (the LoRA manager page).
-        api.MapPost("/lora/settings", async (HttpContext context, ILoraUserSettingRepository settings) =>
+        api.MapPost(Routes.LoraSettings, async (HttpContext context, ILoraUserSettingRepository settings) =>
         {
             var req = await Json.ReadAsync<LoraSettingsRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Lora))
@@ -28,7 +28,7 @@ public static class LoraEndpoints
         });
 
         // Pick the image that represents a LoRA for this user (must be one of their own generations).
-        api.MapPost("/lora/display", async (HttpContext context, LoraService loras, TimeProvider clock) =>
+        api.MapPost(Routes.LoraDisplay, async (HttpContext context, LoraService loras, TimeProvider clock) =>
         {
             var req = await Json.ReadAsync<LoraDisplayRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Lora) || string.IsNullOrWhiteSpace(req.Id))
@@ -40,7 +40,7 @@ public static class LoraEndpoints
         });
 
         // Clear the cover so the LoRA shows a placeholder again in the picker.
-        api.MapDelete("/lora/display", async (HttpContext context, LoraService loras, string lora) =>
+        api.MapDelete(Routes.LoraDisplay, async (HttpContext context, LoraService loras, string lora) =>
         {
             if (string.IsNullOrWhiteSpace(lora))
                 return Results.BadRequest();
@@ -48,5 +48,15 @@ public static class LoraEndpoints
             await loras.ClearAsync(userId, lora, context.RequestAborted);
             return Results.NoContent();
         });
+    }
+
+    /// <summary>Route templates for the LoRA endpoints.</summary>
+    private static class Routes
+    {
+        /// <summary>A LoRA's trigger-word override + auto-attach preference.</summary>
+        public const string LoraSettings = "/lora/settings";
+
+        /// <summary>The image that represents a LoRA for this user.</summary>
+        public const string LoraDisplay = "/lora/display";
     }
 }

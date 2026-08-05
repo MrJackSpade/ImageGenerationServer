@@ -30,7 +30,7 @@ public sealed class ImageController(
     public async Task<IActionResult> Card(string id, CancellationToken ct)
     {
         var vm = await BuildAsync(id, ct);
-        return vm is null ? NotFound() : PartialView("_Card", vm);
+        return vm is null ? NotFound() : PartialView(Views.Card, vm);
     }
 
     private async Task<ImageDetailViewModel?> BuildAsync(string id, CancellationToken ct)
@@ -76,5 +76,12 @@ public sealed class ImageController(
             BookmarkedTags = tokens.Where(t => t.Kind == TokenKind.Tag).Select(t => t.Name).ToHashSet(StringComparer.Ordinal),
             BookmarkedArtists = tokens.Where(t => t.Kind == TokenKind.Artist).Select(t => t.Name).ToHashSet(StringComparer.Ordinal),
         };
+    }
+
+    /// <summary>View names this controller renders.</summary>
+    private static class Views
+    {
+        /// <summary>The image card partial, used by the in-page lightbox.</summary>
+        public const string Card = "_Card";
     }
 }

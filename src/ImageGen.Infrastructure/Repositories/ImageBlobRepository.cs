@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -11,13 +12,17 @@ namespace ImageGen.Infrastructure.Repositories;
 /// connection per call), so it's registered as a singleton — the singleton JobQueue resolves it from the root
 /// provider to persist each generated image.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ImageBlobRepository(IDbConnectionFactory connectionFactory) : IImageBlobRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
 
+    /// <summary>Guid.ToString format: 32 hex digits, no hyphens.</summary>
+    private const string GuidFormat = "N";
+
     public async Task<string> AddAsync(NewImageBlob blob, CancellationToken ct)
     {
-        var id = Guid.NewGuid().ToString("N");   // globally unique; never derived from a ComfyUI filename
+        var id = Guid.NewGuid().ToString(GuidFormat);   // globally unique; never derived from a ComfyUI filename
         await using var conn = await _connectionFactory.OpenAsync(ct);
         await using var cmd = conn.Command(@"
 INSERT INTO dbo.ImageBlob (ImageId, Bytes, ContentType, Width, Height, ByteSize, Kind)

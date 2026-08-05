@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
@@ -9,6 +10,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// <see cref="IImageDeletionRepository"/>. One transaction covers every table that can name an image id, so a delete
 /// either takes all of it or none of it.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFactory) : IImageDeletionRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

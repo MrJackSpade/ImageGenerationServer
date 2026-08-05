@@ -12,8 +12,26 @@ namespace ImageGen.TagModel;
 /// </summary>
 public sealed class TagVocab
 {
+    /// <summary>Pattern matching an HTML entity, the mark of a vocab built before the capture-layer decode.</summary>
+    private const string HtmlEntityPattern = @"&(#[0-9]+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);";
+
+    /// <summary>JSON key for the corpus row count.</summary>
+    private const string NRowsProperty = "n_rows";
+
+    /// <summary>JSON key for the tag-name array.</summary>
+    private const string TagsProperty = "tags";
+
+    /// <summary>JSON key for the per-tag corpus count array.</summary>
+    private const string CountsProperty = "counts";
+
+    /// <summary>JSON key for the per-tag gelbooru category array.</summary>
+    private const string TypesProperty = "types";
+
+    /// <summary>Separator joining sample encoded tags in the diagnostic message.</summary>
+    private const string Separator = ", ";
+
     /// <summary>Detects a tag name that is still HTML-encoded, which means the vocab was built before the capture-layer decode.</summary>
-    private static readonly Regex HtmlEntity = new(@"&(#[0-9]+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);", RegexOptions.Compiled);
+    private static readonly Regex HtmlEntity = new(HtmlEntityPattern, RegexOptions.Compiled);
 
     private readonly Dictionary<string, int> _byName;
 
@@ -79,10 +97,10 @@ public sealed class TagVocab
         using var document = JsonDocument.Parse(stream);
         var root = document.RootElement;
 
-        var rowCount = root.GetProperty("n_rows").GetInt64();
-        var tags = ReadStrings(root, "tags");
-        var counts = ReadInt64s(root, "counts");
-        var types = ReadBytes(root, "types");
+        var rowCount = root.GetProperty(NRowsProperty).GetInt64();
+        var tags = ReadStrings(root, TagsProperty);
+        var counts = ReadInt64s(root, CountsProperty);
+        var types = ReadBytes(root, TypesProperty);
 
         if (counts.Length != tags.Length)
             throw new InvalidDataException($"{path}: {counts.Length} counts for {tags.Length} tags.");
@@ -99,7 +117,7 @@ public sealed class TagVocab
         var encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
         if (encoded.Length > 0)
             throw new InvalidDataException(
-                $"{path}: tag names are still HTML-encoded (e.g. {string.Join(", ", encoded)}). This vocab predates "
+                $"{path}: tag names are still HTML-encoded (e.g. {string.Join(Separator, encoded)}). This vocab predates "
                 + "the capture-layer decode; decode it once at rest rather than at load.");
 
         return new TagVocab(tags, counts, types, rowCount);

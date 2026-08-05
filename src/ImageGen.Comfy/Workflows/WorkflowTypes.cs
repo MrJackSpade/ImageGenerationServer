@@ -47,6 +47,9 @@ internal static class LoaderKinds
     /// <summary>The wire vocabulary in dropdown order, for a schema's <see cref="ParamSpec.Choices"/>.</summary>
     public static readonly string[] Choices = { Checkpoint, Unet, UnetGguf };
 
+    /// <summary>List separator for naming the accepted loader values in the refusal message.</summary>
+    private const string ChoiceSeparator = ", ";
+
     /// <summary>Wire string → kind, or a refusal naming the value — a loader outside the closed set is a broken
     /// configuration, not a silent fall-through to the split-loader branch.</summary>
     public static LoaderKind Parse(string wire) => wire switch
@@ -55,7 +58,7 @@ internal static class LoaderKinds
         Unet => LoaderKind.Unet,
         UnetGguf => LoaderKind.UnetGguf,
         _ => throw new RenderValidationException(
-            $"Unknown loader '{wire}'. A configuration's loader must be one of: {string.Join(", ", Choices)}."),
+            $"Unknown loader '{wire}'. A configuration's loader must be one of: {string.Join(ChoiceSeparator, Choices)}."),
     };
 }
 
@@ -331,8 +334,8 @@ public sealed class ParamValues
             && je.TryGetProperty(sub, out var arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
             && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
             return (arr[0].GetInt32(), arr[1].GetInt32());
-        if (Has("width") && Has("height"))
-            return (IntReq("width"), IntReq("height"));
+        if (Has(WorkflowParamKeys.Width) && Has(WorkflowParamKeys.Height))
+            return (IntReq(WorkflowParamKeys.Width), IntReq(WorkflowParamKeys.Height));
         throw new RenderValidationException(
             $"This configuration needs a render size — an '{aspectKey}' map with a '{sub}' entry, or width/height — and declares neither.");
     }

@@ -38,7 +38,7 @@ var config = builder.Configuration;
 // A missing dbo.MachineSetting throws here and the app does not start. Deliberate: the alternative is booting on
 // code defaults for values the operator believes they set, which is the failure this whole design removes. Under
 // SQL Server apply schema.sql first — the app's login has no DDL rights, by design.
-var connectionString = config.GetConnectionString("ImageGen")
+var connectionString = config.GetConnectionString(ConfigKeys.ConnectionStringName)
     ?? throw new InvalidOperationException("Missing connection string 'ImageGen'.");
 
 // Which engine. Defaults to Sqlite, which needs no server and no out-of-band schema step, so an unconfigured
@@ -47,14 +47,15 @@ var connectionString = config.GetConnectionString("ImageGen")
 // string but no provider gets a named error at startup, not a silent second database.
 // Unset defaults to Sqlite (the zero-config engine); a value that is SET but not a known provider is a typo, not a
 // request for the default — surfacing it beats silently starting on a different (empty) database than intended.
-var providerConfigured = config["Database:Provider"];
+var providerConfigured = config[ConfigKeys.DatabaseProvider];
+const string providerListSeparator = ", ";
 var databaseProvider = string.IsNullOrWhiteSpace(providerConfigured)
     ? DatabaseProvider.Sqlite
     : Enum.TryParse<DatabaseProvider>(providerConfigured, ignoreCase: true, out var parsed)
         ? parsed
         : throw new InvalidOperationException(
             $"Database:Provider is '{providerConfigured}', which is not a known provider — expected one of "
-            + $"{string.Join(", ", Enum.GetNames<DatabaseProvider>())} (unset defaults to Sqlite).");
+            + $"{string.Join(providerListSeparator, Enum.GetNames<DatabaseProvider>())} (unset defaults to Sqlite).");
 
 var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConnectionFactory(connectionString, databaseProvider);
 
@@ -64,7 +65,7 @@ var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConne
 // configuration source that queries the database cannot load before its tables exist. Under SQL Server it stays off
 // (the app's login holds no DDL rights) and a box whose schema has not been applied fails on the read below, by design.
 // Either way an explicit Database:EnsureSchemaOnStartup wins.
-if (config.GetValue("Database:EnsureSchemaOnStartup", databaseProvider == DatabaseProvider.Sqlite))
+if (config.GetValue(ConfigKeys.EnsureSchemaOnStartup, databaseProvider == DatabaseProvider.Sqlite))
     await new DatabaseInitializer(bootstrapConnections, databaseProvider).EnsureSchemaAsync(CancellationToken.None);
 
 var machineSettings = new MachineSettingsConfigurationSource(
@@ -88,7 +89,7 @@ var machineSettings = new MachineSettingsConfigurationSource(
 // The path is a machine setting, not an appsettings.json key. The literal here is the shipped default, kept in code
 // so an install that has never set the path still logs — to this default location — rather than silently stopping.
 // Blank the setting to turn the file sink off.
-var logFilePath = config["Logging:FilePath"] ?? "logs/imagegen-.log";
+var logFilePath = config[ConfigKeys.LoggingFilePath] ?? "logs/imagegen-.log";
 if (!string.IsNullOrWhiteSpace(logFilePath))
 {
     var logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
@@ -107,15 +108,15 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
     }
 
     builder.Logging.AddSerilog(new Serilog.LoggerConfiguration()
-        .MinimumLevel.Is(Level(config["Logging:LogLevel:Default"], Serilog.Events.LogEventLevel.Information))
-        .MinimumLevel.Override("Microsoft", Level(config["Logging:LogLevel:Microsoft.AspNetCore"], Serilog.Events.LogEventLevel.Warning))
+        .MinimumLevel.Is(Level(config[ConfigKeys.LogLevelDefault], Serilog.Events.LogEventLevel.Information))
+        .MinimumLevel.Override(LogNames.MicrosoftSource, Level(config[ConfigKeys.LogLevelMicrosoftAspNetCore], Serilog.Events.LogEventLevel.Warning))
         .WriteTo.File(
             logPath,
             rollingInterval: Serilog.RollingInterval.Day,
             retainedFileCountLimit: null,   // keep every day. See above: no invented cap.
             fileSizeLimitBytes: null,
             shared: true,
-            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+            outputTemplate: LogNames.OutputTemplate)
         .CreateLogger(), dispose: true);
 }
 
@@ -188,7 +189,7 @@ builder.Services.AddSingleton<ImageGen.Application.Civitai.ICivitaiClient, Image
 builder.Services.AddSingleton<IComfyEndpoint>(sp => new ConfiguredComfyEndpoint(sp.GetRequiredService<IConfiguration>()));
 
 builder.Services.AddInfrastructure(connectionString, databaseProvider);
-builder.Services.AddApplication(renderOptions, config.GetValue("Logging:AuditUserPrompts", false));
+builder.Services.AddApplication(renderOptions, config.GetValue(ConfigKeys.AuditUserPrompts, false));
 
 // Admission control for work that will hold memory until it renders. Uploaded render inputs stay resident until their
 // job runs and are never evicted (see IUploadStore), so a box below this floor refuses new submissions outright and
@@ -205,7 +206,7 @@ builder.Services.AddSingleton<ISystemMemory>(_ =>
 // The floor is read per check, not captured, so raising it on the settings page takes effect on the next submission.
 builder.Services.AddSingleton(sp => new SubmissionMemoryGate(
     sp.GetRequiredService<ISystemMemory>(),
-    () => sp.GetRequiredService<IConfiguration>().GetValue("Uploads:MinAvailableMemoryMB", 500L) * 1024L * 1024L));
+    () => sp.GetRequiredService<IConfiguration>().GetValue(ConfigKeys.MinAvailableMemoryMB, 500L) * 1024L * 1024L));
 builder.Services.AddComfy(comfyOptions);
 builder.Services.AddMedia(mediaOptions);
 
@@ -220,7 +221,7 @@ builder.Services.AddMedia(mediaOptions);
 using var startupLoggers = LoggerFactory.Create(b => b.AddConsole());
 using (var artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
     await TagModelArtifacts.EnsureAsync(
-        artifactsHttp, startupLoggers.CreateLogger("TagModel"), CancellationToken.None);
+        artifactsHttp, startupLoggers.CreateLogger(LogNames.TagModelCategory), CancellationToken.None);
 builder.Services.AddTagModel();
 builder.Services.AddMemoryCache();   // backs the /forge/image?w=N thumbnail + mp4 caches
 
@@ -231,7 +232,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddHostedService<RenderWorker>();
 
 // Vestigial reconciler: reaps stale PendingJob rows (history is worker-written). Toggle off via Reconciler:Enabled.
-if (config.IsOn("Reconciler:Enabled"))
+if (config.IsOn(ConfigKeys.ReconcilerEnabled))
     builder.Services.AddHostedService<PendingJobReconciler>();
 
 // /forge/upload reads the posted file via ReadFormAsync, whose 128MB default would become the new
@@ -246,7 +247,7 @@ builder.Services.Configure<FormOptions>(options =>
 // its own trusted reverse proxy wants and how this has always run. It is also spoofable by anyone who can reach the app
 // directly, so a packaged install that is exposed differently needs to be able to say no. Defaults to the historical
 // behaviour; set Security:TrustAllProxies=false to keep ASP.NET's loopback-only default instead.
-var trustAllProxies = config.IsOn("Security:TrustAllProxies");
+var trustAllProxies = config.IsOn(ConfigKeys.TrustAllProxies);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -272,7 +273,7 @@ builder.Services
         // JSON API callers want a 401; browser page requests get the normal login redirect.
         options.Events.OnRedirectToLogin = ctx =>
         {
-            if (ctx.Request.Path.StartsWithSegments("/api"))
+            if (ctx.Request.Path.StartsWithSegments(Routes.ApiPrefix))
             {
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 return Task.CompletedTask;
@@ -307,12 +308,12 @@ builder.Services.AddAuthorization();
 //
 // NOTE for a proxied deployment: nginx forwards to a fixed port, so an app that quietly moved is an app the proxy
 // can no longer reach. The warning is the only signal; pin the port and keep it free if that matters.
-var configuredUrls = config["Urls"];
+var configuredUrls = config[ConfigKeys.Urls];
 var listenUrls = ListenAddress.Resolve(
     configuredUrls,
-    onMoved: (host, wanted, actual) => startupLoggers.CreateLogger("Startup").LogWarning(
+    onMoved: (host, wanted, actual) => startupLoggers.CreateLogger(LogNames.StartupCategory).LogWarning(
         "Port {Wanted} on {Host} is already in use; listening on {Actual} instead.", wanted, host, actual));
-if (listenUrls != configuredUrls) config["Urls"] = listenUrls;
+if (listenUrls != configuredUrls) config[ConfigKeys.Urls] = listenUrls;
 
 var app = builder.Build();
 
@@ -335,7 +336,7 @@ app.Services.GetRequiredService<ITagCatalog>();
 // is the moment something is going wrong, which is the worst possible time to need a restart.
 app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
 {
-    var exposeStackTraces = app.Configuration.IsOn("Diagnostics:ExposeStackTraces");
+    var exposeStackTraces = app.Configuration.IsOn(ConfigKeys.ExposeStackTraces);
     var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
     ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
     ctx.Response.ContentType = "application/json";
@@ -365,7 +366,7 @@ app.MapImageGenApi();   // /api (client actions) + /forge (render backend)
 // Ops/deploy drain probe (anonymous, root — like a health check). Reports how much render work is in flight so a
 // deploy can wait it out before stopping the app. Slots merely waiting re-hydrate and resume, so the gate keys
 // on work in flight, not queue depth. Exposes only counts — no prompts, no user data.
-app.MapGet("/drain-status", (RenderOrchestrator queue) =>
+app.MapGet(Routes.DrainStatus, (RenderOrchestrator queue) =>
 {
     var w = queue.Workload();
     return Results.Ok(new
@@ -405,9 +406,78 @@ foreach (var address in app.Urls)
 // And open it, if the launcher asked. Only the launcher sets this, so a container, a service or a scheduled task
 // is left alone — see StartupBrowser for why that is the trigger rather than a guess at whether a desktop exists.
 if (firstReachable is not null && StartupBrowser.Requested(Environment.GetEnvironmentVariable(StartupBrowser.EnvVar)))
-    StartupBrowser.Open(firstReachable, startupLoggers.CreateLogger("Startup"));
+    StartupBrowser.Open(firstReachable, startupLoggers.CreateLogger(LogNames.StartupCategory));
 
 await app.WaitForShutdownAsync();
 
 /// <summary>Exposed so the test project can spin up the app via WebApplicationFactory.</summary>
-public partial class Program;
+public partial class Program
+{
+    /// <summary>Configuration keys this host reads. Each setting has exactly one spelling here so a rename reaches
+    /// every read and no two spellings can drift.</summary>
+    private static class ConfigKeys
+    {
+        /// <summary>Name of the <c>ImageGen</c> connection string, resolved via <c>GetConnectionString</c>.</summary>
+        public const string ConnectionStringName = "ImageGen";
+
+        /// <summary>Which database engine to use; unset defaults to Sqlite.</summary>
+        public const string DatabaseProvider = "Database:Provider";
+
+        /// <summary>Whether to create/upgrade the schema at startup.</summary>
+        public const string EnsureSchemaOnStartup = "Database:EnsureSchemaOnStartup";
+
+        /// <summary>Where the rolling log file is written; blank turns the file sink off.</summary>
+        public const string LoggingFilePath = "Logging:FilePath";
+
+        /// <summary>Default minimum log level for the file sink.</summary>
+        public const string LogLevelDefault = "Logging:LogLevel:Default";
+
+        /// <summary>Minimum log level applied to the Microsoft/ASP.NET source context.</summary>
+        public const string LogLevelMicrosoftAspNetCore = "Logging:LogLevel:Microsoft.AspNetCore";
+
+        /// <summary>Whether prompt-bearing diagnostics go to the per-user encrypted log.</summary>
+        public const string AuditUserPrompts = "Logging:AuditUserPrompts";
+
+        /// <summary>Available-memory floor, in MB, below which submissions are refused.</summary>
+        public const string MinAvailableMemoryMB = "Uploads:MinAvailableMemoryMB";
+
+        /// <summary>Whether the stale-<c>PendingJob</c> reconciler runs.</summary>
+        public const string ReconcilerEnabled = "Reconciler:Enabled";
+
+        /// <summary>Whether <c>X-Forwarded-*</c> is honoured from any caller.</summary>
+        public const string TrustAllProxies = "Security:TrustAllProxies";
+
+        /// <summary>The Kestrel listen address(es).</summary>
+        public const string Urls = "Urls";
+
+        /// <summary>Whether unhandled-exception responses carry the full stack trace.</summary>
+        public const string ExposeStackTraces = "Diagnostics:ExposeStackTraces";
+    }
+
+    /// <summary>Serilog wiring: the source-override prefix, logger category names, and the file output template.</summary>
+    private static class LogNames
+    {
+        /// <summary>Source-context prefix whose minimum level the ASP.NET override sets.</summary>
+        public const string MicrosoftSource = "Microsoft";
+
+        /// <summary>Logger category for the tag-model artifact bootstrap.</summary>
+        public const string TagModelCategory = "TagModel";
+
+        /// <summary>Logger category for startup and listen-address messages.</summary>
+        public const string StartupCategory = "Startup";
+
+        /// <summary>The file sink's output template.</summary>
+        public const string OutputTemplate =
+            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}";
+    }
+
+    /// <summary>Fixed route paths mapped or matched in the pipeline.</summary>
+    private static class Routes
+    {
+        /// <summary>The JSON API prefix; a login redirect becomes a 401 under it.</summary>
+        public const string ApiPrefix = "/api";
+
+        /// <summary>The anonymous deploy-drain probe.</summary>
+        public const string DrainStatus = "/drain-status";
+    }
+}

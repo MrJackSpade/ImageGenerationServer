@@ -34,6 +34,9 @@ public sealed class LoraMetaPopulator(
     /// <summary>ComfyUI's loras folder roots, resolved once — they don't move while the app runs.</summary>
     private IReadOnlyList<string>? _loraRoots;
 
+    /// <summary>ComfyUI's folder-paths key for the LoRA roots.</summary>
+    private const string LorasFolderKey = "loras";
+
     public void Request(IReadOnlyCollection<string> loraNames)
     {
         // Off means never touch CivitAI — the same gate the lookup itself enforces, applied here so nothing queues.
@@ -130,7 +133,7 @@ public sealed class LoraMetaPopulator(
         if (_loraRoots is not null)
             return _loraRoots;
         var folders = await comfy.GetFolderPathsAsync(ct);
-        return _loraRoots = folders.TryGetValue("loras", out var roots) ? roots : [];
+        return _loraRoots = folders.TryGetValue(LorasFolderKey, out var roots) ? roots : [];
     }
 
     private static string? ResolveOnDisk(IReadOnlyList<string> roots, string name)

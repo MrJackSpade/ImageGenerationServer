@@ -15,14 +15,14 @@ namespace ImageGen.Web.Controllers;
 [Authorize]
 public sealed class WorkflowsController : Controller
 {
-    [HttpGet("/settings/workflows")]
+    [HttpGet(Routes.WorkflowsIndex)]
     public IActionResult Index() => View();
 
     /// <summary>
     /// The models page: which file on this machine fills each catalogue slot, and which workflows that leaves
     /// unavailable. A JS shell over /forge/catalog/*.
     /// </summary>
-    [HttpGet("/settings/models")]
+    [HttpGet(Routes.ModelsIndex)]
     public IActionResult Models() => View();
 
     /// <summary>The LoRA manager: every LoRA on this box with its cover, CivitAI-fetched trigger words (editable), and
@@ -33,16 +33,33 @@ public sealed class WorkflowsController : Controller
     [HttpGet("/settings/workflows/{id}")]
     public IActionResult Detail(string id)
     {
-        ViewData["WorkflowId"] = id;
+        ViewData[ViewDataKeys.WorkflowId] = id;
         return View();
     }
 
     [HttpGet("/workflows")]
-    public IActionResult IndexMoved() => RedirectPermanent("/settings/workflows");
+    public IActionResult IndexMoved() => RedirectPermanent(Routes.WorkflowsIndex);
 
     [HttpGet("/models")]
-    public IActionResult ModelsMoved() => RedirectPermanent("/settings/models");
+    public IActionResult ModelsMoved() => RedirectPermanent(Routes.ModelsIndex);
 
     [HttpGet("/workflow/{id}")]
     public IActionResult DetailMoved(string id) => RedirectPermanent($"/settings/workflows/{Uri.EscapeDataString(id)}");
+
+    /// <summary>Current routes the old top-level addresses redirect to.</summary>
+    private static class Routes
+    {
+        /// <summary>The workflow library index.</summary>
+        public const string WorkflowsIndex = "/settings/workflows";
+
+        /// <summary>The models page.</summary>
+        public const string ModelsIndex = "/settings/models";
+    }
+
+    /// <summary>Keys under which this controller passes values to its view.</summary>
+    private static class ViewDataKeys
+    {
+        /// <summary>The id of the workflow whose detail page is being rendered.</summary>
+        public const string WorkflowId = "WorkflowId";
+    }
 }

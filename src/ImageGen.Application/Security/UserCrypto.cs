@@ -25,9 +25,13 @@ public static class UserCrypto
     private const int TagBytes = 16;
     private const int SubkeyBytes = 32;
 
-    private static readonly byte[] RandInfo = Encoding.UTF8.GetBytes("imagegen:enc:rand:v1");
-    private static readonly byte[] DetInfo = Encoding.UTF8.GetBytes("imagegen:enc:det:v1");
-    private static readonly byte[] DetMacInfo = Encoding.UTF8.GetBytes("imagegen:enc:detmac:v1");
+    private const string RandInfoLabel = "imagegen:enc:rand:v1";
+    private const string DetInfoLabel = "imagegen:enc:det:v1";
+    private const string DetMacInfoLabel = "imagegen:enc:detmac:v1";
+
+    private static readonly byte[] RandInfo = Encoding.UTF8.GetBytes(RandInfoLabel);
+    private static readonly byte[] DetInfo = Encoding.UTF8.GetBytes(DetInfoLabel);
+    private static readonly byte[] DetMacInfo = Encoding.UTF8.GetBytes(DetMacInfoLabel);
 
     /// <summary>The three subkeys derived from a user's master key. Treat as opaque and immutable.</summary>
     public sealed class UserKeys

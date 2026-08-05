@@ -201,20 +201,31 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
     /// loader decide"); without this, System.Text.Json short-circuits null to a null dictionary entry and it is lost.</summary>
     public override bool HandleNull => true;
 
+    /// <summary>The wrapped-parameter envelope's member names — the only keys a params entry may carry beyond being a
+    /// bare value. Named once so the presence check, the unknown-key guard, and the range reads share one spelling.</summary>
+    private static class EnvelopeMember
+    {
+        public const string Value = "value";
+        public const string Exposed = "exposed";
+        public const string Min = "min";
+        public const string Max = "max";
+        public const string Step = "step";
+    }
+
     public override ConfigParamDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         using var doc = JsonDocument.ParseValue(ref reader);
         var pv = doc.RootElement;
 
-        if (pv.ValueKind == JsonValueKind.Object && pv.TryGetProperty("value", out var value))
+        if (pv.ValueKind == JsonValueKind.Object && pv.TryGetProperty(EnvelopeMember.Value, out var value))
         {
             foreach (var member in pv.EnumerateObject())
-                if (member.Name is not ("value" or "exposed" or "min" or "max" or "step"))
+                if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Exposed or EnvelopeMember.Min or EnvelopeMember.Max or EnvelopeMember.Step))
                     throw new JsonException(
                         $"Unknown key '{member.Name}' in a parameter envelope. A wrapped parameter may declare only "
                         + "value, exposed, min, max and step.");
 
-            bool? exposed = pv.TryGetProperty("exposed", out var e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False
+            bool? exposed = pv.TryGetProperty(EnvelopeMember.Exposed, out var e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False
                 ? e.GetBoolean()
                 : null;
             return new ConfigParamDto
@@ -222,9 +233,9 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
                 Value = value.Clone(),
                 Exposed = exposed == true,
                 Locked = exposed == false,
-                Min = Number(pv, "min"),
-                Max = Number(pv, "max"),
-                Step = Number(pv, "step"),
+                Min = Number(pv, EnvelopeMember.Min),
+                Max = Number(pv, EnvelopeMember.Max),
+                Step = Number(pv, EnvelopeMember.Step),
             };
         }
 

@@ -6,6 +6,20 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
 {
     public override string Name => "flux1-kontext";
 
+    /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes). Two FluxKontextImageScale and two
+    /// VAEEncode are disambiguated by input: the source vs the stitched source+refs.</summary>
+    private const string Positive = "13";
+    private const string SourceScale = "11";
+    private const string SourceEncode = "12";
+    private const string StitchScale = "18";
+    private const string StitchEncode = "19";
+    private const string RefLatent = "15";
+    private const string Guidance = "14";
+    private const string NegativeZero = "16";
+    private const string Sampler = "3";
+    private const string Decode = "8";
+    private const string Save = "9";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
@@ -13,44 +27,44 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
         var seed = ComfyGraph.Seed(p);
         var refNames = inputs.ReferenceImageNames;
 
-        wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clip0 });
-        wf["11"] = ComfyGraph.Node("FluxKontextImageScale", new { image = ComfyGraph.Ref("10", 0) });
-        wf["12"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("11", 0), vae = vae0 });
-        int fn = p.Has("reference_max") ? Math.Min(refNames.Count, p.IntReq("reference_max")) : 0;   // no reference_max declared → this editor takes no refs
+        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
+        wf[SourceScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(Nodes.Source, 0) });
+        wf[SourceEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(SourceScale, 0), vae = vae0 });
+        int fn = p.Has(WorkflowParamKeys.ReferenceMax) ? Math.Min(refNames.Count, p.IntReq(WorkflowParamKeys.ReferenceMax)) : 0;   // no reference_max declared → this editor takes no refs
         object refLatent;
         if (fn > 0)
         {
-            object stitched = ComfyGraph.Ref("10", 0);
+            object stitched = ComfyGraph.Ref(Nodes.Source, 0);
             for (int i = 0; i < fn; i++)
             {
                 string load = $"{40 + i}", stitch = $"{50 + i}";
-                wf[load] = ComfyGraph.Node("LoadImage", new { image = refNames[i] });
-                wf[stitch] = ComfyGraph.Node("ImageStitch", new { image1 = stitched, image2 = ComfyGraph.Ref(load, 0), direction = "right", match_image_size = true, spacing_width = 0, spacing_color = "white" });
+                wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
+                wf[stitch] = ComfyGraph.Node(ComfyNodeTypes.ImageStitch, new { image1 = stitched, image2 = ComfyGraph.Ref(load, 0), direction = "right", match_image_size = true, spacing_width = 0, spacing_color = "white" });
                 stitched = ComfyGraph.Ref(stitch, 0);
             }
-            wf["18"] = ComfyGraph.Node("FluxKontextImageScale", new { image = stitched });
-            wf["19"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("18", 0), vae = vae0 });
-            refLatent = ComfyGraph.Ref("19", 0);
+            wf[StitchScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = stitched });
+            wf[StitchEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(StitchScale, 0), vae = vae0 });
+            refLatent = ComfyGraph.Ref(StitchEncode, 0);
         }
-        else refLatent = ComfyGraph.Ref("12", 0);
-        wf["15"] = ComfyGraph.Node("ReferenceLatent", new { conditioning = ComfyGraph.Ref("13", 0), latent = refLatent });
-        wf["14"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("15", 0), guidance = p.DblReq("guidance") });
-        wf["16"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = ComfyGraph.Ref("13", 0) });
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        else refLatent = ComfyGraph.Ref(SourceEncode, 0);
+        wf[RefLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Positive, 0), latent = refLatent });
+        wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(RefLatent, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
+        wf[NegativeZero] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = ComfyGraph.Ref(Positive, 0) });
+        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed,
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = model0,
-            positive = ComfyGraph.Ref("14", 0),
-            negative = ComfyGraph.Ref("16", 0),
-            latent_image = ComfyGraph.Ref("12", 0),
+            positive = ComfyGraph.Ref(Guidance, 0),
+            negative = ComfyGraph.Ref(NegativeZero, 0),
+            latent_image = ComfyGraph.Ref(SourceEncode, 0),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp_edit" });
+        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

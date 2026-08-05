@@ -12,7 +12,7 @@ public static class SettingsEndpoints
         // This user's account-level preferences, as one read for the whole app. Per user, so they follow the user
         // across devices. There is no PUT counterpart: every writable preference below owns its own route and its
         // own column, so one autosave can never clobber another's.
-        api.MapGet("/settings", async (HttpContext context, UserService users) =>
+        api.MapGet(Routes.Settings, async (HttpContext context, UserService users) =>
         {
             var userId = context.User.GetRequiredUserId();
             var user = await users.GetByIdAsync(userId, context.RequestAborted);
@@ -32,7 +32,7 @@ public static class SettingsEndpoints
         });
 
         // Composer state (one PUT, one column).
-        api.MapPut("/settings/composer", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.Composer, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<ComposerPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -44,7 +44,7 @@ public static class SettingsEndpoints
 
         // The editor's state blob (mode/workflows/params/brush), likewise on its own route (one PUT, one column),
         // so the editor autosave can't clobber the composer's and vice versa.
-        api.MapPut("/settings/edit-prefs", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.EditPrefs, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<EditPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -55,7 +55,7 @@ public static class SettingsEndpoints
         });
 
         // The bookmarks page's folded sections, on its own route and column like the two above.
-        api.MapPut("/settings/bookmarks", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.Bookmarks, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<BookmarkPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -66,7 +66,7 @@ public static class SettingsEndpoints
         });
 
         // Favorited workflow ids (opaque JSON array) — one PUT, one column.
-        api.MapPut("/settings/favorites", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.Favorites, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<FavoriteWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -77,7 +77,7 @@ public static class SettingsEndpoints
         });
 
         // Custom per-workflow tags (opaque JSON map, encrypted at rest) — one PUT, one column.
-        api.MapPut("/settings/workflow-tags", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.WorkflowTags, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<WorkflowTagsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -88,7 +88,7 @@ public static class SettingsEndpoints
         });
 
         // Workflows hidden from the UI picker (opaque JSON array) — one PUT, one column.
-        api.MapPut("/settings/hidden", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.Hidden, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<HiddenWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -99,7 +99,7 @@ public static class SettingsEndpoints
         });
 
         // Workflows hidden from the API workflow list (opaque JSON array) — separate from the UI-picker set above.
-        api.MapPut("/settings/hidden-api", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.HiddenApi, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<HiddenApiWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -111,7 +111,7 @@ public static class SettingsEndpoints
 
         // The generation mask — which tag types the random-prompt model may emit — one PUT, one column. Bounds ONLY
         // random-prompt generation; tag autocomplete keeps ranking every type regardless of what is set here.
-        api.MapPut("/settings/generation-tag-types", async (HttpContext context, UserService users) =>
+        api.MapPut(Routes.GenerationTagTypes, async (HttpContext context, UserService users) =>
         {
             var request = await Json.ReadAsync<GenerationTagTypesRequest>(context);
             if (request is null) return Results.BadRequest();
@@ -122,5 +122,36 @@ public static class SettingsEndpoints
             var error = await users.SetGenerationTagTypesAsync(userId, request.GenerationTagTypes, context.RequestAborted);
             return error is null ? Results.NoContent() : Results.BadRequest(new { error });
         });
+    }
+
+    /// <summary>Route templates for the settings endpoints.</summary>
+    private static class Routes
+    {
+        /// <summary>The whole account's preferences, read in one GET.</summary>
+        public const string Settings = "/settings";
+
+        /// <summary>The composer state blob.</summary>
+        public const string Composer = "/settings/composer";
+
+        /// <summary>The editor state blob.</summary>
+        public const string EditPrefs = "/settings/edit-prefs";
+
+        /// <summary>The bookmarks page's folded sections.</summary>
+        public const string Bookmarks = "/settings/bookmarks";
+
+        /// <summary>Favorited workflow ids.</summary>
+        public const string Favorites = "/settings/favorites";
+
+        /// <summary>Custom per-workflow tags.</summary>
+        public const string WorkflowTags = "/settings/workflow-tags";
+
+        /// <summary>Workflows hidden from the UI picker.</summary>
+        public const string Hidden = "/settings/hidden";
+
+        /// <summary>Workflows hidden from the API workflow list.</summary>
+        public const string HiddenApi = "/settings/hidden-api";
+
+        /// <summary>The generation mask (which tag types the random-prompt model may emit).</summary>
+        public const string GenerationTagTypes = "/settings/generation-tag-types";
     }
 }

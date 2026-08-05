@@ -5,6 +5,12 @@ namespace ImageGen.Web.ViewModels;
 
 public sealed class ImageDetailViewModel
 {
+    /// <summary>Placeholder chip text shown when the image has no prompt to display.</summary>
+    private const string NoPromptText = "(no prompt)";
+
+    /// <summary>Delimiter a run of plain prompt segments is rejoined on — byte-identical to the split delimiter.</summary>
+    private const string SegmentDelimiter = ",";
+
     public required ImageDetailView Entry { get; init; }
     public required bool IsBookmarked { get; init; }
     public string? NewerId { get; init; }
@@ -68,7 +74,7 @@ public sealed class ImageDetailViewModel
         get
         {
             if (string.IsNullOrWhiteSpace(Entry.Prompt))
-                return [new PromptChip("(no prompt)", null, "")];
+                return [new PromptChip(NoPromptText, null, string.Empty)];
 
             var marks = Entry.Marks;
             var chips = new List<PromptChip>();
@@ -79,8 +85,8 @@ public sealed class ImageDetailViewModel
                 if (plain.Count == 0) return;
                 // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
                 // the run's outer edges are trimmed for display.
-                var text = string.Join(",", plain).Trim();
-                if (text.Length > 0) chips.Add(new PromptChip(text, null, ""));
+                var text = string.Join(SegmentDelimiter, plain).Trim();
+                if (text.Length > 0) chips.Add(new PromptChip(text, null, string.Empty));
                 plain.Clear();
             }
 
@@ -103,7 +109,7 @@ public sealed class ImageDetailViewModel
             }
             FlushPlain();
 
-            return chips.Count > 0 ? chips : [new PromptChip("(no prompt)", null, "")];
+            return chips.Count > 0 ? chips : [new PromptChip(NoPromptText, null, string.Empty)];
         }
     }
 }

@@ -57,6 +57,8 @@ public sealed record ComfyPatch(
     IReadOnlyList<string> Provides,
     IReadOnlyList<FileDiff> Files)
 {
+    private const string CurrentDirectory = ".";
+
     /// <summary>
     /// True when this patch only ever creates files — a node pack this repository ships. Such a patch builds its
     /// own target, so a missing directory means "not applied yet" rather than "the thing it patches is not
@@ -80,7 +82,7 @@ public sealed record ComfyPatch(
 
     /// <summary>The absolute directory this patch's paths are relative to, under a given ComfyUI root.</summary>
     public string ResolveTarget(string comfyRoot) =>
-        Target == "."
+        Target == CurrentDirectory
             ? comfyRoot
             : Path.Combine(comfyRoot, Target.Replace('/', Path.DirectorySeparatorChar));
 }

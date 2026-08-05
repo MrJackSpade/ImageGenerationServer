@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 
@@ -10,6 +11,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// <para>Nothing here is encrypted. These rows are facts about the machine — a filename on its disk, a VRAM
 /// figure for its GPU — not a user's words, and there is no owning user to key a cipher by.</para>
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class CatalogOverrideRepository(IDbConnectionFactory connectionFactory) : ICatalogOverrideRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

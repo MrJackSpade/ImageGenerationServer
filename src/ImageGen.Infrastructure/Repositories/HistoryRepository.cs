@@ -3,6 +3,7 @@ using System.Text;
 using ImageGen.Application.Prompting;
 using ImageGen.Application.Security;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -10,6 +11,7 @@ using Microsoft.Data.SqlClient;
 
 namespace ImageGen.Infrastructure.Repositories;
 
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IHistoryRepository
 {
     private const string MarkTable = "dbo.HistoryMark";

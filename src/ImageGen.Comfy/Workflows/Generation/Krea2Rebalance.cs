@@ -29,11 +29,11 @@ public static class Krea2Rebalance
     /// <summary>The two knobs, concatenated into every Krea 2 workflow's schema.</summary>
     public static readonly IReadOnlyList<ParamSpec> Schema = new ParamSpec[]
     {
-        new() { Key = "rebalance_multiplier", Type = ParamType.Double, Min = 1.0, Max = 8.0,
+        new() { Key = WorkflowParamKeys.RebalanceMultiplier, Type = ParamType.Double, Min = 1.0, Max = 8.0,
                 Label = "Uncensor strength",
                 Help = "Global conditioning multiplier on Krea 2's per-layer rebalance. 1.0 = off. ~2–4 progressively "
                      + "bypasses the model's safety / quality-dilution alignment; higher is stronger but can destabilize the image." },
-        new() { Key = "per_layer_weights", Type = ParamType.String,
+        new() { Key = WorkflowParamKeys.PerLayerWeights, Type = ParamType.String,
                 Label = "Per-layer weights",
                 Help = "12 comma-separated gains for Krea 2's tapped Qwen3-VL layers. All 1.0 = neutral. Uncensor preset: " + UncensorWeights },
     };
@@ -45,11 +45,11 @@ public static class Krea2Rebalance
     public static object Apply(Dictionary<string, object> wf, object positive, ParamValues p, string nodeId)
     {
         if (!IsActive(p)) return positive;
-        wf[nodeId] = ComfyGraph.Node("ConditioningKrea2Rebalance", new
+        wf[nodeId] = ComfyGraph.Node(ComfyNodeTypes.ConditioningKrea2Rebalance, new
         {
             conditioning = positive,
-            multiplier = p.DblReq("rebalance_multiplier"),
-            per_layer_weights = p.StrReq("per_layer_weights"),
+            multiplier = p.DblReq(WorkflowParamKeys.RebalanceMultiplier),
+            per_layer_weights = p.StrReq(WorkflowParamKeys.PerLayerWeights),
         });
         return ComfyGraph.Ref(nodeId, 0);
     }
@@ -58,8 +58,8 @@ public static class Krea2Rebalance
     /// Both neutral (the schema defaults) keeps the emitted graph byte-identical to plain Krea 2.</summary>
     public static bool IsActive(ParamValues p)
     {
-        if (Math.Abs(p.DblReq("rebalance_multiplier") - 1.0) > 1e-6) return true;
-        var w = p.StrReq("per_layer_weights");
+        if (Math.Abs(p.DblReq(WorkflowParamKeys.RebalanceMultiplier) - 1.0) > 1e-6) return true;
+        var w = p.StrReq(WorkflowParamKeys.PerLayerWeights);
         if (!string.IsNullOrWhiteSpace(w))
             foreach (var part in w.Split(','))
                 if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)

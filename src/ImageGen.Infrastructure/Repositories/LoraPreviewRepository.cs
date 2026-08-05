@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -10,6 +11,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// call), so — like <see cref="ImageBlobRepository"/> — it is a singleton the background populator resolves directly.
 /// LoraName is the plain filename, a shared machine asset, so nothing here is encrypted.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraPreviewRepository(IDbConnectionFactory connectionFactory) : ILoraPreviewRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

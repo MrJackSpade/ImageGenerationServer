@@ -95,7 +95,7 @@ public interface IWorkflow
 
         // Frame-count snap (stepped video models). Param-only → fires on BOTH passes; idempotent, so the submit pass
         // is a no-op once enqueue has already snapped. This is the one that produces a user notice.
-        if (FrameRule is { } fr && p.TryGetValue("length", out var raw) && raw is not null)
+        if (FrameRule is { } fr && p.TryGetValue(WorkflowParamKeys.Length, out var raw) && raw is not null)
         {
             int req = ParamValues.AsInt(raw);
             if (req > 0)
@@ -103,7 +103,7 @@ public interface IWorkflow
                 int snapped = fr.Snap(req);
                 if (snapped != req)
                 {
-                    p["length"] = snapped;
+                    p[WorkflowParamKeys.Length] = snapped;
                     notices.Add($"{req} frames isn’t valid for this model — rendering {snapped} (frame count must be {fr.Step}n+{fr.Base}).");
                 }
             }
@@ -111,7 +111,7 @@ public interface IWorkflow
 
         // Pixel-art render-resolution snap (models exposing snap_resolution). Needs source dims + the model's
         // resolution envelope, so it's SUBMIT-only. Deliberate (the snap_resolution toggle) → silent, no notice.
-        if (ctx.AtSubmit && p.ContainsKey("snap_resolution"))
+        if (ctx.AtSubmit && p.ContainsKey(WorkflowParamKeys.SnapResolution))
             PixelSnap.WriteRenderSize(p, ctx.Requirements?.Resolution ?? ResolutionEnvelope, ctx.SourceWidth, ctx.SourceHeight);
 
         return notices;

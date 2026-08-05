@@ -28,8 +28,47 @@ file static class H3
     /// second model file.</summary>
     public static readonly ParamSpec[] ExtraSchema = new ParamSpec[]
     {
-        new() { Key = "audio_vae", Type = ParamType.String, IsModelRef = true, Label = "Audio VAE" },
+        new() { Key = WorkflowParamKeys.AudioVae, Type = ParamType.String, IsModelRef = true, Label = "Audio VAE" },
     };
+
+    /// <summary>The shared T2V/I2V graph's node ids, named by role. The VALUE is the graph-local node key (preserved
+    /// exactly, so the emitted graph stays byte-identical); the NAME replaces the bare numeric literals at the use
+    /// sites. The h3-dict STRING KEYS below are node-INPUT names, not node ids — those are left as-is.</summary>
+    private static class Nodes
+    {
+        public const string Model = "4";
+        public const string Clip = "20";
+        public const string VideoVae = "21";
+        public const string AudioVae = "22";
+        public const string Source = "10";
+        public const string ScaledSource = "11";
+        public const string SourceSize = "15";
+        public const string EndFrame = "12";
+        public const string Encode = "14";
+        public const string Scheduler = "55";
+        public const string SamplerSelect = "56";
+        public const string Noise = "57";
+        public const string Guider = "58";
+        public const string Sampler = "3";
+        public const string VideoDecode = "8";
+        public const string AudioDecode = "40";
+        public const string CreateVideo = "41";
+        public const string Save = "9";
+    }
+
+    /// <summary>The MiniMaxH3ImageToVideo node's input-field names (the h3-dict keys). Values are the ComfyUI input
+    /// names, preserved exactly so the emitted graph stays byte-identical.</summary>
+    private static class Inputs
+    {
+        public const string Clip = "clip";
+        public const string Vae = "vae";
+        public const string Prompt = "prompt";
+        public const string Length = "length";
+        public const string Width = "width";
+        public const string Height = "height";
+        public const string FirstFrame = "first_frame";
+        public const string LastFrame = "last_frame";
+    }
 
     /// <summary>The shared T2V/I2V graph. <paramref name="i2v"/>: the source image is the first frame and the clip
     /// size derives from it (scaled to H3's ~1 MP budget); otherwise the size comes from the aspect map. The graph is
@@ -41,64 +80,64 @@ file static class H3
         // Loaders. Diffusion via DiffusionLoader → plain UNETLoader (int8 ConvRot loads natively, weight_dtype default
         // keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames) and audio
         // (the native stereo track); the audio VAE is the audio_vae model-ref slot.
-        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
-        object model = ComfyGraph.Ref("4", 0);
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "minimax", device = "default" });
-        object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        object videoVae = ComfyGraph.Ref("21", 0);
-        wf["22"] = ComfyGraph.Node("VAELoader", new { vae_name = p.Model("audio_vae") });
-        object audioVae = ComfyGraph.Ref("22", 0);
+        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
+        object model = ComfyGraph.Ref(Nodes.Model, 0);
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "minimax", device = "default" });
+        object clip = ComfyGraph.Ref(Nodes.Clip, 0);
+        wf[Nodes.VideoVae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        object videoVae = ComfyGraph.Ref(Nodes.VideoVae, 0);
+        wf[Nodes.AudioVae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = p.Model(WorkflowParamKeys.AudioVae) });
+        object audioVae = ComfyGraph.Ref(Nodes.AudioVae, 0);
 
-        int len = p.IntReq("length");   // frames; the default (124 = 17*7+5 ≈ 5s @ 24fps) lives in the config JSON, not here
-        double fps = p.DblReq("fps");
+        int len = p.IntReq(WorkflowParamKeys.Length);   // frames; the default (124 = 17*7+5 ≈ 5s @ 24fps) lives in the config JSON, not here
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
 
         // The single H3 conditioning+latent node. It encodes the prompt itself and emits (positive CONDITIONING, LATENT).
         var h3 = new Dictionary<string, object>
         {
-            ["clip"] = clip,
-            ["vae"] = videoVae,
-            ["prompt"] = inputs.Positive,
-            ["length"] = len,
+            [Inputs.Clip] = clip,
+            [Inputs.Vae] = videoVae,
+            [Inputs.Prompt] = inputs.Positive,
+            [Inputs.Length] = len,
         };
         if (i2v)
         {
             // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
             // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
-            wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") });
-            wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 32 });
-            wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
-            h3["width"] = ComfyGraph.Ref("15", 0);
-            h3["height"] = ComfyGraph.Ref("15", 1);
-            h3["first_frame"] = ComfyGraph.Ref("11", 0);
+            wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") });
+            wf[Nodes.ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 32 });
+            wf[Nodes.SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(Nodes.ScaledSource, 0) });
+            h3[Inputs.Width] = ComfyGraph.Ref(Nodes.SourceSize, 0);
+            h3[Inputs.Height] = ComfyGraph.Ref(Nodes.SourceSize, 1);
+            h3[Inputs.FirstFrame] = ComfyGraph.Ref(Nodes.ScaledSource, 0);
             if (!string.IsNullOrEmpty(inputs.EndImageName))
             {
-                wf["12"] = ComfyGraph.Node("LoadImage", new { image = inputs.EndImageName });
-                h3["last_frame"] = ComfyGraph.Ref("12", 0);
+                wf[Nodes.EndFrame] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.EndImageName });
+                h3[Inputs.LastFrame] = ComfyGraph.Ref(Nodes.EndFrame, 0);
             }
         }
         else
         {
-            var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-            h3["width"] = w;
-            h3["height"] = h;
+            var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+            h3[Inputs.Width] = w;
+            h3[Inputs.Height] = h;
         }
-        wf["14"] = ComfyGraph.Node("MiniMaxH3ImageToVideo", h3);
-        object positive = ComfyGraph.Ref("14", 0), latent = ComfyGraph.Ref("14", 1);
+        wf[Nodes.Encode] = ComfyGraph.Node(ComfyNodeTypes.MiniMaxH3ImageToVideo, h3);
+        object positive = ComfyGraph.Ref(Nodes.Encode, 0), latent = ComfyGraph.Ref(Nodes.Encode, 1);
 
         // Distilled sampling: BasicGuider (no CFG, no negative) + a res_multistep SamplerCustomAdvanced chain.
-        wf["55"] = ComfyGraph.Node("BasicScheduler", new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("steps"), denoise = 1.0 });
-        wf["56"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
-        wf["57"] = ComfyGraph.Node("RandomNoise", new { noise_seed = ComfyGraph.Seed(p) });
-        wf["58"] = ComfyGraph.Node("BasicGuider", new { model, conditioning = positive });
-        wf["3"] = ComfyGraph.Node("SamplerCustomAdvanced", new { noise = ComfyGraph.Ref("57", 0), guider = ComfyGraph.Ref("58", 0), sampler = ComfyGraph.Ref("56", 0), sigmas = ComfyGraph.Ref("55", 0), latent_image = latent });
+        wf[Nodes.Scheduler] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.Steps), denoise = 1.0 });
+        wf[Nodes.SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
+        wf[Nodes.Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = ComfyGraph.Seed(p) });
+        wf[Nodes.Guider] = ComfyGraph.Node(ComfyNodeTypes.BasicGuider, new { model, conditioning = positive });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Nodes.Noise, 0), guider = ComfyGraph.Ref(Nodes.Guider, 0), sampler = ComfyGraph.Ref(Nodes.SamplerSelect, 0), sigmas = ComfyGraph.Ref(Nodes.Scheduler, 0), latent_image = latent });
 
         // Dual decode → one mp4 with audio. The SAME latent decodes to frames (video VAE) and to the native stereo
         // track (audio VAE); CreateVideo muxes them; SaveVideo writes a real mp4 (format/codec auto = h264/aac).
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = videoVae });
-        wf["40"] = ComfyGraph.Node("VAEDecodeAudio", new { samples = ComfyGraph.Ref("3", 0), vae = audioVae });
-        wf["41"] = ComfyGraph.Node("CreateVideo", new { images = ComfyGraph.Ref("8", 0), fps, audio = ComfyGraph.Ref("40", 0) });
-        wf["9"] = ComfyGraph.Node("SaveVideo", new { video = ComfyGraph.Ref("41", 0), filename_prefix = i2v ? "forgemcp_edit" : "forgemcp", format = "auto", codec = "auto" });
+        wf[Nodes.VideoDecode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae = videoVae });
+        wf[Nodes.AudioDecode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecodeAudio, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae = audioVae });
+        wf[Nodes.CreateVideo] = ComfyGraph.Node(ComfyNodeTypes.CreateVideo, new { images = ComfyGraph.Ref(Nodes.VideoDecode, 0), fps, audio = ComfyGraph.Ref(Nodes.AudioDecode, 0) });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveVideo, new { video = ComfyGraph.Ref(Nodes.CreateVideo, 0), filename_prefix = i2v ? "forgemcp_edit" : "forgemcp", format = "auto", codec = "auto" });
         return wf;
     }
 }

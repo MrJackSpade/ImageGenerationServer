@@ -25,32 +25,42 @@ public sealed class DeflickerAutoVideoWorkflow : IWorkflow
     public bool RequiresModel => false;
     public IReadOnlyList<ParamSpec> Schema => DeflickerSchema;
 
+    /// <summary>This graph's node ids, named by role. Values are the graph-local keys, preserved exactly so the
+    /// emitted graph stays byte-identical.</summary>
+    private static class Nodes
+    {
+        public const string Source = "10";
+        public const string Components = "11";
+        public const string Deflicker = "20";
+        public const string Save = "9";
+    }
+
     private static readonly IReadOnlyList<ParamSpec> DeflickerSchema = new ParamSpec[]
     {
-        new() { Key = "mad_k", Type = ParamType.Double, Min = 0.5, Max = 20.0, Label = "MAD K", Help = "Robust threshold: flag a frame past K*MAD of the whole-clip series" },
-        new() { Key = "min_dev", Type = ParamType.Double, Min = 0.0, Max = 16.0, Label = "Min deviation (levels)", Help = "Absolute floor in 8-bit levels — smaller deviations are invisible" },
-        new() { Key = "alpha_cut", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Matte cutoff", Help = "BiRefNet matte threshold for the character pixel set" },
-        new() { Key = "time_sigma", Type = ParamType.Double, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
+        new() { Key = WorkflowParamKeys.MadK, Type = ParamType.Double, Min = 0.5, Max = 20.0, Label = "MAD K", Help = "Robust threshold: flag a frame past K*MAD of the whole-clip series" },
+        new() { Key = WorkflowParamKeys.MinDev, Type = ParamType.Double, Min = 0.0, Max = 16.0, Label = "Min deviation (levels)", Help = "Absolute floor in 8-bit levels — smaller deviations are invisible" },
+        new() { Key = WorkflowParamKeys.AlphaCut, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Matte cutoff", Help = "BiRefNet matte threshold for the character pixel set" },
+        new() { Key = WorkflowParamKeys.TimeSigma, Type = ParamType.Double, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
     };
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.") }),
-            ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
-            ["20"] = ComfyGraph.Node("DeflickerAuto", new
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.") }),
+            [Nodes.Components] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
+            [Nodes.Deflicker] = ComfyGraph.Node(ComfyNodeTypes.DeflickerAuto, new
             {
-                image = ComfyGraph.Ref("11", 0),
-                mad_k = p.DblReq("mad_k"),
-                min_dev = p.DblReq("min_dev"),
-                alpha_cut = p.DblReq("alpha_cut"),
-                time_sigma = p.DblReq("time_sigma"),
+                image = ComfyGraph.Ref(Nodes.Components, 0),
+                mad_k = p.DblReq(WorkflowParamKeys.MadK),
+                min_dev = p.DblReq(WorkflowParamKeys.MinDev),
+                alpha_cut = p.DblReq(WorkflowParamKeys.AlphaCut),
+                time_sigma = p.DblReq(WorkflowParamKeys.TimeSigma),
             }),
         };
         // Keep the source clip's frame rate (GetVideoComponents output 2). lossless so downstream stages see the
         // corrected frames verbatim (this is a preprocessing pass, not the final sprite).
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref("11", 2), lossless = true, quality = 100, method = "default" });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Deflicker, 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref(Nodes.Components, 2), lossless = true, quality = 100, method = "default" });
         return wf;
     }
 }

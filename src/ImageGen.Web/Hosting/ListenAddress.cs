@@ -20,6 +20,18 @@ namespace ImageGen.Web.Hosting;
 /// </summary>
 public static class ListenAddress
 {
+    /// <summary>Kestrel's "*" any-host wildcard in a listen URL.</summary>
+    private const string WildcardStar = "*";
+
+    /// <summary>Kestrel's "+" any-host wildcard in a listen URL.</summary>
+    private const string WildcardPlus = "+";
+
+    /// <summary>The IPv4 any-interface host in a listen URL.</summary>
+    private const string AnyHostIPv4 = "0.0.0.0";
+
+    /// <summary>The scheme/host separator in a listen URL.</summary>
+    private const string SchemeSeparator = "://";
+
     /// <summary>
     /// Returns <paramref name="configuredUrls"/> unchanged when every port in it is free, otherwise the same list
     /// with each unavailable port moved to the next free one. Null/empty in, null out — the caller leaves the host
@@ -85,14 +97,14 @@ public static class ListenAddress
     /// probes the loopback, which is the interface a name for this box resolves to.
     /// </summary>
     private static IPAddress AddressFor(string host) =>
-        host is "*" or "+" or "0.0.0.0" ? IPAddress.Any
+        host is WildcardStar or WildcardPlus or AnyHostIPv4 ? IPAddress.Any
         : IPAddress.TryParse(host, out var parsed) ? parsed
         : IPAddress.Loopback;
 
     private static bool TryParse(string url, out string scheme, out string host, out int port)
     {
         scheme = host = ""; port = 0;
-        var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        var schemeEnd = url.IndexOf(SchemeSeparator, StringComparison.Ordinal);
         if (schemeEnd <= 0) return false;
 
         scheme = url[..schemeEnd];

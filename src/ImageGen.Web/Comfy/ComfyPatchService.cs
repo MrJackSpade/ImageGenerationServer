@@ -47,6 +47,12 @@ public sealed class ComfyPatchService(
     IWebHostEnvironment environment,
     ILogger<ComfyPatchService> log)
 {
+    /// <summary>Payload directory holding the file-tree patches shipped beside the app.</summary>
+    private const string PatchesPayload = "comfy-patches";
+
+    /// <summary>Payload directory holding the custom-node packs shipped beside the app.</summary>
+    private const string NodesPayload = "comfy-nodes";
+
     private readonly ComfyInstall _install = install;
     private readonly ComfySupervisor _supervisor = supervisor;
     private readonly PatchInstaller _installer = installer;
@@ -146,8 +152,8 @@ public sealed class ComfyPatchService(
 
     private IReadOnlyList<ComfyPatch> Load()
     {
-        var patchDirectory = Payload("comfy-patches");
-        var nodesDirectory = Payload("comfy-nodes");
+        var patchDirectory = Payload(PatchesPayload);
+        var nodesDirectory = Payload(NodesPayload);
 
         // Neither present is a broken build, not an empty patch set. Rendering "no patches" would read as
         // "nothing to do" on an install that is in fact missing every fix it ships with.

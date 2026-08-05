@@ -3,6 +3,7 @@ using System.Data;
 using System.Text.Json;
 using ImageGen.Application.Security;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -21,6 +22,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// workflow, states, flags, numbers, timings — is plaintext, because none of it is protected and hiding it behind a
 /// key would leave four image foreign keys unjoinable.</para>
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, TimeProvider clock, ISqlDialect dialect)
     : IJobRepository
 {

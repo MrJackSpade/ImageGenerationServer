@@ -9,7 +9,7 @@ public static class ArtistEndpoints
     public static void MapArtistEndpoints(this RouteGroupBuilder api)
     {
         // Pick the image that represents an artist for this user (must be one of their own generations).
-        api.MapPost("/artist/display", async (HttpContext context, ArtistService artists, TimeProvider clock) =>
+        api.MapPost(Routes.ArtistDisplay, async (HttpContext context, ArtistService artists, TimeProvider clock) =>
         {
             var req = await Json.ReadAsync<ArtistDisplayRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Artist) || string.IsNullOrWhiteSpace(req.Id))
@@ -21,7 +21,7 @@ public static class ArtistEndpoints
         });
 
         // Clear the pick so the artist falls back to the user's most recent generation for it.
-        api.MapDelete("/artist/display", async (HttpContext context, ArtistService artists, string artist) =>
+        api.MapDelete(Routes.ArtistDisplay, async (HttpContext context, ArtistService artists, string artist) =>
         {
             if (string.IsNullOrWhiteSpace(artist))
                 return Results.BadRequest();
@@ -29,5 +29,12 @@ public static class ArtistEndpoints
             await artists.ClearAsync(userId, artist, context.RequestAborted);
             return Results.NoContent();
         });
+    }
+
+    /// <summary>Route templates for the artist endpoints.</summary>
+    private static class Routes
+    {
+        /// <summary>The image that represents an artist for this user.</summary>
+        public const string ArtistDisplay = "/artist/display";
     }
 }

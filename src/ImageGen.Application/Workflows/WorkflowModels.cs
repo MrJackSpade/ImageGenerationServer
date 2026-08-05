@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Application.Workflows;
+﻿using ImageGen.Domain.CodeAnalysis;
+
+namespace ImageGen.Application.Workflows;
 
 /// <summary>Per-configuration booru tagging capability: whether the model speaks '#' tags and/or '@' artists, and how
 /// their markers/underscores are rendered. Drives prompt finalization and the per-job random-artist append.</summary>
@@ -156,7 +158,10 @@ public sealed record WorkflowStatus(
 /// <param name="Shipped">The value in the catalogue file. What "reset" restores.</param>
 /// <param name="Override">This machine's value, or null when it has not been changed here.</param>
 public sealed record ConfigSetting(
-    string Key, string Label, string? Help, string Type,
+    string Key,
+    [AllowMagicStrings("human-readable UI setting label")] string Label,
+    [AllowMagicStrings("human-readable UI setting help text")] string? Help,
+    string Type,
     double? Min, double? Max, double? Step, IReadOnlyList<string>? Choices,
     object? Shipped, object? Override);
 

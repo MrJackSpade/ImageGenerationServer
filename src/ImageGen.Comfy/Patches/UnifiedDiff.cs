@@ -71,9 +71,35 @@ public static class UnifiedDiff
 
     private const string NoNewline = "\\ No newline at end of file";
 
+    /// <summary>The fixed markers of the unified/git-diff format this reads and writes.</summary>
+    private static class DiffMarker
+    {
+        public const string OldFileHeader = "--- ";
+        public const string NewFileHeader = "+++ ";
+        public const string HunkMarker = "@@";
+        public const string HunkHeaderStart = "@@ -";
+        public const string NewRangePrefix = " +";
+        public const string HunkHeaderEnd = " @@\n";
+        public const string DiffGitPrefix = "diff --git a/";
+        public const string NewSidePrefix = " b/";
+        public const string OldPathPrefix = "a/";
+        public const string NewPathPrefix = "b/";
+        public const string DevNull = "/dev/null";
+        public const string ParentDirectory = "..";
+        public const string GitBinaryPatch = "GIT binary patch";
+        public const string BinaryFilesPrefix = "Binary files ";
+        public const string BinaryFilePrefix = "Binary file, ";
+        public const string ByteSuffix = " bytes\n";
+        public const string Rename = "rename ";
+        public const string NewFileMode = "new file mode 100644\n";
+        public const string DeletedFileMode = "deleted file mode 100644\n";
+        public const string Crlf = "\r\n";
+        public const string Lf = "\n";
+    }
+
     /// <summary>Split into lines the way a diff does — on \n, with a trailing \r kept off the content.</summary>
     public static string[] SplitLines(string text) =>
-        text.Length == 0 ? [] : text.Replace("\r\n", "\n").Split('\n');
+        text.Length == 0 ? [] : text.Replace(DiffMarker.Crlf, DiffMarker.Lf).Split('\n');
 
     public static IReadOnlyList<FileDiff> Parse(string diff)
     {
@@ -86,22 +112,22 @@ public static class UnifiedDiff
             // Anything before the first "--- " of a file header is preamble: the "diff --git" line, the
             // "index" line, mode lines. None of it is needed to apply the change, and skipping it is what
             // lets this read both `git diff` and `git format-patch` output.
-            if (!lines[i].StartsWith("--- ", StringComparison.Ordinal))
+            if (!lines[i].StartsWith(DiffMarker.OldFileHeader, StringComparison.Ordinal))
             {
-                if (lines[i].StartsWith("Binary files ", StringComparison.Ordinal) ||
-                    lines[i].StartsWith("GIT binary patch", StringComparison.Ordinal))
+                if (lines[i].StartsWith(DiffMarker.BinaryFilesPrefix, StringComparison.Ordinal) ||
+                    lines[i].StartsWith(DiffMarker.GitBinaryPatch, StringComparison.Ordinal))
                     throw new FormatException($"line {i + 1}: binary patches are not supported.");
-                if (lines[i].StartsWith("rename ", StringComparison.Ordinal))
+                if (lines[i].StartsWith(DiffMarker.Rename, StringComparison.Ordinal))
                     throw new FormatException($"line {i + 1}: renames are not supported — express it as a delete and an add.");
                 i++;
                 continue;
             }
 
-            var oldPath = HeaderPath(lines[i], "--- ", i);
+            var oldPath = HeaderPath(lines[i], DiffMarker.OldFileHeader, i);
             i++;
-            if (i >= lines.Length || !lines[i].StartsWith("+++ ", StringComparison.Ordinal))
+            if (i >= lines.Length || !lines[i].StartsWith(DiffMarker.NewFileHeader, StringComparison.Ordinal))
                 throw new FormatException($"line {i + 1}: a '--- ' line must be followed by '+++ '.");
-            var newPath = HeaderPath(lines[i], "+++ ", i);
+            var newPath = HeaderPath(lines[i], DiffMarker.NewFileHeader, i);
             i++;
 
             var change = (oldPath, newPath) switch
@@ -117,7 +143,7 @@ public static class UnifiedDiff
             var oldNoNewline = false;
             var newNoNewline = false;
 
-            while (i < lines.Length && lines[i].StartsWith("@@", StringComparison.Ordinal))
+            while (i < lines.Length && lines[i].StartsWith(DiffMarker.HunkMarker, StringComparison.Ordinal))
             {
                 var (oldStart, oldCount, newStart, newCount) = ParseHunkHeader(lines[i], i);
                 i++;
@@ -133,8 +159,8 @@ public static class UnifiedDiff
                     // Treating it as end-of-hunk truncates the patch, which is how a "clean" apply loses code.
                     if (line.Length == 0)
                     {
-                        oldLines.Add("");
-                        newLines.Add("");
+                        oldLines.Add(string.Empty);
+                        newLines.Add(string.Empty);
                         i++;
                         continue;
                     }
@@ -190,8 +216,8 @@ public static class UnifiedDiff
         var tab = value.IndexOf('\t');
         if (tab >= 0) value = value[..tab];
 
-        if (value is "/dev/null") return null;
-        if (value.StartsWith("a/", StringComparison.Ordinal) || value.StartsWith("b/", StringComparison.Ordinal))
+        if (value is DiffMarker.DevNull) return null;
+        if (value.StartsWith(DiffMarker.OldPathPrefix, StringComparison.Ordinal) || value.StartsWith(DiffMarker.NewPathPrefix, StringComparison.Ordinal))
             value = value[2..];
         if (value.Length == 0) throw new FormatException($"line {index + 1}: empty path in '{prefix.Trim()}'.");
 
@@ -199,7 +225,7 @@ public static class UnifiedDiff
         // applies patches the app ships, but "we only load our own" is not a property that survives, and the
         // check costs nothing.
         var normalised = value.Replace('\\', '/');
-        if (Path.IsPathRooted(normalised) || normalised.Split('/').Contains(".."))
+        if (Path.IsPathRooted(normalised) || normalised.Split('/').Contains(DiffMarker.ParentDirectory))
             throw new FormatException($"line {index + 1}: '{value}' leaves the target directory.");
 
         return normalised;
@@ -208,7 +234,7 @@ public static class UnifiedDiff
     private static (int OldStart, int OldCount, int NewStart, int NewCount) ParseHunkHeader(string line, int index)
     {
         // @@ -oldStart,oldCount +newStart,newCount @@ optional heading
-        var end = line.IndexOf("@@", 2, StringComparison.Ordinal);
+        var end = line.IndexOf(DiffMarker.HunkMarker, 2, StringComparison.Ordinal);
         if (end < 0) throw new FormatException($"line {index + 1}: unterminated hunk header.");
 
         var parts = line[2..end].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -264,24 +290,24 @@ public static class UnifiedDiff
             {
                 // Named and measured, not dumped: nobody reads a megabyte of base64, and pretending it is a diff
                 // would make the output useless for the text around it.
-                text.Append("diff --git a/").Append(file.Path).Append(" b/").Append(file.Path).Append('\n');
-                text.Append("Binary file, ").Append(file.Bytes?.Length ?? throw new InvalidOperationException($"Binary file '{file.Path}' carries no bytes.")).Append(" bytes\n");
+                text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
+                text.Append(DiffMarker.BinaryFilePrefix).Append(file.Bytes?.Length ?? throw new InvalidOperationException($"Binary file '{file.Path}' carries no bytes.")).Append(DiffMarker.ByteSuffix);
                 continue;
             }
 
-            var oldSide = file.Change == FileChange.Add ? "/dev/null" : "a/" + file.Path;
-            var newSide = file.Change == FileChange.Delete ? "/dev/null" : "b/" + file.Path;
-            text.Append("diff --git a/").Append(file.Path).Append(" b/").Append(file.Path).Append('\n');
-            if (file.Change == FileChange.Add) text.Append("new file mode 100644\n");
-            if (file.Change == FileChange.Delete) text.Append("deleted file mode 100644\n");
-            text.Append("--- ").Append(oldSide).Append('\n');
-            text.Append("+++ ").Append(newSide).Append('\n');
+            var oldSide = file.Change == FileChange.Add ? DiffMarker.DevNull : DiffMarker.OldPathPrefix + file.Path;
+            var newSide = file.Change == FileChange.Delete ? DiffMarker.DevNull : DiffMarker.NewPathPrefix + file.Path;
+            text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
+            if (file.Change == FileChange.Add) text.Append(DiffMarker.NewFileMode);
+            if (file.Change == FileChange.Delete) text.Append(DiffMarker.DeletedFileMode);
+            text.Append(DiffMarker.OldFileHeader).Append(oldSide).Append('\n');
+            text.Append(DiffMarker.NewFileHeader).Append(newSide).Append('\n');
 
             foreach (var hunk in file.Hunks)
             {
-                text.Append("@@ -").Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
-                    .Append(" +").Append(hunk.NewLines.Count == 0 ? 0 : hunk.NewStart).Append(',').Append(hunk.NewLines.Count)
-                    .Append(" @@\n");
+                text.Append(DiffMarker.HunkHeaderStart).Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
+                    .Append(DiffMarker.NewRangePrefix).Append(hunk.NewLines.Count == 0 ? 0 : hunk.NewStart).Append(',').Append(hunk.NewLines.Count)
+                    .Append(DiffMarker.HunkHeaderEnd);
 
                 // Walk both sides together so shared lines emit once as context, in their original order.
                 int o = 0, n = 0;

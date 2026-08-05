@@ -20,6 +20,40 @@ public static class ComfyPatchCatalog
     /// <summary>Runtime artifacts that live inside a pack and are not part of it: bytecode, and CondCache's cache.</summary>
     private static readonly string[] NotPartOfAPack = ["__pycache__", "cache"];
 
+    /// <summary>Header field names in an authored <c>comfy-patches/*.patch</c> file.</summary>
+    private static class HeaderField
+    {
+        public const string Id = "Id";
+        public const string Title = "Title";
+        public const string Does = "Does";
+        public const string Why = "Why";
+        public const string Warn = "Warn";
+        public const string Provides = "Provides";
+        public const string Target = "Target";
+        public const string Source = "Source";
+        public const string Rev = "Rev";
+    }
+
+    /// <summary>Property names in <c>comfy-nodes/packs.json</c>.</summary>
+    private static class PackProperty
+    {
+        public const string Packs = "packs";
+        public const string Dir = "dir";
+        public const string Order = "order";
+        public const string Id = "id";
+        public const string Title = "title";
+        public const string Does = "does";
+        public const string Why = "why";
+        public const string Warn = "warn";
+    }
+
+    private const string ManifestFileName = "packs.json";
+    private const string PatchGlob = "*.patch";
+    private const string AllFilesGlob = "*";
+    private const string HeaderSeparator = "---";
+    private const string CurrentDirectory = ".";
+    private const string ParentDirectory = "..";
+
     public sealed class LoadException(string message) : Exception(message);
 
     /// <summary>
@@ -32,7 +66,7 @@ public static class ComfyPatchCatalog
         var patches = new List<ComfyPatch>();
 
         if (!string.IsNullOrWhiteSpace(patchDirectory) && Directory.Exists(patchDirectory))
-            foreach (var file in Directory.EnumerateFiles(patchDirectory, "*.patch").OrderBy(f => f, StringComparer.Ordinal))
+            foreach (var file in Directory.EnumerateFiles(patchDirectory, PatchGlob).OrderBy(f => f, StringComparer.Ordinal))
                 patches.Add(ReadAuthored(file));
 
         if (!string.IsNullOrWhiteSpace(nodesDirectory) && Directory.Exists(nodesDirectory))
@@ -60,7 +94,7 @@ public static class ComfyPatchCatalog
         for (; index < lines.Length; index++)
         {
             var line = lines[index];
-            if (line == "---") { index++; sawSeparator = true; break; }
+            if (line == HeaderSeparator) { index++; sawSeparator = true; break; }
 
             // Continuation: a leading space folds the line onto the previous field, so Does: and Why: can be
             // paragraphs rather than one unwrappable line.
@@ -84,13 +118,13 @@ public static class ComfyPatchCatalog
 
         string? Optional(string field) => fields.TryGetValue(field, out var value) && value.Length > 0 ? value : null;
 
-        var target = Required("Target").Replace('\\', '/').Trim('/');
-        if (target.Length == 0) target = ".";
-        if (target != "." && (Path.IsPathRooted(target) || target.Split('/').Contains("..")))
+        var target = Required(HeaderField.Target).Replace('\\', '/').Trim('/');
+        if (target.Length == 0) target = CurrentDirectory;
+        if (target != CurrentDirectory && (Path.IsPathRooted(target) || target.Split('/').Contains(ParentDirectory)))
             throw new LoadException($"{name}: Target '{target}' leaves the ComfyUI directory.");
 
-        var source = Optional("Source");
-        var rev = Optional("Rev");
+        var source = Optional(HeaderField.Source);
+        var rev = Optional(HeaderField.Rev);
         if (source is not null && rev is null)
             throw new LoadException($"{name}: Source: without Rev:. A patch that installs its target must pin the revision it was written against.");
 
@@ -118,16 +152,16 @@ public static class ComfyPatchCatalog
         }
 
         return new ComfyPatch(
-            Id: Required("Id"),
-            Title: Required("Title"),
-            Does: Required("Does"),
-            Why: Required("Why"),
+            Id: Required(HeaderField.Id),
+            Title: Required(HeaderField.Title),
+            Does: Required(HeaderField.Does),
+            Why: Required(HeaderField.Why),
             Target: target,
             SourceUrl: source,
             Rev: rev,
-            Warn: Optional("Warn"),
+            Warn: Optional(HeaderField.Warn),
             Order: OrderFromName(name),
-            Provides: Optional("Provides")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [],
+            Provides: Optional(HeaderField.Provides)?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [],
             Files: files);
     }
 
@@ -143,12 +177,12 @@ public static class ComfyPatchCatalog
 
     private static List<ComfyPatch> ReadNodePacks(string nodesDirectory)
     {
-        var manifestPath = Path.Combine(nodesDirectory, "packs.json");
+        var manifestPath = Path.Combine(nodesDirectory, ManifestFileName);
         if (!File.Exists(manifestPath))
             throw new LoadException($"{nodesDirectory} has no packs.json, so nothing in it can be described as a patch.");
 
         using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        if (!document.RootElement.TryGetProperty("packs", out var array) || array.ValueKind != JsonValueKind.Array)
+        if (!document.RootElement.TryGetProperty(PackProperty.Packs, out var array) || array.ValueKind != JsonValueKind.Array)
             throw new LoadException("packs.json has no \"packs\" array.");
 
         var patches = new List<ComfyPatch>();
@@ -160,13 +194,13 @@ public static class ComfyPatchCatalog
                     : throw new LoadException($"packs.json: an entry has no \"{field}\".");
 
             var entry = new PackEntry(
-                Dir: Required("dir"),
-                Order: element.TryGetProperty("order", out var order) ? order.GetInt32() : int.MaxValue,
-                Id: Required("id"),
-                Title: Required("title"),
-                Does: Required("does"),
-                Why: Required("why"),
-                Warn: element.TryGetProperty("warn", out var warn) ? warn.GetString() : null);
+                Dir: Required(PackProperty.Dir),
+                Order: element.TryGetProperty(PackProperty.Order, out var order) ? order.GetInt32() : int.MaxValue,
+                Id: Required(PackProperty.Id),
+                Title: Required(PackProperty.Title),
+                Does: Required(PackProperty.Does),
+                Why: Required(PackProperty.Why),
+                Warn: element.TryGetProperty(PackProperty.Warn, out var warn) ? warn.GetString() : null);
 
             var packRoot = Path.Combine(nodesDirectory, entry.Dir);
             if (!Directory.Exists(packRoot))
@@ -181,7 +215,7 @@ public static class ComfyPatchCatalog
     {
         var files = new List<FileDiff>();
 
-        foreach (var file in Directory.EnumerateFiles(packRoot, "*", SearchOption.AllDirectories)
+        foreach (var file in Directory.EnumerateFiles(packRoot, AllFilesGlob, SearchOption.AllDirectories)
                      .OrderBy(f => f, StringComparer.Ordinal))
         {
             var relative = Path.GetRelativePath(packRoot, file).Replace('\\', '/');

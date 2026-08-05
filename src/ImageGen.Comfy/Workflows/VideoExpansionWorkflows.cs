@@ -12,6 +12,18 @@ namespace ImageGen.Comfy;
 /// </summary>
 file static class Vid
 {
+    /// <summary>The MoE helper's node ids, named by role. The VALUE is the graph-local node key (preserved exactly, so
+    /// the emitted graph stays byte-identical); the NAME replaces the bare numeric literals at the use sites.</summary>
+    private static class Nodes
+    {
+        public const string HighExpert = "4";
+        public const string HighSampling = "5";
+        public const string LowExpert = "41";
+        public const string LowSampling = "51";
+        public const string HighSampler = "3";
+        public const string LowSampler = "31";
+    }
+
     /// <summary>Two-stage MoE sampling: high-noise expert for [0,boundary), low-noise for [boundary,end). Returns the
     /// final latent. The reference (Wan2.2 repo) guides the two experts at DIFFERENT scales for t2v (high 4.0, low
     /// 3.0), so each stage takes its own cfg: <c>cfg_high</c>/<c>cfg_low</c>. The reference switches experts on a sigma
@@ -20,13 +32,13 @@ file static class Vid
     public static object MoESample(Dictionary<string, object> wf, ParamValues p, object modelHigh, object modelLow,
         object positive, object negative, object latent, long seed)
     {
-        int steps = p.IntReq("steps");
-        int boundary = p.IntReq("boundary");
-        double cfgHigh = p.DblReq("cfg_high");
-        double cfgLow = p.DblReq("cfg_low");
-        var sampler = ComfyGraph.MapSampler(p.StrReq("sampler"));
-        var scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler"));
-        wf["3"] = ComfyGraph.Node("KSamplerAdvanced", new
+        int steps = p.IntReq(WorkflowParamKeys.Steps);
+        int boundary = p.IntReq(WorkflowParamKeys.Boundary);
+        double cfgHigh = p.DblReq(WorkflowParamKeys.CfgHigh);
+        double cfgLow = p.DblReq(WorkflowParamKeys.CfgLow);
+        var sampler = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler));
+        var scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler));
+        wf[Nodes.HighSampler] = ComfyGraph.Node(ComfyNodeTypes.KSamplerAdvanced, new
         {
             add_noise = "enable", noise_seed = seed, steps, cfg = cfgHigh, sampler_name = sampler, scheduler,
             start_at_step = 0, end_at_step = boundary, return_with_leftover_noise = "enable",
@@ -39,8 +51,8 @@ file static class Vid
         // index on that same sigma (exact whenever N/t* is whole — every multiple of 5 at the 15/40 reference).
         // 0 = decode the handoff latent as-is (structure phase only); absent/negative = the legacy shared-schedule
         // tail (identical to refiner_steps = steps - boundary).
-        int refinerSteps = p.Has("refiner_steps") ? p.IntReq("refiner_steps") : -1;
-        if (refinerSteps == 0) return ComfyGraph.Ref("3", 0);
+        int refinerSteps = p.Has(WorkflowParamKeys.RefinerSteps) ? p.IntReq(WorkflowParamKeys.RefinerSteps) : -1;
+        if (refinerSteps == 0) return ComfyGraph.Ref(Nodes.HighSampler, 0);
         int steps2 = steps, start2 = boundary;
         if (refinerSteps > 0)
         {
@@ -48,13 +60,13 @@ file static class Vid
             steps2 = Math.Max(refinerSteps + 1, (int)Math.Round(refinerSteps / tStar));
             start2 = steps2 - refinerSteps;
         }
-        wf["31"] = ComfyGraph.Node("KSamplerAdvanced", new
+        wf[Nodes.LowSampler] = ComfyGraph.Node(ComfyNodeTypes.KSamplerAdvanced, new
         {
             add_noise = "disable", noise_seed = seed, steps = steps2, cfg = cfgLow, sampler_name = sampler, scheduler,
             start_at_step = start2, end_at_step = 10000, return_with_leftover_noise = "disable",
-            model = modelLow, positive, negative, latent_image = ComfyGraph.Ref("3", 0),
+            model = modelLow, positive, negative, latent_image = ComfyGraph.Ref(Nodes.HighSampler, 0),
         });
-        return ComfyGraph.Ref("31", 0);
+        return ComfyGraph.Ref(Nodes.LowSampler, 0);
     }
 
     /// <summary>Load a high+low expert pair, each through ModelSamplingSD3(shift). High file = req.Checkpoint, low = unet_low
@@ -62,13 +74,13 @@ file static class Vid
     /// bound file.</summary>
     public static (object high, object low) LoadExperts(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req)
     {
-        double shift = p.DblReq("shift");
+        double shift = p.DblReq(WorkflowParamKeys.Shift);
         object Expert(string unetName) => ComfyGraph.DiffusionLoader(unetName);
-        wf["4"] = Expert(req.RequiredCheckpoint());
-        wf["5"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("4", 0), shift });
-        wf["41"] = Expert(p.Model("unet_low"));
-        wf["51"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("41", 0), shift });
-        return (ComfyGraph.Ref("5", 0), ComfyGraph.Ref("51", 0));
+        wf[Nodes.HighExpert] = Expert(req.RequiredCheckpoint());
+        wf[Nodes.HighSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.HighExpert, 0), shift });
+        wf[Nodes.LowExpert] = Expert(p.Model(WorkflowParamKeys.UnetLow));
+        wf[Nodes.LowSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.LowExpert, 0), shift });
+        return (ComfyGraph.Ref(Nodes.HighSampling, 0), ComfyGraph.Ref(Nodes.LowSampling, 0));
     }
 }
 
@@ -95,15 +107,15 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "pad_left_pct",   Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad left %",   Help = "Whitespace on the left, % of source width" },
-        new() { Key = "pad_right_pct",  Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad right %",  Help = "Whitespace on the right, % of source width" },
-        new() { Key = "pad_top_pct",    Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad top %",    Help = "Whitespace on top, % of source height" },
-        new() { Key = "pad_bottom_pct", Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
+        new() { Key = WorkflowParamKeys.PadLeftPct,   Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad left %",   Help = "Whitespace on the left, % of source width" },
+        new() { Key = WorkflowParamKeys.PadRightPct,  Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad right %",  Help = "Whitespace on the right, % of source width" },
+        new() { Key = WorkflowParamKeys.PadTopPct,    Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad top %",    Help = "Whitespace on top, % of source height" },
+        new() { Key = WorkflowParamKeys.PadBottomPct, Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
         // Draft/commit knob (see Vid.MoESample): motion is fixed by the structure phase; this only buys sharpness.
-        new() { Key = "refiner_steps", Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
+        new() { Key = WorkflowParamKeys.RefinerSteps, Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
         // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
         // put a model reference outside the binding system where nobody could change it.
-        new() { Key = "unet_low", Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
+        new() { Key = WorkflowParamKeys.UnetLow, Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
     }).ToArray();
 
     /// <summary>
@@ -120,84 +132,103 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
         return (sw + addL + addR, sh + addT + addB, addL, addT);
     }
 
+    /// <summary>This workflow's own node ids, named by role; the MoE experts + samplers ("4"/"5"/"41"/"51"/"3"/"31") are
+    /// written by Vid, and Nodes.Source ("10") is the inherited edit-head source-image role reused here.</summary>
+    private const string Clip = "20";
+    private const string Vae = "21";
+    private const string Positive = "6";
+    private const string Negative = "7";
+    private const string ScaledSource = "11";
+    private const string SourceSize = "15";
+    private const string EndFrame = "12";
+    private const string Cond = "14";
+    private const string Decode = "8";
+    private const string Save = "9";
+    private const string PadCanvas = "71";
+    private const string PadMask = "72";
+    private const string PadComposite = "73";
+    private const string EndScale = "76";
+    private const string EndPadCanvas = "77";
+    private const string EndPadComposite = "78";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
         int Pct(string k) => p.Has(k) ? p.IntReq(k) : 0;   // per-side pad %, absent = 0 (no pad on that side)
         var (mh, ml) = Vid.LoadExperts(wf, p, req);
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
-        object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        object vae = ComfyGraph.Ref("21", 0);
-        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Wan image→video needs a source image, but none was provided.") });
+        wf[Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
+        object clip = ComfyGraph.Ref(Clip, 0);
+        wf[Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        object vae = ComfyGraph.Ref(Vae, 0);
+        wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Wan image→video needs a source image, but none was provided.") });
 
-        int len = p.IntReq("length");
-        double fps = p.DblReq("fps");
-        double budgetMp = (p.IntReq("width") * (double)p.IntReq("height")) / 1_000_000.0;
+        int len = p.IntReq(WorkflowParamKeys.Length);
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        double budgetMp = (p.IntReq(WorkflowParamKeys.Width) * (double)p.IntReq(WorkflowParamKeys.Height)) / 1_000_000.0;
 
         // Optional padding: expand the source canvas with whitespace before the budget scale, so the character has room
         // to move outside its original bounding box (each side a % of the source dim; see PadGeom). Composite the source
         // (alpha-respecting, onto white — same nodes FlattenOnWhite uses) at the offset for the whitespace. Source dims
         // come from the uploaded frame (inputs.SourceWidth/Height). When every pad_*_pct is 0 PadGeom returns null and
         // the graph is the original.
-        object scaleSource = ComfyGraph.Ref("10", 0);
+        object scaleSource = ComfyGraph.Ref(Nodes.Source, 0);
         if (inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-            && PadGeom(Pct("pad_left_pct"), Pct("pad_right_pct"), Pct("pad_top_pct"), Pct("pad_bottom_pct"),
+            && PadGeom(Pct(WorkflowParamKeys.PadLeftPct), Pct(WorkflowParamKeys.PadRightPct), Pct(WorkflowParamKeys.PadTopPct), Pct(WorkflowParamKeys.PadBottomPct),
                        inputs.SourceWidth, inputs.SourceHeight) is (int cw, int ch, int px, int py))
         {
-            wf["71"] = ComfyGraph.Node("EmptyImage", new { width = cw, height = ch, batch_size = 1, color = 0xFFFFFF });
-            wf["72"] = ComfyGraph.Node("InvertMask", new { mask = ComfyGraph.Ref("10", 1) });
-            wf["73"] = ComfyGraph.Node("ImageCompositeMasked", new { destination = ComfyGraph.Ref("71", 0), source = ComfyGraph.Ref("10", 0), x = px, y = py, resize_source = false, mask = ComfyGraph.Ref("72", 0) });
-            scaleSource = ComfyGraph.Ref("73", 0);
+            wf[PadCanvas] = ComfyGraph.Node(ComfyNodeTypes.EmptyImage, new { width = cw, height = ch, batch_size = 1, color = 0xFFFFFF });
+            wf[PadMask] = ComfyGraph.Node(ComfyNodeTypes.InvertMask, new { mask = ComfyGraph.Ref(Nodes.Source, 1) });
+            wf[PadComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new { destination = ComfyGraph.Ref(PadCanvas, 0), source = ComfyGraph.Ref(Nodes.Source, 0), x = px, y = py, resize_source = false, mask = ComfyGraph.Ref(PadMask, 0) });
+            scaleSource = ComfyGraph.Ref(PadComposite, 0);
         }
-        wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = scaleSource, upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 16 });
-        wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = ComfyGraph.ComposeNegative(p.Str("negative"), inputs.Negative), clip });
+        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = scaleSource, upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 16 });
+        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
+        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
+        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative), clip });
         // First/last-frame conditioning when the caller supplied an END frame (the source is the first frame): swap the
         // plain WanImageToVideo for WanFirstLastFrameToVideo, pinning both ends. The node resizes end_image to
         // width/height itself, so the raw LoadImage is fine. Without an end frame the plain WanImageToVideo path runs.
         // Both nodes re-emit the same 3 outputs (positive, negative, latent), so the downstream sampler wiring is shared.
         if (!string.IsNullOrEmpty(inputs.EndImageName))
         {
-            wf["12"] = ComfyGraph.Node("LoadImage", new { image = inputs.EndImageName });
-            object endImage = ComfyGraph.Ref("12", 0);
+            wf[EndFrame] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.EndImageName });
+            object endImage = ComfyGraph.Ref(EndFrame, 0);
             // Pad the END frame the SAME way as the first frame when asked (end_pad_*_pct), so both share one padded
             // canvas. Otherwise WanFirstLastFrameToVideo just stretches the raw end frame to the (padded) start size and
             // the pose lands in the wrong place — the clip never reaches it. Scale the end image to the source frame
             // size, then composite it into the same white canvas (PadGeom) at the offset. The save gate in the caller
             // guarantees the two frames share an aspect, so the scale here is proportional (no distortion).
             if (inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-                && PadGeom(Pct("end_pad_left_pct"), Pct("end_pad_right_pct"), Pct("end_pad_top_pct"), Pct("end_pad_bottom_pct"),
+                && PadGeom(Pct(WorkflowParamKeys.EndPadLeftPct), Pct(WorkflowParamKeys.EndPadRightPct), Pct(WorkflowParamKeys.EndPadTopPct), Pct(WorkflowParamKeys.EndPadBottomPct),
                            inputs.SourceWidth, inputs.SourceHeight) is (int ecw, int ech, int epx, int epy))
             {
                 int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-                wf["76"] = ComfyGraph.Node("ImageScale", new { image = ComfyGraph.Ref("12", 0), upscale_method = "lanczos", width = sw, height = sh, crop = "disabled" });
-                wf["77"] = ComfyGraph.Node("EmptyImage", new { width = ecw, height = ech, batch_size = 1, color = 0xFFFFFF });
-                wf["78"] = ComfyGraph.Node("ImageCompositeMasked", new { destination = ComfyGraph.Ref("77", 0), source = ComfyGraph.Ref("76", 0), x = epx, y = epy, resize_source = false });
-                endImage = ComfyGraph.Ref("78", 0);
+                wf[EndScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image = ComfyGraph.Ref(EndFrame, 0), upscale_method = "lanczos", width = sw, height = sh, crop = "disabled" });
+                wf[EndPadCanvas] = ComfyGraph.Node(ComfyNodeTypes.EmptyImage, new { width = ecw, height = ech, batch_size = 1, color = 0xFFFFFF });
+                wf[EndPadComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new { destination = ComfyGraph.Ref(EndPadCanvas, 0), source = ComfyGraph.Ref(EndScale, 0), x = epx, y = epy, resize_source = false });
+                endImage = ComfyGraph.Ref(EndPadComposite, 0);
             }
-            wf["14"] = ComfyGraph.Node("WanFirstLastFrameToVideo", new
+            wf[Cond] = ComfyGraph.Node(ComfyNodeTypes.WanFirstLastFrameToVideo, new
             {
-                positive = ComfyGraph.Ref("6", 0), negative = ComfyGraph.Ref("7", 0), vae,
-                width = ComfyGraph.Ref("15", 0), height = ComfyGraph.Ref("15", 1), length = len, batch_size = 1,
-                start_image = ComfyGraph.Ref("11", 0), end_image = endImage,
+                positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae,
+                width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = len, batch_size = 1,
+                start_image = ComfyGraph.Ref(ScaledSource, 0), end_image = endImage,
             });
         }
         else
         {
             // WanImageToVideo re-emits conditioning + the start latent (3 outputs: positive, negative, latent).
-            wf["14"] = ComfyGraph.Node("WanImageToVideo", new
+            wf[Cond] = ComfyGraph.Node(ComfyNodeTypes.WanImageToVideo, new
             {
-                positive = ComfyGraph.Ref("6", 0), negative = ComfyGraph.Ref("7", 0), vae,
-                width = ComfyGraph.Ref("15", 0), height = ComfyGraph.Ref("15", 1), length = len, batch_size = 1,
-                start_image = ComfyGraph.Ref("11", 0),
+                positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae,
+                width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = len, batch_size = 1,
+                start_image = ComfyGraph.Ref(ScaledSource, 0),
             });
         }
-        object pos = ComfyGraph.Ref("14", 0), neg = ComfyGraph.Ref("14", 1), lat = ComfyGraph.Ref("14", 2);
+        object pos = ComfyGraph.Ref(Cond, 0), neg = ComfyGraph.Ref(Cond, 1), lat = ComfyGraph.Ref(Cond, 2);
         object outLat = Vid.MoESample(wf, p, mh, ml, pos, neg, lat, ComfyGraph.Seed(p));
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = outLat, vae });
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
+        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = outLat, vae });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
         return wf;
     }
 }
@@ -211,30 +242,34 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflowBase
     {
         // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
         // put a model reference outside the binding system where nobody could change it.
-        new() { Key = "unet_low", Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
+        new() { Key = WorkflowParamKeys.UnetLow, Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
     }).ToArray();
 
     public override string Name => "wan22-t2v-a14b";
     public override WorkflowMedia Media => WorkflowMedia.Video;
 
+    /// <summary>The MoE experts + samplers ("4"/"5"/"41"/"51"/"3"/"31") are written by Vid; Clip/Vae/Positive/Negative/
+    /// Decode/Save reuse the inherited txt2img roles; only the empty video latent is an own node.</summary>
+    private const string VideoLatent = "14";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
         var (mh, ml) = Vid.LoadExperts(wf, p, req);
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
-        object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        object vae = ComfyGraph.Ref("21", 0);
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
+        object clip = ComfyGraph.Ref(Nodes.Clip, 0);
+        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        int len = p.IntReq("length");
-        double fps = p.DblReq("fps");
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip });
-        wf["14"] = ComfyGraph.Node("EmptyHunyuanLatentVideo", new { width = w, height = h, length = len, batch_size = 1 });
-        object outLat = Vid.MoESample(wf, p, mh, ml, ComfyGraph.Ref("6", 0), ComfyGraph.Ref("7", 0), ComfyGraph.Ref("14", 0), ComfyGraph.Seed(p));
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = outLat, vae });
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        int len = p.IntReq(WorkflowParamKeys.Length);
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip });
+        wf[VideoLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptyHunyuanLatentVideo, new { width = w, height = h, length = len, batch_size = 1 });
+        object outLat = Vid.MoESample(wf, p, mh, ml, ComfyGraph.Ref(Nodes.Positive, 0), ComfyGraph.Ref(Nodes.Negative, 0), ComfyGraph.Ref(VideoLatent, 0), ComfyGraph.Seed(p));
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = outLat, vae });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
         return wf;
     }
 }
@@ -248,34 +283,42 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflowBase
     public override WorkflowMedia Media => WorkflowMedia.Video;
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(HunyuanSr.Schema).ToArray();
 
+    /// <summary>Own nodes beyond the inherited txt2img roles (Model/Clip/Vae/Positive/Negative/Sampler/Decode/Save reused below).</summary>
+    private const string ModelSampling = "30";
+    private const string VideoLatent = "14";
+    private const string Scheduler = "55";
+    private const string SamplerSelect = "56";
+    private const string Noise = "57";
+    private const string Guider = "58";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
-        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf["30"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("4", 0), shift = p.DblReq("shift") });
-        object model = ComfyGraph.Ref("30", 0);
-        wf["20"] = ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_video_15", device = "default" });
-        object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        object vae = ComfyGraph.Ref("21", 0);
+        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.Model, 0), shift = p.DblReq(WorkflowParamKeys.Shift) });
+        object model = ComfyGraph.Ref(ModelSampling, 0);
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_video_15", device = "default" });
+        object clip = ComfyGraph.Ref(Nodes.Clip, 0);
+        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        int len = p.IntReq("length");
-        double fps = p.DblReq("fps");
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip });
-        wf["14"] = ComfyGraph.Node("EmptyHunyuanVideo15Latent", new { width = w, height = h, length = len, batch_size = 1 });
-        wf["55"] = ComfyGraph.Node("BasicScheduler", new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("steps"), denoise = 1.0 });
-        wf["56"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
-        wf["57"] = ComfyGraph.Node("RandomNoise", new { noise_seed = ComfyGraph.Seed(p) });
-        wf["58"] = ComfyGraph.Node("CFGGuider", new { model, positive = ComfyGraph.Ref("6", 0), negative = ComfyGraph.Ref("7", 0), cfg = p.DblReq("cfg") });
-        wf["3"] = ComfyGraph.Node("SamplerCustomAdvanced", new { noise = ComfyGraph.Ref("57", 0), guider = ComfyGraph.Ref("58", 0), sampler = ComfyGraph.Ref("56", 0), sigmas = ComfyGraph.Ref("55", 0), latent_image = ComfyGraph.Ref("14", 0) });
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        int len = p.IntReq(WorkflowParamKeys.Length);
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip });
+        wf[VideoLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptyHunyuanVideo15Latent, new { width = w, height = h, length = len, batch_size = 1 });
+        wf[Scheduler] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.Steps), denoise = 1.0 });
+        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
+        wf[Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = ComfyGraph.Seed(p) });
+        wf[Guider] = ComfyGraph.Node(ComfyNodeTypes.CFGGuider, new { model, positive = ComfyGraph.Ref(Nodes.Positive, 0), negative = ComfyGraph.Ref(Nodes.Negative, 0), cfg = p.DblReq(WorkflowParamKeys.Cfg) });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Noise, 0), guider = ComfyGraph.Ref(Guider, 0), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Scheduler, 0), latent_image = ComfyGraph.Ref(VideoLatent, 0) });
         // Optional super-resolution second pass (1080p). t2v has no source image, so no start_image/CLIP-vision cues.
-        object outLatent = HunyuanSr.Refine(wf, p, ComfyGraph.Ref("3", 0), ComfyGraph.Ref("6", 0), ComfyGraph.Ref("7", 0), vae, null, null, ComfyGraph.Seed(p));
-        wf["8"] = HunyuanSr.Enabled(p)
-            ? ComfyGraph.Node("VAEDecodeTiled", new { samples = outLatent, vae, tile_size = 256, overlap = 64, temporal_size = 64, temporal_overlap = 8 })
-            : ComfyGraph.Node("VAEDecode", new { samples = outLatent, vae });
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
+        object outLatent = HunyuanSr.Refine(wf, p, ComfyGraph.Ref(Nodes.Sampler, 0), ComfyGraph.Ref(Nodes.Positive, 0), ComfyGraph.Ref(Nodes.Negative, 0), vae, null, null, ComfyGraph.Seed(p));
+        wf[Nodes.Decode] = HunyuanSr.Enabled(p)
+            ? ComfyGraph.Node(ComfyNodeTypes.VAEDecodeTiled, new { samples = outLatent, vae, tile_size = 256, overlap = 64, temporal_size = 64, temporal_overlap = 8 })
+            : ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = outLatent, vae });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
         return wf;
     }
 }
@@ -290,30 +333,38 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflowBase
     public override WorkflowMedia Media => WorkflowMedia.Video;
     public override bool PromptDirectsMotion => true;
 
+    /// <summary>Own nodes beyond the inherited txt2img roles (Model/Clip/Vae/Positive/Guidance/Sampler/Decode/Save reused below).</summary>
+    private const string ModelSampling = "30";
+    private const string VideoLatent = "14";
+    private const string Scheduler = "55";
+    private const string SamplerSelect = "56";
+    private const string Noise = "57";
+    private const string Guider = "58";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
-        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf["30"] = ComfyGraph.Node("ModelSamplingSD3", new { model = ComfyGraph.Ref("4", 0), shift = p.DblReq("shift") });
-        object model = ComfyGraph.Ref("30", 0);
-        wf["20"] = ComfyGraph.Node("DualCLIPLoader", new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_video", device = "default" });
-        object clip = ComfyGraph.Ref("20", 0);
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        object vae = ComfyGraph.Ref("21", 0);
+        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.Model, 0), shift = p.DblReq(WorkflowParamKeys.Shift) });
+        object model = ComfyGraph.Ref(ModelSampling, 0);
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_video", device = "default" });
+        object clip = ComfyGraph.Ref(Nodes.Clip, 0);
+        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        int len = p.IntReq("length");
-        double fps = p.DblReq("fps");
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip });
-        wf["12"] = ComfyGraph.Node("FluxGuidance", new { conditioning = ComfyGraph.Ref("6", 0), guidance = p.DblReq("guidance") });
-        wf["14"] = ComfyGraph.Node("EmptyHunyuanLatentVideo", new { width = w, height = h, length = len, batch_size = 1 });
-        wf["55"] = ComfyGraph.Node("BasicScheduler", new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")), steps = p.IntReq("steps"), denoise = 1.0 });
-        wf["56"] = ComfyGraph.Node("KSamplerSelect", new { sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")) });
-        wf["57"] = ComfyGraph.Node("RandomNoise", new { noise_seed = ComfyGraph.Seed(p) });
-        wf["58"] = ComfyGraph.Node("BasicGuider", new { model, conditioning = ComfyGraph.Ref("12", 0) });
-        wf["3"] = ComfyGraph.Node("SamplerCustomAdvanced", new { noise = ComfyGraph.Ref("57", 0), guider = ComfyGraph.Ref("58", 0), sampler = ComfyGraph.Ref("56", 0), sigmas = ComfyGraph.Ref("55", 0), latent_image = ComfyGraph.Ref("14", 0) });
-        wf["8"] = ComfyGraph.Node("VAEDecodeTiled", new { samples = ComfyGraph.Ref("3", 0), vae, tile_size = 256, overlap = 64, temporal_size = 64, temporal_overlap = 8 });
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        int len = p.IntReq(WorkflowParamKeys.Length);
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
+        wf[Nodes.Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(Nodes.Positive, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
+        wf[VideoLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptyHunyuanLatentVideo, new { width = w, height = h, length = len, batch_size = 1 });
+        wf[Scheduler] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.Steps), denoise = 1.0 });
+        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
+        wf[Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = ComfyGraph.Seed(p) });
+        wf[Guider] = ComfyGraph.Node(ComfyNodeTypes.BasicGuider, new { model, conditioning = ComfyGraph.Ref(Nodes.Guidance, 0) });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Noise, 0), guider = ComfyGraph.Ref(Guider, 0), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Scheduler, 0), latent_image = ComfyGraph.Ref(VideoLatent, 0) });
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecodeTiled, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae, tile_size = 256, overlap = 64, temporal_size = 64, temporal_overlap = 8 });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp", fps, lossless = false, quality = 80, method = "default" });
         return wf;
     }
 }

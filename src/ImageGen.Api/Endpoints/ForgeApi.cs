@@ -40,6 +40,154 @@ public static class ForgeApi
     private const int MinWidth = 64;
     private const int MaxWidth = 1024;
 
+    /// <summary>The route path templates for every /forge endpoint, relative to the group's prefix.</summary>
+    private static class Routes
+    {
+        /// <summary><c>GET /healthz</c> — anonymous liveness probe.</summary>
+        public const string Healthz = "/healthz";
+        /// <summary><c>GET /workflows</c> — the workflow configurations this box can run for the caller.</summary>
+        public const string Workflows = "/workflows";
+        /// <summary><c>GET /catalog/status</c> — everything this machine can and cannot run, and why.</summary>
+        public const string CatalogStatus = "/catalog/status";
+        /// <summary><c>GET /loras</c> — the composer's LoRA picker data.</summary>
+        public const string Loras = "/loras";
+        /// <summary><c>GET /loras/manage</c> — the LoRA manager page's data.</summary>
+        public const string LorasManage = "/loras/manage";
+        /// <summary><c>POST /loras/meta</c> — the cached-meta poll for LoRA cards still populating.</summary>
+        public const string LorasMeta = "/loras/meta";
+        /// <summary><c>POST /loras/refresh</c> — forget cached CivitAI data and re-queue a re-fetch.</summary>
+        public const string LorasRefresh = "/loras/refresh";
+        /// <summary><c>PUT /catalog/binding</c> — point a model slot at a file, or clear it.</summary>
+        public const string CatalogBinding = "/catalog/binding";
+        /// <summary><c>PUT /catalog/override</c> — set or remove one per-configuration override.</summary>
+        public const string CatalogOverride = "/catalog/override";
+        /// <summary><c>GET /catalog/config/{id}/settings</c> — a configuration's effective and shipped settings.</summary>
+        public const string CatalogConfigSettings = "/catalog/config/{id}/settings";
+        /// <summary><c>GET /prompting/{model}</c> — one configuration's prompting guide.</summary>
+        public const string PromptingForModel = "/prompting/{model}";
+        /// <summary><c>GET /prompting</c> — all configurations' prompting guides.</summary>
+        public const string Prompting = "/prompting";
+        /// <summary><c>POST /tags</c> — tag/artist autocomplete.</summary>
+        public const string Tags = "/tags";
+        /// <summary><c>GET /tags/status</c> — the tag catalogue's load state.</summary>
+        public const string TagsStatus = "/tags/status";
+        /// <summary><c>POST /generate</c> — enqueue a generation.</summary>
+        public const string Generate = "/generate";
+        /// <summary><c>POST /edit</c> — enqueue an edit.</summary>
+        public const string Edit = "/edit";
+        /// <summary><c>POST /enqueue</c> — enqueue a batch.</summary>
+        public const string Enqueue = "/enqueue";
+        /// <summary><c>GET /result/{id}</c> — poll one job in the legacy single-image shape.</summary>
+        public const string Result = "/result/{id}";
+        /// <summary><c>GET /jobs</c> — the caller's active jobs.</summary>
+        public const string Jobs = "/jobs";
+        /// <summary><c>GET /queue</c> — a cross-user page of the queue and history.</summary>
+        public const string Queue = "/queue";
+        /// <summary><c>GET /job/{id}</c> — one job (active or finalized) by id.</summary>
+        public const string Job = "/job/{id}";
+        /// <summary><c>POST /cancel/{id}</c> — cancel one job.</summary>
+        public const string Cancel = "/cancel/{id}";
+        /// <summary><c>POST /interrupt</c> — interrupt the running render.</summary>
+        public const string Interrupt = "/interrupt";
+        /// <summary><c>POST /cancel-all</c> — cancel every active job on the box.</summary>
+        public const string CancelAll = "/cancel-all";
+        /// <summary><c>POST /cancel-mine</c> — cancel the caller's active jobs.</summary>
+        public const string CancelMine = "/cancel-mine";
+        /// <summary><c>POST /requeue/{id}</c> — re-run the images a finished job never made.</summary>
+        public const string Requeue = "/requeue/{id}";
+        /// <summary><c>POST /free-vram</c> — drop the renderer's loaded models and cached VRAM.</summary>
+        public const string FreeVram = "/free-vram";
+        /// <summary><c>POST /upload</c> — hand over a render input (edit source, reference, mask, end frame).</summary>
+        public const string Upload = "/upload";
+        /// <summary><c>GET /image/{id}</c> — serve an image (optionally thumbnailed).</summary>
+        public const string Image = "/image/{id}";
+        /// <summary><c>GET /lora-preview</c> — a LoRA's cached CivitAI preview media.</summary>
+        public const string LoraPreview = "/lora-preview";
+        /// <summary><c>GET /image/{id}/info</c> — an image's pixel dimensions.</summary>
+        public const string ImageInfo = "/image/{id}/info";
+        /// <summary><c>GET /image/{id}/mp4</c> — an image/clip served as mp4.</summary>
+        public const string ImageMp4 = "/image/{id}/mp4";
+        /// <summary><c>GET /image/{id}/palette</c> — the quantize palette JSON.</summary>
+        public const string ImagePalette = "/image/{id}/palette";
+        /// <summary><c>GET /image/{id}/frequencies</c> — the quantize label-frequency JSON.</summary>
+        public const string ImageFrequencies = "/image/{id}/frequencies";
+        /// <summary><c>GET /image/{id}/params</c> — the generation request JSON (owner-checked).</summary>
+        public const string ImageParams = "/image/{id}/params";
+        /// <summary><c>GET /image/{id}/frames</c> — the lossless frames as a zip.</summary>
+        public const string ImageFrames = "/image/{id}/frames";
+        /// <summary><c>POST /media</c> — the media kind per image id, asked in bulk.</summary>
+        public const string Media = "/media";
+        /// <summary><c>GET /ws</c> — the live-progress WebSocket.</summary>
+        public const string Ws = "/ws";
+    }
+
+    /// <summary>HTTP content-type tokens sniffed from bytes, matched, or written on responses.</summary>
+    private static class ContentTypes
+    {
+        /// <summary>PNG image.</summary>
+        public const string ImagePng = "image/png";
+        /// <summary>WebP image (a still or an animated clip).</summary>
+        public const string ImageWebp = "image/webp";
+        /// <summary>MP4 video.</summary>
+        public const string VideoMp4 = "video/mp4";
+        /// <summary>JSON payload written by the pass-through <c>/palette</c>, <c>/frequencies</c>, <c>/params</c> endpoints.</summary>
+        public const string ApplicationJson = "application/json";
+        /// <summary>Zip archive of an image's lossless frames.</summary>
+        public const string ApplicationZip = "application/zip";
+        /// <summary>The content-type family prefix shared by every video clip.</summary>
+        public const string VideoPrefix = "video/";
+    }
+
+    /// <summary>JSON property names read off the backend's progress frames.</summary>
+    private static class JsonFields
+    {
+        /// <summary>The frame's payload object.</summary>
+        public const string Data = "data";
+        /// <summary>The backend prompt id carried inside <see cref="Data"/>.</summary>
+        public const string PromptId = "prompt_id";
+    }
+
+    /// <summary>Keys the /forge auth filter stashes per-request values under in <c>HttpContext.Items</c>.</summary>
+    private static class RequestItems
+    {
+        /// <summary>The authenticated user that owns this request's jobs.</summary>
+        public const string OwnerUserId = "ForgeOwnerUserId";
+        /// <summary>The request scope ("api" for an API-key caller, else the browser UI).</summary>
+        public const string Scope = "ForgeScope";
+    }
+
+    /// <summary>Multipart form field names the upload endpoint reads.</summary>
+    private static class FormFields
+    {
+        /// <summary>The uploaded image file field.</summary>
+        public const string Image = "image";
+    }
+
+    /// <summary>String tokens compared as status/kind/scope discriminators.</summary>
+    private static class Discriminators
+    {
+        /// <summary>The <see cref="RequestItems.Scope"/> value marking an API-key caller.</summary>
+        public const string ApiScope = "api";
+        /// <summary>The tag-query kind selecting artist autocomplete.</summary>
+        public const string Artist = "artist";
+        /// <summary>The wire phase value for a job waiting off the GPU.</summary>
+        public const string Queued = "queued";
+    }
+
+    /// <summary>Delimiters used when composing wire text.</summary>
+    private static class Separators
+    {
+        /// <summary>Comma-space, joining CivitAI trained words into a prompt list.</summary>
+        public const string CommaSpace = ", ";
+    }
+
+    /// <summary>WebSocket close-frame status descriptions sent downstream.</summary>
+    private static class CloseReasons
+    {
+        /// <summary>Sent when the backend progress socket can't be opened for this client's /ws.</summary>
+        public const string ProgressBackendUnavailable = "progress backend unavailable";
+    }
+
     /// <summary>Map the render endpoints onto the /forge group.</summary>
     public static void MapForgeApi(this RouteGroupBuilder app)
     {
@@ -52,7 +200,7 @@ public static class ForgeApi
 
     /// <summary>The authenticated user that owns this request's jobs (stashed by the /forge auth filter).</summary>
     private static long OwnerOf(HttpRequest r) =>
-        (long)(r.HttpContext.Items["ForgeOwnerUserId"] ?? throw new InvalidOperationException("ForgeOwnerUserId is not set on the request."));
+        (long)(r.HttpContext.Items[RequestItems.OwnerUserId] ?? throw new InvalidOperationException("ForgeOwnerUserId is not set on the request."));
 
     /// <summary>The subfolder a LoRA lives in — everything before the final path separator — or "" for a root-level
     /// file. ComfyUI reports names with the OS separator, so both '/' and '\' count, and the result is normalized to '/'.</summary>
@@ -76,7 +224,7 @@ public static class ForgeApi
 
     /// <summary>The CivitAI trained words as a clean comma list (trimmed, trailing commas stripped, blanks dropped).</summary>
     private static string DefaultTriggers(LoraMeta m) =>
-        string.Join(", ", m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0));
+        string.Join(Separators.CommaSpace, m.TrainedWords.Select(w => w.Trim().TrimEnd(',').Trim()).Where(w => w.Length > 0));
 
     /// <summary>A LoRA's fallback display label: the filename without its folder or a known model extension — the same
     /// thing the client's <c>label()</c> shows, used when CivitAI hasn't supplied a model name.</summary>
@@ -106,7 +254,7 @@ public static class ForgeApi
     /// <summary>Whether the cached preview for a LoRA is a video clip (mp4/webm) rather than an image — the client
     /// renders those in a &lt;video&gt; instead of an &lt;img&gt;.</summary>
     private static bool PreviewIsVideo(string name, IReadOnlyDictionary<string, string> previewTypes) =>
-        previewTypes.TryGetValue(name, out var ct) && ct.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+        previewTypes.TryGetValue(name, out var ct) && ct.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The refusal for a submission the box has no memory for. 503 (not 4xx): the request is fine, the
     /// server is temporarily unable to take it — so a client knows to retry later rather than to fix its input. The
@@ -149,11 +297,11 @@ public static class ForgeApi
 
     private static void MapWorkflows(RouteGroupBuilder app)
     {
-        app.MapGet("/healthz", () => Results.Ok(new { ok = true })).AllowAnonymous();
+        app.MapGet(Routes.Healthz, () => Results.Ok(new { ok = true })).AllowAnonymous();
 
         // Every workflow configuration the current machine can run, for the caller's scope. Eligibility + row shaping
         // live in the catalog adapter; a renderer that's unreachable surfaces as a 502.
-        app.MapGet("/workflows", async (HttpContext http, IWorkflowCatalog catalog, UserService users, CancellationToken ct) =>
+        app.MapGet(Routes.Workflows, async (HttpContext http, IWorkflowCatalog catalog, UserService users, CancellationToken ct) =>
         {
             try
             {
@@ -162,7 +310,7 @@ public static class ForgeApi
                 // drops the user's UI-hidden set client-side; an API-key caller gets its OWN api-hidden set removed
                 // here, because the API has no client to do it. Nothing is hidden by default — the catalogue ships no
                 // visibility flag; hiding happens only on the workflows page.
-                if ((http.Items["ForgeScope"] as string) == "api" && http.User.GetUserId() is { } userId)
+                if ((http.Items[RequestItems.Scope] as string) == Discriminators.ApiScope && http.User.GetUserId() is { } userId)
                 {
                     var hidden = (await users.GetWorkflowPrefsAsync(userId, ct)).HiddenApi;
                     if (hidden.Count > 0)
@@ -181,7 +329,7 @@ public static class ForgeApi
 
         // Everything this machine can and cannot run, and why. The picker deliberately lists only what is READY;
         // this is the surface that explains the difference.
-        app.MapGet("/catalog/status", async (IWorkflowCatalog catalog, CancellationToken ct) =>
+        app.MapGet(Routes.CatalogStatus, async (IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             try
             {
@@ -196,7 +344,7 @@ public static class ForgeApi
         // The LoRA files this machine offers, for the composer's picker: each file's subfolder-qualified name, the
         // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
         // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
-        app.MapGet("/loras", async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
+        app.MapGet(Routes.Loras, async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
             ILoraMetaRepository meta, ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings,
             ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
@@ -239,7 +387,7 @@ public static class ForgeApi
         // The LoRA manager page's data: every LoRA on this box with its cover / CivitAI preview, model name, and
         // trigger words. Like /loras this is NON-BLOCKING — it returns stubs at once and Request() populates in the
         // background; the client polls /loras/meta. Nothing here hashes or hits the network on the request thread.
-        app.MapGet("/loras/manage", async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+        app.MapGet(Routes.LorasManage, async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, LoraService loras, ILoraUserSettingRepository userSettings,
             ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
@@ -287,7 +435,7 @@ public static class ForgeApi
         // current cached state for the named files (never blocking), (re)queues any not-yet-ready ones so a job resumes
         // after a restart, and reports whether any are still pending so the client knows to keep polling. POST, so a
         // long list of subfolder-qualified names travels in the body, not a capped URL (see MediaTypesRequest).
-        app.MapPost("/loras/meta", async (HttpRequest http, LoraMetaQueryRequest body, ILoraMetaRepository meta,
+        app.MapPost(Routes.LorasMeta, async (HttpRequest http, LoraMetaQueryRequest body, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings, ICivitaiClient civitai,
             ILoraMetaPopulator populator, CancellationToken ct) =>
         {
@@ -318,7 +466,7 @@ public static class ForgeApi
         // Refresh: forget the cached CivitAI data (and preview bytes) for these files — or every LoRA on the box when
         // the list is empty — then re-queue them so the populator re-fetches. A no-op when CivitAI is off (there is
         // nothing to fetch, and wiping the cache would leave the cards blank). The client polls /loras/meta after.
-        app.MapPost("/loras/refresh", async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+        app.MapPost(Routes.LorasRefresh, async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             try
@@ -345,7 +493,7 @@ public static class ForgeApi
 
         // Point a slot at a file on this machine, or clear it. A blank fileName clears, which is how a wrong
         // automatic guess is rejected.
-        app.MapPut("/catalog/binding", async (BindingRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        app.MapPut(Routes.CatalogBinding, async (BindingRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.SlotId))
                 return Results.BadRequest(new { error = "slotId is required." });
@@ -355,7 +503,7 @@ public static class ForgeApi
 
         // One per-configuration override for this machine (vram.min, param.<key>, ...). A blank value
         // REMOVES the override and restores the shipped default.
-        app.MapPut("/catalog/override", async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        app.MapPut(Routes.CatalogOverride, async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.ConfigId) || string.IsNullOrWhiteSpace(body.Key))
                 return Results.BadRequest(new { error = "configId and key are required." });
@@ -368,7 +516,7 @@ public static class ForgeApi
 
         // What one workflow renders with on this machine, and what the catalogue shipped, so the settings page can
         // show both and offer a reset.
-        app.MapGet("/catalog/config/{id}/settings", (string id, IWorkflowCatalog catalog) =>
+        app.MapGet(Routes.CatalogConfigSettings, (string id, IWorkflowCatalog catalog) =>
         {
             var settings = catalog.GetSettings(id);
             return settings is null
@@ -377,7 +525,7 @@ public static class ForgeApi
         });
 
         // One configuration's prompting guide (resolves {model} loosely, as generate accepts it).
-        app.MapGet("/prompting/{model}", (string model, IWorkflowCatalog catalog) =>
+        app.MapGet(Routes.PromptingForModel, (string model, IWorkflowCatalog catalog) =>
         {
             var guide = catalog.GetGuide(model);
             return guide is null
@@ -386,7 +534,7 @@ public static class ForgeApi
         });
 
         // All configurations' guides.
-        app.MapGet("/prompting", (IWorkflowCatalog catalog) => Results.Ok(catalog.AllGuides()));
+        app.MapGet(Routes.Prompting, (IWorkflowCatalog catalog) => Results.Ok(catalog.AllGuides()));
     }
 
     #endregion
@@ -401,9 +549,9 @@ public static class ForgeApi
         // every keystroke — as a query string that puts the prompt, keystroke by keystroke, into the browser's own
         // history and address-bar autocomplete, on the user's machine, where nothing server-side can ever clean it
         // up. It also reaches request logs, proxies and Referer headers. A body goes in none of those places.
-        app.MapPost("/tags", async (TagQueryRequest req, ITagCatalog tags, ITagModelClient model) =>
+        app.MapPost(Routes.Tags, async (TagQueryRequest req, ITagCatalog tags, ITagModelClient model) =>
         {
-            var artist = string.Equals(req.Kind, "artist", StringComparison.OrdinalIgnoreCase);
+            var artist = string.Equals(req.Kind, Discriminators.Artist, StringComparison.OrdinalIgnoreCase);
             // A present limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
             // to the caller as "that's all there is". An absent limit (null) legitimately means "use the default".
             var n = req.Limit ?? 10;
@@ -432,7 +580,7 @@ public static class ForgeApi
             }));
         });
 
-        app.MapGet("/tags/status", (ITagCatalog tags) =>
+        app.MapGet(Routes.TagsStatus, (ITagCatalog tags) =>
             Results.Ok(new { loaded = tags.Loaded, status = tags.Status, tags = tags.TagCount, artists = tags.ArtistCount }));
     }
 
@@ -442,7 +590,7 @@ public static class ForgeApi
 
     private static void MapRender(RouteGroupBuilder app)
     {
-        app.MapPost("/generate", async (GenerateRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        app.MapPost(Routes.Generate, async (GenerateRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
             if (string.IsNullOrWhiteSpace(req.Workflow)) return Results.BadRequest(new { error = "A workflow is required." });
             if (!ValidTagTypes(req.TagTypes, out var maskError)) return Results.BadRequest(new { error = maskError });
@@ -454,7 +602,7 @@ public static class ForgeApi
             });
         });
 
-        app.MapPost("/edit", async (EditRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        app.MapPost(Routes.Edit, async (EditRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
             if (string.IsNullOrWhiteSpace(req.Workflow)) return Results.BadRequest(new { error = "A workflow is required." });
             if (string.IsNullOrWhiteSpace(req.ImageId)) return Results.BadRequest(new { error = "A source image id is required." });
@@ -466,7 +614,7 @@ public static class ForgeApi
             });
         });
 
-        app.MapPost("/enqueue", async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
             if (gate.Refusal() is { } full) return LowMemory(full);
             // An unknown type name is rejected for the WHOLE batch rather than dropped from one item: a dropped name
@@ -484,7 +632,7 @@ public static class ForgeApi
         });
 
         // POLL one job (legacy single-image shape). Memory first, DB fallback once finalized; unknown id → error.
-        app.MapGet("/result/{id}", async (string id, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        app.MapGet(Routes.Result, async (string id, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
         {
             var job = queue.Get(id);
             if (job is not null && job.Slots.Count > 0)
@@ -502,14 +650,14 @@ public static class ForgeApi
         });
 
         // SYNC: this user's ACTIVE jobs only. A finalized job is not here — its absence is the client's reconcile cue.
-        app.MapGet("/jobs", (HttpRequest http, RenderOrchestrator queue) =>
+        app.MapGet(Routes.Jobs, (HttpRequest http, RenderOrchestrator queue) =>
         {
             var owner = OwnerOf(http);
             return Results.Ok(new { jobs = queue.ActiveForOwner(owner).Select(j => JobViewOf(j, queue)) });
         });
 
         // Cross-user QUEUE + history: a page of every gen on this box, live rows overlaid with in-memory state.
-        app.MapGet("/queue", async (HttpRequest http, RenderOrchestrator queue, IJobRepository jobs,
+        app.MapGet(Routes.Queue, async (HttpRequest http, RenderOrchestrator queue, IJobRepository jobs,
             IGenTimingRepository timings, int? page, int? pageSize, CancellationToken ct) =>
         {
             var me = OwnerOf(http);
@@ -546,7 +694,7 @@ public static class ForgeApi
         });
 
         // LOOKUP a job by id (active or finalized) — the durable read for a job that vanished from /jobs. Owner-checked.
-        app.MapGet("/job/{id}", async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        app.MapGet(Routes.Job, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
         {
             var owner = OwnerOf(http);
             var live = queue.Get(id);
@@ -560,9 +708,9 @@ public static class ForgeApi
         // A live job is cancelled in memory. A job this instance owns whose row is still Active but which no worker
         // holds — stranded by a crash — has nothing rendering it, so its row is failed instead. Same answer either way:
         // the queue page offers Cancel on anything unfinished, and unfinished-and-unowned must not be a dead button.
-        app.MapPost("/cancel/{id}", async (string id, RenderOrchestrator queue, CancellationToken ct) =>
+        app.MapPost(Routes.Cancel, async (string id, RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { ok = queue.Cancel(id) || await queue.CancelStrandedAsync(id, ct) }));
-        app.MapPost("/interrupt", (RenderOrchestrator queue) => Results.Ok(new { ok = queue.CancelRunning() }));
+        app.MapPost(Routes.Interrupt, (RenderOrchestrator queue) => Results.Ok(new { ok = queue.CancelRunning() }));
 
         // Bulk cancel, in one call rather than a client loop over rendered rows: the queue page shows 25 of a list it
         // re-polls every 2s, so a loop would clear only the visible page and race the poll rebuilding it.
@@ -573,16 +721,16 @@ public static class ForgeApi
         // role concept anywhere in this app to gate it with, and inventing a half of one here would be worse than the
         // honest status quo. The client confirms first, since it is irreversible and can discard work that isn't
         // yours. /cancel-mine is scoped to the caller and needs no such warning.
-        app.MapPost("/cancel-all", async (RenderOrchestrator queue, CancellationToken ct) =>
+        app.MapPost(Routes.CancelAll, async (RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { cancelled = await queue.CancelAllAsync(null, ct) }));
-        app.MapPost("/cancel-mine", async (HttpRequest http, RenderOrchestrator queue, CancellationToken ct) =>
+        app.MapPost(Routes.CancelMine, async (HttpRequest http, RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { cancelled = await queue.CancelAllAsync(OwnerOf(http), ct) }));
 
         // Re-run the images a finished job never made, as a NEW job. Owner-checked (unlike /cancel/{id}): this
         // CREATES work under an owner, and the scheduler is fair round-robin per owner, so an unchecked requeue would
         // let one user push work into another's queue share. Goes through the same submission gate as /generate —
         // requeued work is work, and a box too low on memory to accept a generation is too low to accept this.
-        app.MapPost("/requeue/{id}", async (string id, HttpRequest http, RenderOrchestrator queue,
+        app.MapPost(Routes.Requeue, async (string id, HttpRequest http, RenderOrchestrator queue,
             SubmissionMemoryGate gate, CancellationToken ct) =>
         {
             if (gate.Refusal() is { } full) return LowMemory(full);
@@ -603,7 +751,7 @@ public static class ForgeApi
 
         // Drop the renderer's loaded models + cached VRAM. The backend applies it between prompts, so it can't disturb
         // a render already running; queued work simply reloads its model when it starts.
-        app.MapPost("/free-vram", async (IComfyClient comfy, CancellationToken ct) =>
+        app.MapPost(Routes.FreeVram, async (IComfyClient comfy, CancellationToken ct) =>
         {
             await comfy.FreeMemoryAsync(ct);
             return Results.Ok(new { ok = true });
@@ -677,7 +825,7 @@ public static class ForgeApi
             progress = j.Progress,
             produced = j.Produced,
             status,
-            jobsAhead = status == "queued" ? q.JobsAhead(j) : 0,
+            jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
             imageIds = j.ImageIds(),
@@ -701,7 +849,7 @@ public static class ForgeApi
             produced = j.Produced,
             status,
             active = true,
-            jobsAhead = status == "queued" ? q.JobsAhead(j) : 0,
+            jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds ?? j.Slots.FirstOrDefault()?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
             mine,
@@ -827,14 +975,14 @@ public static class ForgeApi
         // This is the door the memory gate matters most at: these bytes are what stays resident until the render that
         // needs them runs, and nothing will evict them to make room. A box that is already low says so HERE, to the
         // caller holding the file, rather than taking the upload and failing the job it belongs to later.
-        app.MapPost("/upload", async (HttpRequest request, IUploadStore uploads, IMediaProcessor media,
+        app.MapPost(Routes.Upload, async (HttpRequest request, IUploadStore uploads, IMediaProcessor media,
             SubmissionMemoryGate gate, HttpContext ctx) =>
         {
             if (!request.HasFormContentType)
                 return Results.BadRequest(new { error = "Expected multipart/form-data with an 'image' field." });
             if (gate.Refusal() is { } full) return LowMemory(full);
             var form = await request.ReadFormAsync();
-            var file = form.Files["image"];
+            var file = form.Files[FormFields.Image];
             if (file is null || file.Length == 0)
                 return Results.BadRequest(new { error = "Missing 'image' file field." });
 
@@ -849,12 +997,12 @@ public static class ForgeApi
             try { dims = media.Identify(bytes); }
             catch (Exception ex) { return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" }); }
             int? w = dims.Width, h = dims.Height;
-            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "image/png" : file.ContentType;
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? ContentTypes.ImagePng : file.ContentType;
             var id = uploads.Add(new UploadedImage(bytes, contentType, w, h));
             return Results.Ok(new { id });
         });
 
-        app.MapGet("/image/{id}", async (string id, int? w, bool? still, IUploadStore uploads, IImageBlobRepository blobs,
+        app.MapGet(Routes.Image, async (string id, int? w, bool? still, IUploadStore uploads, IImageBlobRepository blobs,
             IMemoryCache cache, IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
         {
             if (w is int requested)
@@ -889,13 +1037,13 @@ public static class ForgeApi
             var png = await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
             if (png is null) return Results.NotFound(new { error = "image not found" });
             ctx.Response.Headers.CacheControl = "public, max-age=300";
-            return Results.File(png, "image/png");
+            return Results.File(png, ContentTypes.ImagePng);
         });
 
         // A LoRA's cached CivitAI preview media (image or clip), served from this box so the browser never hotlinks the
         // CivitAI CDN. The name rides in the query — it carries subfolder slashes and isn't sensitive. A short cache,
         // not immutable: the refresh button replaces the bytes under the same name, and the client cache-busts then.
-        app.MapGet("/lora-preview", async (string? name, ILoraPreviewRepository previews, HttpContext ctx) =>
+        app.MapGet(Routes.LoraPreview, async (string? name, ILoraPreviewRepository previews, HttpContext ctx) =>
         {
             if (string.IsNullOrWhiteSpace(name))
                 return Results.BadRequest(new { error = "name is required" });
@@ -906,7 +1054,7 @@ public static class ForgeApi
             return Results.File(blob.Bytes, blob.ContentType);
         });
 
-        app.MapGet("/image/{id}/info", async (string id, IUploadStore uploads, IImageBlobRepository blobs,
+        app.MapGet(Routes.ImageInfo, async (string id, IUploadStore uploads, IImageBlobRepository blobs,
             IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
         {
             byte[]? bytes = (await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted))?.Bytes;
@@ -919,7 +1067,7 @@ public static class ForgeApi
             return Results.Ok(new { width = d.Width, height = d.Height });
         });
 
-        app.MapGet("/image/{id}/mp4", async (string id, int? w, IUploadStore uploads, IImageBlobRepository blobs,
+        app.MapGet(Routes.ImageMp4, async (string id, int? w, IUploadStore uploads, IImageBlobRepository blobs,
             IMemoryCache cache, IMediaProcessor media, HttpContext ctx) =>
         {
             if (w is int rw && (rw < MinWidth || rw > MaxWidth))
@@ -932,8 +1080,8 @@ public static class ForgeApi
                 var source = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
                 if (source is not { } clipSource) return Results.NotFound(new { error = "no video for this id" });
                 if (media.IsAnimatedWebp(clipSource.Bytes))
-                    clip = new MediaPayload(await media.WebpToMp4Async(clipSource.Bytes, width, ctx.RequestAborted), "video/mp4");
-                else if (clipSource.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+                    clip = new MediaPayload(await media.WebpToMp4Async(clipSource.Bytes, width, ctx.RequestAborted), ContentTypes.VideoMp4);
+                else if (clipSource.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase))
                     clip = new MediaPayload(clipSource.Bytes, clipSource.ContentType);
                 else
                     return Results.NotFound(new { error = "no video for this id" });
@@ -942,36 +1090,36 @@ public static class ForgeApi
             ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
             // Without a filename the browser would name a "Save as" after the last URL segment ("mp4") and append the
             // extension -> "mp4.mp4". Name it after the id. "inline" (not "attachment") so the <video> still plays.
-            var ext = clip.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
-                ? clip.ContentType["video/".Length..] : "mp4";
+            var ext = clip.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase)
+                ? clip.ContentType[ContentTypes.VideoPrefix.Length..] : "mp4";
             var name = string.Concat($"{id}.{ext}".Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_' ? c : '_'));
             ctx.Response.Headers.ContentDisposition = $"inline; filename=\"{name}\"";
             return Results.File(clip.Bytes, clip.ContentType);
         });
 
-        app.MapGet("/image/{id}/palette", async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        app.MapGet(Routes.ImagePalette, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
         {
             var json = await blobs.GetPaletteAsync(id, ct);
-            return json is null ? Results.NotFound(new { error = "no palette for this id" }) : Results.Content(json, "application/json");
+            return json is null ? Results.NotFound(new { error = "no palette for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
         });
 
         // The fp quantize's pooled label frequencies (JSON float array, indexed by the palette's order) — fetched
         // together with /palette so a later single-frame re-quantize can replay BOTH globals bit-exactly.
-        app.MapGet("/image/{id}/frequencies", async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        app.MapGet(Routes.ImageFrequencies, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
         {
             var json = await blobs.GetFrequenciesAsync(id, ct);
-            return json is null ? Results.NotFound(new { error = "no frequencies for this id" }) : Results.Content(json, "application/json");
+            return json is null ? Results.NotFound(new { error = "no frequencies for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
         });
 
-        app.MapGet("/image/{id}/params", async (string id, HttpRequest req, IJobRepository jobs, CancellationToken ct) =>
+        app.MapGet(Routes.ImageParams, async (string id, HttpRequest req, IJobRepository jobs, CancellationToken ct) =>
         {
             var r = await jobs.GetRequestByImageAsync(id, ct);
             return r is { } rr && rr.OwnerUserId == OwnerOf(req)
-                ? Results.Content(rr.RequestJson, "application/json")
+                ? Results.Content(rr.RequestJson, ContentTypes.ApplicationJson)
                 : Results.NotFound(new { error = "no params for this id" });
         });
 
-        app.MapGet("/image/{id}/frames", async (string id, IImageFrameRepository frames, CancellationToken ct) =>
+        app.MapGet(Routes.ImageFrames, async (string id, IImageFrameRepository frames, CancellationToken ct) =>
         {
             var list = await frames.GetFramesAsync(id, ct);
             if (list.Count == 0) return Results.NotFound(new { error = "no lossless frames for this id" });
@@ -984,10 +1132,10 @@ public static class ForgeApi
                     await es.WriteAsync(list[i], ct);
                 }
             ms.Position = 0;
-            return Results.File(ms, "application/zip");
+            return Results.File(ms, ContentTypes.ApplicationZip);
         });
 
-        app.MapPost("/media", async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct) =>
+        app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct) =>
         {
             // ids arrive in the request BODY, not the query string (see MediaTypesRequest): the caller asks about
             // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
@@ -1016,8 +1164,8 @@ public static class ForgeApi
             // browser paints its own first frame; a webp keeps the cheap /image/{id}?still=true poster. "image" = still.
             static string Kind(string? c) =>
                 c is null ? "image"
-                : c.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ? "mp4"
-                : string.Equals(c, "image/webp", StringComparison.OrdinalIgnoreCase) ? "webp"
+                : c.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase) ? "mp4"
+                : string.Equals(c, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) ? "webp"
                 : "image";
             var map = list.ToDictionary(id => id, id => Kind(types.TryGetValue(id, out var c) ? c : null), StringComparer.Ordinal);
             return Results.Ok(map);
@@ -1045,7 +1193,7 @@ public static class ForgeApi
     {
         // Forward the backend's own progress WebSocket, filtered to this user's jobs and translated (backend prompt_id
         // → our jobId). The SPA connects here for live progress.
-        app.Map("/ws", async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
+        app.Map(Routes.Ws, async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
             ILogger<IComfyClient> log) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
@@ -1061,7 +1209,7 @@ public static class ForgeApi
                 // exactly like an idle one, and the page would never show progress again.
                 log.LogWarning(ex, "Could not open the ComfyUI progress socket; closing this client's /ws.");
                 await downstream.CloseAsync(WebSocketCloseStatus.EndpointUnavailable,
-                    "progress backend unavailable", CancellationToken.None);
+                    CloseReasons.ProgressBackendUnavailable, CancellationToken.None);
                 return;
             }
             using (upstream)
@@ -1089,7 +1237,7 @@ public static class ForgeApi
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     if (to.State == WebSocketState.Open)
-                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, "", ct);
+                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
                     return;
                 }
                 if (to.State == WebSocketState.Open)
@@ -1113,7 +1261,7 @@ public static class ForgeApi
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     if (to.State == WebSocketState.Open)
-                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, "", ct);
+                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
                     return;
                 }
                 if (to.State != WebSocketState.Open) continue;
@@ -1154,8 +1302,8 @@ public static class ForgeApi
 
         using (doc)
         {
-            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object
-                || !data.TryGetProperty("prompt_id", out var pid) || pid.ValueKind != JsonValueKind.String)
+            if (!doc.RootElement.TryGetProperty(JsonFields.Data, out var data) || data.ValueKind != JsonValueKind.Object
+                || !data.TryGetProperty(JsonFields.PromptId, out var pid) || pid.ValueKind != JsonValueKind.String)
                 return new WsFrameDecision(true, text, null);        // no prompt_id — a general backend status frame
 
             var comfyId = pid.GetString() ?? throw new JsonException("prompt_id is present but not a string value.");

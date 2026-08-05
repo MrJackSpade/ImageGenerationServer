@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace ImageGen.Infrastructure.Repositories;
 
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : IArtistDisplayRepository
 {
     private const string Columns = "Id, UserId, ArtistName, GatewayImageId, SetAtUtc";

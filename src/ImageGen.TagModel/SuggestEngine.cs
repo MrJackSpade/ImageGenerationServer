@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.TagModel;
 
 /// <summary>
@@ -38,6 +40,7 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     /// <param name="fragment">What the user is typing; matched as a case-insensitive substring. May be empty.</param>
     /// <param name="limit">Maximum results. Honoured on every path.</param>
     /// <param name="mode">Ranking mode.</param>
+    [AllowMagicStrings("exception message")]
     public SuggestResult Query(
         IReadOnlyCollection<string> contextTags, string fragment, int limit, Mode mode = Mode.Likely)
     {

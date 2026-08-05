@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
@@ -10,6 +11,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// registered as a singleton — the singleton JobQueue resolves it from the root provider to log each successful
 /// render's duration and to compute the per-machine ETA when a job starts.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class GenTimingRepository(IDbConnectionFactory connectionFactory, ISqlDialect dialect) : IGenTimingRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

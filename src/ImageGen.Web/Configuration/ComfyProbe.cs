@@ -17,14 +17,20 @@ public sealed class ComfyProbe(IHttpClientFactory httpFactory)
     /// <summary>The address a ComfyUI on this machine almost always uses — the setup page's starting suggestion.</summary>
     public const string LikelyLocal = "http://localhost:8188";
 
+    /// <summary>Reported when no address was supplied to probe.</summary>
+    private const string NoAddressGiven = "no address given";
+
+    /// <summary>Reported when the supplied address is not a well-formed URL.</summary>
+    private const string InvalidAddress = "that is not a valid address";
+
     private readonly IHttpClientFactory _httpFactory = httpFactory;
 
     public async Task<ProbeResult> TryAsync(string? url, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(url)) return new ProbeResult(false, "no address given");
+        if (string.IsNullOrWhiteSpace(url)) return new ProbeResult(false, NoAddressGiven);
         var address = url.Trim().TrimEnd('/');
         if (!Uri.TryCreate(address + "/system_stats", UriKind.Absolute, out var probe))
-            return new ProbeResult(false, "that is not a valid address");
+            return new ProbeResult(false, InvalidAddress);
 
         // No timeout is set here: a number invented in this method is a number nobody chose. An unreachable host
         // fails on the handler's own terms, and a refused connection — the common case for "it isn't running" —

@@ -26,50 +26,62 @@ public abstract class EditWorkflowBase : IWorkflow
     /// <summary>Each edit model implements its own self-contained graph.</summary>
     public abstract Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs);
 
+    /// <summary>The node ids of the shared edit head emitted by <see cref="LoadModel"/>, named by role. The VALUE is
+    /// the graph-local node key (preserved exactly, so the emitted graph and the id-asserting tests are byte-identical);
+    /// the NAME replaces the bare <c>"4"</c>/<c>"5"</c>/<c>"6"</c>/<c>"10"</c> literals. A subclass reuses these for the
+    /// head and declares <c>private const string</c>s for its own additional nodes.</summary>
+    protected static class Nodes
+    {
+        public const string Model = "4";
+        public const string Clip = "5";
+        public const string Vae = "6";
+        public const string Source = "10";
+    }
+
     protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
         // model fits a 24GB card alongside its text encoder instead of swapping against it.
-        new() { Key = "weight_dtype", Type = ParamType.String },
-        new() { Key = "clip_type", Type = ParamType.String },
-        new() { Key = "dual",      Type = ParamType.Bool },
-        new() { Key = "steps",     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
-        new() { Key = "cfg",       Type = ParamType.Double, Min = 1, Max = 30,  Label = "CFG scale" },
-        new() { Key = "guidance",  Type = ParamType.Double },
-        new() { Key = "sampler",   Type = ParamType.String },
-        new() { Key = "scheduler", Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.WeightDtype, Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
+        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = 1, Max = 30,  Label = "CFG scale" },
+        new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
+        new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
         // Video shapes (wan/animatediff/ltxv): frame-size budget, clip length (frames), playback fps. 0 = builder default.
-        new() { Key = "width",     Type = ParamType.Int },
-        new() { Key = "height",    Type = ParamType.Int },
-        new() { Key = "length",    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
-        new() { Key = "fps",       Type = ParamType.Double },
-        new() { Key = "motion_model", Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.Width,     Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.Height,    Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.Length,    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
+        new() { Key = WorkflowParamKeys.Fps,       Type = ParamType.Double },
+        new() { Key = WorkflowParamKeys.MotionModel, Type = ParamType.String, IsModelRef = true },
         // SD1.5 AnimateDiff's SparseCtrl-RGB adapter — a slot id resolved to a bound file, exactly like
         // motion_model. Without IsModelRef the raw slot id reaches ACN_SparseCtrlLoaderAdvanced and ComfyUI
         // rejects it (value_not_in_list), so animatediff-sd15 cannot render.
-        new() { Key = "sparsectrl_name", Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.SparsectrlName, Type = ParamType.String, IsModelRef = true },
         // The i2v vision encoder (CLIP-ViT-H for Wan/ChronoEdit, SigCLIP for HunyuanVideo 1.5). A slot id like every
         // other model reference, not a private const filename — a hardcoded filename would be one machine's disk
         // written into the application and unreachable from the models page.
-        new() { Key = "clip_vision", Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.ClipVision, Type = ParamType.String, IsModelRef = true },
         // SDXL AnimateDiff img2img: how far frames drift from the source. Low = stays put (little motion); high =
         // more motion but loses the source. Exposed for tuning the motion/fidelity tradeoff.
-        new() { Key = "denoise",   Type = ParamType.Double, Min = 0.1, Max = 1.0, Label = "Denoise (source ↔ motion)" },
+        new() { Key = WorkflowParamKeys.Denoise,   Type = ParamType.Double, Min = 0.1, Max = 1.0, Label = "Denoise (source ↔ motion)" },
         // AnimateDiff only (ADE_UseEvolvedSampling). The WRONG schedule is what turns these into color-smear/no-motion
         // garbage, so it's a per-module setting, not an artistic one — exposed for iterative testing, to be locked
         // down once dialed in. No schema default: each AnimateDiff workflow falls back to its module's correct value.
-        new() { Key = "beta_schedule", Type = ParamType.Enum, Label = "AnimateDiff schedule",
+        new() { Key = WorkflowParamKeys.BetaSchedule, Type = ParamType.Enum, Label = "AnimateDiff schedule",
                 Choices = new[] { "autoselect", "use existing", "sqrt_linear (AnimateDiff)", "linear (AnimateDiff-SDXL)",
                                   "linear (HotshotXL/default)", "avg(sqrt_linear,linear)", "lcm avg(sqrt_linear,linear)",
                                   "lcm", "lcm[100_ots]", "lcm >> sqrt_linear", "sqrt", "cosine", "squaredcos_cap_v2" } },
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
-        new() { Key = "reference_max",    Type = ParamType.Int },
-        new() { Key = "reference_inputs", Type = ParamType.String },   // ["image2","image3"]
+        new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
         // Optional style/quality LoRA applied on top of the base model — lets a config be a "base + anime LoRA"
         // variant (e.g. WAN i2v + Flat Color) with no new graph code.
-        new() { Key = "lora",          Type = ParamType.String, IsModelRef = true },
-        new() { Key = "lora_strength", Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
+        new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
     };
 
     /// <summary>Emit the common edit head: the model/CLIP/VAE loaders (from the loader param + resolved
@@ -82,26 +94,26 @@ public abstract class EditWorkflowBase : IWorkflow
         var loader = p.Loader();
         if (loader == LoaderKind.Checkpoint)                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
         {
-            wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = file });
-            model0 = ComfyGraph.Ref("4", 0); vae0 = ComfyGraph.Ref("4", 2);
+            wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = file });
+            model0 = ComfyGraph.Ref(Nodes.Model, 0); vae0 = ComfyGraph.Ref(Nodes.Model, 2);
 
             // A checkpoint's CLIP output is only usable when the checkpoint actually carries encoders. Several do
             // not — sd3.5_large ships without them — and taking output 1 regardless would hand CLIPTextEncode a null,
             // surfacing as "clip input is invalid: None" far from the real mistake. Declared encoders win.
             clip0 = req.TextEncoders.Count > 0
-                ? BuildClipLoader(wf, "5", req.TextEncoders, p.Str("clip_type"))
-                : ComfyGraph.Ref("4", 1);
+                ? BuildClipLoader(wf, Nodes.Clip, req.TextEncoders, p.Str(WorkflowParamKeys.ClipType))
+                : ComfyGraph.Ref(Nodes.Model, 1);
         }
         else                                                 // split loaders (unet/gguf + clip + vae)
         {
-            wf["4"] = p.Has("weight_dtype")
-                ? ComfyGraph.DiffusionLoader(file, p.StrReq("weight_dtype"))   // config's explicit precision override (e.g. flux1-fill fp8)
+            wf[Nodes.Model] = p.Has(WorkflowParamKeys.WeightDtype)
+                ? ComfyGraph.DiffusionLoader(file, p.StrReq(WorkflowParamKeys.WeightDtype))   // config's explicit precision override (e.g. flux1-fill fp8)
                 : ComfyGraph.DiffusionLoader(file);                            // no override → AutoWeightDtype
-            wf["6"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-            model0 = ComfyGraph.Ref("4", 0); vae0 = ComfyGraph.Ref("6", 0);
-            clip0 = BuildClipLoader(wf, "5", req.TextEncoders, p.Str("clip_type"));
+            wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+            model0 = ComfyGraph.Ref(Nodes.Model, 0); vae0 = ComfyGraph.Ref(Nodes.Vae, 0);
+            clip0 = BuildClipLoader(wf, Nodes.Clip, req.TextEncoders, p.Str(WorkflowParamKeys.ClipType));
         }
-        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") });
+        wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") });
     }
 
     /// <summary>
@@ -122,21 +134,21 @@ public abstract class EditWorkflowBase : IWorkflow
 
         wf[nodeId] = encoders.Count switch
         {
-            >= 4 => ComfyGraph.Node("QuadrupleCLIPLoader", new
+            >= 4 => ComfyGraph.Node(ComfyNodeTypes.QuadrupleCLIPLoader, new
             {
                 clip_name1 = At(0), clip_name2 = At(1), clip_name3 = At(2), clip_name4 = At(3),
             }),
-            3 => ComfyGraph.Node("TripleCLIPLoader", new
+            3 => ComfyGraph.Node(ComfyNodeTypes.TripleCLIPLoader, new
             {
                 clip_name1 = At(0), clip_name2 = At(1), clip_name3 = At(2),
             }),
-            2 => ComfyGraph.Node("DualCLIPLoader", new
+            2 => ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new
             {
                 clip_name1 = At(0), clip_name2 = At(1), type = clipType, device = "default",
             }),
-            _ => At(0).EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)
-                ? ComfyGraph.Node("CLIPLoaderGGUF", new { clip_name = At(0), type = clipType })
-                : ComfyGraph.Node("CLIPLoader", new { clip_name = At(0), type = clipType, device = "default" }),
+            _ => ComfyGraph.IsGguf(At(0))
+                ? ComfyGraph.Node(ComfyNodeTypes.CLIPLoaderGGUF, new { clip_name = At(0), type = clipType })
+                : ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = At(0), type = clipType, device = "default" }),
         };
         return ComfyGraph.Ref(nodeId, 0);
     }

@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 
@@ -7,6 +8,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// <see cref="IMachineSettingRepository"/> over <c>dbo.MachineSetting</c>. Stateless (a fresh connection per call),
 /// so it registers as a singleton alongside the other machine-scoped repositories.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class MachineSettingRepository(IDbConnectionFactory connectionFactory) : IMachineSettingRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

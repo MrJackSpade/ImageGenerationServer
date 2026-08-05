@@ -30,6 +30,25 @@ public static class LoraCompatibility
 
     private static readonly ConcurrentDictionary<string, FileDims> Cache = new();
 
+    /// <summary>Tensor-name substrings, file extensions, and safetensors header keys matched during dimension
+    /// derivation. Values are the exact tokens the formats use, kept verbatim.</summary>
+    private static class Names
+    {
+        public const string LoraTe = "lora_te";
+        public const string TextEncoder = "text_encoder";
+        public const string TextModel = "text_model";
+        public const string LoraDown = "lora_down";
+        public const string LoraADot = ".lora_a";
+        public const string LoraAWeight = "lora_a.weight";
+        public const string LoraUp = "lora_up";
+        public const string LoraBDot = ".lora_b";
+        public const string LoraBWeight = "lora_b.weight";
+        public const string GgufExtension = ".gguf";
+        public const string SafetensorsExtension = ".safetensors";
+        public const string MetadataKey = "__metadata__";
+        public const string ShapeKey = "shape";
+    }
+
     /// <summary>The result for one LoRA against a checkpoint.</summary>
     public readonly record struct Result(bool Compatible, bool ClipCapable);
 
@@ -87,16 +106,16 @@ public static class LoraCompatibility
 
             var lower = name.ToLowerInvariant();
             // kohya text-encoder LoRA keys: lora_te_, lora_te1_, lora_te2_; diffusers: text_encoder/text_model.
-            if (lower.Contains("lora_te") || lower.Contains("text_encoder") || lower.Contains("text_model"))
+            if (lower.Contains(Names.LoraTe) || lower.Contains(Names.TextEncoder) || lower.Contains(Names.TextModel))
                 clip = true;
 
             // A LoRA down/A matrix is [rank, in_features] → the input feature size is its LAST dim; an up/B matrix is
             // [out_features, rank] → the output feature size is its FIRST dim. Those are the sizes the base must have.
             if (dim.Length >= 2)
             {
-                if (lower.Contains("lora_down") || lower.Contains(".lora_a") || lower.EndsWith("lora_a.weight"))
+                if (lower.Contains(Names.LoraDown) || lower.Contains(Names.LoraADot) || lower.EndsWith(Names.LoraAWeight))
                     feature.Add(dim[^1]);
-                else if (lower.Contains("lora_up") || lower.Contains(".lora_b") || lower.EndsWith("lora_b.weight"))
+                else if (lower.Contains(Names.LoraUp) || lower.Contains(Names.LoraBDot) || lower.EndsWith(Names.LoraBWeight))
                     feature.Add(dim[0]);
             }
         }
@@ -109,9 +128,9 @@ public static class LoraCompatibility
     {
         try
         {
-            if (path.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase))
+            if (path.EndsWith(Names.GgufExtension, StringComparison.OrdinalIgnoreCase))
                 return ReadGguf(path);
-            if (path.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase))
+            if (path.EndsWith(Names.SafetensorsExtension, StringComparison.OrdinalIgnoreCase))
                 return ReadSafetensors(path);
             return null;   // .ckpt / .pt and friends aren't header-inspectable this cheaply — treated as "unknown"
         }
@@ -136,8 +155,8 @@ public static class LoraCompatibility
         var result = new Dictionary<string, long[]>();
         foreach (var prop in doc.RootElement.EnumerateObject())
         {
-            if (prop.Name == "__metadata__" || prop.Value.ValueKind != JsonValueKind.Object) continue;
-            if (!prop.Value.TryGetProperty("shape", out var shapeEl) || shapeEl.ValueKind != JsonValueKind.Array) continue;
+            if (prop.Name == Names.MetadataKey || prop.Value.ValueKind != JsonValueKind.Object) continue;
+            if (!prop.Value.TryGetProperty(Names.ShapeKey, out var shapeEl) || shapeEl.ValueKind != JsonValueKind.Array) continue;
             var dims = new long[shapeEl.GetArrayLength()];
             var i = 0;
             foreach (var d in shapeEl.EnumerateArray())

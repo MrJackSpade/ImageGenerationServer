@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.TagModel;
 
@@ -12,6 +13,30 @@ namespace ImageGen.TagModel;
 /// </summary>
 public sealed class TagModelBundle : IDisposable
 {
+    /// <summary>The exported ONNX graph's published filename.</summary>
+    private const string GraphFileName = "tag_s2srec2.onnx";
+
+    /// <summary>The decoder-row to vocab-id map's published filename.</summary>
+    private const string OutIdsFileName = "out_ids.bin";
+
+    /// <summary>The tag vocabulary's published filename.</summary>
+    private const string VocabFileName = "vocab_s2srec2.json";
+
+    /// <summary>The model weights sidecar's published filename.</summary>
+    private const string WeightsFileName = "tag_s2srec2.onnx.data";
+
+    /// <summary>The junk-ids list's published filename.</summary>
+    private const string JunkIdsFileName = "junk_ids.bin";
+
+    /// <summary>The display-calibration file's published filename.</summary>
+    private const string CalibrationFileName = "calibration.json";
+
+    /// <summary>Calibration key for the slope term.</summary>
+    private const string CalibrationAProperty = "a";
+
+    /// <summary>Calibration key for the intercept term.</summary>
+    private const string CalibrationBProperty = "b";
+
     private TagModelBundle(TagVocab vocab, S2SRec2Session session, DisplayCalibration? calibration, int[] junkIds)
     {
         Vocab = vocab;
@@ -47,15 +72,16 @@ public sealed class TagModelBundle : IDisposable
     /// <para>Every missing file is reported by name with what it is for. A tag model that half-loads is worse than one
     /// that refuses to: autocomplete degrading to nonsense is much harder to diagnose than a startup failure.</para>
     /// </summary>
+    [AllowMagicStrings("file-purpose descriptions in the missing-artifact exception message")]
     public static TagModelBundle Load(string directory)
     {
-        var onnx = Require(directory, "tag_s2srec2.onnx", "the model graph");
-        var outIds = Require(directory, "out_ids.bin", "the decoder-row to vocab-id map");
-        var vocabPath = Require(directory, "vocab_s2srec2.json", "the tag vocabulary");
+        var onnx = Require(directory, GraphFileName, "the model graph");
+        var outIds = Require(directory, OutIdsFileName, "the decoder-row to vocab-id map");
+        var vocabPath = Require(directory, VocabFileName, "the tag vocabulary");
 
         // The graph references its weights by relative name, so the ~870 MB sibling must be beside it. ORT reports a
         // confusing protobuf error if it is missing, so check for it here where the message can say what is wrong.
-        var weights = Path.Combine(directory, "tag_s2srec2.onnx.data");
+        var weights = Path.Combine(directory, WeightsFileName);
         if (!File.Exists(weights))
             throw new FileNotFoundException(
                 $"'tag_s2srec2.onnx.data' (the model weights, ~870 MB) is missing from '{directory}'. The graph "
@@ -69,7 +95,7 @@ public sealed class TagModelBundle : IDisposable
                 $"the model can emit {session.EmittableCount:N0} tags but the vocabulary holds {vocab.Count:N0}. "
                 + "These artifacts are from different builds.");
 
-        var junkPath = Path.Combine(directory, "junk_ids.bin");
+        var junkPath = Path.Combine(directory, JunkIdsFileName);
         var junkIds = File.Exists(junkPath) ? ReadInt32Array(junkPath) : [];
 
         return new TagModelBundle(vocab, session, LoadCalibration(directory), junkIds);
@@ -81,13 +107,13 @@ public sealed class TagModelBundle : IDisposable
     /// </summary>
     private static DisplayCalibration? LoadCalibration(string directory)
     {
-        var path = Path.Combine(directory, "calibration.json");
+        var path = Path.Combine(directory, CalibrationFileName);
         if (!File.Exists(path))
             return null;
 
         using var document = JsonDocument.Parse(File.ReadAllText(path));
         var root = document.RootElement;
-        if (!root.TryGetProperty("a", out var a) || !root.TryGetProperty("b", out var b))
+        if (!root.TryGetProperty(CalibrationAProperty, out var a) || !root.TryGetProperty(CalibrationBProperty, out var b))
             return null;
         return new DisplayCalibration(a.GetDouble(), b.GetDouble());
     }

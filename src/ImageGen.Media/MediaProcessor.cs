@@ -12,6 +12,12 @@ namespace ImageGen.Media;
 /// </summary>
 public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
 {
+    /// <summary>MIME type of the animated-webp thumbnail.</summary>
+    private const string WebpMimeType = "image/webp";
+
+    /// <summary>MIME type of the still JPEG thumbnail.</summary>
+    private const string JpegMimeType = "image/jpeg";
+
     /// <inheritdoc/>
     /// <remarks>Measured: silent declines &lt;= 0.039, smallest real edit (glasses) 0.047 — 0.043 splits them.</remarks>
     public double NoChangeThreshold => 0.043;
@@ -54,10 +60,10 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
         if (image.Frames.Count > 1)
         {
             image.Save(ms, new WebpEncoder { Quality = 80 });
-            return new MediaPayload(ms.ToArray(), "image/webp");
+            return new MediaPayload(ms.ToArray(), WebpMimeType);
         }
         image.Save(ms, new JpegEncoder { Quality = 80 });
-        return new MediaPayload(ms.ToArray(), "image/jpeg");
+        return new MediaPayload(ms.ToArray(), JpegMimeType);
     }
 
     /// <inheritdoc/>
@@ -70,6 +76,6 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
         using var ms = new MemoryStream();
         image.Save(ms, new JpegEncoder { Quality = 80 });
-        return new MediaPayload(ms.ToArray(), "image/jpeg");
+        return new MediaPayload(ms.ToArray(), JpegMimeType);
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using ImageGen.Domain.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ImageGen.TagModel;
@@ -19,6 +20,18 @@ public static class TagModelArtifacts
 {
     private const string PublishedAt = "https://huggingface.co/mrjackspade/s2srec2-booru-tags/resolve/main";
 
+    /// <summary>The manifest file's published name.</summary>
+    private const string ManifestFileName = "manifest.json";
+
+    /// <summary>Manifest key holding the per-artifact table.</summary>
+    private const string FilesProperty = "files";
+
+    /// <summary>Manifest key holding an artifact's checksum.</summary>
+    private const string Sha256Property = "sha256";
+
+    /// <summary>Manifest key holding an artifact's byte length.</summary>
+    private const string BytesProperty = "bytes";
+
     private sealed record ManifestEntry(long Bytes, string Sha256);
 
     /// <summary>
@@ -28,6 +41,7 @@ public static class TagModelArtifacts
     /// that runs with a tag box that silently does nothing, which is far harder to diagnose than a startup error
     /// naming the file and the reason.</para>
     /// </summary>
+    [AllowMagicStrings("log message templates")]
     public static async Task EnsureAsync(HttpClient http, ILogger logger, CancellationToken ct)
     {
         var directory = TagModelServiceCollectionExtensions.ArtifactsDirectory;
@@ -35,8 +49,8 @@ public static class TagModelArtifacts
 
         // The manifest carries the size and hash every other file is checked against, so it comes first — and it is
         // re-fetched every time, because it is small and it is what tells us whether the rest is current.
-        var manifestPath = Path.Combine(directory, "manifest.json");
-        await DownloadAsync(http, "manifest.json", manifestPath, logger, ct);
+        var manifestPath = Path.Combine(directory, ManifestFileName);
+        await DownloadAsync(http, ManifestFileName, manifestPath, logger, ct);
 
         var files = ReadManifest(manifestPath);
         var fetched = 0;
@@ -57,22 +71,23 @@ public static class TagModelArtifacts
     private static Dictionary<string, ManifestEntry> ReadManifest(string path)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(path));
-        if (!document.RootElement.TryGetProperty("files", out var files))
+        if (!document.RootElement.TryGetProperty(FilesProperty, out var files))
             throw new InvalidDataException($"'{path}' has no 'files' section; it is not a tag model manifest.");
 
         var result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
         foreach (var file in files.EnumerateObject())
         {
-            var sha256 = file.Value.GetProperty("sha256").GetString();
+            var sha256 = file.Value.GetProperty(Sha256Property).GetString();
             if (string.IsNullOrEmpty(sha256))
                 throw new InvalidDataException(
                     $"'{path}': manifest entry '{file.Name}' has no sha256. Every artifact must carry a checksum — "
                     + "an entry without one would download unverified.");
-            result[file.Name] = new ManifestEntry(file.Value.GetProperty("bytes").GetInt64(), sha256);
+            result[file.Name] = new ManifestEntry(file.Value.GetProperty(BytesProperty).GetInt64(), sha256);
         }
         return result;
     }
 
+    [AllowMagicStrings("log message template")]
     private static async Task DownloadAsync(
         HttpClient http, string name, string target, ILogger logger, CancellationToken ct, ManifestEntry? expected = null)
     {

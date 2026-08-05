@@ -63,6 +63,12 @@ public static class TypeMask
     /// </summary>
     public const int NoArtist = AllTypes & ~(1 << CategoryArtist);
 
+    /// <summary>Separator joining type names in an exception message.</summary>
+    private const string NameListSeparator = ", ";
+
+    /// <summary>Separator joining suppressed category names in the compact <see cref="Describe"/> output.</summary>
+    private const string CategorySeparator = ",";
+
     /// <summary>True when <paramref name="mask"/> permits category <paramref name="category"/>.</summary>
     public static bool Allows(int mask, int category) => ((mask >> category) & 1) != 0;
 
@@ -92,8 +98,8 @@ public static class TypeMask
         var unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length > 0)
             throw new ArgumentException(
-                $"unknown tag type(s) {string.Join(", ", unknown)}; the suppressible types are "
-                + string.Join(", ", suppressible.Keys.Order(StringComparer.Ordinal)),
+                $"unknown tag type(s) {string.Join(NameListSeparator, unknown)}; the suppressible types are "
+                + string.Join(NameListSeparator, suppressible.Keys.Order(StringComparer.Ordinal)),
                 nameof(allowedNames));
 
         var mask = AllTypes;
@@ -110,6 +116,6 @@ public static class TypeMask
             .Where(c => Names.ContainsKey(c) && !Allows(mask, c))
             .Select(c => Names[c])
             .ToArray();
-        return missing.Length == 0 ? "all" : "no:" + string.Join(",", missing);
+        return missing.Length == 0 ? "all" : "no:" + string.Join(CategorySeparator, missing);
     }
 }

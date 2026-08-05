@@ -139,7 +139,7 @@ public sealed partial class WorkflowCatalogService(
                     spec?.Help,
                     // `aspect` is its own shape — a map of aspect name to [width, height] — and the page draws it
                     // as three width/height pairs rather than asking anyone to type JSON.
-                    string.Equals(kv.Key, "aspect", StringComparison.OrdinalIgnoreCase)
+                    string.Equals(kv.Key, WorkflowParamKeys.Aspect, StringComparison.OrdinalIgnoreCase)
                         ? "aspect"
                         : (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
                     kv.Value.Min ?? spec?.Min,
@@ -158,7 +158,7 @@ public sealed partial class WorkflowCatalogService(
             settings.Add(new ConfigSetting(
                 TargetLoraFolderKey, "Default LoRA folder",
                 "The composer's LoRA picker opens to this subfolder for this workflow. Blank = a folder matching the workflow, else all LoRAs.",
-                "string", null, null, null, null,
+                StringType, null, null, null, null,
                 Shipped: null,
                 Override: overrides.TryGetValue(TargetLoraFolderKey, out var lf) ? (object?)lf : null));
 
@@ -259,6 +259,10 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>The per-machine setting key for a workflow's default LoRA folder (a plain string override, not a graph
     /// parameter — no workflow reads it; the composer's picker does).</summary>
     private const string TargetLoraFolderKey = "targetLoraFolder";
+
+    /// <summary>The lowercased CLR-type control token for a plain string setting (matches
+    /// <c>ParamType.String.ToString().ToLowerInvariant()</c>).</summary>
+    private const string StringType = "string";
 
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
     private static string? OverrideString(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)

@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -11,6 +12,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// ADO.NET storage for the per-user encrypted application log (<c>dbo.UserLog</c>). Payloads are stored verbatim
 /// (already ciphertext) on write and decrypted on read. Stateless (fresh connection per call) → registered singleton.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IUserLogRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

@@ -39,7 +39,7 @@ public sealed class BookmarksController(
         var userId = User.GetRequiredUserId();
         var page = await _history.GetPageAsync(new HistoryQuery(userId, 1, 200, Tag: tag), ct);
         var viewed = await _views.ViewedAsync(userId, page.Items, ct);
-        return View("Filter", new BookmarkFilterViewModel
+        return View(Views.Filter, new BookmarkFilterViewModel
         {
             Token = tag, Kind = "tag", Items = page.Items.Select(e => e.ToItemView(viewed)).ToList(),
         });
@@ -97,7 +97,7 @@ public sealed class BookmarksController(
             categoryNames.Add(c);
 
         var groups = new List<BookmarkGroup>();
-        var global = Build("Global", true, InGlobal);
+        var global = Build(GroupTitles.Global, true, InGlobal);
         if (HasContent(global))
             groups.Add(global);
         foreach (var name in categoryNames)
@@ -108,5 +108,19 @@ public sealed class BookmarksController(
         }
 
         return View(new BookmarksViewModel { Groups = groups });
+    }
+
+    /// <summary>View names this controller renders.</summary>
+    private static class Views
+    {
+        /// <summary>The filtered images view for a single starred tag.</summary>
+        public const string Filter = "Filter";
+    }
+
+    /// <summary>Display titles for the built-in bookmark groups.</summary>
+    private static class GroupTitles
+    {
+        /// <summary>The group holding bookmarks that belong to no category.</summary>
+        public const string Global = "Global";
     }
 }

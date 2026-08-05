@@ -1,4 +1,5 @@
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ namespace ImageGen.Infrastructure.Repositories;
 
 /// <summary>Per-user LoRA preferences (dbo.LoraUserSetting). LoraName is deterministically encrypted, like
 /// <see cref="LoraDisplayRepository"/>.</summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraUserSettingRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : ILoraUserSettingRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

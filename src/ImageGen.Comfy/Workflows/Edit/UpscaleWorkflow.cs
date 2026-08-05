@@ -44,18 +44,24 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> UpscaleSchema = new ParamSpec[]
     {
         // The on-disk filename in models/upscale_models. Locked per config — the choice of network IS the editor.
-        new() { Key = "upscale_model", Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.UpscaleModel, Type = ParamType.String, IsModelRef = true },
         // The network's own fixed output factor, from its model card. Locked per config; used only as the divisor
         // that turns the requested scale into a resample ratio. Wrong value = a silently mis-sized result.
-        new() { Key = "model_scale",   Type = ParamType.Double, Min = 1.0, Max = 8.0 },
+        new() { Key = WorkflowParamKeys.ModelScale,   Type = ParamType.Double, Min = 1.0, Max = 8.0 },
         // The factor the user actually wants, relative to the SOURCE. Each config narrows Max to its own
         // model_scale, so the slider never asks for more magnification than the network can produce.
-        new() { Key = "scale",         Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
+        new() { Key = WorkflowParamKeys.Scale,         Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
                 Label = "Scale (×)", Help = "Output size relative to the source. Above the model's native factor the result is stretched, not resolved." },
         // Resampler for the fit-to-scale step. lanczos keeps the SR pass's sharpness on the way down.
-        new() { Key = "resample",      Type = ParamType.Enum,
+        new() { Key = WorkflowParamKeys.Resample,      Type = ParamType.Enum,
                 Choices = new[] { "lanczos", "bicubic", "bilinear", "area", "nearest-exact" } },
     };
+
+    /// <summary>This workflow's own node ids (source LoadImage reuses the inherited <c>Nodes.Source</c>).</summary>
+    private const string UpscaleModel = "20";
+    private const string Upscale = "21";
+    private const string Resample = "22";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -63,36 +69,36 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
         // are reused, since the edit save path keys off the "forgemcp_edit" prefix.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.") }),
-            ["20"] = ComfyGraph.Node("UpscaleModelLoader", new { model_name = p.Model("upscale_model") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.") }),
+            [UpscaleModel] = ComfyGraph.Node(ComfyNodeTypes.UpscaleModelLoader, new { model_name = p.Model(WorkflowParamKeys.UpscaleModel) }),
         };
-        wf["21"] = ComfyGraph.Node("ImageUpscaleWithModel", new
+        wf[Upscale] = ComfyGraph.Node(ComfyNodeTypes.ImageUpscaleWithModel, new
         {
-            upscale_model = ComfyGraph.Ref("20", 0),
-            image = ComfyGraph.Ref("10", 0),
+            upscale_model = ComfyGraph.Ref(UpscaleModel, 0),
+            image = ComfyGraph.Ref(Nodes.Source, 0),
         });
-        object outImage = ComfyGraph.Ref("21", 0);
+        object outImage = ComfyGraph.Ref(Upscale, 0);
 
         // Fit the net's fixed-factor output to the requested scale. A model_scale of 0 (config typo) would divide by
         // zero, so fall back to "the net's output is already what was asked for" and emit no resample.
-        double modelScale = p.DblReq("model_scale");
-        double scale = p.DblReq("scale");
+        double modelScale = p.DblReq(WorkflowParamKeys.ModelScale);
+        double scale = p.DblReq(WorkflowParamKeys.Scale);
         if (modelScale > 0 && scale > 0)
         {
             double ratio = scale / modelScale;
             if (Math.Abs(ratio - 1.0) > 0.001)   // exactly native → the SR output IS the answer, no resample node
             {
-                wf["22"] = ComfyGraph.Node("ImageScaleBy", new
+                wf[Resample] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleBy, new
                 {
                     image = outImage,
-                    upscale_method = p.StrReq("resample"),
+                    upscale_method = p.StrReq(WorkflowParamKeys.Resample),
                     scale_by = ratio,
                 });
-                outImage = ComfyGraph.Ref("22", 0);
+                outImage = ComfyGraph.Ref(Resample, 0);
             }
         }
 
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = outImage, filename_prefix = "forgemcp_edit" });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = outImage, filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

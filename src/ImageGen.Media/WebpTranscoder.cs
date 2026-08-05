@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using Loxifi.FFmpeg.Transcoding;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -39,6 +40,7 @@ internal static class WebpTranscoder
     /// <summary>The first animation frame's duration, ms, from the webp's first ANMF chunk. Throws when the chunk is
     /// absent or carries a non-positive duration — inventing a frame rate would silently re-time the clip, the very
     /// failure the no-upper-clamp note in <see cref="WebpToMp4"/> exists to avoid.</summary>
+    [AllowMagicStrings("exception messages")]
     private static int ReadFrameDelayMs(ReadOnlySpan<byte> b)
     {
         var i = 12;

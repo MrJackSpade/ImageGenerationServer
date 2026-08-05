@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Web.Configuration;
 
 /// <summary>Where a key is kept. A key is in exactly one of these — never both.</summary>
@@ -44,8 +46,8 @@ public enum SettingKind { Text, Number, Bool }
 /// </param>
 public sealed record MachineSettingSpec(
     string Key,
-    string Label,
-    string Help,
+    [AllowMagicStrings("human-readable settings-page label")] string Label,
+    [AllowMagicStrings("human-readable settings-page help text")] string Help,
     SettingKind Kind,
     SettingStore Store,
     SettingApply Apply,
@@ -63,91 +65,145 @@ public static class MachineSettingSpecs
 {
     public const string ComfyBaseUrl = "ComfyUI:BaseUrl";
 
+    /// <summary>Queue token sent to ComfyUI's imagegen_gate node.</summary>
+    public const string ComfyGateToken = "ComfyUI:GateToken";
+
+    /// <summary>Filesystem directory ComfyUI is installed in, for the patches page.</summary>
+    public const string ComfyPath = "ComfyUI:Path";
+
+    /// <summary>Interpreter that runs ComfyUI, used to install a fetched node pack's requirements.</summary>
+    public const string ComfyPython = "ComfyUI:Python";
+
+    /// <summary>Directory the container entrypoint shares so the app can restart ComfyUI.</summary>
+    public const string ComfySupervisor = "ComfyUI:Supervisor";
+
+    /// <summary>Code new sign-ups must quote; blank means open registration.</summary>
+    public const string RegistrationCode = "Auth:RegistrationCode";
+
+    /// <summary>Free-physical-memory floor, in MB, below which submissions are refused.</summary>
+    public const string MinAvailableMemoryMB = "Uploads:MinAvailableMemoryMB";
+
+    /// <summary>Whether the box asks GitHub once per start whether a newer release exists.</summary>
+    public const string UpdatesEnabled = "Updates:Enabled";
+
+    /// <summary>Whether the box looks LoRAs up on CivitAI by file hash.</summary>
+    public const string CivitaiEnabled = "Civitai:Enabled";
+
+    /// <summary>Whether unhandled-exception responses carry the full stack trace.</summary>
+    public const string ExposeStackTraces = "Diagnostics:ExposeStackTraces";
+
+    /// <summary>Whether X-Forwarded-* is honoured from any caller.</summary>
+    public const string TrustAllProxies = "Security:TrustAllProxies";
+
+    /// <summary>Whether the stale-PendingJob reconciler runs.</summary>
+    public const string ReconcilerEnabled = "Reconciler:Enabled";
+
+    /// <summary>Rolling-by-day log file path; blank turns the file sink off.</summary>
+    public const string LogFilePath = "Logging:FilePath";
+
+    /// <summary>Default minimum log level.</summary>
+    public const string LogLevelDefault = "Logging:LogLevel:Default";
+
+    /// <summary>The ImageGen database connection string.</summary>
+    public const string ConnectionString = "ConnectionStrings:ImageGen";
+
+    /// <summary>Which database engine to use: Sqlite or SqlServer.</summary>
+    public const string DatabaseProvider = "Database:Provider";
+
+    /// <summary>The address(es) Kestrel binds.</summary>
+    public const string Urls = "Urls";
+
+    /// <summary>Maximum request body size, in bytes.</summary>
+    public const string MaxRequestBodySize = "Kestrel:Limits:MaxRequestBodySize";
+
+    /// <summary>The value a <see cref="SettingKind.Bool"/> setting's <see cref="MachineSettingSpec.Default"/> uses to mean on.</summary>
+    private const string BoolTrue = "true";
+
     public static readonly IReadOnlyList<MachineSettingSpec> All =
     [
         new(ComfyBaseUrl, "Renderer address",
             "Where ComfyUI is listening, e.g. http://localhost:8188. It must be started with --enable-cors-header.",
             SettingKind.Text, SettingStore.Database, SettingApply.Live, Required: true),
 
-        new("ComfyUI:GateToken", "Renderer queue token",
+        new(ComfyGateToken, "Renderer queue token",
             "Sent as X-ImageGen-Token so ComfyUI's imagegen_gate node accepts the request. A queue guard, not a "
             + "secret: it exists so this app's fair queue is the only thing that can enqueue work on the shared GPU. "
             + "Must match the node, which reads IMAGEGEN_GATE_TOKEN.",
             SettingKind.Text, SettingStore.Database, SettingApply.Live),
 
-        new("ComfyUI:Path", "Renderer folder",
+        new(ComfyPath, "Renderer folder",
             "Where ComfyUI is INSTALLED, as opposed to where it is listening. Only the patches page uses it, and "
             + "only this box's own copy can be patched — leave it empty if the renderer is on another machine.",
             SettingKind.Text, SettingStore.Database, SettingApply.Live),
 
-        new("ComfyUI:Python", "Renderer Python",
+        new(ComfyPython, "Renderer Python",
             "The interpreter that runs that ComfyUI, e.g. its venv's python. Used solely to install the "
             + "requirements of a node pack a patch has just fetched; without it the packages are named and left "
             + "to you, because installing them into the wrong environment fails silently until a node won't import.",
             SettingKind.Text, SettingStore.Database, SettingApply.Live),
 
-        new("Auth:RegistrationCode", "Registration code",
+        new(RegistrationCode, "Registration code",
             "New sign-ups must quote this. Blank means anyone who can reach the app can create an account.",
             SettingKind.Text, SettingStore.Database, SettingApply.Live),
 
-        new("Uploads:MinAvailableMemoryMB", "Free-memory floor (MB)",
+        new(MinAvailableMemoryMB, "Free-memory floor (MB)",
             "Below this much free physical memory the box refuses new submissions with a 503. Uploaded render "
             + "inputs stay resident until their job runs and are never evicted, so admission control is the only "
             + "point at which saying no costs the caller nothing.",
             SettingKind.Number, SettingStore.Database, SettingApply.Live),
 
-        new("Updates:Enabled", "Check for updates",
+        new(UpdatesEnabled, "Check for updates",
             "Asks github.com once per start whether a newer release exists, and shows a banner if so. Turn it "
             + "off to stop this box contacting GitHub at all. A build with no version — anything not from a "
             + "release archive — never checks and never shows the banner.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: "true"),
+            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: BoolTrue),
 
-        new("Civitai:Enabled", "CivitAI lookups",
+        new(CivitaiEnabled, "CivitAI lookups",
             "Looks a LoRA up on civitai.com by its file hash — once per file — to fill in its trigger words and a "
             + "preview image on the LoRAs page. Turn it off to stop this box contacting CivitAI at all; trigger "
             + "words then stay whatever you type on the LoRAs page.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Live, Default: "true"),
+            SettingKind.Bool, SettingStore.Database, SettingApply.Live, Default: BoolTrue),
 
-        new("Diagnostics:ExposeStackTraces", "Expose stack traces",
+        new(ExposeStackTraces, "Expose stack traces",
             "Puts the full exception in the 500 JSON body, which is what makes a failure readable in the UI. Turn "
             + "off where untrusted people can reach the app: the body keeps its shape and carries the message "
             + "instead. The full trace goes to the log file either way.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Live, Default: "true"),
+            SettingKind.Bool, SettingStore.Database, SettingApply.Live, Default: BoolTrue),
 
-        new("Security:TrustAllProxies", "Trust all proxies",
+        new(TrustAllProxies, "Trust all proxies",
             "Honour X-Forwarded-* from any caller — correct behind your own reverse proxy. Turn off where the app "
             + "is reachable directly, since these headers are otherwise spoofable.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: "true"),
+            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: BoolTrue),
 
-        new("Reconciler:Enabled", "Run the reconciler",
+        new(ReconcilerEnabled, "Run the reconciler",
             "Reaps stale PendingJob rows. Registered as a hosted service at startup.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: "true"),
+            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: BoolTrue),
 
-        new("Logging:FilePath", "Log file",
+        new(LogFilePath, "Log file",
             "A rolling-by-day log file, resolved against the content root when relative. Blank turns the file sink "
             + "off. Nothing prunes it — removing old files is an operator decision, not a cap this app invents.",
             SettingKind.Text, SettingStore.Database, SettingApply.Restart),
 
-        new("Logging:LogLevel:Default", "Log level",
+        new(LogLevelDefault, "Log level",
             "Trace, Debug, Information, Warning, Error or Critical.",
             SettingKind.Text, SettingStore.Database, SettingApply.Restart),
 
-        new("ConnectionStrings:ImageGen", "Database connection string",
+        new(ConnectionString, "Database connection string",
             "How this app reaches its database. Kept in the appsettings file because it is what opens the store "
             + "every other setting lives in.",
             SettingKind.Text, SettingStore.File, SettingApply.Restart),
 
-        new("Database:Provider", "Database engine",
+        new(DatabaseProvider, "Database engine",
             "Sqlite or SqlServer. SQLite needs no server and creates its own schema; SQL Server expects schema.sql "
             + "to be applied out-of-band, because the app's login holds no DDL rights.",
             SettingKind.Text, SettingStore.File, SettingApply.Restart),
 
-        new("Urls", "Listen on",
+        new(Urls, "Listen on",
             "The address Kestrel binds, e.g. http://0.0.0.0:8080. In the file because the listener is bound before "
             + "the app can read anything out of the database.",
             SettingKind.Text, SettingStore.File, SettingApply.Restart),
 
-        new("Kestrel:Limits:MaxRequestBodySize", "Max upload size (bytes)",
+        new(MaxRequestBodySize, "Max upload size (bytes)",
             "Editor uploads are the raw file as selected — phone photos and video — so the ~28.6MB default rejects "
             + "them. Keep in step with client_max_body_size in the nginx config. In the file for the same reason as "
             + "the listen address.",

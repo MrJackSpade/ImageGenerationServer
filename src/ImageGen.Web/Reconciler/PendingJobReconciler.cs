@@ -21,6 +21,12 @@ public sealed class PendingJobReconciler(
     IConfiguration config,
     ILogger<PendingJobReconciler> logger) : BackgroundService
 {
+    /// <summary>Configuration key for the reconciler's poll interval in seconds.</summary>
+    private const string PollSecondsKey = "Reconciler:PollSeconds";
+
+    /// <summary>Configuration key for the reconciler's maximum pending-row age in hours.</summary>
+    private const string MaxAgeHoursKey = "Reconciler:MaxAgeHours";
+
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IConfiguration _config = config;
     private readonly ILogger<PendingJobReconciler> _logger = logger;
@@ -28,8 +34,8 @@ public sealed class PendingJobReconciler(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var pollSeconds = Math.Clamp(_config.GetValue("Reconciler:PollSeconds", 15), 3, 600);
-        var maxAge = TimeSpan.FromHours(Math.Clamp(_config.GetValue("Reconciler:MaxAgeHours", 3.0), 0.1, 24.0));
+        var pollSeconds = Math.Clamp(_config.GetValue(PollSecondsKey, 15), 3, 600);
+        var maxAge = TimeSpan.FromHours(Math.Clamp(_config.GetValue(MaxAgeHoursKey, 3.0), 0.1, 24.0));
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));

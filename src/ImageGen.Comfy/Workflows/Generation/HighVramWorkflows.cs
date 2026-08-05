@@ -8,18 +8,25 @@ namespace ImageGen.Comfy;
 /// </summary>
 file static class HighVram
 {
+    /// <summary>The loader block's node ids, named by role (values preserved: 4=model, 21=vae).</summary>
+    private static class Nodes
+    {
+        public const string Model = "4";
+        public const string Vae = "21";
+    }
+
     /// <summary>The model loader block (UNETLoader / UnetLoaderGGUF / CheckpointLoaderSimple), returning model+vae refs.</summary>
     public static (object model, object vae) LoadDiffusion(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req)
     {
         var loader = p.Loader();
         if (loader == LoaderKind.Checkpoint)
         {
-            wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
-            return (ComfyGraph.Ref("4", 0), ComfyGraph.Ref("4", 2));   // model, (clip unused), vae
+            wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
+            return (ComfyGraph.Ref(Nodes.Model, 0), ComfyGraph.Ref(Nodes.Model, 2));   // model, (clip unused), vae
         }
-        wf["4"] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
-        return (ComfyGraph.Ref("4", 0), ComfyGraph.Ref("21", 0));
+        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        return (ComfyGraph.Ref(Nodes.Model, 0), ComfyGraph.Ref(Nodes.Vae, 0));
     }
 }
 
@@ -35,36 +42,36 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflowBase
     {
         var wf = new Dictionary<string, object>();
         var (model0, vae0) = HighVram.LoadDiffusion(wf, p, req);
-        wf["20"] = ComfyGraph.Node("QuadrupleCLIPLoader", new
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.QuadrupleCLIPLoader, new
         {
             clip_name1 = req.TextEncoder(0),
             clip_name2 = req.TextEncoder(1),
             clip_name3 = req.TextEncoder(2),
             clip_name4 = req.TextEncoder(3),
         });
-        object clipSrc = ComfyGraph.Ref("20", 0);
-        wf["11"] = ComfyGraph.Node("ModelSamplingSD3", new { model = model0, shift = p.DblReq("shift") });
-        object modelSrc = ComfyGraph.Ref("11", 0);
+        object clipSrc = ComfyGraph.Ref(Nodes.Clip, 0);
+        wf[Nodes.ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
+        object modelSrc = ComfyGraph.Ref(Nodes.ModelSampling, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clipSrc });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = clipSrc });
-        wf["5"] = ComfyGraph.Node("EmptySD3LatentImage", new { width = w, height = h, batch_size = 1 });
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
+        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = modelSrc,
-            positive = ComfyGraph.Ref("6", 0),
-            negative = ComfyGraph.Ref("7", 0),
-            latent_image = ComfyGraph.Ref("5", 0),
+            positive = ComfyGraph.Ref(Nodes.Positive, 0),
+            negative = ComfyGraph.Ref(Nodes.Negative, 0),
+            latent_image = ComfyGraph.Ref(Nodes.Latent, 0),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp" });
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae = vae0 });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
         return wf;
     }
 }
@@ -81,35 +88,35 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflowBase
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
-        wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
-        object model0 = ComfyGraph.Ref("4", 0), vae0 = ComfyGraph.Ref("4", 2);
-        wf["20"] = ComfyGraph.Node("TripleCLIPLoader", new
+        wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
+        object model0 = ComfyGraph.Ref(Nodes.Model, 0), vae0 = ComfyGraph.Ref(Nodes.Model, 2);
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.TripleCLIPLoader, new
         {
             clip_name1 = req.TextEncoder(0),
             clip_name2 = req.TextEncoder(1),
             clip_name3 = req.TextEncoder(2),
         });
-        object clipSrc = ComfyGraph.Ref("20", 0);
+        object clipSrc = ComfyGraph.Ref(Nodes.Clip, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clipSrc });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = clipSrc });
-        wf["5"] = ComfyGraph.Node("EmptySD3LatentImage", new { width = w, height = h, batch_size = 1 });
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
+        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = model0,
-            positive = ComfyGraph.Ref("6", 0),
-            negative = ComfyGraph.Ref("7", 0),
-            latent_image = ComfyGraph.Ref("5", 0),
+            positive = ComfyGraph.Ref(Nodes.Positive, 0),
+            negative = ComfyGraph.Ref(Nodes.Negative, 0),
+            latent_image = ComfyGraph.Ref(Nodes.Latent, 0),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp" });
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae = vae0 });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
         return wf;
     }
 }
@@ -122,39 +129,42 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflowBase
 {
     public override string Name => "chroma";
 
+    /// <summary>Chroma's only extra node (reuses the inherited txt2img <c>Nodes.*</c>).</summary>
+    private const string T5TokenizerOptions = "22";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
         var (model0, vae0) = HighVram.LoadDiffusion(wf, p, req);
         var clipName = req.TextEncoder(0);
-        wf["20"] = clipName.EndsWith(".gguf", StringComparison.OrdinalIgnoreCase)
-            ? ComfyGraph.Node("CLIPLoaderGGUF", new { clip_name = clipName, type = "chroma" })
-            : ComfyGraph.Node("CLIPLoader", new { clip_name = clipName, type = "chroma", device = "default" });
+        wf[Nodes.Clip] = ComfyGraph.IsGguf(clipName)
+            ? ComfyGraph.Node(ComfyNodeTypes.CLIPLoaderGGUF, new { clip_name = clipName, type = "chroma" })
+            : ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = clipName, type = "chroma", device = "default" });
         // Chroma needs T5 min-padding disabled (the official graph inserts T5TokenizerOptions before the encodes).
-        wf["22"] = ComfyGraph.Node("T5TokenizerOptions", new { clip = ComfyGraph.Ref("20", 0), min_padding = 0, min_length = 0 });
-        object clipSrc = ComfyGraph.Ref("22", 0);
-        wf["11"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = p.DblReq("shift") });
-        object modelSrc = ComfyGraph.Ref("11", 0);
+        wf[T5TokenizerOptions] = ComfyGraph.Node(ComfyNodeTypes.T5TokenizerOptions, new { clip = ComfyGraph.Ref(Nodes.Clip, 0), min_padding = 0, min_length = 0 });
+        object clipSrc = ComfyGraph.Ref(T5TokenizerOptions, 0);
+        wf[Nodes.ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
+        object modelSrc = ComfyGraph.Ref(Nodes.ModelSampling, 0);
 
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clipSrc });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = clipSrc });
-        wf["5"] = ComfyGraph.Node("EmptySD3LatentImage", new { width = w, height = h, batch_size = 1 });
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
+        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = modelSrc,
-            positive = ComfyGraph.Ref("6", 0),
-            negative = ComfyGraph.Ref("7", 0),
-            latent_image = ComfyGraph.Ref("5", 0),
+            positive = ComfyGraph.Ref(Nodes.Positive, 0),
+            negative = ComfyGraph.Ref(Nodes.Negative, 0),
+            latent_image = ComfyGraph.Ref(Nodes.Latent, 0),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp" });
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae = vae0 });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
         return wf;
     }
 }

@@ -32,10 +32,10 @@ public abstract class QwenEditBase : EditWorkflowBase
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "mask_left_pct",   Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask left %",   Help = "Fence the model out of the left N% of the canvas" },
-        new() { Key = "mask_right_pct",  Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask right %",  Help = "Fence the model out of the right N% of the canvas" },
-        new() { Key = "mask_top_pct",    Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask top %",    Help = "Fence the model out of the top N% of the canvas" },
-        new() { Key = "mask_bottom_pct", Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask bottom %", Help = "Fence the model out of the bottom N% of the canvas" },
+        new() { Key = WorkflowParamKeys.MaskLeftPct,   Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask left %",   Help = "Fence the model out of the left N% of the canvas" },
+        new() { Key = WorkflowParamKeys.MaskRightPct,  Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask right %",  Help = "Fence the model out of the right N% of the canvas" },
+        new() { Key = WorkflowParamKeys.MaskTopPct,    Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask top %",    Help = "Fence the model out of the top N% of the canvas" },
+        new() { Key = WorkflowParamKeys.MaskBottomPct, Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask bottom %", Help = "Fence the model out of the bottom N% of the canvas" },
     }).ToArray();
 
     /// <summary>
@@ -54,7 +54,7 @@ public abstract class QwenEditBase : EditWorkflowBase
     private static (int X, int Y, int W, int H)? MaskGeom(int pctL, int pctR, int pctT, int pctB, int sw, int sh)
     {
         if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no mask
-        foreach (var (name, pct) in new[] { ("mask_left_pct", pctL), ("mask_right_pct", pctR), ("mask_top_pct", pctT), ("mask_bottom_pct", pctB) })
+        foreach (var (name, pct) in new[] { (WorkflowParamKeys.MaskLeftPct, pctL), (WorkflowParamKeys.MaskRightPct, pctR), (WorkflowParamKeys.MaskTopPct, pctT), (WorkflowParamKeys.MaskBottomPct, pctB) })
             if (pct < CanvasMaskConstants.MinSidePct || pct > CanvasMaskConstants.MaxSidePct)
                 throw new ArgumentOutOfRangeException(name, pct,
                     $"must be {CanvasMaskConstants.MinSidePct}–{CanvasMaskConstants.MaxSidePct}");
@@ -71,6 +71,38 @@ public abstract class QwenEditBase : EditWorkflowBase
         return (x, y, w, h);
     }
 
+    /// <summary>This base's own node ids (role-named), on top of the inherited edit head
+    /// (Nodes.Model/Clip/Vae/Source). The per-reference load/scale nodes stay computed ($"{40+i*2}"). Values
+    /// preserved exactly so the emitted graph stays byte-identical.</summary>
+    protected const string KontextScale = "11";
+    protected const string Encode = "13";
+    protected const string SourceEncode = "14";
+    protected const string RefLatent = "30";
+    protected const string MultiRefLatent = "70";
+    protected const string ZeroNegative = "26";
+    protected const string ModelSampling = "2";
+    protected const string CfgNorm = "7";
+    protected const string RectCanvas = "80";
+    protected const string RectEncode = "81";
+    protected const string Sampler = "3";
+    protected const string Decode = "8";
+    protected const string RectResize = "82";
+    protected const string PasteCanvas = "83";
+    protected const string Composite = "84";
+    protected const string OutputSize = "85";
+    protected const string OutputScale = "86";
+    protected const string Save = "9";
+
+    /// <summary>The TextEncodeQwenImageEditPlus node's fixed input-field names (the enc-dict keys). Values are the
+    /// ComfyUI input names, preserved exactly; the per-reference image slots come from the reference_inputs param.</summary>
+    private static class Inputs
+    {
+        public const string Clip = "clip";
+        public const string Image1 = "image1";
+        public const string Prompt = "prompt";
+        public const string Vae = "vae";
+    }
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
@@ -83,39 +115,39 @@ public abstract class QwenEditBase : EditWorkflowBase
         // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent
         // ourselves (VAE off the text-encode so it can't force-rescale) -> ref latent matches sample latent, no
         // per-turn resample -> no compounding blur over a multi-turn conversation.
-        wf["11"] = ComfyGraph.Node("FluxKontextImageScale", new { image = ComfyGraph.Ref("10", 0) });
-        var enc = new Dictionary<string, object> { ["clip"] = clip0, ["image1"] = ComfyGraph.Ref("11", 0), ["prompt"] = instruction };
-        var qInputs = p.StrArray("reference_inputs");
-        int qn = Math.Min(refNames.Count, Math.Min(p.Has("reference_max") ? p.IntReq("reference_max") : 0, qInputs.Length));
+        wf[KontextScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(Nodes.Source, 0) });
+        var enc = new Dictionary<string, object> { [Inputs.Clip] = clip0, [Inputs.Image1] = ComfyGraph.Ref(KontextScale, 0), [Inputs.Prompt] = instruction };
+        var qInputs = p.StrArray(WorkflowParamKeys.ReferenceInputs);
+        int qn = Math.Min(refNames.Count, Math.Min(p.Has(WorkflowParamKeys.ReferenceMax) ? p.IntReq(WorkflowParamKeys.ReferenceMax) : 0, qInputs.Length));
         for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
-            wf[load] = ComfyGraph.Node("LoadImage", new { image = refNames[i] });
-            wf[scale] = ComfyGraph.Node("FluxKontextImageScale", new { image = ComfyGraph.Ref(load, 0) });
+            wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
+            wf[scale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(load, 0) });
             enc[qInputs[i]] = ComfyGraph.Ref(scale, 0);
         }
-        wf["14"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("11", 0), vae = vae0 });
+        wf[SourceEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(KontextScale, 0), vae = vae0 });
         object cond;
         if (qn > 0)
         {
-            enc["vae"] = vae0;
-            wf["13"] = ComfyGraph.Node("TextEncodeQwenImageEditPlus", enc);
-            wf["70"] = ComfyGraph.Node("FluxKontextMultiReferenceLatentMethod", new { conditioning = ComfyGraph.Ref("13", 0), reference_latents_method = "index_timestep_zero" });
-            cond = ComfyGraph.Ref("70", 0);
+            enc[Inputs.Vae] = vae0;
+            wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeQwenImageEditPlus, enc);
+            wf[MultiRefLatent] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextMultiReferenceLatentMethod, new { conditioning = ComfyGraph.Ref(Encode, 0), reference_latents_method = "index_timestep_zero" });
+            cond = ComfyGraph.Ref(MultiRefLatent, 0);
         }
         else
         {
-            wf["13"] = ComfyGraph.Node("TextEncodeQwenImageEditPlus", enc);
-            wf["30"] = ComfyGraph.Node("ReferenceLatent", new { conditioning = ComfyGraph.Ref("13", 0), latent = ComfyGraph.Ref("14", 0) });
-            cond = ComfyGraph.Ref("30", 0);
+            wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeQwenImageEditPlus, enc);
+            wf[RefLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Encode, 0), latent = ComfyGraph.Ref(SourceEncode, 0) });
+            cond = ComfyGraph.Ref(RefLatent, 0);
         }
-        wf["26"] = ComfyGraph.Node("ConditioningZeroOut", new { conditioning = cond });
+        wf[ZeroNegative] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = cond });
         object ksModel = model0;
         if (!Aio)                                             // standard 2511 needs ModelSamplingAuraFlow + CFGNorm
         {
-            wf["2"] = ComfyGraph.Node("ModelSamplingAuraFlow", new { model = model0, shift = 3.1 });
-            wf["7"] = ComfyGraph.Node("CFGNorm", new { model = ComfyGraph.Ref("2", 0), strength = 1.0 });
-            ksModel = ComfyGraph.Ref("7", 0);
+            wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift = 3.1 });
+            wf[CfgNorm] = ComfyGraph.Node(ComfyNodeTypes.CFGNorm, new { model = ComfyGraph.Ref(ModelSampling, 0), strength = 1.0 });
+            ksModel = ComfyGraph.Ref(CfgNorm, 0);
         }
         // Optional canvas mask, implemented as a REFRAME (see Schema). Sample on a latent shaped like the drawing
         // rectangle instead of the full canvas, then paste the decoded result back onto a white canvas at the
@@ -124,50 +156,50 @@ public abstract class QwenEditBase : EditWorkflowBase
         // reference latent is still the full-frame latent — so identity and the character's true scale are preserved.
         int Pct(string k) => p.Has(k) ? p.IntReq(k) : 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
         var rect = inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-            ? MaskGeom(Pct("mask_left_pct"), Pct("mask_right_pct"), Pct("mask_top_pct"), Pct("mask_bottom_pct"),
+            ? MaskGeom(Pct(WorkflowParamKeys.MaskLeftPct), Pct(WorkflowParamKeys.MaskRightPct), Pct(WorkflowParamKeys.MaskTopPct), Pct(WorkflowParamKeys.MaskBottomPct),
                        inputs.SourceWidth, inputs.SourceHeight)
             : null;
 
-        object sampleLatent = ComfyGraph.Ref("14", 0);
+        object sampleLatent = ComfyGraph.Ref(SourceEncode, 0);
         if (rect is (int rx, int ry, int rw, int rh))
         {
             // Sample at the rectangle, aligned down to the VAE/patch stride; a blank white canvas is the starting
             // latent because denoise is 1.0, so only its SHAPE matters, not its content.
-            wf["80"] = ComfyGraph.Node("EmptyImage", new { width = AlignDown(rw), height = AlignDown(rh), batch_size = 1, color = CanvasMaskConstants.BlockedFillRgb });
-            wf["81"] = ComfyGraph.Node("VAEEncode", new { pixels = ComfyGraph.Ref("80", 0), vae = vae0 });
-            sampleLatent = ComfyGraph.Ref("81", 0);
+            wf[RectCanvas] = ComfyGraph.Node(ComfyNodeTypes.EmptyImage, new { width = AlignDown(rw), height = AlignDown(rh), batch_size = 1, color = CanvasMaskConstants.BlockedFillRgb });
+            wf[RectEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(RectCanvas, 0), vae = vae0 });
+            sampleLatent = ComfyGraph.Ref(RectEncode, 0);
         }
 
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed,
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = ksModel,
             positive = cond,
-            negative = ComfyGraph.Ref("26", 0),
+            negative = ComfyGraph.Ref(ZeroNegative, 0),
             latent_image = sampleLatent,
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
+        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
 
-        object output = ComfyGraph.Ref("8", 0);
+        object output = ComfyGraph.Ref(Decode, 0);
         if (rect is (int px, int py, int pw, int ph))
         {
             // Undo the stride rounding, paste onto a white canvas at the rectangle's offset (both in source pixels),
             // then match the unmasked path's output dimensions exactly — GetImageSize reads the Kontext bucket node 11
             // chose, so a masked and an unmasked pose of the same portrait land on identical canvases and keep a
             // consistent sprite scale. When the source is already a bucket size this final scale is an identity.
-            wf["82"] = ComfyGraph.Node("ImageScale", new { image = ComfyGraph.Ref("8", 0), upscale_method = "lanczos", width = pw, height = ph, crop = "disabled" });
-            wf["83"] = ComfyGraph.Node("EmptyImage", new { width = inputs.SourceWidth, height = inputs.SourceHeight, batch_size = 1, color = CanvasMaskConstants.BlockedFillRgb });
-            wf["84"] = ComfyGraph.Node("ImageCompositeMasked", new { destination = ComfyGraph.Ref("83", 0), source = ComfyGraph.Ref("82", 0), x = px, y = py, resize_source = false });
-            wf["85"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
-            wf["86"] = ComfyGraph.Node("ImageScale", new { image = ComfyGraph.Ref("84", 0), upscale_method = "lanczos", width = ComfyGraph.Ref("85", 0), height = ComfyGraph.Ref("85", 1), crop = "disabled" });
-            output = ComfyGraph.Ref("86", 0);
+            wf[RectResize] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image = ComfyGraph.Ref(Decode, 0), upscale_method = "lanczos", width = pw, height = ph, crop = "disabled" });
+            wf[PasteCanvas] = ComfyGraph.Node(ComfyNodeTypes.EmptyImage, new { width = inputs.SourceWidth, height = inputs.SourceHeight, batch_size = 1, color = CanvasMaskConstants.BlockedFillRgb });
+            wf[Composite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new { destination = ComfyGraph.Ref(PasteCanvas, 0), source = ComfyGraph.Ref(RectResize, 0), x = px, y = py, resize_source = false });
+            wf[OutputSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(KontextScale, 0) });
+            wf[OutputScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image = ComfyGraph.Ref(Composite, 0), upscale_method = "lanczos", width = ComfyGraph.Ref(OutputSize, 0), height = ComfyGraph.Ref(OutputSize, 1), crop = "disabled" });
+            output = ComfyGraph.Ref(OutputScale, 0);
         }
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = output, filename_prefix = "forgemcp_edit" });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = output, filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

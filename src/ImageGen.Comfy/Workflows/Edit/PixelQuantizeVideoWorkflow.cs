@@ -29,35 +29,48 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
     public bool RequiresModel => false;
     public IReadOnlyList<ParamSpec> Schema => QuantizeSchema;
 
+    /// <summary>Node ids named by role. Values preserved exactly.</summary>
+    private static class Nodes
+    {
+        public const string Source = "10";
+        public const string Frames = "11";
+        public const string Matte = "15";
+        public const string Quantize = "20";
+        public const string Save = "9";
+    }
+
+    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
+    private const string FpEngine = "fp";
+
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
         // Virtual resolution = the grid's longest edge (aspect from the frame); each frame keeps its input resolution.
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
         // A named (locked) palette is the same every frame → temporally consistent. 'adaptive' would re-derive a
         // palette per frame and flicker, so a locked palette is the default for video.
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
+        new() { Key = WorkflowParamKeys.Palette, Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "A locked (named) palette is temporally consistent — no frame-to-frame flicker" },
+        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method", Help = "median = crisp + straight edges; box = smoother" },
         // 0 (default) = keep the source clip's frame rate (wired from GetVideoComponents); >0 overrides it.
-        new() { Key = "fps", Type = ParamType.Double, Min = 0, Max = 60, Label = "Output FPS", Help = "0 = keep the source clip's frame rate" },
+        new() { Key = WorkflowParamKeys.Fps, Type = ParamType.Double, Min = 0, Max = 60, Label = "Output FPS", Help = "0 = keep the source clip's frame rate" },
         // Engine selector. 'median' = the original per-frame PixelQuantize (named/locked palette). 'fp' =
         // PixelQuantizeFP: L0 flatten + XDoG line-thicken + de-AA edge-collapse, then ONE global per-video
         // palette (DIN99d) so it's temporally consistent WITHOUT a named palette (the palette/final_method
         // params are ignored for 'fp'). The fp_* knobs below tune it.
-        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
-        new() { Key = "thicken", Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
-        new() { Key = "tau", Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
-        new() { Key = "lam", Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
-        new() { Key = "k", Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
-        new() { Key = "beta", Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
-        new() { Key = "step", Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
+        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + global palette" },
+        new() { Key = WorkflowParamKeys.Thicken, Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px", Help = "fp engine: XDoG outline thicken (sub-pixel ok)" },
+        new() { Key = WorkflowParamKeys.Tau, Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau", Help = "fp engine: edge-collapse plateau/transition threshold" },
+        new() { Key = WorkflowParamKeys.Lam, Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
+        new() { Key = WorkflowParamKeys.K, Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
+        new() { Key = WorkflowParamKeys.Beta, Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
+        new() { Key = WorkflowParamKeys.Step, Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
         // Key BEFORE pixelizing: matte every frame (BiRefNet) at FULL resolution and feed the RGBA batch straight into
         // the quantizer, which carries the alpha through to a transparent-background clip (saved lossless so it
         // survives). The matte runs INSIDE this graph — the RGBA stays an in-memory tensor, never round-tripping through
         // a webp decode that would drop the alpha. Off = the legacy opaque path.
-        new() { Key = "key_background", Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background clip (lossless)" },
-        new() { Key = "matte_threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
+        new() { Key = WorkflowParamKeys.KeyBackground, Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background clip (lossless)" },
+        new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -65,55 +78,55 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
         // Source clip → frames (+ its frame rate). No model head: the quantizer is pure CPU.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadVideo", new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") }),
-            ["11"] = ComfyGraph.Node("GetVideoComponents", new { video = ComfyGraph.Ref("10", 0) }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") }),
+            [Nodes.Frames] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
         };
-        int gw = p.IntReq("grid_w");
-        int gh = p.IntReq("grid_h");
+        int gw = p.IntReq(WorkflowParamKeys.GridW);
+        int gh = p.IntReq(WorkflowParamKeys.GridH);
         // key_background: matte every frame first, feeding RGBA (subject + alpha) into the quantizer. The BiRefNetMatte
         // node sits between the decoded frames and the quantizer so the alpha stays a tensor (no lossy round-trip).
-        bool key = p.Bool("key_background");
-        object frames = ComfyGraph.Ref("11", 0);
+        bool key = p.Bool(WorkflowParamKeys.KeyBackground);
+        object frames = ComfyGraph.Ref(Nodes.Frames, 0);
         if (key)
         {
-            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("11", 0), threshold = p.DblReq("matte_threshold") });
-            frames = ComfyGraph.Ref("15", 0);
+            wf[Nodes.Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Frames, 0), threshold = p.DblReq(WorkflowParamKeys.MatteThreshold) });
+            frames = ComfyGraph.Ref(Nodes.Matte, 0);
         }
         // Both engines process the whole (N,H,W,C) frame batch and return N quantized frames at the same resolution.
-        if (p.StrReq("engine") == "fp")
+        if (p.StrReq(WorkflowParamKeys.Engine) == FpEngine)
         {
             // Feature-preserving: derives ONE global palette across all frames, so 'palette'/'final_method' are unused.
-            wf["20"] = ComfyGraph.Node("PixelQuantizeFP", new
+            wf[Nodes.Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantizeFP, new
             {
                 image = frames,
                 grid_w = gw,
                 grid_h = gh,
-                virtual_resolution = p.IntReq("virtual_resolution"),
-                thicken = p.DblReq("thicken"),
-                tau = p.DblReq("tau"),
-                lam = p.DblReq("lam"),
-                k = p.IntReq("k"),
-                beta = p.DblReq("beta"),
-                step = p.DblReq("step"),
+                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
+                thicken = p.DblReq(WorkflowParamKeys.Thicken),
+                tau = p.DblReq(WorkflowParamKeys.Tau),
+                lam = p.DblReq(WorkflowParamKeys.Lam),
+                k = p.IntReq(WorkflowParamKeys.K),
+                beta = p.DblReq(WorkflowParamKeys.Beta),
+                step = p.DblReq(WorkflowParamKeys.Step),
             });
         }
         else
         {
-            wf["20"] = ComfyGraph.Node("PixelQuantize", new
+            wf[Nodes.Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
             {
                 image = frames,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.StrReq("palette"),
-                method = p.StrReq("final_method"),
-                virtual_resolution = p.IntReq("virtual_resolution"),
+                palette = p.StrReq(WorkflowParamKeys.Palette),
+                method = p.StrReq(WorkflowParamKeys.FinalMethod),
+                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
             });
         }
         // Keep the source clip's frame rate by default (GetVideoComponents output 2); an explicit fps>0 overrides it.
         // Keyed output must be LOSSLESS so the alpha channel survives the webp encode (as the matte/deflicker passes do).
-        double fps = p.DblReq("fps");
-        object fpsArg = fps > 0 ? fps : ComfyGraph.Ref("11", 2);
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit", fps = fpsArg, lossless = key, quality = key ? 100 : 80, method = "default" });
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        object fpsArg = fps > 0 ? fps : ComfyGraph.Ref(Nodes.Frames, 2);
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Quantize, 0), filename_prefix = "forgemcp_edit", fps = fpsArg, lossless = key, quality = key ? 100 : 80, method = "default" });
         return wf;
     }
 }

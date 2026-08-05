@@ -53,10 +53,10 @@ public static class PromptFinalizer
 
         // 2) Render: strip the LEADING '#' of a segment always; the leading '@'
         //    unless kept; '_'->space per non-score_ segment when the model wants spaces.
-        var s = string.Join(",", raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
+        var s = string.Join(SegmentSeparator, raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
         if (tg.UnderscoresToSpaces)
-            s = string.Join(",", s.Split(',').Select(seg =>
-                seg.TrimStart().StartsWith("score_") ? seg : seg.Replace('_', ' ')));
+            s = string.Join(SegmentSeparator, s.Split(',').Select(seg =>
+                seg.TrimStart().StartsWith(ScorePrefix) ? seg : seg.Replace('_', ' ')));
         return new FinalizedPrompt(s, marks);
     }
 
@@ -134,6 +134,9 @@ public static class PromptFinalizer
         var p = (prompt ?? string.Empty).TrimEnd(Separators);
         return p.Length == 0 ? segment : p + ", " + segment;
     }
+
+    private const string SegmentSeparator = ",";
+    private const string ScorePrefix = "score_";
 
     private static readonly char[] Separators = [',', ' ', '\t', '\r', '\n'];
 }

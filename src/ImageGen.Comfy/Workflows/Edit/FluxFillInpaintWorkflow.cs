@@ -18,18 +18,20 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
     {
         // Grow pushes the whole soft band OUTWARD onto real pixels, so the painted region keeps a hard 1 and is
         // fully replaced. 16 ≈ 2σ places the band's midpoint just outside the painted edge.
-        new() { Key = "mask_grow", Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
+        new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
+
+    private const string Mask = "11";
 
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
         out object image, out object rawMask)
     {
-        image = ComfyGraph.Ref("10", 0);
+        image = ComfyGraph.Ref(Nodes.Source, 0);
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            wf["11"] = ComfyGraph.Node("LoadImageMask", new { image = inputs.MaskImageName, channel = "red" });
-            rawMask = ComfyGraph.Ref("11", 0);
+            wf[Mask] = ComfyGraph.Node(ComfyNodeTypes.LoadImageMask, new { image = inputs.MaskImageName, channel = "red" });
+            rawMask = ComfyGraph.Ref(Mask, 0);
         }
-        else rawMask = ComfyGraph.Ref("10", 1);   // source alpha
+        else rawMask = ComfyGraph.Ref(Nodes.Source, 1);   // source alpha
     }
 }

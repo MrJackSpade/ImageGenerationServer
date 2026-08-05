@@ -15,60 +15,76 @@ public sealed class ChronoEditWorkflow : EditWorkflowBase
     private const string Negative =
         "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走";
 
+    /// <summary>This subclass's own node ids (the shared head's Model/Clip/Vae/Source come from EditWorkflowBase.Nodes);
+    /// values are the graph-local keys, preserved exactly so the emitted graph stays byte-identical.</summary>
+    private const string ModelSampling = "20";
+    private const string ScaleRope = "21";
+    private const string ScaledSource = "11";
+    private const string SourceSize = "15";
+    private const string ClipVisionLoader = "30";
+    private const string ClipVisionEncode = "31";
+    private const string PositiveEncode = "13";
+    private const string NegativeEncode = "12";
+    private const string I2VConditioning = "14";
+    private const string Sampler = "3";
+    private const string Decode = "8";
+    private const string LastFrame = "16";
+    private const string Save = "9";
+
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
         LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
         model0 = ComfyGraph.ApplyLora(wf, model0, p);                                  // distilled LoRA (fast 20-step path)
         var seed = ComfyGraph.Seed(p);
-        int len = p.IntReq("length");                                                  // ChronoEdit's short trajectory
+        int len = p.IntReq(WorkflowParamKeys.Length);                                  // ChronoEdit's short trajectory
         double budgetMp = 0.52;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
 
         // Sampling fix-ups the template applies to the Wan model for ChronoEdit.
-        wf["20"] = ComfyGraph.Node("ModelSamplingSD3", new { model = model0, shift = 5.0 });
-        wf["21"] = ComfyGraph.Node("ScaleROPE", new { model = ComfyGraph.Ref("20", 0), scale_x = 1.0, shift_x = 0.0, scale_y = 1.0, shift_y = 0.0, scale_t = 1.0, shift_t = 0.0 });
-        var ksModel = ComfyGraph.Ref("21", 0);
+        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = 5.0 });
+        wf[ScaleRope] = ComfyGraph.Node(ComfyNodeTypes.ScaleROPE, new { model = ComfyGraph.Ref(ModelSampling, 0), scale_x = 1.0, shift_x = 0.0, scale_y = 1.0, shift_y = 0.0, scale_t = 1.0, shift_t = 0.0 });
+        var ksModel = ComfyGraph.Ref(ScaleRope, 0);
 
         // Source image, scaled to a ~0.5MP budget (preserves aspect; 720² ≈ 0.52MP), reused as both the i2v start
         // frame and the clip-vision input.
-        wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 32 });
-        wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
-        wf["30"] = ComfyGraph.Node("CLIPVisionLoader", new { clip_name = p.Model("clip_vision") });
-        wf["31"] = ComfyGraph.Node("CLIPVisionEncode", new { clip_vision = ComfyGraph.Ref("30", 0), image = ComfyGraph.Ref("11", 0), crop = "none" });
+        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 32 });
+        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
+        wf[ClipVisionLoader] = ComfyGraph.Node(ComfyNodeTypes.CLIPVisionLoader, new { clip_name = p.Model(WorkflowParamKeys.ClipVision) });
+        wf[ClipVisionEncode] = ComfyGraph.Node(ComfyNodeTypes.CLIPVisionEncode, new { clip_vision = ComfyGraph.Ref(ClipVisionLoader, 0), image = ComfyGraph.Ref(ScaledSource, 0), crop = "none" });
 
-        wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clip0 });
-        wf["12"] = ComfyGraph.Node("CLIPTextEncode", new { text = Negative, clip = clip0 });
+        wf[PositiveEncode] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
+        wf[NegativeEncode] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = Negative, clip = clip0 });
 
         // Wan2.1 i2v conditioning node: bakes the start image + clip-vision into pos/neg conditioning + the latent.
-        wf["14"] = ComfyGraph.Node("WanImageToVideo", new
+        wf[I2VConditioning] = ComfyGraph.Node(ComfyNodeTypes.WanImageToVideo, new
         {
-            positive = ComfyGraph.Ref("13", 0),
-            negative = ComfyGraph.Ref("12", 0),
+            positive = ComfyGraph.Ref(PositiveEncode, 0),
+            negative = ComfyGraph.Ref(NegativeEncode, 0),
             vae = vae0,
-            clip_vision_output = ComfyGraph.Ref("31", 0),
-            width = ComfyGraph.Ref("15", 0),
-            height = ComfyGraph.Ref("15", 1),
+            clip_vision_output = ComfyGraph.Ref(ClipVisionEncode, 0),
+            width = ComfyGraph.Ref(SourceSize, 0),
+            height = ComfyGraph.Ref(SourceSize, 1),
             length = len,
             batch_size = 1,
-            start_image = ComfyGraph.Ref("11", 0),
+            start_image = ComfyGraph.Ref(ScaledSource, 0),
         });
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed,
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = ksModel,
-            positive = ComfyGraph.Ref("14", 0),
-            negative = ComfyGraph.Ref("14", 1),
-            latent_image = ComfyGraph.Ref("14", 2),
+            positive = ComfyGraph.Ref(I2VConditioning, 0),
+            negative = ComfyGraph.Ref(I2VConditioning, 1),
+            latent_image = ComfyGraph.Ref(I2VConditioning, 2),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = vae0 });
+        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
         // Keep the LAST frame of the short trajectory as the edited still.
-        wf["16"] = ComfyGraph.Node("ImageFromBatch", new { image = ComfyGraph.Ref("8", 0), batch_index = Math.Max(0, len - 1), length = 1 });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("16", 0), filename_prefix = "forgemcp_edit" });
+        wf[LastFrame] = ComfyGraph.Node(ComfyNodeTypes.ImageFromBatch, new { image = ComfyGraph.Ref(Decode, 0), batch_index = Math.Max(0, len - 1), length = 1 });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(LastFrame, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

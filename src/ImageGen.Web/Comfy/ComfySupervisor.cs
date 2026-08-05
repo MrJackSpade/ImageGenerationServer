@@ -25,7 +25,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     /// The directory the container entrypoint shares with this process. Set by the image, never by a user: it
     /// describes how this deployment is run, which is not something to configure from inside it.
     /// </summary>
-    public const string DirectoryKey = "ComfyUI:Supervisor";
+    public const string DirectoryKey = Configuration.MachineSettingSpecs.ComfySupervisor;
 
     private const string PidFile = "comfy.pid";
     private const string RestartMarker = "comfy-restarting";

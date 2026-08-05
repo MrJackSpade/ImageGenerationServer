@@ -30,6 +30,12 @@ public sealed class PatchConflictException(string message) : Exception(message);
 /// </summary>
 public static class PatchApplier
 {
+    private const string ParentDirectory = "..";
+    private const string PyCache = "__pycache__";
+    private const string ListSeparator = ", ";
+    private const string Crlf = "\r\n";
+    private const string Lf = "\n";
+
     /// <summary>Could this patch be applied to <paramref name="root"/> right now, without writing anything?</summary>
     public static PatchProbe Probe(string root, IReadOnlyList<FileDiff> files, bool reverse)
     {
@@ -110,7 +116,7 @@ public static class PatchApplier
         var current = Path.GetFullPath(directory);
 
         while (current.Length > stop.Length && current.StartsWith(stop, StringComparison.OrdinalIgnoreCase) && RemoveIfSpent(current))
-            current = Path.GetFullPath(Path.Combine(current, ".."));
+            current = Path.GetFullPath(Path.Combine(current, ParentDirectory));
     }
 
     /// <summary>
@@ -124,7 +130,7 @@ public static class PatchApplier
         if (Directory.EnumerateFiles(directory).Any()) return false;
 
         var subdirectories = Directory.EnumerateDirectories(directory).ToList();
-        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), "__pycache__", StringComparison.Ordinal))) return false;
+        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PyCache, StringComparison.Ordinal))) return false;
 
         foreach (var cache in subdirectories) Directory.Delete(cache, recursive: true);
         Directory.Delete(directory);
@@ -226,7 +232,7 @@ public static class PatchApplier
             throw new PatchConflictException(
                 occupied.Count == 1
                     ? $"{occupied[0]} is already there and differs from what this patch installs."
-                    : $"{occupied.Count} files are already there and differ from what this patch installs: {string.Join(", ", occupied)}.");
+                    : $"{occupied.Count} files are already there and differ from what this patch installs: {string.Join(ListSeparator, occupied)}.");
 
         return new Outcome(writes, binaryWrites, deletes);
     }
@@ -236,7 +242,7 @@ public static class PatchApplier
         Join(Side(file.Hunks[0], reverse, wanted: false), EndsWithoutNewline(file, reverse, pre: false), useCrlf);
 
     /// <summary>Whether an existing file is a CRLF file, so rewriting it does not flip every line ending.</summary>
-    private static bool ReadCrlf(string path) => File.ReadAllText(path).Contains("\r\n", StringComparison.Ordinal);
+    private static bool ReadCrlf(string path) => File.ReadAllText(path).Contains(Crlf, StringComparison.Ordinal);
 
     /// <summary>The side of a hunk we expect to find (<paramref name="wanted"/>) or intend to leave behind.</summary>
     private static IReadOnlyList<string> Side(Hunk hunk, bool reverse, bool wanted) =>
@@ -320,7 +326,7 @@ public static class PatchApplier
     private static (List<string> Lines, bool Crlf) Read(string path)
     {
         var text = File.ReadAllText(path);
-        var crlf = text.Contains("\r\n", StringComparison.Ordinal);
+        var crlf = text.Contains(Crlf, StringComparison.Ordinal);
         var lines = UnifiedDiff.SplitLines(text).ToList();
 
         // A trailing newline splits to an empty final element that is not a line of the file.
@@ -330,7 +336,7 @@ public static class PatchApplier
 
     private static string Join(IReadOnlyList<string> lines, bool endsWithoutNewline, bool useCrlf)
     {
-        var newline = useCrlf ? "\r\n" : "\n";
+        var newline = useCrlf ? Crlf : Lf;
         var text = new StringBuilder();
         for (var i = 0; i < lines.Count; i++)
         {

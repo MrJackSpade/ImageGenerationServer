@@ -44,63 +44,69 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
     private static readonly IReadOnlyList<ParamSpec> SeedVr2Schema = new ParamSpec[]
     {
         // Weight files in models/SEEDVR2. Locked per config; the node pack fetches them on first use if absent.
-        new() { Key = "dit_model",  Type = ParamType.String, IsModelRef = true },
-        new() { Key = "vae_model",  Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.DitModel,  Type = ParamType.String, IsModelRef = true },
+        new() { Key = WorkflowParamKeys.VaeModel,  Type = ParamType.String, IsModelRef = true },
         // Sizing, expressed the same way as the feed-forward upscalers: a plain multiple of the SOURCE. The node
         // itself only understands a target short edge, so Build converts (short_edge * scale) -- see there.
-        new() { Key = "scale", Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
+        new() { Key = WorkflowParamKeys.Scale, Type = ParamType.Int, Min = 1, Max = 4, Step = 1,
                 Label = "Scale (×)", Help = "Output size relative to the source. The aspect ratio is preserved." },
         // The node's "no limit" sentinel. Locked: an upscaler must never silently shrink what it was asked for.
-        new() { Key = "max_resolution", Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.MaxResolution, Type = ParamType.Int },
         // Fallback short edge for the rare case the edit path supplies no source dimensions (the node's own default).
-        new() { Key = "fallback_short_edge", Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.FallbackShortEdge, Type = ParamType.Int },
         // How the output's colour is re-matched to the source. Diffusion restorers drift; 'lab' is the pack's default.
-        new() { Key = "color_correction", Type = ParamType.Enum,
+        new() { Key = WorkflowParamKeys.ColorCorrection, Type = ParamType.Enum,
                 Choices = new[] { "lab", "wavelet", "wavelet_adaptive", "hsv", "adain", "none" }, Label = "Colour match" },
         // Compute + memory placement. cuda:0 / cpu on this single-GPU box.
-        new() { Key = "device",         Type = ParamType.String },
-        new() { Key = "offload_device", Type = ParamType.String },
-        new() { Key = "attention_mode", Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.Device,         Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.OffloadDevice, Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.AttentionMode, Type = ParamType.String },
         // BlockSwap: how many of the 3B model's transformer blocks live on the offload device (max 32 for 3B).
-        new() { Key = "blocks_to_swap",     Type = ParamType.Int,  Min = 0, Max = 36 },
-        new() { Key = "swap_io_components", Type = ParamType.Bool },
-        new() { Key = "cache_model",        Type = ParamType.Bool },
+        new() { Key = WorkflowParamKeys.BlocksToSwap,     Type = ParamType.Int,  Min = 0, Max = 36 },
+        new() { Key = WorkflowParamKeys.SwapIoComponents, Type = ParamType.Bool },
+        new() { Key = WorkflowParamKeys.CacheModel,        Type = ParamType.Bool },
         // Tiled VAE — without it the encode/decode of a large frame spikes past the card on its own.
-        new() { Key = "vae_tiled",        Type = ParamType.Bool },
-        new() { Key = "vae_tile_size",    Type = ParamType.Int },
-        new() { Key = "vae_tile_overlap", Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.VaeTiled,        Type = ParamType.Bool },
+        new() { Key = WorkflowParamKeys.VaeTileSize,    Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.VaeTileOverlap, Type = ParamType.Int },
         // A still is a one-frame clip. 4n+1 => 1. Never raise this for an image editor.
-        new() { Key = "batch_size", Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.BatchSize, Type = ParamType.Int },
     };
+
+    /// <summary>SeedVR2's own loader/upscale node ids (source LoadImage reuses the inherited <c>Nodes.Source</c>).</summary>
+    private const string Dit = "30";
+    private const string Vae = "31";
+    private const string Upscale = "32";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        string device = p.StrReq("device");
-        string offload = p.StrReq("offload_device");
-        bool tiled = p.Bool("vae_tiled");
-        int tile = p.IntReq("vae_tile_size");
-        int overlap = p.IntReq("vae_tile_overlap");
+        string device = p.StrReq(WorkflowParamKeys.Device);
+        string offload = p.StrReq(WorkflowParamKeys.OffloadDevice);
+        bool tiled = p.Bool(WorkflowParamKeys.VaeTiled);
+        int tile = p.IntReq(WorkflowParamKeys.VaeTileSize);
+        int overlap = p.IntReq(WorkflowParamKeys.VaeTileOverlap);
 
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.") }),
 
             // The DiT, with BlockSwap parked on the offload device so the 3B weights don't have to sit in VRAM whole.
-            ["30"] = ComfyGraph.Node("SeedVR2LoadDiTModel", new
+            [Dit] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2LoadDiTModel, new
             {
-                model = p.Model("dit_model"),
+                model = p.Model(WorkflowParamKeys.DitModel),
                 device,
-                blocks_to_swap = p.IntReq("blocks_to_swap"),
-                swap_io_components = p.Bool("swap_io_components"),
+                blocks_to_swap = p.IntReq(WorkflowParamKeys.BlocksToSwap),
+                swap_io_components = p.Bool(WorkflowParamKeys.SwapIoComponents),
                 offload_device = offload,
-                cache_model = p.Bool("cache_model"),
-                attention_mode = p.StrReq("attention_mode"),
+                cache_model = p.Bool(WorkflowParamKeys.CacheModel),
+                attention_mode = p.StrReq(WorkflowParamKeys.AttentionMode),
             }),
 
             // The VAE, tiled on both ends: a full-frame encode/decode is its own VRAM spike, independent of the DiT.
-            ["31"] = ComfyGraph.Node("SeedVR2LoadVAEModel", new
+            [Vae] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2LoadVAEModel, new
             {
-                model = p.Model("vae_model"),
+                model = p.Model(WorkflowParamKeys.VaeModel),
                 device,
                 encode_tiled = tiled,
                 encode_tile_size = tile,
@@ -109,7 +115,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
                 decode_tile_size = tile,
                 decode_tile_overlap = overlap,
                 offload_device = offload,
-                cache_model = p.Bool("cache_model"),
+                cache_model = p.Bool(WorkflowParamKeys.CacheModel),
             }),
         };
 
@@ -126,27 +132,27 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
         const int NodeResMin = 16, NodeResMax = 16384;
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        int scale = Math.Max(1, p.IntReq("scale"));
+        int scale = Math.Max(1, p.IntReq(WorkflowParamKeys.Scale));
         int resolution = (sw > 0 && sh > 0)
             ? Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax)
-            : p.IntReq("fallback_short_edge");
+            : p.IntReq(WorkflowParamKeys.FallbackShortEdge);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
-        wf["32"] = ComfyGraph.Node("SeedVR2VideoUpscaler", new
+        wf[Upscale] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2VideoUpscaler, new
         {
-            image = ComfyGraph.Ref("10", 0),
-            dit = ComfyGraph.Ref("30", 0),
-            vae = ComfyGraph.Ref("31", 0),
+            image = ComfyGraph.Ref(Nodes.Source, 0),
+            dit = ComfyGraph.Ref(Dit, 0),
+            vae = ComfyGraph.Ref(Vae, 0),
             seed,
             resolution,
-            max_resolution = p.IntReq("max_resolution"),
-            batch_size = p.IntReq("batch_size"),
+            max_resolution = p.IntReq(WorkflowParamKeys.MaxResolution),
+            batch_size = p.IntReq(WorkflowParamKeys.BatchSize),
             uniform_batch_size = false,
-            color_correction = p.StrReq("color_correction"),
+            color_correction = p.StrReq(WorkflowParamKeys.ColorCorrection),
             offload_device = offload,
         });
 
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("32", 0), filename_prefix = "forgemcp_edit" });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Upscale, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

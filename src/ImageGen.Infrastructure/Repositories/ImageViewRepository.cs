@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
@@ -12,6 +13,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// get — and this table is looked up by id in batches, which deterministic ciphertext would make no safer and every
 /// membership test slower.</para>
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ImageViewRepository(IDbConnectionFactory connectionFactory) : IImageViewRepository
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

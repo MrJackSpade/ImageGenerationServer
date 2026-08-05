@@ -28,11 +28,18 @@ public sealed class SettingsController : Controller
         // The Restart ComfyUI button only makes sense where this deployment supervises the renderer (the Docker
         // image) and it is running — the same gate the patches page uses. In the plain release build there is no
         // supervisor, so the button is not rendered.
-        ViewData["CanRestartComfy"] = supervisor.CanRestart;
+        ViewData[ViewDataKeys.CanRestartComfy] = supervisor.CanRestart;
         return View();
     }
 
     /// <summary>What this app changes in ComfyUI's own code, and whether those changes are in place.</summary>
     [HttpGet("/settings/patches")]
     public IActionResult Patches() => View();
+
+    /// <summary>Keys under which this controller passes values to its view.</summary>
+    private static class ViewDataKeys
+    {
+        /// <summary>Whether this deployment supervises ComfyUI and can restart it.</summary>
+        public const string CanRestartComfy = "CanRestartComfy";
+    }
 }

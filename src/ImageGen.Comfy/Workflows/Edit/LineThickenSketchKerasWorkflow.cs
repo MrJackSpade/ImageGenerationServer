@@ -17,28 +17,34 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> SketchSchema = new ParamSpec[]
     {
-        new() { Key = "thickness", Type = ParamType.Int,    Min = 0,   Max = 32,  Label = "Line thickness (px)" },
-        new() { Key = "threshold", Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
+        new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int,    Min = 0,   Max = 32,  Label = "Line thickness (px)" },
+        new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
     };
+
+    /// <summary>This workflow's own node ids.</summary>
+    private const string Lineart = "20";
+    private const string Thicken = "21";
+    private const string Blend = "22";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
         var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
         // Extract lines as dark-on-white (already at input size), bolden, multiply over the source.
-        wf["20"] = ComfyGraph.Node("SketchKerasLines", new { image = src, threshold = p.DblReq("threshold") });
-        wf["21"] = ComfyGraph.Node("LineThicken", new { image = ComfyGraph.Ref("20", 0), thickness = p.IntReq("thickness") });
-        wf["22"] = ComfyGraph.Node("ImageBlend", new
+        wf[Lineart] = ComfyGraph.Node(ComfyNodeTypes.SketchKerasLines, new { image = src, threshold = p.DblReq(WorkflowParamKeys.Threshold) });
+        wf[Thicken] = ComfyGraph.Node(ComfyNodeTypes.LineThicken, new { image = ComfyGraph.Ref(Lineart, 0), thickness = p.IntReq(WorkflowParamKeys.Thickness) });
+        wf[Blend] = ComfyGraph.Node(ComfyNodeTypes.ImageBlend, new
         {
             image1 = src,
-            image2 = ComfyGraph.Ref("21", 0),
+            image2 = ComfyGraph.Ref(Thicken, 0),
             blend_factor = 1.0,
             blend_mode = "multiply",
         });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("22", 0), filename_prefix = "forgemcp_edit" });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Blend, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

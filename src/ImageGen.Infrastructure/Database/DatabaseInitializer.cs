@@ -27,10 +27,21 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly DatabaseProvider _provider = provider;
 
+    /// <summary>Embedded schema resources, matched by suffix in <see cref="ReadEmbeddedSchema"/>.</summary>
+    private const string SqliteSchemaResource = "schema.sqlite.sql";
+    private const string SqlServerSchemaResource = "schema.sql";
+
+    /// <summary>Line-comment marker stripped before the SQLite script is split into statements.</summary>
+    private const string LineCommentPrefix = "--";
+
+    /// <summary>Named groups of <see cref="AddColumn"/>, read back off a successful match.</summary>
+    private const string TableGroup = "table";
+    private const string ColumnGroup = "col";
+
     /// <summary>An additive column: <c>ALTER TABLE [dbo.]Table ADD [COLUMN] Name …</c>. Matched so the runner can
     /// skip it when the column already exists — the one statement in the SQLite script that is not self-idempotent.</summary>
     private static readonly Regex AddColumn = new(
-        @"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<table>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<col>\w+)",
+        $@"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<{TableGroup}>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<{ColumnGroup}>\w+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Create anything the configured provider's schema says is missing.</summary>
@@ -38,9 +49,9 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     {
         await using var connection = await _connectionFactory.OpenAsync(ct);
         if (_provider == DatabaseProvider.Sqlite)
-            await ApplySqliteAsync(connection, ReadEmbeddedSchema("schema.sqlite.sql"), ct);
+            await ApplySqliteAsync(connection, ReadEmbeddedSchema(SqliteSchemaResource), ct);
         else
-            await ApplySqlServerAsync(connection, ReadEmbeddedSchema("schema.sql"), ct);
+            await ApplySqlServerAsync(connection, ReadEmbeddedSchema(SqlServerSchemaResource), ct);
     }
 
     /// <summary>
@@ -66,7 +77,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         foreach (var statement in SqliteStatements(script))
         {
             var add = AddColumn.Match(statement);
-            if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups["table"].Value, add.Groups["col"].Value, ct))
+            if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups[TableGroup].Value, add.Groups[ColumnGroup].Value, ct))
                 continue;   // already applied by an earlier run or an earlier version — replaying it is a no-op, not an error
 
             await using var command = connection.Command(statement);
@@ -111,7 +122,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         var code = new StringBuilder(script.Length);
         foreach (var line in script.Split('\n'))
         {
-            var comment = line.IndexOf("--", StringComparison.Ordinal);
+            var comment = line.IndexOf(LineCommentPrefix, StringComparison.Ordinal);
             code.Append(comment >= 0 ? line[..comment] : line).Append('\n');
         }
 

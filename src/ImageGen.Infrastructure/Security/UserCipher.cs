@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
 
@@ -14,6 +15,7 @@ namespace ImageGen.Infrastructure.Security;
 /// (the singleton <c>JobRepository</c>/<c>JobQueue</c> depend on it). Keys are immutable — there is no rotation — so
 /// the cache is never invalidated; any future rotation feature must change that.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCipher
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;

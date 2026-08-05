@@ -17,6 +17,11 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
 {
     private readonly IHttpClientFactory _httpFactory = httpFactory;
 
+    private const string UserAgent = "ImageGen";
+    private const string GitHubHost = "github.com";
+    private const string GitHubWwwHost = "www.github.com";
+    private const string GitSuffix = ".git";
+
     public sealed class FetchException(string message, Exception? inner = null) : Exception(message, inner);
 
     /// <summary>
@@ -39,7 +44,7 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         {
             var http = _httpFactory.CreateClient();
             // GitHub serves codeload without authentication but requires a user agent.
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
 
             using var response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!response.IsSuccessStatusCode)
@@ -76,12 +81,12 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out var uri))
             throw new FetchException($"'{sourceUrl}' is not a repository URL.");
 
-        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) &&
-            !uri.Host.Equals("www.github.com", StringComparison.OrdinalIgnoreCase))
+        if (!uri.Host.Equals(GitHubHost, StringComparison.OrdinalIgnoreCase) &&
+            !uri.Host.Equals(GitHubWwwHost, StringComparison.OrdinalIgnoreCase))
             throw new FetchException($"{uri.Host} is not somewhere this knows how to fetch a pinned archive from. Install {sourceUrl} yourself and apply the patch again.");
 
         var path = uri.AbsolutePath.Trim('/');
-        if (path.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        if (path.EndsWith(GitSuffix, StringComparison.OrdinalIgnoreCase)) path = path[..^4];
 
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length != 2) throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");

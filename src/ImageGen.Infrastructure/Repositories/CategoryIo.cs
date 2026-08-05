@@ -1,4 +1,5 @@
 using System.Data.Common;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Infrastructure.Database;
 using ImageGen.Application.Security;
 using Microsoft.Data.SqlClient;
@@ -13,6 +14,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// encrypt the searchable Category column. Category names keep the user's display casing; membership sets are
 /// deduplicated case-insensitively.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 internal static class CategoryIo
 {
     /// <summary>Load categories for a set of parent ids, grouped by parent id, decrypting each name.</summary>

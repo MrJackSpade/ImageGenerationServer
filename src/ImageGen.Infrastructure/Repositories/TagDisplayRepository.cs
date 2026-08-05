@@ -1,4 +1,5 @@
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ namespace ImageGen.Infrastructure.Repositories;
 
 /// <summary>Per-user tag portrait images (dbo.TagDisplay). Mirrors <see cref="ArtistDisplayRepository"/> /
 /// <see cref="LoraDisplayRepository"/>: the searchable TagName column is deterministically encrypted.</summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : ITagDisplayRepository
 {
     private const string Columns = "Id, UserId, TagName, GatewayImageId, SetAtUtc";

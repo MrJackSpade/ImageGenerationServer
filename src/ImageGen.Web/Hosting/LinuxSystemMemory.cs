@@ -22,6 +22,9 @@ public sealed class LinuxSystemMemory : ISystemMemory
 {
     private const string MemInfoPath = "/proc/meminfo";
 
+    /// <summary>The <c>/proc/meminfo</c> line prefix carrying the kernel's available-memory estimate.</summary>
+    private const string MemAvailablePrefix = "MemAvailable:";
+
     /// <inheritdoc />
     public long AvailableBytes()
     {
@@ -39,7 +42,7 @@ public sealed class LinuxSystemMemory : ISystemMemory
 
         foreach (var line in lines)
         {
-            if (!line.StartsWith("MemAvailable:", StringComparison.Ordinal))
+            if (!line.StartsWith(MemAvailablePrefix, StringComparison.Ordinal))
                 continue;
 
             // "MemAvailable:    1234567 kB"

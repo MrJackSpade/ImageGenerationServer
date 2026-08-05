@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ImageGen.Application.Services;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Web.Auth;
 using ImageGen.Web.ViewModels;
@@ -35,9 +36,9 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     public async Task<IActionResult> Login(CancellationToken ct)
     {
         var form = Request.Form;
-        var username = form["username"].ToString().Trim();
-        var password = form["password"].ToString();
-        var returnUrl = form["returnUrl"].ToString();
+        var username = form[FormFields.Username].ToString().Trim();
+        var password = form[FormFields.Password].ToString();
+        var returnUrl = form[FormFields.ReturnUrl].ToString();
         var vm = new LoginViewModel { Username = username, ReturnUrl = returnUrl };
 
         if (username.Length == 0 || password.Length == 0)
@@ -73,11 +74,11 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     public async Task<IActionResult> Register(CancellationToken ct)
     {
         var form = Request.Form;
-        var username = form["username"].ToString().Trim();
-        var password = form["password"].ToString();
-        var displayName = form["displayName"].ToString().Trim();
-        var code = form["code"].ToString();
-        var returnUrl = form["returnUrl"].ToString();
+        var username = form[FormFields.Username].ToString().Trim();
+        var password = form[FormFields.Password].ToString();
+        var displayName = form[FormFields.DisplayName].ToString().Trim();
+        var code = form[FormFields.Code].ToString();
+        var returnUrl = form[FormFields.ReturnUrl].ToString();
         var vm = new RegisterViewModel
         {
             Username = username,
@@ -109,7 +110,10 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         return RedirectToAction(nameof(Login));
     }
 
-    private IActionResult Fail(RegisterViewModel vm, string error) { vm.Error = error; return View(vm); }
+    private IActionResult Fail(
+        RegisterViewModel vm,
+        [AllowMagicStrings("User-facing validation messages are prose shown in the UI, not identifiers to name as constants.")] string error)
+    { vm.Error = error; return View(vm); }
 
     private Task SignInAsync(User user)
     {
@@ -123,5 +127,31 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     }
 
     private IActionResult RedirectToLocalOrHome(string? returnUrl) =>
-        !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : Redirect("/");
+        !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : Redirect(Routes.Home);
+
+    /// <summary>Names of the fields read from the login and registration forms.</summary>
+    private static class FormFields
+    {
+        /// <summary>The account's login name.</summary>
+        public const string Username = "username";
+
+        /// <summary>The account's password.</summary>
+        public const string Password = "password";
+
+        /// <summary>The display name chosen at registration.</summary>
+        public const string DisplayName = "displayName";
+
+        /// <summary>The registration code, when registration is gated by one.</summary>
+        public const string Code = "code";
+
+        /// <summary>The local URL to return to after a successful sign-in.</summary>
+        public const string ReturnUrl = "returnUrl";
+    }
+
+    /// <summary>Local routes this controller redirects to.</summary>
+    private static class Routes
+    {
+        /// <summary>The application home page.</summary>
+        public const string Home = "/";
+    }
 }

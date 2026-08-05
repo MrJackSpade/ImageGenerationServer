@@ -77,7 +77,7 @@ public static partial class PromptMarkers
         var s = (segment ?? string.Empty).Trim();
         if (s.Length > 0 && IsMarker(s[0]))
             s = s[1..];
-        return Whitespace().Replace(s.Trim(), "_").ToLowerInvariant();
+        return Whitespace().Replace(s.Trim(), Underscore).ToLowerInvariant();
     }
 
     /// <summary>The comma segments of a prompt, trimmed, empties dropped.</summary>
@@ -138,6 +138,8 @@ public static partial class PromptMarkers
         if (!raw.Contains(GuideTagMarker)) return raw;
         return string.Join(',', raw.Split(',').Where(seg => !IsMarkedWith(seg, GuideTagMarker)));
     }
+
+    private const string Underscore = "_";
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();

@@ -1,6 +1,7 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
 using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
@@ -13,6 +14,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// The mark tables carry no UserId of their own, so the owning <paramref name="userId"/> is threaded in from the
 /// parent (HistoryEntry/ImageBookmark) to deterministically encrypt the searchable Token column.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 internal static class MarkIo
 {
     public static async Task InsertAsync(

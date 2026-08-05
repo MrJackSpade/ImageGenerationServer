@@ -18,18 +18,22 @@ public sealed class BiRefNetMatteWorkflow : EditWorkflowBase
 
     private static readonly IReadOnlyList<ParamSpec> MatteSchema = new ParamSpec[]
     {
-        new() { Key = "threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
+        new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
     };
+
+    /// <summary>This workflow's own nodes (Source "10" comes from EditWorkflowBase.Nodes).</summary>
+    private const string Matte = "20";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // No flatten-on-white: the matte wants the source verbatim (mirrors the video matte, which feeds frames as-is).
         return new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The matte needs a source image, but none was provided.") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The matte needs a source image, but none was provided.") }),
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha); SaveImage writes PNG, which keeps the alpha.
-            ["20"] = ComfyGraph.Node("BiRefNetMatte", new { image = ComfyGraph.Ref("10", 0), threshold = p.DblReq("threshold") }),
-            ["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" }),
+            [Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Source, 0), threshold = p.DblReq(WorkflowParamKeys.Threshold) }),
+            [Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Matte, 0), filename_prefix = "forgemcp_edit" }),
         };
     }
 }

@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
@@ -7,6 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace ImageGen.Infrastructure.Repositories;
 
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IUserRepository
 {
     /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against

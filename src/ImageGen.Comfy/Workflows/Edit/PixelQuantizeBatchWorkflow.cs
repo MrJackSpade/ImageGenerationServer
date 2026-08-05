@@ -26,24 +26,32 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
     /// pass); engine defaults to 'fp' because the whole reason to batch is deriving the global palette the fp engine needs.</summary>
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
-        new() { Key = "virtual_resolution", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
-        new() { Key = "grid_w", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
-        new() { Key = "grid_h", Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
-        new() { Key = "palette", Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
-        new() { Key = "final_method", Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method" },
-        new() { Key = "engine", Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
-        new() { Key = "thicken", Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px" },
-        new() { Key = "tau", Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau" },
-        new() { Key = "lam", Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
-        new() { Key = "k", Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
-        new() { Key = "beta", Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
-        new() { Key = "step", Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
+        new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
+        new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
+        new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
+        new() { Key = WorkflowParamKeys.Palette, Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette", Help = "median engine only — a locked palette is temporally consistent" },
+        new() { Key = WorkflowParamKeys.FinalMethod, Type = ParamType.Enum, Choices = new[] { "median", "mode", "box", "nearest_present", "mean_srgb", "mean_linear", "mean_oklab", "lanczos", "var_hybrid", "supersample_mode" }, Label = "Cell method" },
+        new() { Key = WorkflowParamKeys.Engine, Type = ParamType.Enum, Choices = new[] { "median", "fp" }, Label = "Engine", Help = "median = named-palette per-frame snap; fp = feature-preserving + one global palette over the batch" },
+        new() { Key = WorkflowParamKeys.Thicken, Type = ParamType.Double, Min = 0, Max = 8, Label = "FP line thicken px" },
+        new() { Key = WorkflowParamKeys.Tau, Type = ParamType.Double, Min = 0, Max = 2, Label = "FP de-AA tau" },
+        new() { Key = WorkflowParamKeys.Lam, Type = ParamType.Double, Min = 0.001, Max = 0.2, Label = "FP flatten strength" },
+        new() { Key = WorkflowParamKeys.K, Type = ParamType.Int, Min = 2, Max = 128, Label = "FP palette k-means" },
+        new() { Key = WorkflowParamKeys.Beta, Type = ParamType.Double, Min = 0, Max = 4, Label = "FP rarity bias" },
+        new() { Key = WorkflowParamKeys.Step, Type = ParamType.Double, Min = 1, Max = 20, Label = "FP DIN99d lattice step" },
         // Key BEFORE pixelizing (same as the still + video paths' in-graph keying): matte the whole batch (BiRefNet)
         // and feed the RGBA straight into the quantizer, which carries the alpha through to transparent-background
         // sprites — so there's no separate downstream matte to chain. Off = the frames enter opaque.
-        new() { Key = "key_background", Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprites" },
-        new() { Key = "matte_threshold", Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
+        new() { Key = WorkflowParamKeys.KeyBackground, Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprites" },
+        new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
+
+    /// <summary>This workflow's own node ids (source LoadImage is the inherited Nodes.Source; per-reference LoadImage/ImageBatch ids are computed 100+).</summary>
+    private const string Matte = "15";
+    private const string Quantize = "20";
+    private const string Save = "9";
+
+    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
+    private const string FpEngine = "fp";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -53,59 +61,59 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
         var wf = new Dictionary<string, object>
         {
-            ["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
+            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
-        object batch = ComfyGraph.Ref("10", 0);
+        object batch = ComfyGraph.Ref(Nodes.Source, 0);
         int node = 100;
         foreach (var refName in inputs.ReferenceImageNames)
         {
             var loadId = (node++).ToString();
-            wf[loadId] = ComfyGraph.Node("LoadImage", new { image = refName });
+            wf[loadId] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refName });
             var batchId = (node++).ToString();
-            wf[batchId] = ComfyGraph.Node("ImageBatch", new { image1 = batch, image2 = ComfyGraph.Ref(loadId, 0) });
+            wf[batchId] = ComfyGraph.Node(ComfyNodeTypes.ImageBatch, new { image1 = batch, image2 = ComfyGraph.Ref(loadId, 0) });
             batch = ComfyGraph.Ref(batchId, 0);
         }
         // key_background: matte the whole batch first, feed the RGBA (subject + alpha) into the quantizer at full res.
         // BiRefNetMatte processes the batched tensor (same node the video matte runs per frame); output 0 = RGBA.
-        if (p.Bool("key_background"))
+        if (p.Bool(WorkflowParamKeys.KeyBackground))
         {
-            wf["15"] = ComfyGraph.Node("BiRefNetMatte", new { image = batch, threshold = p.DblReq("matte_threshold") });
-            batch = ComfyGraph.Ref("15", 0);
+            wf[Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = batch, threshold = p.DblReq(WorkflowParamKeys.MatteThreshold) });
+            batch = ComfyGraph.Ref(Matte, 0);
         }
 
-        int gw = p.IntReq("grid_w");
-        int gh = p.IntReq("grid_h");
-        if (p.StrReq("engine") == "fp")
+        int gw = p.IntReq(WorkflowParamKeys.GridW);
+        int gh = p.IntReq(WorkflowParamKeys.GridH);
+        if (p.StrReq(WorkflowParamKeys.Engine) == FpEngine)
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
             // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
-            wf["20"] = ComfyGraph.Node("PixelQuantizeFP", new
+            wf[Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantizeFP, new
             {
                 image = batch,
                 grid_w = gw,
                 grid_h = gh,
-                virtual_resolution = p.IntReq("virtual_resolution"),
-                thicken = p.DblReq("thicken"),
-                tau = p.DblReq("tau"),
-                lam = p.DblReq("lam"),
-                k = p.IntReq("k"),
-                beta = p.DblReq("beta"),
-                step = p.DblReq("step"),
+                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
+                thicken = p.DblReq(WorkflowParamKeys.Thicken),
+                tau = p.DblReq(WorkflowParamKeys.Tau),
+                lam = p.DblReq(WorkflowParamKeys.Lam),
+                k = p.IntReq(WorkflowParamKeys.K),
+                beta = p.DblReq(WorkflowParamKeys.Beta),
+                step = p.DblReq(WorkflowParamKeys.Step),
             });
         }
         else
         {
-            wf["20"] = ComfyGraph.Node("PixelQuantize", new
+            wf[Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
             {
                 image = batch,
                 grid_w = gw,
                 grid_h = gh,
-                palette = p.StrReq("palette"),
-                method = p.StrReq("final_method"),
-                virtual_resolution = p.IntReq("virtual_resolution"),
+                palette = p.StrReq(WorkflowParamKeys.Palette),
+                method = p.StrReq(WorkflowParamKeys.FinalMethod),
+                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
             });
         }
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("20", 0), filename_prefix = "forgemcp_edit" });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Quantize, 0), filename_prefix = "forgemcp_edit" });
         return wf;
     }
 }

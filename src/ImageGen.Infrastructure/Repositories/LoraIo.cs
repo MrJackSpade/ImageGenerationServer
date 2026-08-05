@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
+using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Infrastructure.Database;
 
@@ -11,6 +12,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// <paramref name="userId"/> is threaded in from the parent to deterministically encrypt the searchable Name column
 /// (so "which images used LoRA X" can compare ciphertext, as the mark/artist filters do). Weight is stored plaintext.
 /// </summary>
+[AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 internal static class LoraIo
 {
     public static async Task InsertAsync(

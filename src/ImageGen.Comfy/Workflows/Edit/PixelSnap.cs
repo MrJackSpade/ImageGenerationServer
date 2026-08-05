@@ -10,6 +10,11 @@ namespace ImageGen.Comfy;
 /// refuse). Pure: runs in Build() from the values the user submitted with the edit job.</summary>
 internal static class PixelSnap
 {
+    /// <summary>The param-bag keys the computed render-size snap is cached under — an internal handoff from
+    /// <see cref="WriteRenderSize"/> (Normalize) to <see cref="Target"/> (Build), not a config-facing parameter.</summary>
+    private const string SnapWKey = "_snap_w";
+    private const string SnapHKey = "_snap_h";
+
     /// <summary>The snapped (width,height), or null when snapping is off / no resolution data / no aspect available.
     /// The requested aspect comes from an explicit width/height override if given, else from the source dimensions
     /// (<paramref name="srcW"/>/<paramref name="srcH"/>) — so the toggle works off the source with no UI field.</summary>
@@ -24,13 +29,13 @@ internal static class PixelSnap
         // cached on the param bag as _snap_w/_snap_h. When present, every workflow's Build reads it back here rather
         // than recomputing — so the render-size snap "occurs in" Normalize. Absent (e.g. a unit test calling Build
         // directly, no Normalize pass) → fall through and compute fresh.
-        int cw = p.Int("_snap_w", 0), ch = p.Int("_snap_h", 0);
+        int cw = p.Int(SnapWKey, 0), ch = p.Int(SnapHKey, 0);
         if (cw > 0 && ch > 0) return (cw, ch);
-        if (!p.Bool("snap_resolution")) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
+        if (!p.Bool(WorkflowParamKeys.SnapResolution)) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
         // From here snapping was REQUESTED, so any inability to compute is a HARD FAILURE, not a silent fall-back to
         // the model's default size (which would still render but look like the toggle did nothing).
-        int w = p.Int("width", 0); if (w <= 0) w = srcW;
-        int h = p.Int("height", 0); if (h <= 0) h = srcH;
+        int w = p.Int(WorkflowParamKeys.Width, 0); if (w <= 0) w = srcW;
+        int h = p.Int(WorkflowParamKeys.Height, 0); if (h <= 0) h = srcH;
         if (vres <= 0)
             throw new RenderValidationException("snap_resolution is on but virtual_resolution is 0 — set a virtual resolution or turn snapping off.");
         if (w <= 0 || h <= 0)
@@ -51,14 +56,14 @@ internal static class PixelSnap
     public static void WriteRenderSize(IDictionary<string, object?> p, ModelResolution? res, int srcW, int srcH)
     {
         var pv = new ParamValues(p as IReadOnlyDictionary<string, object?> ?? new Dictionary<string, object?>(p));
-        var snap = Target(pv, res, pv.Int("virtual_resolution", 0), srcW, srcH);   // _snap_* not set yet → computes fresh
-        if (snap is { } s) { p["_snap_w"] = s.w; p["_snap_h"] = s.h; }
+        var snap = Target(pv, res, pv.Int(WorkflowParamKeys.VirtualResolution, 0), srcW, srcH);   // _snap_* not set yet → computes fresh
+        if (snap is { } s) { p[SnapWKey] = s.w; p[SnapHKey] = s.h; }
     }
 
     /// <summary>The shared <c>reference</c> %% knob -> KSampler denoise. 0 = full denoise (generate fresh, no source
     /// reference); 100 = no denoise (copy the source, then just pixel-quantize it). Clamped to (0,1] so the sampler
     /// always runs at least minimally.</summary>
-    public static double Denoise(ParamValues p, int dflt) => Math.Clamp(1.0 - p.Int("reference", dflt) / 100.0, 0.01, 1.0);
+    public static double Denoise(ParamValues p, int dflt) => Math.Clamp(1.0 - p.Int(WorkflowParamKeys.Reference, dflt) / 100.0, 0.01, 1.0);
 
     public static (int w, int h) Compute(int vres, int reqW, int reqH, int minSide, int maxSide, int step)
     {

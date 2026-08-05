@@ -25,9 +25,24 @@ public static class HelpMarkdown
     private static readonly MarkdownPipeline Pipeline =
         new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
+    /// <summary>Windows line ending, normalized to <see cref="Lf"/> before the document is split into lines.</summary>
+    private const string CrLf = "\r\n";
+
+    /// <summary>The newline the document is normalized to and split on.</summary>
+    private const string Lf = "\n";
+
+    /// <summary>Backtick code-fence marker; a line opening or closing one never splits a section.</summary>
+    private const string BacktickFence = "```";
+
+    /// <summary>Tilde code-fence marker.</summary>
+    private const string TildeFence = "~~~";
+
+    /// <summary>Level-2 heading prefix at column 0 that opens a new collapsible section.</summary>
+    private const string SectionHeadingPrefix = "## ";
+
     public static HelpPageViewModel Parse(string markdown)
     {
-        var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = markdown.Replace(CrLf, Lf).Replace('\r', '\n').Split('\n');
         var intro = new StringBuilder();
         var sections = new List<(string Title, StringBuilder Body)>();
         (string Title, StringBuilder Body)? cur = null;
@@ -36,12 +51,12 @@ public static class HelpMarkdown
         foreach (var line in lines)
         {
             var trimmed = line.TrimStart();
-            var isFence = trimmed.StartsWith("```", StringComparison.Ordinal)
-                       || trimmed.StartsWith("~~~", StringComparison.Ordinal);
+            var isFence = trimmed.StartsWith(BacktickFence, StringComparison.Ordinal)
+                       || trimmed.StartsWith(TildeFence, StringComparison.Ordinal);
 
             // A ## at column 0, outside a code fence, opens a new section. Fence lines never split (a shell comment
             // like "## note" inside ``` stays put).
-            if (!inFence && !isFence && line.StartsWith("## ", StringComparison.Ordinal))
+            if (!inFence && !isFence && line.StartsWith(SectionHeadingPrefix, StringComparison.Ordinal))
             {
                 if (cur is not null)
                     sections.Add(cur.Value);

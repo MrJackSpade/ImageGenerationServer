@@ -26,6 +26,18 @@ public sealed class S2SRec2Session : IDisposable
     /// <summary>Fill for vocab slots with no decoder row: they are not emittable, so they must carry no probability.</summary>
     private const float NotEmittable = float.NegativeInfinity;
 
+    /// <summary>The graph's tag-ids input name.</summary>
+    private const string IdsInput = "ids";
+
+    /// <summary>The graph's padding-mask input name.</summary>
+    private const string PadMaskInput = "pad_mask";
+
+    /// <summary>The graph's type-mask input name.</summary>
+    private const string TypeMaskInput = "tmask";
+
+    /// <summary>Separator joining the graph's input names in the diagnostic message.</summary>
+    private const string NameSeparator = ", ";
+
     private readonly InferenceSession _session;
     private readonly int[] _outIds;
     private readonly int _vocabSize;
@@ -52,9 +64,9 @@ public sealed class S2SRec2Session : IDisposable
         // Bound by name from the graph rather than assumed positionally, so a re-export that reorders inputs fails
         // here with a clear message instead of silently feeding the type mask in as tag ids.
         var inputs = _session.InputMetadata.Keys.ToArray();
-        _idsName = Require(inputs, "ids");
-        _padMaskName = Require(inputs, "pad_mask");
-        _typeMaskName = Require(inputs, "tmask");
+        _idsName = Require(inputs, IdsInput);
+        _padMaskName = Require(inputs, PadMaskInput);
+        _typeMaskName = Require(inputs, TypeMaskInput);
     }
 
     /// <summary>How many tags the decoder may emit — a subset of the vocabulary.</summary>
@@ -113,7 +125,7 @@ public sealed class S2SRec2Session : IDisposable
     private static string Require(string[] names, string wanted) =>
         names.FirstOrDefault(n => n == wanted)
         ?? throw new InvalidDataException(
-            $"the tag model graph has no input named '{wanted}' (it has: {string.Join(", ", names)}). Re-export it "
+            $"the tag model graph has no input named '{wanted}' (it has: {string.Join(NameSeparator, names)}). Re-export it "
             + "with tools/export-tagmodel-onnx.py.");
 
     /// <summary>Little-endian int32, no header: the count is the file length. Written by the export tool.</summary>

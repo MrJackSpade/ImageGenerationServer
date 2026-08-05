@@ -10,7 +10,7 @@ public static class PendingEndpoints
     {
         // This user's in-flight jobs, so any of their devices can show what's currently rendering (with live
         // progress polled from the gateway). The originating tab still tracks its own job directly.
-        api.MapGet("/pending", async (HttpContext context, PendingJobService pending) =>
+        api.MapGet(Routes.Pending, async (HttpContext context, PendingJobService pending) =>
         {
             var userId = context.User.GetRequiredUserId();
             var jobs = await pending.ListForUserAsync(userId, context.RequestAborted);
@@ -19,7 +19,7 @@ public static class PendingEndpoints
 
         // The client registers each gateway job it submits; the reconciler (PendingJobReconciler) takes it
         // from here, so the result is persisted even if this browser closes before seeing it.
-        api.MapPost("/pending", async (HttpContext context, PendingJobService pending, TimeProvider clock) =>
+        api.MapPost(Routes.Pending, async (HttpContext context, PendingJobService pending, TimeProvider clock) =>
         {
             var record = await Json.ReadAsync<PendingJobContract>(context);
             if (record is null || string.IsNullOrWhiteSpace(record.JobId))
@@ -30,5 +30,12 @@ public static class PendingEndpoints
             await pending.RegisterAsync(command, context.RequestAborted);
             return Results.Ok(new { ok = true });
         });
+    }
+
+    /// <summary>Route templates for the pending-job endpoints.</summary>
+    private static class Routes
+    {
+        /// <summary>This user's in-flight jobs (GET lists them; POST registers one).</summary>
+        public const string Pending = "/pending";
     }
 }

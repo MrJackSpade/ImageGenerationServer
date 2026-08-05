@@ -16,6 +16,11 @@ namespace ImageGen.Infrastructure;
 /// </summary>
 public static class InfrastructureServiceCollectionExtensions
 {
+    private const string ServerKey = "Server=";
+    private const string InitialCatalogKey = "Initial Catalog=";
+    private const string IntegratedSecurityKey = "Integrated Security=";
+    private const string TrustedConnectionKey = "Trusted_Connection=";
+
     /// <summary>
     /// Add the persistence layer for the given connection string, against the given engine.
     ///
@@ -103,10 +108,10 @@ public static class InfrastructureServiceCollectionExtensions
     private static void GuardConnectionStringMatchesProvider(string connectionString, DatabaseProvider provider)
     {
         var looksLikeSqlServer =
-            connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains("Initial Catalog=", StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains("Integrated Security=", StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains("Trusted_Connection=", StringComparison.OrdinalIgnoreCase);
+            connectionString.Contains(ServerKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(InitialCatalogKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(IntegratedSecurityKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(TrustedConnectionKey, StringComparison.OrdinalIgnoreCase);
 
         if (provider == DatabaseProvider.Sqlite && looksLikeSqlServer)
             throw new InvalidOperationException(

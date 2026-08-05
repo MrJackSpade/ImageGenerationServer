@@ -23,15 +23,15 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
     {
         // Configured already: this page has nothing to ask. Sending people to the settings page rather than 404ing
         // means a bookmarked /setup still lands somewhere useful.
-        if (_machine.IsConfigured) return Redirect("/settings/machine");
+        if (_machine.IsConfigured) return Redirect(Routes.MachineSettings);
 
         // The box is pre-filled with the address a local ComfyUI almost always uses — so say whether that is a
         // real find or just the usual guess. A pre-filled field that looks authoritative and is not is worse than
         // an empty one: it invites a click-through and the failure surfaces at the first render instead.
-        ViewData["Address"] = ComfyProbe.LikelyLocal;
+        ViewData[ViewDataKeys.Address] = ComfyProbe.LikelyLocal;
         var found = await _probe.TryAsync(ComfyProbe.LikelyLocal, ct);
-        ViewData["Detected"] = found.Ok;
-        ViewData["ProbeError"] = found.Error;
+        ViewData[ViewDataKeys.Detected] = found.Ok;
+        ViewData[ViewDataKeys.ProbeError] = found.Error;
         return View();
     }
 
@@ -39,13 +39,13 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string? baseUrl, bool useAnyway, CancellationToken ct)
     {
-        if (_machine.IsConfigured) return Redirect("/settings/machine");
+        if (_machine.IsConfigured) return Redirect(Routes.MachineSettings);
 
-        ViewData["Address"] = baseUrl;
+        ViewData[ViewDataKeys.Address] = baseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            ViewData["Error"] = "Enter the address ComfyUI is listening on.";
-            return View("Index");
+            ViewData[ViewDataKeys.Error] = "Enter the address ComfyUI is listening on.";
+            return View(Views.Index);
         }
 
         // Check before storing, unless they have already been told and want it anyway — setting up before ComfyUI
@@ -55,13 +55,49 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
             var reachable = await _probe.TryAsync(baseUrl, ct);
             if (!reachable.Ok)
             {
-                ViewData["Error"] = $"Nothing answered at that address — {reachable.Error}.";
-                ViewData["OfferUseAnyway"] = true;
-                return View("Index");
+                ViewData[ViewDataKeys.Error] = $"Nothing answered at that address — {reachable.Error}.";
+                ViewData[ViewDataKeys.OfferUseAnyway] = true;
+                return View(Views.Index);
             }
         }
 
         await _machine.SetAsync(MachineSettingSpecs.ComfyBaseUrl, baseUrl, ct);
-        return Redirect("/");
+        return Redirect(Routes.Home);
+    }
+
+    /// <summary>View names this controller renders.</summary>
+    private static class Views
+    {
+        /// <summary>The setup form.</summary>
+        public const string Index = "Index";
+    }
+
+    /// <summary>Local routes this controller redirects to.</summary>
+    private static class Routes
+    {
+        /// <summary>The machine settings page, shown once the box is already configured.</summary>
+        public const string MachineSettings = "/settings/machine";
+
+        /// <summary>The application home page.</summary>
+        public const string Home = "/";
+    }
+
+    /// <summary>Keys under which this controller passes values to its view.</summary>
+    private static class ViewDataKeys
+    {
+        /// <summary>The ComfyUI address shown in the form field.</summary>
+        public const string Address = "Address";
+
+        /// <summary>Whether a ComfyUI instance was detected at the likely-local address.</summary>
+        public const string Detected = "Detected";
+
+        /// <summary>The error returned while probing the likely-local address, if any.</summary>
+        public const string ProbeError = "ProbeError";
+
+        /// <summary>The message shown when the entered address is missing or unreachable.</summary>
+        public const string Error = "Error";
+
+        /// <summary>Whether to offer saving the address anyway after a failed reachability check.</summary>
+        public const string OfferUseAnyway = "OfferUseAnyway";
     }
 }

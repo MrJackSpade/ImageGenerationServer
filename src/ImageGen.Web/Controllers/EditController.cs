@@ -14,7 +14,7 @@ public sealed class EditController(HistoryService history) : Controller
     /// image area, and picking a file uploads it and makes it the source for every mode.</summary>
     [HttpGet("/edit")]
     public IActionResult New() =>
-        View("Index", new EditViewModel { ImageId = "", InitialPrompt = "", InitialTagPrompt = "" });
+        View(Views.Index, new EditViewModel { ImageId = "", InitialPrompt = "", InitialTagPrompt = "" });
 
     [HttpGet("/edit/{id}")]
     public async Task<IActionResult> Index(string id, CancellationToken ct)
@@ -40,5 +40,12 @@ public sealed class EditController(HistoryService history) : Controller
             InitialTagPrompt = tagPrompt,
             InitialNegativePrompt = negativePrompt,
         });
+    }
+
+    /// <summary>View names this controller renders.</summary>
+    private static class Views
+    {
+        /// <summary>The edit page.</summary>
+        public const string Index = "Index";
     }
 }

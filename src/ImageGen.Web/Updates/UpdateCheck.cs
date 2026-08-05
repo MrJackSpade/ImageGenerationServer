@@ -34,11 +34,23 @@ public sealed record UpdateStatus(string? Current, string? Latest, string? Url)
 public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration config, ILogger<UpdateCheck> log, Version? running)
 {
     /// <summary>Turns the check off entirely. It contacts github.com, and that should be refusable.</summary>
-    public const string EnabledKey = "Updates:Enabled";
+    public const string EnabledKey = MachineSettingSpecs.UpdatesEnabled;
 
     /// <summary>Where releases are published. Not configurable: it is where THIS application comes from.</summary>
     private const string LatestRelease = "https://api.github.com/repos/MrJackSpade/ImageGenerationServer/releases/latest";
     private const string ReleasesPage = "https://github.com/MrJackSpade/ImageGenerationServer/releases";
+
+    /// <summary>User-Agent sent on the GitHub API request; GitHub rejects requests without one.</summary>
+    private const string UserAgent = "ImageGen";
+
+    /// <summary>Accept header selecting GitHub's JSON media type.</summary>
+    private const string GitHubJsonMediaType = "application/vnd.github+json";
+
+    /// <summary>Release JSON property carrying the tag name.</summary>
+    private const string TagNameProperty = "tag_name";
+
+    /// <summary>Release JSON property carrying the release page URL.</summary>
+    private const string HtmlUrlProperty = "html_url";
 
     private readonly IHttpClientFactory _httpFactory = httpFactory;
     private readonly IConfiguration _config = config;
@@ -98,8 +110,8 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
         try
         {
             var http = _httpFactory.CreateClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("ImageGen");
-            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            http.DefaultRequestHeaders.Accept.ParseAdd(GitHubJsonMediaType);
 
             using var response = await http.GetAsync(LatestRelease, ct);
             if (!response.IsSuccessStatusCode)
@@ -109,7 +121,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
             }
 
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            var tag = document.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() : null;
+            var tag = document.RootElement.TryGetProperty(TagNameProperty, out var t) ? t.GetString() : null;
 
             // A pre-release tag (a '-suffix' build: -test, -rc.1, …) is never offered as an update. GitHub's
             // /releases/latest already skips releases FLAGGED prerelease, but a test tag published as a normal
@@ -137,7 +149,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
             _log.LogInformation("Update check: running {Current}, {Latest} is available.", current, latest);
 
-            var url = document.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() : null;
+            var url = document.RootElement.TryGetProperty(HtmlUrlProperty, out var u) ? u.GetString() : null;
             return new UpdateStatus(current.ToString(), latest.ToString(), url ?? ReleasesPage);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

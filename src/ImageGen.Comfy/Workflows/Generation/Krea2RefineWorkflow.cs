@@ -21,77 +21,82 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = new Krea2Workflow().Schema.Concat(new ParamSpec[]
     {
-        new() { Key = "polish_denoise", Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
+        new() { Key = WorkflowParamKeys.PolishDenoise, Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the base render in the second pass. ~0.25–0.40 polishes texture and "
                      + "aesthetic while keeping the base composition; higher redraws more of the image (and can drift "
                      + "from the prompt). 0 would skip the polish entirely." },
-        new() { Key = "refiner_steps", Type = ParamType.Int, Min = 1, Max = 30,
+        new() { Key = WorkflowParamKeys.RefinerSteps, Type = ParamType.Int, Min = 1, Max = 30,
                 Label = "Polish steps",
                 Help = "Turbo steps in the polish pass. 8 is the distilled sweet spot; the effective count is scaled by "
                      + "Polish strength (steps × denoise)." },
-        new() { Key = "refiner_cfg", Type = ParamType.Double, Min = 1.0, Max = 4.0 },
-        new() { Key = "refiner_sampler",   Type = ParamType.String },
-        new() { Key = "refiner_scheduler", Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.RefinerCfg, Type = ParamType.Double, Min = 1.0, Max = 4.0 },
+        new() { Key = WorkflowParamKeys.RefinerSampler,   Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.RefinerScheduler, Type = ParamType.String },
     }).ToArray();
+
+    /// <summary>Own nodes beyond the inherited txt2img roles
+    /// (Nodes.Model/Clip/Vae/Positive/Negative/Latent/Sampler/Decode/Save reused below).</summary>
+    private const string RefinerModel = "40";
+    private const string RefinerSampler = "30";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var (w, h) = p.DimsReq("aspect", ComfyGraph.NormalizeAspect(inputs.Aspect));
+        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         var wf = new Dictionary<string, object>();
 
         // Base diffusion model (req.Checkpoint) + Turbo refiner (req.MotionModel slot). Shared Qwen3-VL encoder + VAE.
-        wf["4"]  = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf["40"] = ComfyGraph.DiffusionLoader(req.RequiredMotionModel());
-        wf["20"] = ComfyGraph.Node("CLIPLoader", new { clip_name = req.TextEncoder(0), type = "krea2", device = "default" });
-        wf["21"] = ComfyGraph.Node("VAELoader", new { vae_name = req.RequiredVae() });
+        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
+        wf[RefinerModel] = ComfyGraph.DiffusionLoader(req.RequiredMotionModel());
+        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "krea2", device = "default" });
+        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
 
-        object baseModel = ComfyGraph.ApplyLora(wf, ComfyGraph.Ref("4", 0), p);   // optional LoRA on the base model only
-        object turboModel = ComfyGraph.Ref("40", 0);
-        object clipSrc = ComfyGraph.Ref("20", 0);
-        object vaeSrc = ComfyGraph.Ref("21", 0);
+        object baseModel = ComfyGraph.ApplyLora(wf, ComfyGraph.Ref(Nodes.Model, 0), p);   // optional LoRA on the base model only
+        object turboModel = ComfyGraph.Ref(RefinerModel, 0);
+        object clipSrc = ComfyGraph.Ref(Nodes.Clip, 0);
+        object vaeSrc = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        wf["6"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = clipSrc });
-        wf["7"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = clipSrc });
-        object posSrc = PostEncodePositive(wf, ComfyGraph.Ref("6", 0), p);   // Krea 2 per-layer rebalance (node "13")
-        object negSrc = ComfyGraph.Ref("7", 0);
+        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
+        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
+        object posSrc = PostEncodePositive(wf, ComfyGraph.Ref(Nodes.Positive, 0), p);   // Krea 2 per-layer rebalance (node "13")
+        object negSrc = ComfyGraph.Ref(Nodes.Negative, 0);
 
-        wf["5"] = ComfyGraph.Node("EmptyLatentImage", new { width = w, height = h, batch_size = 1 });
+        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyLatentImage, new { width = w, height = h, batch_size = 1 });
 
         // Stage 1 — base: full denoise at real CFG for structure + prompt adherence.
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
             model = baseModel,
             positive = posSrc,
             negative = negSrc,
-            latent_image = ComfyGraph.Ref("5", 0),
+            latent_image = ComfyGraph.Ref(Nodes.Latent, 0),
         });
 
         // Stage 2 — Turbo polish: partial-denoise pass over the base latent (no VAE round-trip). polish_denoise sets how
         // hard Turbo reworks it; Turbo is distilled (cfg 1, so the negative is inert here — passed for graph symmetry).
-        wf["30"] = ComfyGraph.Node("KSampler", new
+        wf[RefinerSampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed = ComfyGraph.Seed(p),
-            steps = p.IntReq("refiner_steps"),
-            cfg = p.DblReq("refiner_cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.Has("refiner_sampler") ? p.StrReq("refiner_sampler") : p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.Has("refiner_scheduler") ? p.StrReq("refiner_scheduler") : p.StrReq("scheduler")),
-            denoise = p.DblReq("polish_denoise"),
+            steps = p.IntReq(WorkflowParamKeys.RefinerSteps),
+            cfg = p.DblReq(WorkflowParamKeys.RefinerCfg),
+            sampler_name = ComfyGraph.MapSampler(p.Has(WorkflowParamKeys.RefinerSampler) ? p.StrReq(WorkflowParamKeys.RefinerSampler) : p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.Has(WorkflowParamKeys.RefinerScheduler) ? p.StrReq(WorkflowParamKeys.RefinerScheduler) : p.StrReq(WorkflowParamKeys.Scheduler)),
+            denoise = p.DblReq(WorkflowParamKeys.PolishDenoise),
             model = turboModel,
             positive = posSrc,
             negative = negSrc,
-            latent_image = ComfyGraph.Ref("3", 0),
+            latent_image = ComfyGraph.Ref(Nodes.Sampler, 0),
         });
 
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("30", 0), vae = vaeSrc });
-        wf["9"] = ComfyGraph.Node("SaveImage", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp" });
+        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(RefinerSampler, 0), vae = vaeSrc });
+        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
         return wf;
     }
 }

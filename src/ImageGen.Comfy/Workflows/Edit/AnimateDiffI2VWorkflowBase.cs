@@ -23,82 +23,102 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
     {
-        new() { Key = "lcm_lora", Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
+        new() { Key = WorkflowParamKeys.LcmLora, Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
         // sparsectrl_name is inherited from SharedSchema now (IsModelRef, no Default — a default there would be a
         // filename sitting where a slot id belongs). Only the strength/end knobs are AnimateDiff-i2v-specific.
-        new() { Key = "sparsectrl_strength", Type = ParamType.Double },
-        new() { Key = "sparsectrl_end", Type = ParamType.Double },
-        new() { Key = "ipadapter_preset", Type = ParamType.String },
-        new() { Key = "ipadapter_weight", Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "Identity strength" },
+        new() { Key = WorkflowParamKeys.SparsectrlStrength, Type = ParamType.Double },
+        new() { Key = WorkflowParamKeys.SparsectrlEnd, Type = ParamType.Double },
+        new() { Key = WorkflowParamKeys.IpadapterPreset, Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "Identity strength" },
     }).ToArray();
+
+    /// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflowBase.Nodes; here node "4" is the
+    /// CheckpointLoaderSimple and its outputs feed clip/vae directly).</summary>
+    private const string LcmLora = "5";
+    private const string ScaledSource = "11";
+    private const string SourceSize = "15";
+    private const string Latent = "7";
+    private const string MotionLoad = "20";
+    private const string MotionApply = "21";
+    private const string EvolvedSampling = "22";
+    private const string IpAdapterLoader = "30";
+    private const string IpAdapter = "31";
+    private const string Positive = "13";
+    private const string Negative = "12";
+    private const string SparseCtrlLoader = "23";
+    private const string SparseCtrlPreprocess = "24";
+    private const string ControlNetApply = "25";
+    private const string Sampler = "3";
+    private const string Decode = "8";
+    private const string Save = "9";
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         var wf = new Dictionary<string, object>();
         var seed = ComfyGraph.Seed(p);
-        int frames = p.IntReq("length");
-        double fps = p.DblReq("fps");
+        int frames = p.IntReq(WorkflowParamKeys.Length);
+        double fps = p.DblReq(WorkflowParamKeys.Fps);
         double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
-        var beta = p.StrReq("beta_schedule");
-        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model("motion_model");
+        var beta = p.StrReq(WorkflowParamKeys.BetaSchedule);
+        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model(WorkflowParamKeys.MotionModel);
 
-        wf["4"] = ComfyGraph.Node("CheckpointLoaderSimple", new { ckpt_name = req.RequiredCheckpoint() });
-        object baseModel = ComfyGraph.Ref("4", 0);
-        var lcmLora = p.Str("lcm_lora");
+        wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
+        object baseModel = ComfyGraph.Ref(Nodes.Model, 0);
+        var lcmLora = p.Str(WorkflowParamKeys.LcmLora);
         if (!string.IsNullOrWhiteSpace(lcmLora))   // AnimateLCM: apply the LCM LoRA to the base model to enable lcm sampling
         {
-            wf["5"] = ComfyGraph.Node("LoraLoaderModelOnly", new { model = ComfyGraph.Ref("4", 0), lora_name = lcmLora, strength_model = 1.0 });
-            baseModel = ComfyGraph.Ref("5", 0);
+            wf[LcmLora] = ComfyGraph.Node(ComfyNodeTypes.LoraLoaderModelOnly, new { model = ComfyGraph.Ref(Nodes.Model, 0), lora_name = lcmLora, strength_model = 1.0 });
+            baseModel = ComfyGraph.Ref(LcmLora, 0);
         }
 
-        wf["10"] = ComfyGraph.Node("LoadImage", new { image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") });
-        wf["11"] = ComfyGraph.Node("ImageScaleToTotalPixels", new { image = ComfyGraph.Ref("10", 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 64 });
-        wf["15"] = ComfyGraph.Node("GetImageSize", new { image = ComfyGraph.Ref("11", 0) });
-        wf["7"] = ComfyGraph.Node("EmptyLatentImage", new { width = ComfyGraph.Ref("15", 0), height = ComfyGraph.Ref("15", 1), batch_size = frames });
+        wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") });
+        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 64 });
+        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
+        wf[Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyLatentImage, new { width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), batch_size = frames });
 
-        wf["20"] = ComfyGraph.Node("ADE_LoadAnimateDiffModel", new { model_name = motion });
-        wf["21"] = ComfyGraph.Node("ADE_ApplyAnimateDiffModelSimple", new { motion_model = ComfyGraph.Ref("20", 0) });
-        wf["22"] = ComfyGraph.Node("ADE_UseEvolvedSampling", new { model = baseModel, beta_schedule = beta, m_models = ComfyGraph.Ref("21", 0) });
+        wf[MotionLoad] = ComfyGraph.Node(ComfyNodeTypes.ADE_LoadAnimateDiffModel, new { model_name = motion });
+        wf[MotionApply] = ComfyGraph.Node(ComfyNodeTypes.ADE_ApplyAnimateDiffModelSimple, new { motion_model = ComfyGraph.Ref(MotionLoad, 0) });
+        wf[EvolvedSampling] = ComfyGraph.Node(ComfyNodeTypes.ADE_UseEvolvedSampling, new { model = baseModel, beta_schedule = beta, m_models = ComfyGraph.Ref(MotionApply, 0) });
 
         // IP-Adapter: UnifiedLoader auto-resolves the IP-Adapter PLUS model + CLIP-ViT-H from the preset, then apply
         // the SOURCE image so the subject's identity carries into every generated frame.
-        wf["30"] = ComfyGraph.Node("IPAdapterUnifiedLoader", new { model = ComfyGraph.Ref("22", 0), preset = p.StrReq("ipadapter_preset") });
-        wf["31"] = ComfyGraph.Node("IPAdapter", new { model = ComfyGraph.Ref("30", 0), ipadapter = ComfyGraph.Ref("30", 1), image = ComfyGraph.Ref("11", 0), weight = p.DblReq("ipadapter_weight"), start_at = 0.0, end_at = 1.0, weight_type = "standard" });
+        wf[IpAdapterLoader] = ComfyGraph.Node(ComfyNodeTypes.IPAdapterUnifiedLoader, new { model = ComfyGraph.Ref(EvolvedSampling, 0), preset = p.StrReq(WorkflowParamKeys.IpadapterPreset) });
+        wf[IpAdapter] = ComfyGraph.Node(ComfyNodeTypes.IPAdapter, new { model = ComfyGraph.Ref(IpAdapterLoader, 0), ipadapter = ComfyGraph.Ref(IpAdapterLoader, 1), image = ComfyGraph.Ref(ScaledSource, 0), weight = p.DblReq(WorkflowParamKeys.IpadapterWeight), start_at = 0.0, end_at = 1.0, weight_type = "standard" });
 
-        wf["13"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Positive, clip = ComfyGraph.Ref("4", 1) });
-        wf["12"] = ComfyGraph.Node("CLIPTextEncode", new { text = inputs.Negative ?? "", clip = ComfyGraph.Ref("4", 1) });
+        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = ComfyGraph.Ref(Nodes.Model, 1) });
+        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = ComfyGraph.Ref(Nodes.Model, 1) });
 
         // SparseCtrl RGB: condition frame 0 on the source. Strength eased off after the early frames (end_percent)
         // so later frames are free to move instead of freezing on the source.
-        wf["23"] = ComfyGraph.Node("ACN_SparseCtrlLoaderAdvanced", new { sparsectrl_name = p.Model("sparsectrl_name"), use_motion = true, motion_strength = 1.0, motion_scale = 1.0 });
-        wf["24"] = ComfyGraph.Node("ACN_SparseCtrlRGBPreprocessor", new { image = ComfyGraph.Ref("11", 0), vae = ComfyGraph.Ref("4", 2), latent_size = ComfyGraph.Ref("7", 0) });
-        wf["25"] = ComfyGraph.Node("ControlNetApplyAdvanced", new
+        wf[SparseCtrlLoader] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlLoaderAdvanced, new { sparsectrl_name = p.Model(WorkflowParamKeys.SparsectrlName), use_motion = true, motion_strength = 1.0, motion_scale = 1.0 });
+        wf[SparseCtrlPreprocess] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlRGBPreprocessor, new { image = ComfyGraph.Ref(ScaledSource, 0), vae = ComfyGraph.Ref(Nodes.Model, 2), latent_size = ComfyGraph.Ref(Latent, 0) });
+        wf[ControlNetApply] = ComfyGraph.Node(ComfyNodeTypes.ControlNetApplyAdvanced, new
         {
-            positive = ComfyGraph.Ref("13", 0),
-            negative = ComfyGraph.Ref("12", 0),
-            control_net = ComfyGraph.Ref("23", 0),
-            image = ComfyGraph.Ref("24", 0),
-            strength = p.DblReq("sparsectrl_strength"),
+            positive = ComfyGraph.Ref(Positive, 0),
+            negative = ComfyGraph.Ref(Negative, 0),
+            control_net = ComfyGraph.Ref(SparseCtrlLoader, 0),
+            image = ComfyGraph.Ref(SparseCtrlPreprocess, 0),
+            strength = p.DblReq(WorkflowParamKeys.SparsectrlStrength),
             start_percent = 0.0,
-            end_percent = p.DblReq("sparsectrl_end"),
-            vae = ComfyGraph.Ref("4", 2),
+            end_percent = p.DblReq(WorkflowParamKeys.SparsectrlEnd),
+            vae = ComfyGraph.Ref(Nodes.Model, 2),
         });
 
-        wf["3"] = ComfyGraph.Node("KSampler", new
+        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
         {
             seed,
-            steps = p.IntReq("steps"),
-            cfg = p.DblReq("cfg"),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq("sampler")),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq("scheduler")),
+            steps = p.IntReq(WorkflowParamKeys.Steps),
+            cfg = p.DblReq(WorkflowParamKeys.Cfg),
+            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
+            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
             denoise = 1.0,
-            model = ComfyGraph.Ref("31", 0),
-            positive = ComfyGraph.Ref("25", 0),
-            negative = ComfyGraph.Ref("25", 1),
-            latent_image = ComfyGraph.Ref("7", 0),
+            model = ComfyGraph.Ref(IpAdapter, 0),
+            positive = ComfyGraph.Ref(ControlNetApply, 0),
+            negative = ComfyGraph.Ref(ControlNetApply, 1),
+            latent_image = ComfyGraph.Ref(Latent, 0),
         });
-        wf["8"] = ComfyGraph.Node("VAEDecode", new { samples = ComfyGraph.Ref("3", 0), vae = ComfyGraph.Ref("4", 2) });
-        wf["9"] = ComfyGraph.Node("SaveAnimatedWEBP", new { images = ComfyGraph.Ref("8", 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 90, method = "default" });
+        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = ComfyGraph.Ref(Nodes.Model, 2) });
+        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 90, method = "default" });
         return wf;
     }
 }

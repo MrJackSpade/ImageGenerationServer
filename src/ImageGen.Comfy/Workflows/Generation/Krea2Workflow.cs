@@ -19,7 +19,10 @@ public class Krea2Workflow : Txt2ImgWorkflowBase
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(Krea2Rebalance.Schema).ToArray();
 
+    /// <summary>The base's reserved node id the per-layer conditioning rebalance is spliced in at.</summary>
+    private const string RebalanceNodeId = "13";
+
     /// <summary>Splice the per-layer conditioning rebalance in at the base's reserved node id "13".</summary>
     protected override object PostEncodePositive(Dictionary<string, object> wf, object positive, ParamValues p)
-        => Krea2Rebalance.Apply(wf, positive, p, "13");
+        => Krea2Rebalance.Apply(wf, positive, p, RebalanceNodeId);
 }
