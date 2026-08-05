@@ -10,7 +10,10 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : IArtistDisplayRepository
 {
-    private const string Columns = "Id, UserId, ArtistName, GatewayImageId, SetAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "Id, UserId, ArtistName, GatewayImageId, SetAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly IUserCipher _cipher = cipher;
@@ -19,7 +22,7 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.ArtistDisplay WHERE UserId = @userId AND ArtistName = @name;");
+            $"SELECT {Sql.Columns} FROM dbo.ArtistDisplay WHERE UserId = @userId AND ArtistName = @name;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, artistName, ct));
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);

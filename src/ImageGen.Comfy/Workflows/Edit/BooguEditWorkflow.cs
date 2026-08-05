@@ -31,18 +31,6 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         })
         .ToArray();
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string ScaledSource = "11";
-    private const string ModelSampling = "33";
-    private const string Encode = "13";
-    private const string SourceSize = "17";
-    private const string Latent = "50";
-    private const string SamplerSelect = "16";
-    private const string Sigmas = "26";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(BooguParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -52,12 +40,12 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
         double mp = p.Megapixels;
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = 16 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = 16 };
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries
         // 3.16) — sampling quality depends on it being on the model the scheduler/sampler see.
-        g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.16 };
-        Output<Slot.Model> modelS = ModelSamplingAuraFlow.Out(ModelSampling);
+        g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.16 };
+        Output<Slot.Model> modelS = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
 
         // Boogu edit conditioning: instruction (+ vision tokens) on positive, empty/explicit negative => DROP. The node
         // VAE-encodes the reference itself and returns positive[0] / negative[1] with the reference latent on both. The
@@ -65,39 +53,54 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // "images.image_1" (id "." template-name), which the v3 executor rebuilds into images={"image_1": <IMAGE>}. A
         // bare "image_1" is rejected; the dotted key is expressed by the record's [JsonPropertyName("images.image_1")].
         string neg = inputs.Negative ?? p.Negative ?? "";
-        g[Encode] = new TextEncodeBooguEdit
+        g[Nodes.Encode] = new TextEncodeBooguEdit
         {
             Clip = clip0,
             Prompt = inputs.Positive,
             NegativePrompt = neg,
             Vae = vae0,
-            ImagesImage1 = ImageScaleToTotalPixels.Out(ScaledSource),
+            ImagesImage1 = ImageScaleToTotalPixels.Out(Nodes.ScaledSource),
         };
 
         // Output latent: an EMPTY latent sized to the resized source (template uses GetImageSize -> EmptyLatentImage),
         // NOT a VAEEncode of the source. Sample with SamplerCustom + KSamplerSelect(dpmpp_2m) + BasicScheduler sigmas —
         // a plain euler KSampler produces soft/blurry edits.
-        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
-        g[Latent] = new EmptyLatentFromSize { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = 1 };
-        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
-        g[Sigmas] = new BasicScheduler { Model = modelS, Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Steps = p.Steps, Denoise = 1.0 };
+        g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+        g[Nodes.Latent] = new EmptyLatentFromSize { Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize), BatchSize = 1 };
+        g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Nodes.Sigmas] = new BasicScheduler { Model = modelS, Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Steps = p.Steps, Denoise = 1.0 };
 
-        g[Sampler] = new SamplerCustom
+        g[Nodes.Sampler] = new SamplerCustom
         {
             Model = modelS,
             AddNoise = true,
             NoiseSeed = ComfyGraph.Seed(p.Seed),
             Cfg = p.Cfg,
-            Positive = TextEncodeBooguEdit.PositiveOut(Encode),
-            Negative = TextEncodeBooguEdit.NegativeOut(Encode),
-            Sampler = KSamplerSelect.Out(SamplerSelect),
-            Sigmas = BasicScheduler.Out(Sigmas),
-            LatentImage = EmptyLatentFromSize.Out(Latent),
+            Positive = TextEncodeBooguEdit.PositiveOut(Nodes.Encode),
+            Negative = TextEncodeBooguEdit.NegativeOut(Nodes.Encode),
+            Sampler = KSamplerSelect.Out(Nodes.SamplerSelect),
+            Sigmas = BasicScheduler.Out(Nodes.Sigmas),
+            LatentImage = EmptyLatentFromSize.Out(Nodes.Latent),
         };
-        g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustom.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string ScaledSource = "11";
+    public const string ModelSampling = "33";
+    public const string Encode = "13";
+    public const string SourceSize = "17";
+    public const string Latent = "50";
+    public const string SamplerSelect = "16";
+    public const string Sigmas = "26";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Boogu-edit parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for

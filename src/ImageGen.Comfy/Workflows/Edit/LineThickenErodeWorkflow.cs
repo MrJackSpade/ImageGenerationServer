@@ -26,22 +26,25 @@ public sealed class LineThickenErodeWorkflow : EditWorkflow<LineThickenErodePara
         new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int, Min = 0, Max = 32, Label = "Line thickness (px)" },
     };
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string Thicken = "20";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(LineThickenErodeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = source },
+            [EditNodes.Source] = new LoadImage { Image = source },
         };
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
-        g[Thicken] = new LineThicken { Image = src, Thickness = p.Thickness };
-        g[Save] = new SaveImage { Images = LineThicken.Out(Thicken), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Thicken] = new LineThicken { Image = src, Thickness = p.Thickness };
+        g[Nodes.Save] = new SaveImage { Images = LineThicken.Out(Nodes.Thicken), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Thicken = "20";
+    public const string Save = "9";
 }
 
 /// <summary>The erode thickener's one parameter. <c>required</c> so an absent value throws at the deserializer

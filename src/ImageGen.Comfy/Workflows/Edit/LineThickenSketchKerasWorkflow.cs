@@ -23,33 +23,36 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflow<LineThickenSke
         new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
     };
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string Lineart = "20";
-    private const string Thicken = "21";
-    private const string Blend = "22";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(LineThickenSketchKerasParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = source },
+            [EditNodes.Source] = new LoadImage { Image = source },
         };
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
         // Extract lines as dark-on-white (already at input size), bolden, multiply over the source.
-        g[Lineart] = new SketchKerasLines { Image = src, Threshold = p.Threshold };
-        g[Thicken] = new LineThicken { Image = SketchKerasLines.Out(Lineart), Thickness = p.Thickness };
-        g[Blend] = new ImageBlend
+        g[Nodes.Lineart] = new SketchKerasLines { Image = src, Threshold = p.Threshold };
+        g[Nodes.Thicken] = new LineThicken { Image = SketchKerasLines.Out(Nodes.Lineart), Thickness = p.Thickness };
+        g[Nodes.Blend] = new ImageBlend
         {
             Image1 = src,
-            Image2 = LineThicken.Out(Thicken),
+            Image2 = LineThicken.Out(Nodes.Thicken),
             BlendFactor = 1.0,
             BlendMode = ComfyWidgets.Blend.Multiply,
         };
-        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = ImageBlend.Out(Nodes.Blend), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Lineart = "20";
+    public const string Thicken = "21";
+    public const string Blend = "22";
+    public const string Save = "9";
 }
 
 /// <summary>The sketchKeras thickener's parameters. <c>required</c> so an absent value throws at the deserializer

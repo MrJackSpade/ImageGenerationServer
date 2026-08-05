@@ -130,16 +130,16 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         int grow = p.MaskGrow;   // 0 = no grow; range enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
-            g[GrowMaskNode] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
-            m = GrowMask.Out(GrowMaskNode);
+            g[Nodes.GrowMaskNode] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
+            m = GrowMask.Out(Nodes.GrowMaskNode);
         }
 
         int blur = p.MaskBlur;
         if (blur == 0) return m;
 
-        g[SoftenMaskImage] = new MaskToImage { Mask = m };
-        g[SoftenBlur] = new ImageBlur { Image = MaskToImage.Out(SoftenMaskImage), BlurRadius = blur, Sigma = MaskBlurSigma };
-        g[SoftenMaskBack] = new ImageToMask { Image = ImageBlur.Out(SoftenBlur), Channel = ComfyWidgets.MaskChannel.Red };
+        g[Nodes.SoftenMaskImage] = new MaskToImage { Mask = m };
+        g[Nodes.SoftenBlur] = new ImageBlur { Image = MaskToImage.Out(Nodes.SoftenMaskImage), BlurRadius = blur, Sigma = MaskBlurSigma };
+        g[Nodes.SoftenMaskBack] = new ImageToMask { Image = ImageBlur.Out(Nodes.SoftenBlur), Channel = ComfyWidgets.MaskChannel.Red };
 
         // "add" + the node's final 0..1 clamp = max() against the raw fill mask: the ramp survives only where the
         // raw mask is 0 (over the original), and every fill pixel is restored to a hard 1. Any mask deficit over
@@ -148,15 +148,15 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // just under 1.0 at the pad boundary leaves a visible seam, versus seam-free with a ramp held at exactly
         // 1.0 there. The ramp is therefore ONE-SIDED: hard over the fill, descending only outward across real
         // source pixels.
-        g[SoftenComposite] = new MaskComposite
+        g[Nodes.SoftenComposite] = new MaskComposite
         {
-            Destination = ImageToMask.Out(SoftenMaskBack),
+            Destination = ImageToMask.Out(Nodes.SoftenMaskBack),
             Source = rawMask,
             X = 0,
             Y = 0,
             Operation = ComfyWidgets.MaskOperation.Add,
         };
-        return MaskComposite.Out(SoftenComposite);
+        return MaskComposite.Out(Nodes.SoftenComposite);
     }
 
     /// <summary>Emit the ceiling scale for the canvas AND its mask, or return them untouched. Both must be resized
@@ -174,7 +174,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
         int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
 
-        g[CeilingImageScale] = new ImageScale
+        g[Nodes.CeilingImageScale] = new ImageScale
         {
             Image = image,
             UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
@@ -183,46 +183,23 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
             Crop = ComfyWidgets.Crop.Disabled,
         };
         // The mask has to make the same trip; MASK has no scale node, so round-trip it through IMAGE.
-        g[CeilingMaskImage] = new MaskToImage { Mask = rawMask };
+        g[Nodes.CeilingMaskImage] = new MaskToImage { Mask = rawMask };
         // nearest-exact, NOT bilinear: the mask must stay binary. Bilinear resampling turns its edge into a ramp,
         // which the composite then cross-fades across — reintroducing the seam fade through the back door on any
         // canvas that trips the ceiling.
-        g[CeilingMaskScale] = new ImageScale
+        g[Nodes.CeilingMaskScale] = new ImageScale
         {
-            Image = MaskToImage.Out(CeilingMaskImage),
+            Image = MaskToImage.Out(Nodes.CeilingMaskImage),
             UpscaleMethod = ComfyWidgets.Upscale.NearestExact,
             Width = w,
             Height = h,
             Crop = ComfyWidgets.Crop.Disabled,
         };
-        g[CeilingMaskBack] = new ImageToMask { Image = ImageScale.Out(CeilingMaskScale), Channel = ComfyWidgets.MaskChannel.Red };
+        g[Nodes.CeilingMaskBack] = new ImageToMask { Image = ImageScale.Out(Nodes.CeilingMaskScale), Channel = ComfyWidgets.MaskChannel.Red };
 
-        image = ImageScale.Out(CeilingImageScale);
-        rawMask = ImageToMask.Out(CeilingMaskBack);
+        image = ImageScale.Out(Nodes.CeilingImageScale);
+        rawMask = ImageToMask.Out(Nodes.CeilingMaskBack);
     }
-
-    /// <summary>This base's own node ids (role-named), on top of the inherited edit head
-    /// (Nodes.Model/Clip/Vae/Source). Values preserved exactly so the emitted graph stays byte-identical.</summary>
-    protected const string GrowMaskNode = "30";
-    protected const string SoftenMaskImage = "32";
-    protected const string SoftenBlur = "33";
-    protected const string SoftenMaskBack = "34";
-    protected const string SoftenComposite = "35";
-    protected const string CeilingImageScale = "172";
-    protected const string CeilingMaskImage = "173";
-    protected const string CeilingMaskScale = "174";
-    protected const string CeilingMaskBack = "175";
-    protected const string Positive = "13";
-    protected const string Negative = "14";
-    protected const string ControlNet = "84";
-    protected const string ControlNetApply = "108";
-    protected const string Encode = "12";
-    protected const string LatentNoiseMask = "31";
-    protected const string ModelSampling = "66";
-    protected const string Sampler = "3";
-    protected const string Decode = "8";
-    protected const string Composite = "126";
-    protected const string Save = "9";
 
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -238,8 +215,8 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // The negative runs at CFG ~2.5 and must not be empty — Comfy's own template ships a single space.
         string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
         if (string.IsNullOrWhiteSpace(neg)) neg = " ";
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // The fill conditioning. It takes the SAME softened mask as the sampler and the composite — all three
         // consumers must agree, exactly as the reference template wires them (its Grow-and-Blur output feeds
@@ -250,12 +227,12 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // up to the boundary, preserve them" while SetLatentNoiseMask has the sampler regenerating `mask_grow` px
         // INSIDE that boundary. Across that ring the model is conditioned on pixels it is simultaneously being told
         // to replace, and the contradiction lands precisely on the join.
-        g[ControlNet] = new ControlNetLoader { ControlNetName = req.RequiredControlNet() };
-        g[ControlNetApply] = new ControlNetInpaintingAliMamaApply
+        g[Nodes.ControlNet] = new ControlNetLoader { ControlNetName = req.RequiredControlNet() };
+        g[Nodes.ControlNetApply] = new ControlNetInpaintingAliMamaApply
         {
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            ControlNet = ControlNetLoader.Out(ControlNet),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            ControlNet = ControlNetLoader.Out(Nodes.ControlNet),
             Vae = vae0,
             Image = image,
             Mask = softMask,
@@ -264,7 +241,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
             EndPercent = p.CnEnd,
         };
 
-        g[Encode] = new VAEEncode { Pixels = image, Vae = vae0 };
+        g[Nodes.Encode] = new VAEEncode { Pixels = image, Vae = vae0 };
 
         // BOTH directions sample through SetLatentNoiseMask — a deliberate deviation from the reference template,
         // whose outpaint branch wires VAEEncode straight in. Without it the fill's only tie to the original is
@@ -273,13 +250,13 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // original latents every step anchors the fill's tone. The latent-space seam this node is known for (a
         // binary mask blends across ONE 8px latent cell and decodes as a hard 1px line) is defeated by the mask's
         // ramp instead: MaskBlurSigma makes the outpaint ramp span several latent cells, over the original side only.
-        g[LatentNoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Encode), Mask = softMask };
-        Output<Slot.Latent> latent = SetLatentNoiseMask.Out(LatentNoiseMask);
+        g[Nodes.LatentNoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Nodes.Encode), Mask = softMask };
+        Output<Slot.Latent> latent = SetLatentNoiseMask.Out(Nodes.LatentNoiseMask);
 
-        g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Auraflow };
+        g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Auraflow };
 
         double dn = p.Denoise;
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -287,12 +264,12 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = dn,
-            Model = ModelSamplingAuraFlow.Out(ModelSampling),
-            Positive = ControlNetInpaintingAliMamaApply.PositiveOut(ControlNetApply),
-            Negative = ControlNetInpaintingAliMamaApply.NegativeOut(ControlNetApply),
+            Model = ModelSamplingAuraFlow.Out(Nodes.ModelSampling),
+            Positive = ControlNetInpaintingAliMamaApply.PositiveOut(Nodes.ControlNetApply),
+            Negative = ControlNetInpaintingAliMamaApply.NegativeOut(Nodes.ControlNetApply),
             LatentImage = latent,
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
 
         // Paste the generated region back over the ORIGINAL canvas, so the untouched area keeps the source pixels
         // rather than a VAE round-trip of them.
@@ -302,18 +279,44 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // control image inside the mask, mask_grow deep into the original) and the extension would fail to line
         // up with the source. The blur ramp is grown inward, over real source pixels only — nowhere near the
         // 0.5-grey pad fill — so the crossfade blends generated-vs-original and can never blend in grey.
-        g[Composite] = new ImageCompositeMasked
+        g[Nodes.Composite] = new ImageCompositeMasked
         {
             Destination = image,
-            Source = VAEDecode.Out(Decode),
+            Source = VAEDecode.Out(Nodes.Decode),
             X = 0,
             Y = 0,
             ResizeSource = false,
             Mask = softMask,
         };
-        g[Save] = new SaveImage { Images = ImageCompositeMasked.Out(Composite), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = ImageCompositeMasked.Out(Nodes.Composite), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>QwenInstantXInpaintBase's own node ids (role-named), on top of the inherited edit head
+/// (EditNodes.Model/Clip/Vae/Source). Values preserved exactly so the emitted graph stays byte-identical.</summary>
+file static class Nodes
+{
+    public const string GrowMaskNode = "30";
+    public const string SoftenMaskImage = "32";
+    public const string SoftenBlur = "33";
+    public const string SoftenMaskBack = "34";
+    public const string SoftenComposite = "35";
+    public const string CeilingImageScale = "172";
+    public const string CeilingMaskImage = "173";
+    public const string CeilingMaskScale = "174";
+    public const string CeilingMaskBack = "175";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string ControlNet = "84";
+    public const string ControlNetApply = "108";
+    public const string Encode = "12";
+    public const string LatentNoiseMask = "31";
+    public const string ModelSampling = "66";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Composite = "126";
+    public const string Save = "9";
 }
 
 /// <summary>Base Qwen-Image + InstantX-ControlNet inpaint/outpaint parameters, shared by the inpaint and outpaint

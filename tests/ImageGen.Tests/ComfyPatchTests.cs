@@ -37,7 +37,7 @@ public sealed class ComfyPatchTests : IDisposable
         Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)
                  .ToDictionary(f => Path.GetRelativePath(_root, f).Replace('\\', '/'), File.ReadAllText, StringComparer.Ordinal);
 
-    private const string Diff = """
+    private static readonly string Diff = """
         --- a/greet.py
         +++ b/greet.py
         @@ -1,3 +1,4 @@

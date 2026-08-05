@@ -158,11 +158,11 @@ MediaOptions mediaOptions = new MediaOptions();
 // IConfiguration, not a captured value. Only the STORED value is live; the fallback is the constant declared on the
 // setting's spec (so the settings page and this reader cannot disagree about an unset box), resolved once here.
 double backgroundIdleDefault = double.Parse(
-    MachineSettingSpecs.DefaultOf(MachineSettingSpecs.BackgroundIdleMinutes)
-        ?? throw new InvalidOperationException($"{MachineSettingSpecs.BackgroundIdleMinutes} declares no default."),
+    MachineSettingSpecs.DefaultOf(MachineSettingSpecs.Keys.BackgroundIdleMinutes)
+        ?? throw new InvalidOperationException($"{MachineSettingSpecs.Keys.BackgroundIdleMinutes} declares no default."),
     System.Globalization.CultureInfo.InvariantCulture);
 RenderOptions renderOptions = new RenderOptions(() =>
-    TimeSpan.FromMinutes(config.GetValue(MachineSettingSpecs.BackgroundIdleMinutes, backgroundIdleDefault)));
+    TimeSpan.FromMinutes(config.GetValue(MachineSettingSpecs.Keys.BackgroundIdleMinutes, backgroundIdleDefault)));
 
 // --- DI (composition root) -----------------------------------------------------------------------
 builder.Services.AddSingleton<AuthOptions>();          // reads Auth:RegistrationCode live
@@ -426,7 +426,7 @@ foreach (string address in app.Urls)
 
 // And open it, if the launcher asked. Only the launcher sets this, so a container, a service or a scheduled task
 // is left alone — see StartupBrowser for why that is the trigger rather than a guess at whether a desktop exists.
-if (firstReachable is not null && StartupBrowser.Requested(Environment.GetEnvironmentVariable(StartupBrowser.EnvVar)))
+if (firstReachable is not null && StartupBrowser.Requested(Environment.GetEnvironmentVariable(StartupBrowser.Env.EnvVar)))
     StartupBrowser.Open(firstReachable, startupLoggers.CreateLogger(LogNames.StartupCategory));
 
 await app.WaitForShutdownAsync();

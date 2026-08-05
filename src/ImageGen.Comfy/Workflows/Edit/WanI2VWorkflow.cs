@@ -20,34 +20,23 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
     }).ToArray();
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string ModelSampling = "30";
-    private const string ScaleSource = "11";
-    private const string ImageSize = "15";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string Latent = "14";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(WanI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
-        g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
-        model0 = ModelSamplingSD3.Out(ModelSampling);
+        g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
+        model0 = ModelSamplingSD3.Out(Nodes.ModelSampling);
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.9;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
-        g[ImageSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaleSource) };
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
-        g[Latent] = new Wan22ImageToVideoLatent { Vae = vae0, Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize), Length = len, BatchSize = 1, StartImage = ImageScaleToTotalPixels.Out(ScaleSource) };
-        g[Sampler] = new KSampler
+        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[Nodes.ImageSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaleSource) };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.Latent] = new Wan22ImageToVideoLatent { Vae = vae0, Width = GetImageSize.WidthOut(Nodes.ImageSize), Height = GetImageSize.HeightOut(Nodes.ImageSize), Length = len, BatchSize = 1, StartImage = ImageScaleToTotalPixels.Out(Nodes.ScaleSource) };
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = seed,
             Steps = p.Steps,
@@ -56,14 +45,28 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = model0,
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = Wan22ImageToVideoLatent.Out(Latent),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = Wan22ImageToVideoLatent.Out(Nodes.Latent),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string ModelSampling = "30";
+    public const string ScaleSource = "11";
+    public const string ImageSize = "15";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string Latent = "14";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Wan 2.2 TI2V-5B i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

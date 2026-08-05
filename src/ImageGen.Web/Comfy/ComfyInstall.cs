@@ -20,28 +20,37 @@ public sealed record ComfyInstallInfo(string? Root, bool Ok, string? Error);
 /// </summary>
 public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpFactory, IComfyEndpoint endpoint)
 {
-    /// <summary>The ComfyUI installation directory. Read live, so the settings page can change it.</summary>
-    public const string PathKey = Configuration.MachineSettingSpecs.ComfyPath;
+    public static class Keys
+    {
+        /// <summary>The ComfyUI installation directory. Read live, so the settings page can change it.</summary>
+        public const string PathKey = Configuration.MachineSettingSpecs.Keys.ComfyPath;
 
-    /// <summary>The interpreter that runs it — used only to install a fetched node pack's requirements.</summary>
-    public const string PythonKey = Configuration.MachineSettingSpecs.ComfyPython;
+        /// <summary>The interpreter that runs it — used only to install a fetched node pack's requirements.</summary>
+        public const string PythonKey = Configuration.MachineSettingSpecs.Keys.ComfyPython;
+    }
 
-    /// <summary>ComfyUI's entrypoint script; its presence (with <see cref="CoreDirectory"/>) marks an install root.</summary>
-    private const string MainScript = "main.py";
+    private static class Markers
+    {
+        /// <summary>ComfyUI's entrypoint script; its presence (with <see cref="CoreDirectory"/>) marks an install root.</summary>
+        public const string MainScript = "main.py";
 
-    /// <summary>ComfyUI's core package directory; its presence (with <see cref="MainScript"/>) marks an install root.</summary>
-    private const string CoreDirectory = "comfy";
+        /// <summary>ComfyUI's core package directory; its presence (with <see cref="MainScript"/>) marks an install root.</summary>
+        public const string CoreDirectory = "comfy";
+    }
 
-    /// <summary>The <c>folder_paths</c> key whose first entry is ComfyUI's own <c>models/configs</c>.</summary>
-    private const string ConfigsKey = "configs";
+    private static class Props
+    {
+        /// <summary>The <c>folder_paths</c> key whose first entry is ComfyUI's own <c>models/configs</c>.</summary>
+        public const string ConfigsKey = "configs";
+    }
 
     private readonly IConfiguration _config = config;
     private readonly IHttpClientFactory _httpFactory = httpFactory;
     private readonly IComfyEndpoint _endpoint = endpoint;
 
-    public string? Root => Blank(_config[PathKey]);
+    public string? Root => Blank(_config[Keys.PathKey]);
 
-    public string? Python => Blank(_config[PythonKey]);
+    public string? Python => Blank(_config[Keys.PythonKey]);
 
     /// <summary>
     /// Whether the configured path is somewhere patches can be applied. Checks for <c>main.py</c> and
@@ -59,7 +68,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
         if (!Directory.Exists(root))
             return new ComfyInstallInfo(root, false, $"{root} is not there.");
 
-        if (!File.Exists(Path.Combine(root, MainScript)) || !Directory.Exists(Path.Combine(root, CoreDirectory)))
+        if (!File.Exists(Path.Combine(root, Markers.MainScript)) || !Directory.Exists(Path.Combine(root, Markers.CoreDirectory)))
             return new ComfyInstallInfo(root, false, $"{root} does not look like a ComfyUI installation — no main.py and comfy/ in it.");
 
         return new ComfyInstallInfo(root, true, null);
@@ -79,7 +88,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     /// then the correct and permanent answer.</para>
     ///
     /// <para><c>/internal/*</c> is not ComfyUI's documented API and may change, which is why this only ever
-    /// SUGGESTS a value that <see cref="PathKey"/> overrides.</para>
+    /// SUGGESTS a value that <see cref="Keys.PathKey"/> overrides.</para>
     /// </summary>
     public async Task<string?> DetectRootAsync(CancellationToken ct)
     {
@@ -94,7 +103,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
             if (!response.IsSuccessStatusCode) return null;
 
             using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            if (!document.RootElement.TryGetProperty(ConfigsKey, out JsonElement configs) ||
+            if (!document.RootElement.TryGetProperty(Props.ConfigsKey, out JsonElement configs) ||
                 configs.ValueKind != JsonValueKind.Array ||
                 configs.GetArrayLength() == 0) return null;
 
@@ -107,7 +116,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
             string? root = models is null ? null : Path.GetDirectoryName(models);
             if (string.IsNullOrWhiteSpace(root)) return null;
 
-            return File.Exists(Path.Combine(root, MainScript)) && Directory.Exists(Path.Combine(root, CoreDirectory))
+            return File.Exists(Path.Combine(root, Markers.MainScript)) && Directory.Exists(Path.Combine(root, Markers.CoreDirectory))
                 ? root
                 : null;
         }

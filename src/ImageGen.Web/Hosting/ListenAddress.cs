@@ -20,17 +20,20 @@ namespace ImageGen.Web.Hosting;
 /// </summary>
 public static class ListenAddress
 {
-    /// <summary>Kestrel's "*" any-host wildcard in a listen URL.</summary>
-    private const string WildcardStar = "*";
+    private static class Tokens
+    {
+        /// <summary>Kestrel's "*" any-host wildcard in a listen URL.</summary>
+        public const string WildcardStar = "*";
 
-    /// <summary>Kestrel's "+" any-host wildcard in a listen URL.</summary>
-    private const string WildcardPlus = "+";
+        /// <summary>Kestrel's "+" any-host wildcard in a listen URL.</summary>
+        public const string WildcardPlus = "+";
 
-    /// <summary>The IPv4 any-interface host in a listen URL.</summary>
-    private const string AnyHostIPv4 = "0.0.0.0";
+        /// <summary>The IPv4 any-interface host in a listen URL.</summary>
+        public const string AnyHostIPv4 = "0.0.0.0";
 
-    /// <summary>The scheme/host separator in a listen URL.</summary>
-    private const string SchemeSeparator = "://";
+        /// <summary>The scheme/host separator in a listen URL.</summary>
+        public const string SchemeSeparator = "://";
+    }
 
     /// <summary>
     /// Returns <paramref name="configuredUrls"/> unchanged when every port in it is free, otherwise the same list
@@ -97,14 +100,14 @@ public static class ListenAddress
     /// probes the loopback, which is the interface a name for this box resolves to.
     /// </summary>
     private static IPAddress AddressFor(string host) =>
-        host is WildcardStar or WildcardPlus or AnyHostIPv4 ? IPAddress.Any
+        host is Tokens.WildcardStar or Tokens.WildcardPlus or Tokens.AnyHostIPv4 ? IPAddress.Any
         : IPAddress.TryParse(host, out IPAddress? parsed) ? parsed
         : IPAddress.Loopback;
 
     private static bool TryParse(string url, out string scheme, out string host, out int port)
     {
         scheme = host = ""; port = 0;
-        int schemeEnd = url.IndexOf(SchemeSeparator, StringComparison.Ordinal);
+        int schemeEnd = url.IndexOf(Tokens.SchemeSeparator, StringComparison.Ordinal);
         if (schemeEnd <= 0) return false;
 
         scheme = url[..schemeEnd];

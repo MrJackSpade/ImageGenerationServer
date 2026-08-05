@@ -1,5 +1,15 @@
 namespace ImageGen.Comfy.Patches;
 
+/// <summary>Relative-path tokens for ComfyUI-root-relative patch targets.</summary>
+public static class PathTokens
+{
+    /// <summary>The current directory — ComfyUI root itself as a patch target.</summary>
+    public const string CurrentDirectory = ".";
+
+    /// <summary>The parent directory.</summary>
+    public const string ParentDirectory = "..";
+}
+
 /// <summary>Where a patch stands against one ComfyUI installation. Derived every time it is asked for.</summary>
 public enum PatchState
 {
@@ -57,8 +67,6 @@ public sealed record ComfyPatch(
     IReadOnlyList<string> Provides,
     IReadOnlyList<FileDiff> Files)
 {
-    private const string CurrentDirectory = ".";
-
     /// <summary>
     /// True when this patch only ever creates files — a node pack this repository ships. Such a patch builds its
     /// own target, so a missing directory means "not applied yet" rather than "the thing it patches is not
@@ -82,7 +90,7 @@ public sealed record ComfyPatch(
 
     /// <summary>The absolute directory this patch's paths are relative to, under a given ComfyUI root.</summary>
     public string ResolveTarget(string comfyRoot) =>
-        Target == CurrentDirectory
+        Target == PathTokens.CurrentDirectory
             ? comfyRoot
             : Path.Combine(comfyRoot, Target.Replace('/', Path.DirectorySeparatorChar));
 }

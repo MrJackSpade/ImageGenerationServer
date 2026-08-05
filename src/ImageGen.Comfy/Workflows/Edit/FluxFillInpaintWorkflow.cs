@@ -21,17 +21,21 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
         new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
-    private const string Mask = "11";
-
     protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        image = LoadImage.ImageOut(Nodes.Source);
+        image = LoadImage.ImageOut(EditNodes.Source);
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            g[Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
-            rawMask = LoadImageMask.Out(Mask);
+            g[Nodes.Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
+            rawMask = LoadImageMask.Out(Nodes.Mask);
         }
-        else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha
+        else rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
     }
+}
+
+/// <summary>FluxFillInpaintWorkflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Mask = "11";
 }

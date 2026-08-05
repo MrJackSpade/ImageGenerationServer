@@ -27,7 +27,7 @@ internal static class PixelizeSchema
 
     public static IReadOnlyList<ParamSpec> KontextLike() => new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
         // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
         // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.
@@ -44,7 +44,7 @@ internal static class PixelizeSchema
 
     public static IReadOnlyList<ParamSpec> KleinLike() => new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
         new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },

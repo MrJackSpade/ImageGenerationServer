@@ -47,11 +47,14 @@ public sealed class ComfyPatchService(
     IWebHostEnvironment environment,
     ILogger<ComfyPatchService> log)
 {
-    /// <summary>Payload directory holding the file-tree patches shipped beside the app.</summary>
-    private const string PatchesPayload = "comfy-patches";
+    private static class Payloads
+    {
+        /// <summary>Payload directory holding the file-tree patches shipped beside the app.</summary>
+        public const string PatchesPayload = "comfy-patches";
 
-    /// <summary>Payload directory holding the custom-node packs shipped beside the app.</summary>
-    private const string NodesPayload = "comfy-nodes";
+        /// <summary>Payload directory holding the custom-node packs shipped beside the app.</summary>
+        public const string NodesPayload = "comfy-nodes";
+    }
 
     private readonly ComfyInstall _install = install;
     private readonly ComfySupervisor _supervisor = supervisor;
@@ -76,7 +79,7 @@ public sealed class ComfyPatchService(
             if (detected is not null)
             {
                 _log.LogInformation("Renderer folder was unset; the renderer reports {Root}, which is a ComfyUI on this machine", detected);
-                await _machine.SetAsync(ComfyInstall.PathKey, detected, ct);
+                await _machine.SetAsync(ComfyInstall.Keys.PathKey, detected, ct);
             }
         }
 
@@ -152,8 +155,8 @@ public sealed class ComfyPatchService(
 
     private IReadOnlyList<ComfyPatch> Load()
     {
-        string? patchDirectory = Payload(PatchesPayload);
-        string? nodesDirectory = Payload(NodesPayload);
+        string? patchDirectory = Payload(Payloads.PatchesPayload);
+        string? nodesDirectory = Payload(Payloads.NodesPayload);
 
         // Neither present is a broken build, not an empty patch set. Rendering "no patches" would read as
         // "nothing to do" on an install that is in fact missing every fix it ships with.

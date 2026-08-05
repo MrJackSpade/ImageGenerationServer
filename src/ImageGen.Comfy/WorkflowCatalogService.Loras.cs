@@ -11,9 +11,6 @@ namespace ImageGen.Comfy;
 /// </summary>
 public sealed partial class WorkflowCatalogService
 {
-    /// <summary>ComfyUI's folder-paths key for the LoRA roots.</summary>
-    private const string LorasFolderKey = "loras";
-
     /// <inheritdoc/>
     public async Task<IReadOnlyList<LoraCatalogEntry>> ListLorasAsync(string? workflowId, CancellationToken ct)
     {
@@ -31,7 +28,7 @@ public sealed partial class WorkflowCatalogService
         string checkpointFile = _catalog.Resolve(cfg).Checkpoint;
         IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await _comfy.GetFolderPathsAsync(ct);
         IReadOnlySet<long>? checkpointDims = ResolveCheckpointDims(checkpointFile, folders);
-        IReadOnlyList<string> loraRoots = folders.TryGetValue(LorasFolderKey, out IReadOnlyList<string>? lr) ? lr : [];
+        IReadOnlyList<string> loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? lr) ? lr : [];
 
         return names.Select(n =>
         {

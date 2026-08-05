@@ -34,21 +34,15 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
         new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
-    /// <summary>This workflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>
-    private const string MaskLoad = "11";
-    private const string PrefillBlur1 = "21";
-    private const string PrefillBlur2 = "22";
-    private const string PrefillComposite = "23";
-
     protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            g[MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
-            rawMask = LoadImageMask.Out(MaskLoad);
+            g[Nodes.MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
+            rawMask = LoadImageMask.Out(Nodes.MaskLoad);
         }
-        else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha
+        else rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
 
         // Same pre-fill as outpaint, for the same reason: this app's inpaint masks cover flat WHITE space to be
         // filled — non-scene content under the fill region, grey's twin. Two chained blurs (σ10 each ≈ σ14) pull
@@ -57,17 +51,26 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
         // re-injected, never composited) and the ControlNet apply zeroes it out of the control image. What matters
         // is that the ~8-16px boundary band — the latent cells straddling the join, and everything a soft edge can
         // blend — carries scene tone instead of white.
-        g[PrefillBlur1] = new ImageBlur { Image = LoadImage.ImageOut(Nodes.Source), BlurRadius = 31, Sigma = 10.0 };
-        g[PrefillBlur2] = new ImageBlur { Image = ImageBlur.Out(PrefillBlur1), BlurRadius = 31, Sigma = 10.0 };
-        g[PrefillComposite] = new ImageCompositeMasked
+        g[Nodes.PrefillBlur1] = new ImageBlur { Image = LoadImage.ImageOut(EditNodes.Source), BlurRadius = 31, Sigma = 10.0 };
+        g[Nodes.PrefillBlur2] = new ImageBlur { Image = ImageBlur.Out(Nodes.PrefillBlur1), BlurRadius = 31, Sigma = 10.0 };
+        g[Nodes.PrefillComposite] = new ImageCompositeMasked
         {
-            Destination = LoadImage.ImageOut(Nodes.Source),
-            Source = ImageBlur.Out(PrefillBlur2),
+            Destination = LoadImage.ImageOut(EditNodes.Source),
+            Source = ImageBlur.Out(Nodes.PrefillBlur2),
             X = 0,
             Y = 0,
             ResizeSource = false,
             Mask = rawMask,
         };
-        image = ImageCompositeMasked.Out(PrefillComposite);
+        image = ImageCompositeMasked.Out(Nodes.PrefillComposite);
     }
+}
+
+/// <summary>QwenImageInpaintWorkflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>
+file static class Nodes
+{
+    public const string MaskLoad = "11";
+    public const string PrefillBlur1 = "21";
+    public const string PrefillBlur2 = "22";
+    public const string PrefillComposite = "23";
 }

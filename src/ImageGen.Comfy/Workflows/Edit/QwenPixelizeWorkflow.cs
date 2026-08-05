@@ -21,7 +21,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
 
     private static readonly IReadOnlyList<ParamSpec> QwenPixelizeSchema = new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
         new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
@@ -55,23 +55,6 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     };
 
-    /// <summary>This workflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>
-    private const string KontextScale = "20";
-    private const string Encode = "22";
-    private const string SnapScale = "25";
-    private const string SourceEncode = "21";
-    private const string RefLatent = "24";
-    private const string ImageSize = "40";
-    private const string EmptyLatentNode = "41";
-    private const string ZeroNegative = "26";
-    private const string ModelSampling = "2";
-    private const string CfgNorm = "7";
-    private const string Projection = "35";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string FinalQuantize = "36";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(QwenPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -91,8 +74,8 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         // denoise = 1 - reference/100 (100 ≈ copy). When snapping is on, the sprite renders at the clean k×VRES size.
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
         bool useRef = p.Reference > 0;
-        g[KontextScale] = new FluxKontextImageScale { Image = src };
-        g[Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(KontextScale), Prompt = instruction };
+        g[Nodes.KontextScale] = new FluxKontextImageScale { Image = src };
+        g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction };
         Output<Slot.Conditioning> cond;
         Output<Slot.Latent> initLatent;
         if (useRef)
@@ -101,33 +84,33 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
             // FixedScale must be its OWN node (25) and referenced — passing the node dict inline as VAEEncode's
             // `pixels` input hands the encoder a dict instead of an image ('dict' has no attribute 'shape').
             Output<Slot.Image> srcPixels;
-            if (snap is { } sa) { g[SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h); srcPixels = ImageScale.Out(SnapScale); }
-            else srcPixels = FluxKontextImageScale.Out(KontextScale);
-            g[SourceEncode] = new VAEEncode { Pixels = srcPixels, Vae = vae0 };
-            g[RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), Latent = VAEEncode.Out(SourceEncode) };
-            cond = ReferenceLatent.Out(RefLatent);
-            initLatent = VAEEncode.Out(SourceEncode);
+            if (snap is { } sa) { g[Nodes.SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h); srcPixels = ImageScale.Out(Nodes.SnapScale); }
+            else srcPixels = FluxKontextImageScale.Out(Nodes.KontextScale);
+            g[Nodes.SourceEncode] = new VAEEncode { Pixels = srcPixels, Vae = vae0 };
+            g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
+            cond = ReferenceLatent.Out(Nodes.RefLatent);
+            initLatent = VAEEncode.Out(Nodes.SourceEncode);
         }
         else
         {
             if (snap is { } sl)
-                g[EmptyLatentNode] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = sl.w, Height = sl.h, BatchSize = 1 };
+                g[Nodes.EmptyLatentNode] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = sl.w, Height = sl.h, BatchSize = 1 };
             else
             {
-                g[ImageSize] = new GetImageSize { Image = FluxKontextImageScale.Out(KontextScale) };
-                g[EmptyLatentNode] = new EmptySD3LatentFromSize { Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize), BatchSize = 1 };
+                g[Nodes.ImageSize] = new GetImageSize { Image = FluxKontextImageScale.Out(Nodes.KontextScale) };
+                g[Nodes.EmptyLatentNode] = new EmptySD3LatentFromSize { Width = GetImageSize.WidthOut(Nodes.ImageSize), Height = GetImageSize.HeightOut(Nodes.ImageSize), BatchSize = 1 };
             }
-            cond = TextEncodeQwenImageEditPlus.Out(Encode);
-            initLatent = EmptyLatent.Out(EmptyLatentNode);
+            cond = TextEncodeQwenImageEditPlus.Out(Nodes.Encode);
+            initLatent = EmptyLatent.Out(Nodes.EmptyLatentNode);
         }
-        g[ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
+        g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
 
         // Qwen 2511 sampling fix (ModelSamplingAuraFlow + CFGNorm), then patch with the per-step projection.
-        g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
-        g[CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(ModelSampling), Strength = 1.0 };
-        g[Projection] = PixelizeSchema.Projection(CFGNorm.Out(CfgNorm), vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
+        g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
+        g[Nodes.CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(Nodes.ModelSampling), Strength = 1.0 };
+        g[Nodes.Projection] = PixelizeSchema.Projection(CFGNorm.Out(Nodes.CfgNorm), vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -135,16 +118,36 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = PixelSnap.Denoise(p.Reference, 0),   // reference% -> denoise; 0 (default) == 1.0 == generate fresh
-            Model = PixelManifoldProjection.Out(Projection),
+            Model = PixelManifoldProjection.Out(Nodes.Projection),
             Positive = cond,
-            Negative = ConditioningZeroOut.Out(ZeroNegative),
+            Negative = ConditioningZeroOut.Out(Nodes.ZeroNegative),
             LatentImage = initLatent,
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Nodes.Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>QwenPixelizeWorkflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>
+file static class Nodes
+{
+    public const string KontextScale = "20";
+    public const string Encode = "22";
+    public const string SnapScale = "25";
+    public const string SourceEncode = "21";
+    public const string RefLatent = "24";
+    public const string ImageSize = "40";
+    public const string EmptyLatentNode = "41";
+    public const string ZeroNegative = "26";
+    public const string ModelSampling = "2";
+    public const string CfgNorm = "7";
+    public const string Projection = "35";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string FinalQuantize = "36";
+    public const string Save = "9";
 }
 
 /// <summary>Qwen-pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>

@@ -22,12 +22,16 @@ public interface IComfyEndpoint
     string GateToken { get; }
 }
 
+/// <summary>Fixed ComfyUI gate defaults.</summary>
+public static class ComfyGateDefaults
+{
+    /// <summary>The historical gate token, and the fallback the custom node uses when nothing is configured.</summary>
+    public const string GateToken = "ig-queue-only-7Qx2k9Lp4Rf8Zv1";
+}
+
 /// <summary>Settings for the ComfyUI adapter that are fixed for the life of the process.</summary>
 public sealed class ComfyOptions
 {
-    /// <summary>The historical gate token, and the fallback the custom node uses when nothing is configured.</summary>
-    public const string DefaultGateToken = "ig-queue-only-7Qx2k9Lp4Rf8Zv1";
-
     /// <summary>
     /// Root of the configuration tree: <c>&lt;path&gt;/workflows/*.json</c> and <c>&lt;path&gt;/models/*.json</c>.
     /// One file per thing, so adding a workflow or a model is dropping a file rather than editing a shipped one.

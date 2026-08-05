@@ -23,23 +23,16 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.DreamOmniLike();
 
-    /// <summary>This subclass's own node ids (the source LoadImage reuses <c>Nodes.Source</c>).</summary>
-    private const string Reference = "11";
-    private const string Pipeline = "1";
-    private const string Editor = "2";
-    private const string FinalQuantize = "36";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(DreamOmni2PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
+            [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
         Output<Slot.Image> refImg;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        if (refNames.Count > 0) { g[Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Reference); }
-        else refImg = LoadImage.ImageOut(Nodes.Source);   // Editor requires a reference; the source doubles as its own.
+        if (refNames.Count > 0) { g[Nodes.Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Nodes.Reference); }
+        else refImg = LoadImage.ImageOut(EditNodes.Source);   // Editor requires a reference; the source doubles as its own.
 
         string instruction = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
         int gw = p.GridW;
@@ -52,11 +45,11 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
         // render size is fed to the editor as render_width/height, overriding its internal aspect-bucket resize.
         (int w, int h)? snap = PixelSnap.Target(new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
 
-        g[Pipeline] = new RunningHubDreamOmni2EditPipeline();
-        g[Editor] = new RunningHubDreamOmni2PixelizeEditor
+        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline();
+        g[Nodes.Editor] = new RunningHubDreamOmni2PixelizeEditor
         {
-            Pipeline = RunningHubDreamOmni2EditPipeline.Out(Pipeline),
-            SrcImage = LoadImage.ImageOut(Nodes.Source),
+            Pipeline = RunningHubDreamOmni2EditPipeline.Out(Nodes.Pipeline),
+            SrcImage = LoadImage.ImageOut(EditNodes.Source),
             RefImage = refImg,
             Prompt = instruction,
             NumInferenceSteps = p.Steps,
@@ -80,10 +73,20 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
             // reference% -> img2img strength inside the pipeline; 1.0 (reference 0, default) == full generation
             Strength = PixelSnap.Denoise(p.Reference, 0),
         };
-        g[FinalQuantize] = PixelizeSchema.FinalQuantize(RunningHubDreamOmni2PixelizeEditor.Out(Editor), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.FinalQuantize] = PixelizeSchema.FinalQuantize(RunningHubDreamOmni2PixelizeEditor.Out(Nodes.Editor), gw, gh, palette, vres, p.FinalMethod);
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>DreamOmni2PixelizeWorkflow's node ids (the source LoadImage reuses <c>EditNodes.Source</c>).</summary>
+file static class Nodes
+{
+    public const string Reference = "11";
+    public const string Pipeline = "1";
+    public const string Editor = "2";
+    public const string FinalQuantize = "36";
+    public const string Save = "9";
 }
 
 /// <summary>DreamOmni2 pixelizer parameters — the two diffusion knobs the self-contained editor consumes

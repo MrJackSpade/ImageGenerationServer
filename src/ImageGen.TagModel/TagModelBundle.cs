@@ -13,29 +13,37 @@ namespace ImageGen.TagModel;
 /// </summary>
 public sealed class TagModelBundle : IDisposable
 {
-    /// <summary>The exported ONNX graph's published filename.</summary>
-    private const string GraphFileName = "tag_s2srec2.onnx";
+    /// <summary>The published artifact file names loaded from the bundle directory.</summary>
+    private static class Files
+    {
+        /// <summary>The exported ONNX graph's published filename.</summary>
+        public const string GraphFileName = "tag_s2srec2.onnx";
 
-    /// <summary>The decoder-row to vocab-id map's published filename.</summary>
-    private const string OutIdsFileName = "out_ids.bin";
+        /// <summary>The decoder-row to vocab-id map's published filename.</summary>
+        public const string OutIdsFileName = "out_ids.bin";
 
-    /// <summary>The tag vocabulary's published filename.</summary>
-    private const string VocabFileName = "vocab_s2srec2.json";
+        /// <summary>The tag vocabulary's published filename.</summary>
+        public const string VocabFileName = "vocab_s2srec2.json";
 
-    /// <summary>The model weights sidecar's published filename.</summary>
-    private const string WeightsFileName = "tag_s2srec2.onnx.data";
+        /// <summary>The model weights sidecar's published filename.</summary>
+        public const string WeightsFileName = "tag_s2srec2.onnx.data";
 
-    /// <summary>The junk-ids list's published filename.</summary>
-    private const string JunkIdsFileName = "junk_ids.bin";
+        /// <summary>The junk-ids list's published filename.</summary>
+        public const string JunkIdsFileName = "junk_ids.bin";
 
-    /// <summary>The display-calibration file's published filename.</summary>
-    private const string CalibrationFileName = "calibration.json";
+        /// <summary>The display-calibration file's published filename.</summary>
+        public const string CalibrationFileName = "calibration.json";
+    }
 
-    /// <summary>Calibration key for the slope term.</summary>
-    private const string CalibrationAProperty = "a";
+    /// <summary>The calibration file's JSON property names.</summary>
+    private static class CalibrationProps
+    {
+        /// <summary>Calibration key for the slope term.</summary>
+        public const string CalibrationAProperty = "a";
 
-    /// <summary>Calibration key for the intercept term.</summary>
-    private const string CalibrationBProperty = "b";
+        /// <summary>Calibration key for the intercept term.</summary>
+        public const string CalibrationBProperty = "b";
+    }
 
     private TagModelBundle(TagVocab vocab, S2SRec2Session session, DisplayCalibration? calibration, int[] junkIds)
     {
@@ -75,13 +83,13 @@ public sealed class TagModelBundle : IDisposable
     [AllowMagicStrings("file-purpose descriptions in the missing-artifact exception message")]
     public static TagModelBundle Load(string directory)
     {
-        string onnx = Require(directory, GraphFileName, "the model graph");
-        string outIds = Require(directory, OutIdsFileName, "the decoder-row to vocab-id map");
-        string vocabPath = Require(directory, VocabFileName, "the tag vocabulary");
+        string onnx = Require(directory, Files.GraphFileName, "the model graph");
+        string outIds = Require(directory, Files.OutIdsFileName, "the decoder-row to vocab-id map");
+        string vocabPath = Require(directory, Files.VocabFileName, "the tag vocabulary");
 
         // The graph references its weights by relative name, so the ~870 MB sibling must be beside it. ORT reports a
         // confusing protobuf error if it is missing, so check for it here where the message can say what is wrong.
-        string weights = Path.Combine(directory, WeightsFileName);
+        string weights = Path.Combine(directory, Files.WeightsFileName);
         if (!File.Exists(weights))
             throw new FileNotFoundException(
                 $"'tag_s2srec2.onnx.data' (the model weights, ~870 MB) is missing from '{directory}'. The graph "
@@ -95,7 +103,7 @@ public sealed class TagModelBundle : IDisposable
                 $"the model can emit {session.EmittableCount:N0} tags but the vocabulary holds {vocab.Count:N0}. "
                 + "These artifacts are from different builds.");
 
-        string junkPath = Path.Combine(directory, JunkIdsFileName);
+        string junkPath = Path.Combine(directory, Files.JunkIdsFileName);
         int[] junkIds = File.Exists(junkPath) ? ReadInt32Array(junkPath) : [];
 
         return new TagModelBundle(vocab, session, LoadCalibration(directory), junkIds);
@@ -107,13 +115,13 @@ public sealed class TagModelBundle : IDisposable
     /// </summary>
     private static DisplayCalibration? LoadCalibration(string directory)
     {
-        string path = Path.Combine(directory, CalibrationFileName);
+        string path = Path.Combine(directory, Files.CalibrationFileName);
         if (!File.Exists(path))
             return null;
 
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
         JsonElement root = document.RootElement;
-        if (!root.TryGetProperty(CalibrationAProperty, out JsonElement a) || !root.TryGetProperty(CalibrationBProperty, out JsonElement b))
+        if (!root.TryGetProperty(CalibrationProps.CalibrationAProperty, out JsonElement a) || !root.TryGetProperty(CalibrationProps.CalibrationBProperty, out JsonElement b))
             return null;
         return new DisplayCalibration(a.GetDouble(), b.GetDouble());
     }

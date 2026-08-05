@@ -75,31 +75,22 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
                      + "than the source)." },
     }).Concat(Krea2Rebalance.Schema).ToArray();
 
-    /// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses <see cref="EditWorkflow{TParams}.Nodes"/>.</summary>
-    private const string Encode = "12";
-    private const string Positive = "13";
-    private const string Negative = "14";
-    private const string Rebalance = "15";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(Krea2RedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);                                 // optional style/quality LoRA
 
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
         // Node ids 13/14 are the text-encodes on the edit rails, so the rebalance splices in at "15".
-        Output<Slot.Conditioning> posSrc = Krea2Rebalance.Apply(g, CLIPTextEncode.Out(Positive), p.Multiplier, p.PerLayerWeights, Rebalance);
+        Output<Slot.Conditioning> posSrc = Krea2Rebalance.Apply(g, CLIPTextEncode.Out(Nodes.Positive), p.Multiplier, p.PerLayerWeights, Nodes.Rebalance);
 
         // Source RGB → latent at its native resolution. NO mask, so the whole frame is re-sampled; at denoise < 1 the
         // source's own structure survives and Turbo reworks the texture over it.
-        g[Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(Nodes.Source), Vae = vae0 };
+        g[Nodes.Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(EditNodes.Source), Vae = vae0 };
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -109,11 +100,23 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
             Denoise = p.Denoise,
             Model = model0,
             Positive = posSrc,
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = VAEEncode.Out(Encode),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = VAEEncode.Out(Nodes.Encode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses <see cref="EditWorkflow{TParams}.Nodes"/>.</summary>
+file static class Nodes
+{
+    public const string Encode = "12";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string Rebalance = "15";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }

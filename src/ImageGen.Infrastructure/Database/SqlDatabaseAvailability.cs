@@ -29,8 +29,11 @@ public sealed class SqlDatabaseAvailability : IDatabaseAvailability
         4060, 4064, 10053, 10054, 10060, 10061, 18456,
     ];
 
-    /// <summary>The fragment the connection pool puts in its message when it cannot hand out a connection.</summary>
-    private const string PoolExhaustionMessageFragment = "connection from the pool";
+    private static class Messages
+    {
+        /// <summary>The fragment the connection pool puts in its message when it cannot hand out a connection.</summary>
+        public const string PoolExhaustionMessageFragment = "connection from the pool";
+    }
 
     public bool IsUnavailable(Exception ex)
     {
@@ -49,7 +52,7 @@ public sealed class SqlDatabaseAvailability : IDatabaseAvailability
             // socket that never answers surfaces as a raw timeout. Both mean the same thing: no connection happened.
             if (e is TimeoutException)
                 return true;
-            if (e is InvalidOperationException io && io.Message.Contains(PoolExhaustionMessageFragment, StringComparison.OrdinalIgnoreCase))
+            if (e is InvalidOperationException io && io.Message.Contains(Messages.PoolExhaustionMessageFragment, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
         return false;

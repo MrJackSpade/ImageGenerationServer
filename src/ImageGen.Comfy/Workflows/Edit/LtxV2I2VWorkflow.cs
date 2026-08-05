@@ -15,19 +15,6 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
     /// <summary>LTX VAE: 8× temporal compression → valid clip lengths are 8n+1 (mirrors the node's length step=8).</summary>
     public override FrameRule? FrameRule => new(1, 8);
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string Scale = "51";
-    private const string Size = "52";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string ImgToVideo = "53";
-    private const string Conditioning = "54";
-    private const string Scheduler = "55";
-    private const string SamplerSelect = "56";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(LtxV2I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -37,19 +24,35 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
         int frames = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.4;   // LTX-2's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[Scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
-        g[Size] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Scale) };
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
-        g[ImgToVideo] = new LTXVImgToVideo { Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), Vae = vae0, Image = ImageScaleToTotalPixels.Out(Scale), Width = GetImageSize.WidthOut(Size), Height = GetImageSize.HeightOut(Size), Length = frames, BatchSize = 1, Strength = 1.0 };
-        g[Conditioning] = new LTXVConditioning { Positive = LTXVImgToVideo.PositiveOut(ImgToVideo), Negative = LTXVImgToVideo.NegativeOut(ImgToVideo), FrameRate = fps };
-        g[Scheduler] = new LTXVScheduler { Steps = p.Steps, MaxShift = 2.05, BaseShift = 0.95, Stretch = true, Terminal = 0.1, Latent = LTXVImgToVideo.LatentOut(ImgToVideo) };
-        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
-        g[Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Conditioning), Negative = LTXVConditioning.NegativeOut(Conditioning), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = LTXVScheduler.Out(Scheduler), LatentImage = LTXVImgToVideo.LatentOut(ImgToVideo) };
-        g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.Scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[Nodes.Size] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.Scale) };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.ImgToVideo] = new LTXVImgToVideo { Positive = CLIPTextEncode.Out(Nodes.Positive), Negative = CLIPTextEncode.Out(Nodes.Negative), Vae = vae0, Image = ImageScaleToTotalPixels.Out(Nodes.Scale), Width = GetImageSize.WidthOut(Nodes.Size), Height = GetImageSize.HeightOut(Nodes.Size), Length = frames, BatchSize = 1, Strength = 1.0 };
+        g[Nodes.Conditioning] = new LTXVConditioning { Positive = LTXVImgToVideo.PositiveOut(Nodes.ImgToVideo), Negative = LTXVImgToVideo.NegativeOut(Nodes.ImgToVideo), FrameRate = fps };
+        g[Nodes.Scheduler] = new LTXVScheduler { Steps = p.Steps, MaxShift = 2.05, BaseShift = 0.95, Stretch = true, Terminal = 0.1, Latent = LTXVImgToVideo.LatentOut(Nodes.ImgToVideo) };
+        g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Nodes.Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Nodes.Conditioning), Negative = LTXVConditioning.NegativeOut(Nodes.Conditioning), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = LTXVScheduler.Out(Nodes.Scheduler), LatentImage = LTXVImgToVideo.LatentOut(Nodes.ImgToVideo) };
+        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustom.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Scale = "51";
+    public const string Size = "52";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string ImgToVideo = "53";
+    public const string Conditioning = "54";
+    public const string Scheduler = "55";
+    public const string SamplerSelect = "56";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>LTX-2 i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for

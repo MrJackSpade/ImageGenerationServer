@@ -53,39 +53,23 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         new() { Key = WorkflowParamKeys.NativePixels,   Type = ParamType.Int },
     }).ToArray();
 
-    /// <summary>The <c>clip_type</c> value that marks a Chroma text encoder (needs the T5TokenizerOptions pass).</summary>
-    private const string ChromaClipType = ComfyWidgets.ClipType.Chroma;
-
-    /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes).</summary>
-    private const string ClipSkip = "19";
-    private const string TokenizerOptions = "17";
-    private const string Positive = "13";
-    private const string Negative = "14";
-    private const string Guidance = "15";
-    private const string ModelSampling = "16";
-    private const string SourceScale = "11";
-    private const string Encode = "12";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(Img2ImgRedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage Nodes.Source
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage EditNodes.Source
 
-        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
+        if (LoaderKindWire.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
-            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
+            g[Nodes.ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(Nodes.ClipSkip);
         }
 
         // Chroma prompts through T5-XXL with min-padding disabled — its official graph puts a T5TokenizerOptions in
         // front of the encodes, and without it the padded conditioning degrades the render (see ChromaWorkflow).
-        if (string.Equals(p.ClipType, ChromaClipType, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(p.ClipType, ComfyWidgets.ClipType.Chroma, StringComparison.OrdinalIgnoreCase))
         {
-            g[TokenizerOptions] = new T5TokenizerOptions { Clip = clip0, MinPadding = 0, MinLength = 0 };
-            clip0 = T5TokenizerOptions.Out(TokenizerOptions);
+            g[Nodes.TokenizerOptions] = new T5TokenizerOptions { Clip = clip0, MinPadding = 0, MinLength = 0 };
+            clip0 = T5TokenizerOptions.Out(Nodes.TokenizerOptions);
         }
 
         // Positive = quality prefix + the user's full prompt; negative = the config default with the UI negative
@@ -93,22 +77,22 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
-        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // A guidance-distilled model (FLUX.1-dev/Krea, FLUX.2) takes its guidance in the conditioning, not as real CFG
         // — the same `guidance` param the txt2img/pixelize graphs use. Unset (Anima, schnell, Chroma) = omit the node.
-        Output<Slot.Conditioning> posSrc = CLIPTextEncode.Out(Positive);
+        Output<Slot.Conditioning> posSrc = CLIPTextEncode.Out(Nodes.Positive);
         if (p.Guidance is double guidance)
         {
-            g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = guidance };
-            posSrc = FluxGuidance.Out(Guidance);
+            g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = guidance };
+            posSrc = FluxGuidance.Out(Nodes.Guidance);
         }
         // Flow-shift, when the model declares one (Chroma runs at shift 1.0).
         if (p.Shift is double shift)
         {
-            g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = shift };
-            model0 = ModelSamplingAuraFlow.Out(ModelSampling);
+            g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = shift };
+            model0 = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
         }
 
         // Run at the model's NATIVE resolution. The source pose comes from another editor at its own size (often over
@@ -121,7 +105,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         static int Snap16(int v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
         long budget = p.NativePixels ?? 0;   // no budget declared → sample the source at its own resolution
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        Output<Slot.Image> encPixels = LoadImage.ImageOut(Nodes.Source);
+        Output<Slot.Image> encPixels = LoadImage.ImageOut(EditNodes.Source);
         if (budget > 0)
         {
             // A budget is declared, so downscale to it. The source is a still with measured dims — refuse a zero
@@ -131,24 +115,24 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
             double f = Math.Sqrt(budget / ((double)sw * sh));
             if (f < 0.98)   // meaningfully over budget → downscale to native
             {
-                g[SourceScale] = new ImageScale
+                g[Nodes.SourceScale] = new ImageScale
                 {
-                    Image = LoadImage.ImageOut(Nodes.Source),
+                    Image = LoadImage.ImageOut(EditNodes.Source),
                     UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
                     Width = Snap16((int)Math.Round(sw * f)),
                     Height = Snap16((int)Math.Round(sh * f)),
                     Crop = ComfyWidgets.Crop.Disabled,
                 };
-                encPixels = ImageScale.Out(SourceScale);
+                encPixels = ImageScale.Out(Nodes.SourceScale);
             }
         }
 
         // Encode the (native-res) source straight to a latent — NO mask, so the whole image is re-sampled. At denoise
         // < 1 the source's own structure survives; the prompt + the checkpoint's prior restyle it.
-        g[Encode] = new VAEEncode { Pixels = encPixels, Vae = vae0 };
+        g[Nodes.Encode] = new VAEEncode { Pixels = encPixels, Vae = vae0 };
 
         double dn = p.Denoise;
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -158,13 +142,29 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
             Denoise = dn,
             Model = model0,
             Positive = posSrc,
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = VAEEncode.Out(Encode),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = VAEEncode.Out(Nodes.Encode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes).</summary>
+file static class Nodes
+{
+    public const string ClipSkip = "19";
+    public const string TokenizerOptions = "17";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string Guidance = "15";
+    public const string ModelSampling = "16";
+    public const string SourceScale = "11";
+    public const string Encode = "12";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Img2img-redraw parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>

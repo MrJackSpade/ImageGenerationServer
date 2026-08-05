@@ -42,8 +42,14 @@ public static class GenerationTagTypes
     /// turned general off" — the two are the same array of four names.</summary>
     private const int StoredVersion = 2;
 
-    private const string GeneralType = "general";
-    private const string ListSeparator = ", ";
+    /// <summary>Literal strings this mask matches or formats on.</summary>
+    private static class Tokens
+    {
+        /// <summary>The <c>general</c> category, appended when upgrading a v1 (general-implicit) stored value.</summary>
+        public const string GeneralType = "general";
+        /// <summary>Separator for naming the switchable types in a validation error.</summary>
+        public const string ListSeparator = ", ";
+    }
 
     /// <summary>The types <paramref name="storedJson"/> allows — <see cref="Default"/> when it is null/blank (unset).
     /// A stored value that is not a known form holding known type names THROWS: it can only be corruption or a rename
@@ -81,7 +87,7 @@ public static class GenerationTagTypes
         }
         catch (JsonException ex) { throw new InvalidOperationException($"Stored generation mask is not JSON: {storedJson}", ex); }
         if (parsed is null) throw new InvalidOperationException($"Stored generation mask holds no types: {storedJson}");
-        if (legacy) parsed = parsed.Append(GeneralType).ToArray();
+        if (legacy) parsed = parsed.Append(Tokens.GeneralType).ToArray();
         if (!TryNormalize(parsed, out IReadOnlyList<string>? types, out string? error)) throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
         return types;
     }
@@ -106,7 +112,7 @@ public static class GenerationTagTypes
             if (!Selectable.Contains(name, StringComparer.OrdinalIgnoreCase))
             {
                 types = Default;
-                error = $"unknown tag type '{name}'; the switchable types are {string.Join(ListSeparator, Selectable)}";
+                error = $"unknown tag type '{name}'; the switchable types are {string.Join(Tokens.ListSeparator, Selectable)}";
                 return false;
             }
             wanted.Add(name);

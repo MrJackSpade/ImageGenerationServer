@@ -17,10 +17,19 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
 {
     private readonly IHttpClientFactory _httpFactory = httpFactory;
 
-    private const string UserAgent = "ImageGen";
-    private const string GitHubHost = "github.com";
-    private const string GitHubWwwHost = "www.github.com";
-    private const string GitSuffix = ".git";
+    /// <summary>GitHub hosts and repo-URL suffix this knows how to fetch pinned archives from.</summary>
+    private static class GitHub
+    {
+        public const string Host = "github.com";
+        public const string WwwHost = "www.github.com";
+        public const string GitSuffix = ".git";
+    }
+
+    /// <summary>HTTP request header values.</summary>
+    private static class Request
+    {
+        public const string UserAgent = "ImageGen";
+    }
 
     public sealed class FetchException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -44,7 +53,7 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         {
             HttpClient http = _httpFactory.CreateClient();
             // GitHub serves codeload without authentication but requires a user agent.
-            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(Request.UserAgent);
 
             using HttpResponseMessage response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!response.IsSuccessStatusCode)
@@ -81,12 +90,12 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out Uri? uri))
             throw new FetchException($"'{sourceUrl}' is not a repository URL.");
 
-        if (!uri.Host.Equals(GitHubHost, StringComparison.OrdinalIgnoreCase) &&
-            !uri.Host.Equals(GitHubWwwHost, StringComparison.OrdinalIgnoreCase))
+        if (!uri.Host.Equals(GitHub.Host, StringComparison.OrdinalIgnoreCase) &&
+            !uri.Host.Equals(GitHub.WwwHost, StringComparison.OrdinalIgnoreCase))
             throw new FetchException($"{uri.Host} is not somewhere this knows how to fetch a pinned archive from. Install {sourceUrl} yourself and apply the patch again.");
 
         string path = uri.AbsolutePath.Trim('/');
-        if (path.EndsWith(GitSuffix, StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        if (path.EndsWith(GitHub.GitSuffix, StringComparison.OrdinalIgnoreCase)) path = path[..^4];
 
         string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length != 2) throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");

@@ -975,11 +975,11 @@ public sealed class WorkflowGraphTests
         // Neutral knobs emit no node at all — the graph stays byte-identical to plain Krea 2. Guards the shared helper
         // now that the txt2img base, the refiner, and the Turbo redraw all route through it.
         Krea2RedrawWorkflow wf = new Krea2RedrawWorkflow();
-        Assert.False(Krea2Rebalance.IsActive(1.0, Krea2Rebalance.NeutralWeights));
+        Assert.False(Krea2Rebalance.IsActive(1.0, Krea2RebalanceWeights.NeutralWeights));
 
         ComfyWorkflowGraph graph = new ComfyWorkflowGraph();
         Output<Slot.Conditioning> positive = new Output<Slot.Conditioning>("13", 0);
-        Assert.Equal(positive, Krea2Rebalance.Apply(graph, positive, 1.0, Krea2Rebalance.NeutralWeights, "15"));
+        Assert.Equal(positive, Krea2Rebalance.Apply(graph, positive, 1.0, Krea2RebalanceWeights.NeutralWeights, "15"));
         Assert.Empty(graph.Raw);
 
         // ...and a single non-neutral layer weight is enough to switch it on.

@@ -156,11 +156,11 @@ public sealed partial class WorkflowCatalogService(
         // override path (param.targetLoraFolder) as every other setting — no new settings UI needed.
         if (wf.Kind == WorkflowKind.Generate && wf.Media == WorkflowMedia.Image)
             settings.Add(new ConfigSetting(
-                TargetLoraFolderKey, "Default LoRA folder",
+                SettingKeys.TargetLoraFolder, "Default LoRA folder",
                 "The composer's LoRA picker opens to this subfolder for this workflow. Blank = a folder matching the workflow, else all LoRAs.",
-                StringType, null, null, null, null,
+                ControlTokens.String, null, null, null, null,
                 Shipped: null,
-                Override: overrides.TryGetValue(TargetLoraFolderKey, out JsonElement lf) ? (object?)lf : null));
+                Override: overrides.TryGetValue(SettingKeys.TargetLoraFolder, out JsonElement lf) ? (object?)lf : null));
 
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
@@ -253,16 +253,27 @@ public sealed partial class WorkflowCatalogService(
                 Tagging: ToTagging(c.Tagging)),
             // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);
             // null falls back client-side to a folder matching the workflow, else the root.
-            LoraFolder: OverrideString(machine, TargetLoraFolderKey));
+            LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder));
     }
 
-    /// <summary>The per-machine setting key for a workflow's default LoRA folder (a plain string override, not a graph
-    /// parameter — no workflow reads it; the composer's picker does).</summary>
-    private const string TargetLoraFolderKey = "targetLoraFolder";
+    /// <summary>Settings-page override keys (persisted per machine).</summary>
+    private static class SettingKeys
+    {
+        /// <summary>The per-machine setting key for a workflow's default LoRA folder (a plain string override, not a graph
+        /// parameter — no workflow reads it; the composer's picker does).</summary>
+        public const string TargetLoraFolder = "targetLoraFolder";
 
-    /// <summary>The lowercased CLR-type control token for a plain string setting (matches
-    /// <c>ParamType.String.ToString().ToLowerInvariant()</c>).</summary>
-    private const string StringType = "string";
+        /// <summary>The settings-page override key for a configuration's render-size aspect map.</summary>
+        public const string AspectOverride = "param.aspect";
+    }
+
+    /// <summary>Control tokens the settings page uses to pick an input widget.</summary>
+    private static class ControlTokens
+    {
+        /// <summary>The lowercased CLR-type control token for a plain string setting (matches
+        /// <c>ParamType.String.ToString().ToLowerInvariant()</c>).</summary>
+        public const string String = "string";
+    }
 
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
     private static string? OverrideString(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)

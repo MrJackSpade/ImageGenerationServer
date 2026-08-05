@@ -42,7 +42,7 @@ public sealed class BookmarksController(
         return View(Views.Filter, new BookmarkFilterViewModel
         {
             Token = tag,
-            Kind = BookmarkFilterViewModel.KindTag,
+            Kind = BookmarkFilterViewModel.Kinds.KindTag,
             Items = page.Items.Select(e => e.ToItemView(viewed)).ToList(),
         });
     }

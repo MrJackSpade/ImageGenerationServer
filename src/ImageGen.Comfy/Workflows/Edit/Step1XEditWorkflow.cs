@@ -18,17 +18,6 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
     /// <summary>Self-contained loader node (manages its own VRAM: int8 + offload) — no ComfyUI loaders to presence-gate.</summary>
     public override bool RequiresModel => false;
 
-    /// <summary>The DiT and AE are slot ids on the configuration, resolved to this machine's bound files — a const
-    /// filename here would bake one person's disk into the application, unreachable from the models page. The text
-    /// encoder stays a literal: it is not a file but the name of a Hugging Face folder the node loads from its own
-    /// directory, so there is nothing to bind.</summary>
-    private const string TextEncoder = "Qwen2.5-VL-7B-Instruct";
-
-    /// <summary>Step1X-Edit's own node ids (source LoadImage reuses the inherited <c>Nodes.Source</c>).</summary>
-    private const string ModelLoader = "1";
-    private const string Generate = "2";
-    private const string Save = "9";
-
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
@@ -40,21 +29,21 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("Step1X-Edit needs a source image, but none was provided.") },
-            [ModelLoader] = new Step1XEditModelLoader
+            [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("Step1X-Edit needs a source image, but none was provided.") },
+            [Nodes.ModelLoader] = new Step1XEditModelLoader
             {
                 DiffusionModel = p.DiffusionModel,
                 Vae = p.Step1xVae,
-                TextEncoder = TextEncoder,
+                TextEncoder = Nodes.TextEncoder,
                 Dtype = ComfyWidgets.WeightDtype.BFloat16,
                 Quantized = true,
                 Offload = true,
             },
         };
-        g[Generate] = new Step1XEditGenerate
+        g[Nodes.Generate] = new Step1XEditGenerate
         {
-            Model = Step1XEditModelLoader.Out(ModelLoader),
-            InputImage = LoadImage.ImageOut(Nodes.Source),
+            Model = Step1XEditModelLoader.Out(Nodes.ModelLoader),
+            InputImage = LoadImage.ImageOut(EditNodes.Source),
             Prompt = inputs.Positive,
             NegativePrompt = string.Empty,
             NumSteps = p.Steps,
@@ -62,9 +51,22 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
             Seed = ComfyGraph.Seed(p.Seed),
             SizeLevel = p.Width,
         };
-        g[Save] = new SaveImage { Images = Step1XEditGenerate.Out(Generate), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = Step1XEditGenerate.Out(Nodes.Generate), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>Step1X-Edit's own node ids (source LoadImage reuses the inherited <c>EditNodes.Source</c>), plus the text
+/// encoder literal. The DiT and AE are slot ids on the configuration, resolved to this machine's bound files — a const
+/// filename here would bake one person's disk into the application, unreachable from the models page. The text
+/// encoder stays a literal: it is not a file but the name of a Hugging Face folder the node loads from its own
+/// directory, so there is nothing to bind.</summary>
+file static class Nodes
+{
+    public const string TextEncoder = "Qwen2.5-VL-7B-Instruct";
+    public const string ModelLoader = "1";
+    public const string Generate = "2";
+    public const string Save = "9";
 }
 
 /// <summary>Step1X-Edit parameters — the DiT/AE model refs (<c>Model()</c> reads → <c>required</c>), the diffusion

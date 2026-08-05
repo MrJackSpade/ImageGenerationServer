@@ -9,7 +9,7 @@ internal static class Txt2ImgWorkflowBase
 {
     internal static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
         // "pixel" = a pixel-space latent: (B,3,H,W) at spatial downscale 1, for models that diffuse

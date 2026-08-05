@@ -77,7 +77,7 @@ public static partial class PromptMarkers
         string s = (segment ?? string.Empty).Trim();
         if (s.Length > 0 && IsMarker(s[0]))
             s = s[1..];
-        return Whitespace().Replace(s.Trim(), Underscore).ToLowerInvariant();
+        return Whitespace().Replace(s.Trim(), Tokens.Underscore).ToLowerInvariant();
     }
 
     /// <summary>The comma segments of a prompt, trimmed, empties dropped.</summary>
@@ -139,7 +139,12 @@ public static partial class PromptMarkers
         return string.Join(',', raw.Split(',').Where(seg => !IsMarkedWith(seg, GuideTagMarker)));
     }
 
-    private const string Underscore = "_";
+    /// <summary>The canonical-key text tokens (as strings, distinct from the <c>const char</c> markers above).</summary>
+    private static class Tokens
+    {
+        /// <summary>Whitespace is collapsed to this in a canonical bookmark key.</summary>
+        public const string Underscore = "_";
+    }
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();

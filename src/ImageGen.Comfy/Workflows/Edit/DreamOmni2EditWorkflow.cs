@@ -19,38 +19,41 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
     /// <summary>Self-contained pipeline node (int8 + cpu offload internally) — no ComfyUI model loaders to presence-gate.</summary>
     public override bool RequiresModel => false;
 
-    /// <summary>This subclass's own node ids (the source LoadImage reuses <c>Nodes.Source</c>).</summary>
-    private const string Reference = "11";
-    private const string Pipeline = "1";
-    private const string Editor = "2";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(DreamOmni2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") },
+            [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") },
         };
         // The Editor requires a reference image; use the first attached reference, else the source itself.
         Output<Slot.Image> refImg;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        if (refNames.Count > 0) { g[Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Reference); }
-        else refImg = LoadImage.ImageOut(Nodes.Source);
+        if (refNames.Count > 0) { g[Nodes.Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Nodes.Reference); }
+        else refImg = LoadImage.ImageOut(EditNodes.Source);
 
-        g[Pipeline] = new RunningHubDreamOmni2EditPipeline();
-        g[Editor] = new RunningHubDreamOmni2Editor
+        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline();
+        g[Nodes.Editor] = new RunningHubDreamOmni2Editor
         {
-            Pipeline = RunningHubDreamOmni2EditPipeline.Out(Pipeline),
-            SrcImage = LoadImage.ImageOut(Nodes.Source),
+            Pipeline = RunningHubDreamOmni2EditPipeline.Out(Nodes.Pipeline),
+            SrcImage = LoadImage.ImageOut(EditNodes.Source),
             RefImage = refImg,
             Prompt = inputs.Positive,
             NumInferenceSteps = p.Steps,
             GuidanceScale = p.Cfg,
             Seed = ComfyGraph.Seed(p.Seed),
         };
-        g[Save] = new SaveImage { Images = RunningHubDreamOmni2Editor.Out(Editor), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = RunningHubDreamOmni2Editor.Out(Nodes.Editor), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>DreamOmni2EditWorkflow's node ids (the source LoadImage reuses <c>EditNodes.Source</c>).</summary>
+file static class Nodes
+{
+    public const string Reference = "11";
+    public const string Pipeline = "1";
+    public const string Editor = "2";
+    public const string Save = "9";
 }
 
 /// <summary>DreamOmni2 parameters — the two diffusion knobs read by the pipeline (<c>*Req</c> reads → <c>required</c>)

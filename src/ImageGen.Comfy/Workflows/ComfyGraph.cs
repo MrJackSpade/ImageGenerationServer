@@ -10,21 +10,29 @@ namespace ImageGen.Comfy;
 /// </summary>
 public static class ComfyGraph
 {
-    /// <summary>ComfyUI's <c>UNETLoader.weight_dtype</c> is a REQUIRED input (its validator rejects a graph that omits
-    /// it), so a value must be sent. This is that enum's <c>"default"</c> option, which means "load the model's native
-    /// precision — apply no cast." Named so the emitted graph reads as an explicit AUTOMATIC-precision choice rather
-    /// than an unexplained literal; a configuration overrides it (e.g. <c>fp8_e4m3fn</c>) to force a cast.</summary>
-    public const string AutoWeightDtype = "default";
+    /// <summary>ComfyUI values used when selecting and parameterizing a diffusion-model loader.</summary>
+    public static class Loading
+    {
+        /// <summary>ComfyUI's <c>UNETLoader.weight_dtype</c> is a REQUIRED input (its validator rejects a graph that omits
+        /// it), so a value must be sent. This is that enum's <c>"default"</c> option, which means "load the model's native
+        /// precision — apply no cast." Named so the emitted graph reads as an explicit AUTOMATIC-precision choice rather
+        /// than an unexplained literal; a configuration overrides it (e.g. <c>fp8_e4m3fn</c>) to force a cast.</summary>
+        public const string AutoWeightDtype = "default";
 
-    /// <summary>The GGUF-quantized weight file extension — the test that routes a file to the GGUF loader variant.</summary>
-    public const string GgufExtension = ".gguf";
+        /// <summary>The GGUF-quantized weight file extension — the test that routes a file to the GGUF loader variant.</summary>
+        public const string GgufExtension = ".gguf";
+    }
 
-    /// <summary>The Forge scheduler name that maps to ComfyUI's <c>normal</c> — the one alias the scheduler map rewrites.</summary>
-    private const string SchedulerAutomatic = "automatic";
+    /// <summary>Forge scheduler-name aliases the scheduler map rewrites.</summary>
+    private static class Scheduling
+    {
+        /// <summary>The Forge scheduler name that maps to ComfyUI's <c>normal</c> — the one alias the scheduler map rewrites.</summary>
+        public const string Automatic = "automatic";
+    }
 
     /// <summary>Whether a bound filename is a GGUF, and so needs the GGUF loader for its kind.</summary>
     public static bool IsGguf(string file) =>
-        file.EndsWith(GgufExtension, StringComparison.OrdinalIgnoreCase);
+        file.EndsWith(Loading.GgufExtension, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The catalog's recommended settings use Forge/A1111 sampler+scheduler names; ComfyUI uses its own. Map the
@@ -59,7 +67,7 @@ public static class ComfyGraph
     public static string MapScheduler(string? s) =>
         string.IsNullOrWhiteSpace(s)
             ? throw new RenderValidationException("This configuration has no scheduler set; a scheduler is required.")
-            : (s.Equals(SchedulerAutomatic, StringComparison.OrdinalIgnoreCase) ? "normal" : s);
+            : (s.Equals(Scheduling.Automatic, StringComparison.OrdinalIgnoreCase) ? "normal" : s);
 
     public static long Seed() => Random.Shared.NextInt64(0, long.MaxValue);
 
@@ -79,7 +87,7 @@ public static class ComfyGraph
     ///
     /// <para>The text encoders work the same way: <c>CLIPLoaderGGUF</c> is picked off the same extension test.</para>
     /// </summary>
-    public static ComfyNode DiffusionLoaderNode(string file, string weightDtype = AutoWeightDtype) =>
+    public static ComfyNode DiffusionLoaderNode(string file, string weightDtype = Loading.AutoWeightDtype) =>
         IsGguf(file)
             ? new UnetLoaderGGUF { UnetName = file }
             : new UNETLoader { UnetName = file, WeightDtype = weightDtype };

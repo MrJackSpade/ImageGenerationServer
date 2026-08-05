@@ -116,7 +116,7 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string file = req.RequiredCheckpoint();
-        LoaderKind loader = LoaderKinds.Parse(p.RequiredLoader());
+        LoaderKind loader = LoaderKindWire.Parse(p.RequiredLoader());
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();

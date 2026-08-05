@@ -34,26 +34,6 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Step = 0.01, Label = "Identity strength" },
     }).ToArray();
 
-    /// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflow.Nodes; here node "4" is the
-    /// CheckpointLoaderSimple and its outputs feed clip/vae directly).</summary>
-    private const string LcmLora = "5";
-    private const string ScaledSource = "11";
-    private const string SourceSize = "15";
-    private const string Latent = "7";
-    private const string MotionLoad = "20";
-    private const string MotionApply = "21";
-    private const string EvolvedSampling = "22";
-    private const string IpAdapterLoader = "30";
-    private const string IpAdapterApply = "31";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string SparseCtrlLoader = "23";
-    private const string SparseCtrlPreprocess = "24";
-    private const string ControlNetApply = "25";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(AnimateDiffI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -71,51 +51,51 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
                 $"This configuration needs a model for '{WorkflowParamKeys.MotionModel}' and none is set. The configuration should name a slot "
                 + "there, and this machine should have a file bound to it.");
 
-        g[Nodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
-        Output<Slot.Model> baseModel = CheckpointLoaderSimple.ModelOut(Nodes.Model);
-        Output<Slot.Clip> clip0 = CheckpointLoaderSimple.ClipOut(Nodes.Model);
-        Output<Slot.Vae> vae0 = CheckpointLoaderSimple.VaeOut(Nodes.Model);
+        g[EditNodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
+        Output<Slot.Model> baseModel = CheckpointLoaderSimple.ModelOut(EditNodes.Model);
+        Output<Slot.Clip> clip0 = CheckpointLoaderSimple.ClipOut(EditNodes.Model);
+        Output<Slot.Vae> vae0 = CheckpointLoaderSimple.VaeOut(EditNodes.Model);
         string? lcmLora = p.LcmLora;
         if (!string.IsNullOrWhiteSpace(lcmLora))   // AnimateLCM: apply the LCM LoRA to the base model to enable lcm sampling
         {
-            g[LcmLora] = new LoraLoaderModelOnly { Model = CheckpointLoaderSimple.ModelOut(Nodes.Model), LoraName = lcmLora, StrengthModel = 1.0 };
-            baseModel = LoraLoaderModelOnly.Out(LcmLora);
+            g[Nodes.LcmLora] = new LoraLoaderModelOnly { Model = CheckpointLoaderSimple.ModelOut(EditNodes.Model), LoraName = lcmLora, StrengthModel = 1.0 };
+            baseModel = LoraLoaderModelOnly.Out(Nodes.LcmLora);
         }
 
-        g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") };
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
-        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
-        g[Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = frames };
+        g[EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+        g[Nodes.Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize), BatchSize = frames };
 
-        g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = motion };
-        g[MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
-        g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = baseModel, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(MotionApply) };
+        g[Nodes.MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = motion };
+        g[Nodes.MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(Nodes.MotionLoad) };
+        g[Nodes.EvolvedSampling] = new ADE_UseEvolvedSampling { Model = baseModel, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(Nodes.MotionApply) };
 
         // IP-Adapter: UnifiedLoader auto-resolves the IP-Adapter PLUS model + CLIP-ViT-H from the preset, then apply
         // the SOURCE image so the subject's identity carries into every generated frame.
-        g[IpAdapterLoader] = new IPAdapterUnifiedLoader { Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Preset = p.IpadapterPreset };
-        g[IpAdapterApply] = new IPAdapter { Model = IPAdapterUnifiedLoader.ModelOut(IpAdapterLoader), Ipadapter = IPAdapterUnifiedLoader.IpadapterOut(IpAdapterLoader), Image = ImageScaleToTotalPixels.Out(ScaledSource), Weight = p.IpadapterWeight, StartAt = 0.0, EndAt = 1.0, WeightType = ComfyWidgets.IpAdapterWeight.Standard };
+        g[Nodes.IpAdapterLoader] = new IPAdapterUnifiedLoader { Model = ADE_UseEvolvedSampling.Out(Nodes.EvolvedSampling), Preset = p.IpadapterPreset };
+        g[Nodes.IpAdapterApply] = new IPAdapter { Model = IPAdapterUnifiedLoader.ModelOut(Nodes.IpAdapterLoader), Ipadapter = IPAdapterUnifiedLoader.IpadapterOut(Nodes.IpAdapterLoader), Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Weight = p.IpadapterWeight, StartAt = 0.0, EndAt = 1.0, WeightType = ComfyWidgets.IpAdapterWeight.Standard };
 
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
 
         // SparseCtrl RGB: condition frame 0 on the source. Strength eased off after the early frames (end_percent)
         // so later frames are free to move instead of freezing on the source.
-        g[SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
-        g[SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Latent) };
-        g[ControlNetApply] = new ControlNetApplyAdvanced
+        g[Nodes.SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
+        g[Nodes.SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Nodes.Latent) };
+        g[Nodes.ControlNetApply] = new ControlNetApplyAdvanced
         {
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(SparseCtrlLoader),
-            Image = ACN_SparseCtrlRGBPreprocessor.Out(SparseCtrlPreprocess),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(Nodes.SparseCtrlLoader),
+            Image = ACN_SparseCtrlRGBPreprocessor.Out(Nodes.SparseCtrlPreprocess),
             Strength = p.SparsectrlStrength,
             StartPercent = 0.0,
             EndPercent = p.SparsectrlEnd,
             Vae = vae0,
         };
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = seed,
             Steps = p.Steps,
@@ -123,15 +103,38 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
-            Model = IPAdapter.Out(IpAdapterApply),
-            Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply),
-            Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply),
-            LatentImage = EmptyLatentImageSized.Out(Latent),
+            Model = IPAdapter.Out(Nodes.IpAdapterApply),
+            Positive = ControlNetApplyAdvanced.PositiveOut(Nodes.ControlNetApply),
+            Negative = ControlNetApplyAdvanced.NegativeOut(Nodes.ControlNetApply),
+            LatentImage = EmptyLatentImageSized.Out(Nodes.Latent),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 90, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 90, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflow.Nodes; here node "4" is the
+/// CheckpointLoaderSimple and its outputs feed clip/vae directly).</summary>
+file static class Nodes
+{
+    public const string LcmLora = "5";
+    public const string ScaledSource = "11";
+    public const string SourceSize = "15";
+    public const string Latent = "7";
+    public const string MotionLoad = "20";
+    public const string MotionApply = "21";
+    public const string EvolvedSampling = "22";
+    public const string IpAdapterLoader = "30";
+    public const string IpAdapterApply = "31";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string SparseCtrlLoader = "23";
+    public const string SparseCtrlPreprocess = "24";
+    public const string ControlNetApply = "25";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>SD1.5 AnimateDiff i2v parameters (shared by the AnimateDiff-Lightning and AnimateLCM subclasses) — the

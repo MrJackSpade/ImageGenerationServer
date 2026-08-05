@@ -47,23 +47,31 @@ internal static class LoaderKinds
     public const string Checkpoint = "checkpoint";
     public const string Unet = "unet";
     public const string UnetGguf = "unet_gguf";
+}
 
+/// <summary>Wire ⇄ <see cref="LoaderKind"/> conversion for the <see cref="LoaderKinds"/> vocabulary: the schema's
+/// choice list and the parse from wire string — kept apart from the const holder so the holder stays pure.</summary>
+internal static class LoaderKindWire
+{
     /// <summary>The wire vocabulary in dropdown order, for a schema's <see cref="ParamSpec.Choices"/>.</summary>
-    public static readonly string[] Choices = { Checkpoint, Unet, UnetGguf };
-
-    /// <summary>List separator for naming the accepted loader values in the refusal message.</summary>
-    private const string ChoiceSeparator = ", ";
+    public static readonly string[] Choices = { LoaderKinds.Checkpoint, LoaderKinds.Unet, LoaderKinds.UnetGguf };
 
     /// <summary>Wire string → kind, or a refusal naming the value — a loader outside the closed set is a broken
     /// configuration, not a silent fall-through to the split-loader branch.</summary>
     public static LoaderKind Parse(string wire) => wire switch
     {
-        Checkpoint => LoaderKind.Checkpoint,
-        Unet => LoaderKind.Unet,
-        UnetGguf => LoaderKind.UnetGguf,
+        LoaderKinds.Checkpoint => LoaderKind.Checkpoint,
+        LoaderKinds.Unet => LoaderKind.Unet,
+        LoaderKinds.UnetGguf => LoaderKind.UnetGguf,
         _ => throw new RenderValidationException(
-            $"Unknown loader '{wire}'. A configuration's loader must be one of: {string.Join(ChoiceSeparator, Choices)}."),
+            $"Unknown loader '{wire}'. A configuration's loader must be one of: {string.Join(LoaderWireText.ChoiceSeparator, Choices)}."),
     };
+}
+
+/// <summary>List separator for naming the accepted loader values in the parse refusal message.</summary>
+file static class LoaderWireText
+{
+    public const string ChoiceSeparator = ", ";
 }
 
 /// <summary>A stepped frame-count rule for video models: the only valid clip lengths are <c>Base + k*Step</c>

@@ -28,17 +28,14 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).ToArray();
 
-    /// <summary>This workflow's flow-shift node id (reuses the inherited txt2img <c>Nodes.*</c>).</summary>
-    private const string ModelSampling = "30";
-
     protected override ComfyWorkflowGraph Build(HunyuanImage21Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
-        g[ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
-        Output<Slot.Model> model = ComfyGraph.ApplyLora(g, ModelSamplingSD3.Out(ModelSampling), p.Lora, p.LoraStrength);
+        g[HunyuanImage21WorkflowNodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
+        Output<Slot.Model> model = ComfyGraph.ApplyLora(g, ModelSamplingSD3.Out(HunyuanImage21WorkflowNodes.ModelSampling), p.Lora, p.LoraStrength);
         g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanImage, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
@@ -64,4 +61,12 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>HunyuanImage 2.1's own node ids beyond the inherited txt2img roles (reuses the inherited txt2img
+/// <c>Nodes.*</c> for the shared roles).</summary>
+file static class HunyuanImage21WorkflowNodes
+{
+    /// <summary>This workflow's flow-shift node id.</summary>
+    public const string ModelSampling = "30";
 }

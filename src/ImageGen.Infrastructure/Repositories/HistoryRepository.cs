@@ -13,14 +13,17 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IHistoryRepository
 {
-    private const string MarkTable = "dbo.HistoryMark";
-    private const string MarkParent = "HistoryEntryId";
-    private const string LoraTable = "dbo.HistoryLora";
-    private const string LoraParent = "HistoryEntryId";
+    private static class Sql
+    {
+        public const string MarkTable = "dbo.HistoryMark";
+        public const string MarkParent = "HistoryEntryId";
+        public const string LoraTable = "dbo.HistoryLora";
+        public const string LoraParent = "HistoryEntryId";
 
-    /// <summary>Positional: MapEntry reads by ordinal, so append — never insert — a column here.</summary>
-    private const string EntryColumns =
-        "Id, UserId, GatewayImageId, Prompt, ModelFriendly, ModelId, Aspect, CreatedAtUtc, RawPrompt, RawNegativePrompt, OriginalPrompt";
+        /// <summary>Positional: MapEntry reads by ordinal, so append — never insert — a column here.</summary>
+        public const string EntryColumns =
+            "Id, UserId, GatewayImageId, Prompt, ModelFriendly, ModelId, Aspect, CreatedAtUtc, RawPrompt, RawNegativePrompt, OriginalPrompt";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
@@ -69,8 +72,8 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
             : await SearchPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, terms, page, pageSize, ct);
 
         List<long> ids = rows.Select(r => r.Id).ToList();
-        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, MarkTable, MarkParent, ids, userId, _cipher, ct);
-        Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, LoraTable, LoraParent, ids, userId, _cipher, ct);
+        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
+        Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, Sql.LoraTable, Sql.LoraParent, ids, userId, _cipher, ct);
         List<HistoryEntry> items = new List<HistoryEntry>(rows.Count);
         foreach (HistoryEntry e in rows)
             items.Add(await WithChildrenAsync(e, marks, loras, ct));
@@ -90,7 +93,7 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
         }
 
         List<HistoryEntry> rows = new List<HistoryEntry>();
-        string pageSql = $@"SELECT {Prefixed(EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
+        string pageSql = $@"SELECT {Prefixed(Sql.EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
 ORDER BY h.CreatedAtUtc DESC, h.Id DESC
 {_dialect.Paginate("@skip", "@take")};";
         await using (DbCommand pageCmd = conn.Command(pageSql))
@@ -117,7 +120,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
         string[] terms, int page, int pageSize, CancellationToken ct)
     {
         List<HistoryEntry> candidates = new List<HistoryEntry>();
-        string sql = $@"SELECT {Prefixed(EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
+        string sql = $@"SELECT {Prefixed(Sql.EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
 ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         await using (DbCommand cmd = conn.Command(sql))
         {
@@ -145,7 +148,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {EntryColumns} FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;");
+            $"SELECT {Sql.EntryColumns} FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@img", gatewayImageId);
 
@@ -155,8 +158,8 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         if (entry is null)
             return null;
 
-        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, MarkTable, MarkParent, [entry.Id], userId, _cipher, ct);
-        Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, LoraTable, LoraParent, [entry.Id], userId, _cipher, ct);
+        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, [entry.Id], userId, _cipher, ct);
+        Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, Sql.LoraTable, Sql.LoraParent, [entry.Id], userId, _cipher, ct);
         return await WithChildrenAsync(entry, marks, loras, ct);
     }
 
@@ -341,8 +344,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
         if (newId is null)
             return false;   // duplicate — (UserId, GatewayImageId) already present
 
-        await MarkIo.InsertAsync(conn, tx, MarkTable, MarkParent, newId.Value, e.Marks, e.UserId, _cipher, ct);
-        await LoraIo.InsertAsync(conn, tx, LoraTable, LoraParent, newId.Value, e.Loras, e.UserId, _cipher, ct);
+        await MarkIo.InsertAsync(conn, tx, Sql.MarkTable, Sql.MarkParent, newId.Value, e.Marks, e.UserId, _cipher, ct);
+        await LoraIo.InsertAsync(conn, tx, Sql.LoraTable, Sql.LoraParent, newId.Value, e.Loras, e.UserId, _cipher, ct);
         return true;
     }
 

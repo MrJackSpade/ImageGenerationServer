@@ -18,19 +18,31 @@ namespace ImageGen.TagModel;
 /// </summary>
 public static class TagModelArtifacts
 {
-    private const string PublishedAt = "https://huggingface.co/mrjackspade/s2srec2-booru-tags/resolve/main";
+    /// <summary>Where the published artifacts are fetched from.</summary>
+    private static class Source
+    {
+        public const string PublishedAt = "https://huggingface.co/mrjackspade/s2srec2-booru-tags/resolve/main";
+    }
 
-    /// <summary>The manifest file's published name.</summary>
-    private const string ManifestFileName = "manifest.json";
+    /// <summary>The published artifact file names.</summary>
+    private static class Files
+    {
+        /// <summary>The manifest file's published name.</summary>
+        public const string ManifestFileName = "manifest.json";
+    }
 
-    /// <summary>Manifest key holding the per-artifact table.</summary>
-    private const string FilesProperty = "files";
+    /// <summary>The manifest's JSON property names.</summary>
+    private static class Manifest
+    {
+        /// <summary>Manifest key holding the per-artifact table.</summary>
+        public const string FilesProperty = "files";
 
-    /// <summary>Manifest key holding an artifact's checksum.</summary>
-    private const string Sha256Property = "sha256";
+        /// <summary>Manifest key holding an artifact's checksum.</summary>
+        public const string Sha256Property = "sha256";
 
-    /// <summary>Manifest key holding an artifact's byte length.</summary>
-    private const string BytesProperty = "bytes";
+        /// <summary>Manifest key holding an artifact's byte length.</summary>
+        public const string BytesProperty = "bytes";
+    }
 
     private sealed record ManifestEntry(long Bytes, string Sha256);
 
@@ -49,8 +61,8 @@ public static class TagModelArtifacts
 
         // The manifest carries the size and hash every other file is checked against, so it comes first — and it is
         // re-fetched every time, because it is small and it is what tells us whether the rest is current.
-        string manifestPath = Path.Combine(directory, ManifestFileName);
-        await DownloadAsync(http, ManifestFileName, manifestPath, logger, ct);
+        string manifestPath = Path.Combine(directory, Files.ManifestFileName);
+        await DownloadAsync(http, Files.ManifestFileName, manifestPath, logger, ct);
 
         Dictionary<string, ManifestEntry> files = ReadManifest(manifestPath);
         int fetched = 0;
@@ -71,18 +83,18 @@ public static class TagModelArtifacts
     private static Dictionary<string, ManifestEntry> ReadManifest(string path)
     {
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-        if (!document.RootElement.TryGetProperty(FilesProperty, out JsonElement files))
+        if (!document.RootElement.TryGetProperty(Manifest.FilesProperty, out JsonElement files))
             throw new InvalidDataException($"'{path}' has no 'files' section; it is not a tag model manifest.");
 
         Dictionary<string, ManifestEntry> result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
         foreach (JsonProperty file in files.EnumerateObject())
         {
-            string? sha256 = file.Value.GetProperty(Sha256Property).GetString();
+            string? sha256 = file.Value.GetProperty(Manifest.Sha256Property).GetString();
             if (string.IsNullOrEmpty(sha256))
                 throw new InvalidDataException(
                     $"'{path}': manifest entry '{file.Name}' has no sha256. Every artifact must carry a checksum — "
                     + "an entry without one would download unverified.");
-            result[file.Name] = new ManifestEntry(file.Value.GetProperty(BytesProperty).GetInt64(), sha256);
+            result[file.Name] = new ManifestEntry(file.Value.GetProperty(Manifest.BytesProperty).GetInt64(), sha256);
         }
         return result;
     }
@@ -95,7 +107,7 @@ public static class TagModelArtifacts
         logger.LogInformation("Tag model: downloading {Name}.", name);
         try
         {
-            using (HttpResponseMessage response = await http.GetAsync($"{PublishedAt}/{name}", HttpCompletionOption.ResponseHeadersRead, ct))
+            using (HttpResponseMessage response = await http.GetAsync($"{Source.PublishedAt}/{name}", HttpCompletionOption.ResponseHeadersRead, ct))
             {
                 response.EnsureSuccessStatusCode();
                 await using Stream source = await response.Content.ReadAsStreamAsync(ct);

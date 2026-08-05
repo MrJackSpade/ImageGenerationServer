@@ -18,7 +18,7 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
 
     private static readonly IReadOnlyList<ParamSpec> ControlNetSchema = new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.Steps,      Type = ParamType.Int,    Min = ParamBounds.StepsMin,    Max = ParamBounds.StepsMax, Label = "Steps" },
         new() { Key = WorkflowParamKeys.Cfg,        Type = ParamType.Double, Min = ParamBounds.CfgMin,    Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,    Type = ParamType.String },
@@ -31,17 +31,6 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
         new() { Key = WorkflowParamKeys.Resolution, Type = ParamType.Int,    Min = 256,  Max = 2048, Label = "Lineart resolution" },
     };
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string Lineart = "50";
-    private const string ControlNet = "51";
-    private const string ControlNetApply = "52";
-    private const string Positive = "60";
-    private const string Negative = "61";
-    private const string Encode = "31";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(LineThickenControlNetParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -51,18 +40,18 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
         string prompt = p.StylePrompt is { } sp && !string.IsNullOrWhiteSpace(sp) ? sp : inputs.Positive;
         string neg = p.Negative ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
         // 60/61, not 12/13 — FlattenOnWhite already owns 11-14 (EmptyImage 12, InvertMask 13, composite 14).
-        g[Positive] = new CLIPTextEncode { Text = prompt, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = prompt, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // lineart control image (white-on-black, as the lineart ControlNet expects), then apply the ControlNet.
-        g[Lineart] = new LineArtPreprocessor { Image = src, Coarse = p.Coarse, Resolution = p.Resolution };
-        g[ControlNet] = new ControlNetLoader { ControlNetName = req.RequiredControlNet() };
-        g[ControlNetApply] = new ControlNetApplyAdvanced
+        g[Nodes.Lineart] = new LineArtPreprocessor { Image = src, Coarse = p.Coarse, Resolution = p.Resolution };
+        g[Nodes.ControlNet] = new ControlNetLoader { ControlNetName = req.RequiredControlNet() };
+        g[Nodes.ControlNetApply] = new ControlNetApplyAdvanced
         {
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            ControlNet = ControlNetLoader.Out(ControlNet),
-            Image = LineArtPreprocessor.Out(Lineart),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            ControlNet = ControlNetLoader.Out(Nodes.ControlNet),
+            Image = LineArtPreprocessor.Out(Nodes.Lineart),
             Strength = p.ControlnetStrength,
             StartPercent = 0.0,
             EndPercent = 1.0,
@@ -70,8 +59,8 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
         };
 
         // img2img from the source so the character is preserved; the ControlNet enforces the bold lineart.
-        g[Encode] = new VAEEncode { Pixels = src, Vae = vae0 };
-        g[Sampler] = new KSampler
+        g[Nodes.Encode] = new VAEEncode { Pixels = src, Vae = vae0 };
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -80,14 +69,28 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = p.Denoise,
             Model = model0,
-            Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply),
-            Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply),
-            LatentImage = VAEEncode.Out(Encode),
+            Positive = ControlNetApplyAdvanced.PositiveOut(Nodes.ControlNetApply),
+            Negative = ControlNetApplyAdvanced.NegativeOut(Nodes.ControlNetApply),
+            LatentImage = VAEEncode.Out(Nodes.Encode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Lineart = "50";
+    public const string ControlNet = "51";
+    public const string ControlNetApply = "52";
+    public const string Positive = "60";
+    public const string Negative = "61";
+    public const string Encode = "31";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>ControlNet lineart re-render parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

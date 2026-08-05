@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
@@ -16,12 +17,9 @@ public sealed class ImageBlobRepository(IDbConnectionFactory connectionFactory) 
 {
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
 
-    /// <summary>Guid.ToString format: 32 hex digits, no hyphens.</summary>
-    private const string GuidFormat = "N";
-
     public async Task<string> AddAsync(NewImageBlob blob, CancellationToken ct)
     {
-        string id = Guid.NewGuid().ToString(GuidFormat);   // globally unique; never derived from a ComfyUI filename
+        string id = Guid.NewGuid().ToString(GuidFormats.NoDashes);   // globally unique; never derived from a ComfyUI filename
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(@"
 INSERT INTO dbo.ImageBlob (ImageId, Bytes, ContentType, Width, Height, ByteSize, Kind)

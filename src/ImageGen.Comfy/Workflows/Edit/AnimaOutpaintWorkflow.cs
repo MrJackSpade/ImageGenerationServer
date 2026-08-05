@@ -51,42 +51,29 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
     }).ToArray();
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
-    private const string ClipSkip = "19";
-    private const string Positive = "13";
-    private const string Negative = "14";
-    private const string Pad = "20";
-    private const string LlliteApply = "40";
-    private const string Encode = "12";
-    private const string GrowMaskNode = "30";
-    private const string NoiseMask = "31";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(AnimaOutpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
+        if (LoaderKindWire.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
-            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
+            g[Nodes.ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(Nodes.ClipSkip);
         }
 
         // Negative = the config default with the UI negative (inputs.Negative) appended — never replaced.
         string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
-        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // Pad the source on each side — the enlarged canvas (slot 0) + the added-border mask (slot 1). Feathering
         // softens the mask edge so the generated margin blends into the original instead of leaving a hard seam.
-        g[Pad] = new ImagePadForOutpaint
+        g[Nodes.Pad] = new ImagePadForOutpaint
         {
-            Image = LoadImage.ImageOut(Nodes.Source),
+            Image = LoadImage.ImageOut(EditNodes.Source),
             Left = p.PadLeft,
             Top = p.PadTop,
             Right = p.PadRight,
@@ -99,33 +86,33 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         // conditions generation on the KNOWN pixels + hole, so the border CONTINUES the existing structure instead of
         // inventing over gray. The node zeroes the RGB inside the mask itself, so the padded canvas (gray border) is
         // fine as the control image. Uses the raw pad mask (not the grown one) so the control keeps every known pixel.
-        g[LlliteApply] = new AnimaLLLiteApply
+        g[Nodes.LlliteApply] = new AnimaLLLiteApply
         {
             Model = model0,
             LlliteName = req.RequiredControlNet(),
-            Image = ImagePadForOutpaint.ImageOut(Pad),
-            Mask = ImagePadForOutpaint.MaskOut(Pad),
+            Image = ImagePadForOutpaint.ImageOut(Nodes.Pad),
+            Mask = ImagePadForOutpaint.MaskOut(Nodes.Pad),
             Strength = p.LlliteStrength,
             StartPercent = p.LlliteStart,
             EndPercent = p.LlliteEnd,
             PreserveWrapper = true,
         };
-        Output<Slot.Model> ksModel = AnimaLLLiteApply.Out(LlliteApply);
+        Output<Slot.Model> ksModel = AnimaLLLiteApply.Out(Nodes.LlliteApply);
 
         // Encode the padded canvas; confine denoising to the padded (masked) border so the original region is kept.
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
-        g[Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Pad), Vae = vae0 };
-        Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Pad);
+        g[Nodes.Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Nodes.Pad), Vae = vae0 };
+        Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Nodes.Pad);
         int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
-            g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
-            maskSrc = GrowMask.Out(GrowMaskNode);
+            g[Nodes.GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
+            maskSrc = GrowMask.Out(Nodes.GrowMaskNode);
         }
-        g[NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Encode), Mask = maskSrc };
+        g[Nodes.NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Nodes.Encode), Mask = maskSrc };
 
         double dn = p.Denoise;
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -134,14 +121,30 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = dn,
             Model = ksModel,
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = SetLatentNoiseMask.Out(NoiseMask),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = SetLatentNoiseMask.Out(Nodes.NoiseMask),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
+file static class Nodes
+{
+    public const string ClipSkip = "19";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string Pad = "20";
+    public const string LlliteApply = "40";
+    public const string Encode = "12";
+    public const string GrowMaskNode = "30";
+    public const string NoiseMask = "31";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Anima LLLite-outpaint parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

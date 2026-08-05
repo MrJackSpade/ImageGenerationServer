@@ -63,28 +63,20 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
-    /// <summary>This workflow's own node ids (source LoadImage is the inherited Nodes.Source; flatten-on-white nodes live in PixelHarnessGraph).</summary>
-    private const string Matte = "15";
-    private const string Quantize = "20";
-    private const string Save = "9";
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    private const string FpEngine = "fp";
-
     protected override ComfyWorkflowGraph Build(PixelQuantizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // No model head: the quantizer is pure CPU. Source → (matte | flatten-on-white) → quantize → save.
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
+            [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
         // key_background: matte first, feed the RGBA (subject + alpha) into the quantizer at full res. Otherwise the
         // legacy flatten-onto-white (RGBA→RGB) so a transparent source doesn't halo. BiRefNetMatte output 0 = RGBA.
         Output<Slot.Image> src;
         if (p.KeyBackground)
         {
-            g[Matte] = new BiRefNetMatte { Image = LoadImage.ImageOut(Nodes.Source), Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
-            src = BiRefNetMatte.Out(Matte);
+            g[Nodes.Matte] = new BiRefNetMatte { Image = LoadImage.ImageOut(EditNodes.Source), Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
+            src = BiRefNetMatte.Out(Nodes.Matte);
         }
         else
         {
@@ -92,11 +84,11 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         }
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == FpEngine)
+        if (p.Engine == Nodes.FpEngine)
         {
             // Feature-preserving engine, same node + knobs as pixel-quantize-video's fp branch, plus the replay
             // globals so a single frame can reproduce its whole-batch result exactly.
-            g[Quantize] = new PixelQuantizeFPReplay
+            g[Nodes.Quantize] = new PixelQuantizeFPReplay
             {
                 Image = src,
                 GridW = gw,
@@ -114,7 +106,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         }
         else
         {
-            g[Quantize] = new PixelQuantize
+            g[Nodes.Quantize] = new PixelQuantize
             {
                 Image = src,
                 GridW = gw,
@@ -124,9 +116,20 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
                 VirtualResolution = p.VirtualResolution,
             };
         }
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids (source LoadImage is the inherited EditNodes.Source; flatten-on-white nodes live in PixelHarnessGraph).</summary>
+file static class Nodes
+{
+    public const string Matte = "15";
+    public const string Quantize = "20";
+    public const string Save = "9";
+
+    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
+    public const string FpEngine = "fp";
 }
 
 /// <summary>Pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the

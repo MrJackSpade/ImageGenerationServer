@@ -12,26 +12,38 @@ namespace ImageGen.TagModel;
 /// </summary>
 public sealed class TagVocab
 {
-    /// <summary>Pattern matching an HTML entity, the mark of a vocab built before the capture-layer decode.</summary>
-    private const string HtmlEntityPattern = @"&(#[0-9]+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);";
+    /// <summary>Regex patterns matched against tag names.</summary>
+    private static class Patterns
+    {
+        /// <summary>Pattern matching an HTML entity, the mark of a vocab built before the capture-layer decode.</summary>
+        public const string HtmlEntityPattern = @"&(#[0-9]+|#x[0-9a-fA-F]+|amp|lt|gt|quot|apos);";
+    }
 
-    /// <summary>JSON key for the corpus row count.</summary>
-    private const string NRowsProperty = "n_rows";
+    /// <summary>The vocab file's JSON property names.</summary>
+    private static class Props
+    {
+        /// <summary>JSON key for the corpus row count.</summary>
+        public const string NRowsProperty = "n_rows";
 
-    /// <summary>JSON key for the tag-name array.</summary>
-    private const string TagsProperty = "tags";
+        /// <summary>JSON key for the tag-name array.</summary>
+        public const string TagsProperty = "tags";
 
-    /// <summary>JSON key for the per-tag corpus count array.</summary>
-    private const string CountsProperty = "counts";
+        /// <summary>JSON key for the per-tag corpus count array.</summary>
+        public const string CountsProperty = "counts";
 
-    /// <summary>JSON key for the per-tag gelbooru category array.</summary>
-    private const string TypesProperty = "types";
+        /// <summary>JSON key for the per-tag gelbooru category array.</summary>
+        public const string TypesProperty = "types";
+    }
 
-    /// <summary>Separator joining sample encoded tags in the diagnostic message.</summary>
-    private const string Separator = ", ";
+    /// <summary>Delimiters used when composing diagnostic text.</summary>
+    private static class Separators
+    {
+        /// <summary>Separator joining sample encoded tags in the diagnostic message.</summary>
+        public const string Separator = ", ";
+    }
 
     /// <summary>Detects a tag name that is still HTML-encoded, which means the vocab was built before the capture-layer decode.</summary>
-    private static readonly Regex HtmlEntity = new(HtmlEntityPattern, RegexOptions.Compiled);
+    private static readonly Regex HtmlEntity = new(Patterns.HtmlEntityPattern, RegexOptions.Compiled);
 
     private readonly Dictionary<string, int> _byName;
 
@@ -97,10 +109,10 @@ public sealed class TagVocab
         using JsonDocument document = JsonDocument.Parse(stream);
         JsonElement root = document.RootElement;
 
-        long rowCount = root.GetProperty(NRowsProperty).GetInt64();
-        string[] tags = ReadStrings(root, TagsProperty);
-        long[] counts = ReadInt64s(root, CountsProperty);
-        byte[] types = ReadBytes(root, TypesProperty);
+        long rowCount = root.GetProperty(Props.NRowsProperty).GetInt64();
+        string[] tags = ReadStrings(root, Props.TagsProperty);
+        long[] counts = ReadInt64s(root, Props.CountsProperty);
+        byte[] types = ReadBytes(root, Props.TypesProperty);
 
         if (counts.Length != tags.Length)
             throw new InvalidDataException($"{path}: {counts.Length} counts for {tags.Length} tags.");
@@ -117,7 +129,7 @@ public sealed class TagVocab
         string[] encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
         if (encoded.Length > 0)
             throw new InvalidDataException(
-                $"{path}: tag names are still HTML-encoded (e.g. {string.Join(Separator, encoded)}). This vocab predates "
+                $"{path}: tag names are still HTML-encoded (e.g. {string.Join(Separators.Separator, encoded)}). This vocab predates "
                 + "the capture-layer decode; decode it once at rest rather than at load.");
 
         return new TagVocab(tags, counts, types, rowCount);

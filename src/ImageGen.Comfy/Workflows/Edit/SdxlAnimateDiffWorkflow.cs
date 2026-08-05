@@ -13,19 +13,6 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string ScaleSource = "11";
-    private const string MotionLoad = "20";
-    private const string ApplyMotion = "21";
-    private const string EvolvedSampling = "22";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string Encode = "26";
-    private const string RepeatLatent = "27";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(SdxlAnimateDiffParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -37,19 +24,35 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
         double budgetMp = 0.6;   // SDXL AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
-        g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
-        g[ApplyMotion] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
-        g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(ApplyMotion) };
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
-        g[Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(ScaleSource), Vae = vae0 };
-        g[RepeatLatent] = new RepeatLatentBatch { Samples = VAEEncode.Out(Encode), Amount = frames };
-        g[Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = denoise, Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), LatentImage = RepeatLatentBatch.Out(RepeatLatent) };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
+        g[Nodes.ApplyMotion] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(Nodes.MotionLoad) };
+        g[Nodes.EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(Nodes.ApplyMotion) };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(Nodes.ScaleSource), Vae = vae0 };
+        g[Nodes.RepeatLatent] = new RepeatLatentBatch { Samples = VAEEncode.Out(Nodes.Encode), Amount = frames };
+        g[Nodes.Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = denoise, Model = ADE_UseEvolvedSampling.Out(Nodes.EvolvedSampling), Positive = CLIPTextEncode.Out(Nodes.Positive), Negative = CLIPTextEncode.Out(Nodes.Negative), LatentImage = RepeatLatentBatch.Out(Nodes.RepeatLatent) };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string ScaleSource = "11";
+    public const string MotionLoad = "20";
+    public const string ApplyMotion = "21";
+    public const string EvolvedSampling = "22";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string Encode = "26";
+    public const string RepeatLatent = "27";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>SDXL AnimateDiff i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

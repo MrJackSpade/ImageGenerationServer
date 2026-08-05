@@ -8,7 +8,7 @@ namespace ImageGen.Api;
 public static class ApiEndpointExtensions
 {
     /// <summary>Route-group prefix for the client-action endpoints. The render group reuses
-    /// <see cref="ImageGen.Api.Endpoints.ForgeApi.PublicBase"/>.</summary>
+    /// <see cref="ImageGen.Api.Endpoints.ForgeApi.Origin.PublicBase"/>.</summary>
     private static class Routes
     {
         /// <summary>The client-action endpoint group prefix.</summary>
@@ -46,7 +46,7 @@ public static class ApiEndpointExtensions
 
         // The render backend under /forge. Gated: the caller must be authenticated (a login cookie or a per-user
         // X-Api-Key). Every job is owned by that real user; the resolved id + caller scope are stashed for the queue.
-        RouteGroupBuilder forge = app.MapGroup(ForgeApi.PublicBase);
+        RouteGroupBuilder forge = app.MapGroup(ForgeApi.Origin.PublicBase);
         forge.AddEndpointFilter(async (ctx, next) =>
         {
             HttpContext http = ctx.HttpContext;

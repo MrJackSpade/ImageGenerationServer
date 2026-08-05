@@ -32,12 +32,15 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
     /// <summary>Supplies <c>FinishedAtUtc</c>, stamped from the app clock rather than a database-side <c>SYSUTCDATETIME()</c>.</summary>
     private readonly TimeProvider _clock = clock;
 
-    /// <summary>Positional: MapSlot reads by ordinal, so append — never insert — a column here.</summary>
-    private const string SlotColumns =
-        "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
-        "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
-        "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
-        "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground";
+    private static class Sql
+    {
+        /// <summary>Positional: MapSlot reads by ordinal, so append — never insert — a column here.</summary>
+        public const string SlotColumns =
+            "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
+            "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
+            "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
+            "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground";
+    }
 
     public async Task UpsertAsync(JobRecord job, CancellationToken ct)
     {
@@ -127,7 +130,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
         }
 
         await using (DbCommand cmd = conn.Command(
-            $"SELECT {SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
+            $"SELECT {Sql.SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
         {
             cmd.AddParam("@jobId", jobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
@@ -174,7 +177,7 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         foreach (JobRecord job in jobs)
         {
             await using (DbCommand cmd = conn.Command(
-                $"SELECT {SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
+                $"SELECT {Sql.SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
             {
                 cmd.AddParam("@jobId", job.JobId);
                 await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);

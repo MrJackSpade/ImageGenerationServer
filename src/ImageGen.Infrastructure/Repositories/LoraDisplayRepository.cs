@@ -12,7 +12,10 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : ILoraDisplayRepository
 {
-    private const string Columns = "Id, UserId, LoraName, GatewayImageId, SetAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "Id, UserId, LoraName, GatewayImageId, SetAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly IUserCipher _cipher = cipher;
@@ -21,7 +24,7 @@ public sealed class LoraDisplayRepository(IDbConnectionFactory connectionFactory
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.LoraDisplay WHERE UserId = @userId AND LoraName = @name;");
+            $"SELECT {Sql.Columns} FROM dbo.LoraDisplay WHERE UserId = @userId AND LoraName = @name;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, loraName, ct));
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);

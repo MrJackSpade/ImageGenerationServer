@@ -23,12 +23,6 @@ public sealed class PendingJobReconciler(
     IConfiguration config,
     ILogger<PendingJobReconciler> logger) : BackgroundService
 {
-    /// <summary>Configuration key for the reconciler's poll interval in seconds.</summary>
-    private const string PollSecondsKey = "Reconciler:PollSeconds";
-
-    /// <summary>Configuration key for the reconciler's maximum pending-row age in hours.</summary>
-    private const string MaxAgeHoursKey = "Reconciler:MaxAgeHours";
-
     /// <summary>Poll-interval bounds (seconds): the default used when the key is unset, and the accepted range for an
     /// explicit override. An out-of-range override is refused, not clamped.</summary>
     private const int DefaultPollSeconds = 15, MinPollSeconds = 3, MaxPollSeconds = 600;
@@ -46,9 +40,9 @@ public sealed class PendingJobReconciler(
     {
         // An explicitly-configured value outside its range is a misconfiguration to surface, not to silently clamp.
         // An absent key keeps its default (the common case).
-        int pollSeconds = Ensure.Between(_config.GetValue(PollSecondsKey, DefaultPollSeconds), MinPollSeconds, MaxPollSeconds, PollSecondsKey);
+        int pollSeconds = Ensure.Between(_config.GetValue(Keys.PollSecondsKey, DefaultPollSeconds), MinPollSeconds, MaxPollSeconds, Keys.PollSecondsKey);
         TimeSpan maxAge = TimeSpan.FromHours(
-            Ensure.Between(_config.GetValue(MaxAgeHoursKey, DefaultMaxAgeHours), MinMaxAgeHours, MaxMaxAgeHours, MaxAgeHoursKey));
+            Ensure.Between(_config.GetValue(Keys.MaxAgeHoursKey, DefaultMaxAgeHours), MinMaxAgeHours, MaxMaxAgeHours, Keys.MaxAgeHoursKey));
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
         using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));
@@ -91,5 +85,15 @@ public sealed class PendingJobReconciler(
             // clear the vestigial pending row. (No history write => no resurrection of a since-deleted image.)
             await pending.RemoveAsync(pj.Id, ct);
         }
+    }
+
+    /// <summary>Configuration keys this reconciler reads.</summary>
+    private static class Keys
+    {
+        /// <summary>Configuration key for the reconciler's poll interval in seconds.</summary>
+        public const string PollSecondsKey = "Reconciler:PollSeconds";
+
+        /// <summary>Configuration key for the reconciler's maximum pending-row age in hours.</summary>
+        public const string MaxAgeHoursKey = "Reconciler:MaxAgeHours";
     }
 }

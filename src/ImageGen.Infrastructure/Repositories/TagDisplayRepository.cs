@@ -12,7 +12,10 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : ITagDisplayRepository
 {
-    private const string Columns = "Id, UserId, TagName, GatewayImageId, SetAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "Id, UserId, TagName, GatewayImageId, SetAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly IUserCipher _cipher = cipher;
@@ -21,7 +24,7 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.TagDisplay WHERE UserId = @userId AND TagName = @name;");
+            $"SELECT {Sql.Columns} FROM dbo.TagDisplay WHERE UserId = @userId AND TagName = @name;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, tagName, ct));
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);

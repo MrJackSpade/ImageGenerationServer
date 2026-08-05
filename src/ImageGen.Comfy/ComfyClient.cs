@@ -121,10 +121,31 @@ public sealed class ComfyClient : IComfyClient
         public const string EditSourceVideo = "forgemcp_edit_src.mp4";
     }
 
-    private const string GateTokenHeader = "X-ImageGen-Token";
-    private const string PngMime = "image/png";
-    private const string Mp4Mime = "video/mp4";
-    private const string NoticeSeparator = "\n";
+    /// <summary>The custom-node gate header ComfyUI's imagegen_gate reads.</summary>
+    private static class Header
+    {
+        public const string GateToken = "X-ImageGen-Token";
+    }
+
+    /// <summary>MIME types for bytes uploaded to ComfyUI.</summary>
+    private static class Mime
+    {
+        public const string Png = "image/png";
+        public const string Mp4 = "video/mp4";
+    }
+
+    /// <summary>Separators for user-facing text.</summary>
+    private static class Separator
+    {
+        public const string Notice = "\n";
+    }
+
+    /// <summary>ComfyUI model folder names.</summary>
+    private static class Folder
+    {
+        /// <summary>The ComfyUI model folder that holds the SeedVR2 upscaler weights.</summary>
+        public const string SeedVr2 = "seedvr2";
+    }
 
     /// <summary>Construct the ComfyUI adapter.</summary>
     public ComfyClient(IHttpClientFactory httpFactory, IComfyEndpoint endpoint, WorkflowCatalog catalog, WorkflowRegistry registry, IMediaProcessor media, ILogger<ComfyClient> logger)
@@ -176,7 +197,7 @@ public sealed class ComfyClient : IComfyClient
                 // directly — not even with this key. All generate/edit/test work goes through /forge/* on :8080.
                 // Seeing the key here does not grant permission to bypass the queue; doing so jumps the user's whole
                 // queue and can wreck their live gens.
-                http.DefaultRequestHeaders.Add(GateTokenHeader, token.Length == 0 ? ComfyOptions.DefaultGateToken : token);
+                http.DefaultRequestHeaders.Add(Header.GateToken, token.Length == 0 ? ComfyGateDefaults.GateToken : token);
 
                 _http = http;
                 _baseUrl = url;
@@ -333,12 +354,9 @@ public sealed class ComfyClient : IComfyClient
     /// that holds the real files. Only these are narrowed: a loader that already enumerates its folder needs no
     /// second opinion, and asking for one would only add a request per kind.
     /// </summary>
-    /// <summary>The ComfyUI model folder that holds the SeedVR2 upscaler weights.</summary>
-    private const string SeedVr2Folder = "seedvr2";
-
     private static readonly Dictionary<RequirementKind, string> FolderForKind = new()
     {
-        [RequirementKind.SeedVr2] = SeedVr2Folder,
+        [RequirementKind.SeedVr2] = Folder.SeedVr2,
     };
 
     /// <summary>
@@ -649,7 +667,7 @@ public sealed class ComfyClient : IComfyClient
         foreach (string k in merged.Keys)
             if (!before.TryGetValue(k, out object? ov) || !Equals(ov, merged[k]))
                 outv[k] = JsonSerializer.SerializeToElement(merged[k]);
-        return new QueueNormalizationResult(outv, string.Join(NoticeSeparator, notices));
+        return new QueueNormalizationResult(outv, string.Join(Separator.Notice, notices));
     }
 
     /// Generation prompt rules: prepend the model's required tag prefix,
@@ -871,7 +889,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>Upload PNG bytes to ComfyUI's input folder (POST /upload/image, multipart); returns the stored filename.</summary>
     private Task<string> UploadImageAsync(byte[] png, string filename, CancellationToken ct) =>
-        UploadFileAsync(png, filename, PngMime, ct);
+        UploadFileAsync(png, filename, Mime.Png, ct);
 
     /// <summary>Upload a file (image OR video) to ComfyUI's input folder. ComfyUI's /upload/image route writes whatever
     /// file it's given to the input dir verbatim, so a video posted here lands where <c>LoadVideo</c> can list it; the
@@ -900,7 +918,7 @@ public sealed class ComfyClient : IComfyClient
         if (_media.IsAnimatedWebp(bytes))
         {
             byte[] mp4 = await _media.WebpToMp4Async(bytes, null, ct);
-            return await UploadFileAsync(mp4, UploadName.EditSourceVideo, Mp4Mime, ct);
+            return await UploadFileAsync(mp4, UploadName.EditSourceVideo, Mime.Mp4, ct);
         }
         (string? ext, string? mime) = DetectVideoContainer(bytes)
             ?? throw new RenderValidationException("The source isn't a video clip this editor can read (expected an animated WEBP, MP4, or WEBM).");

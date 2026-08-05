@@ -74,12 +74,6 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         new() { Key = WorkflowParamKeys.BatchSize, Type = ParamType.Int },
     };
 
-    /// <summary>SeedVR2's own loader/upscale node ids (source LoadImage reuses the inherited <c>Nodes.Source</c>).</summary>
-    private const string Dit = "30";
-    private const string Vae = "31";
-    private const string Upscale = "32";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(SeedVr2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string device = p.Device;
@@ -91,10 +85,10 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         string source = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.");
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = source },
+            [EditNodes.Source] = new LoadImage { Image = source },
 
             // The DiT, with BlockSwap parked on the offload device so the 3B weights don't have to sit in VRAM whole.
-            [Dit] = new SeedVR2LoadDiTModel
+            [Nodes.Dit] = new SeedVR2LoadDiTModel
             {
                 Model = p.DitModel,
                 Device = device,
@@ -106,7 +100,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
             },
 
             // The VAE, tiled on both ends: a full-frame encode/decode is its own VRAM spike, independent of the DiT.
-            [Vae] = new SeedVR2LoadVAEModel
+            [Nodes.Vae] = new SeedVR2LoadVAEModel
             {
                 Model = p.VaeModel,
                 Device = device,
@@ -140,11 +134,11 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         Ensure.Between(resolution, NodeResMin, NodeResMax);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
-        g[Upscale] = new SeedVR2VideoUpscaler
+        g[Nodes.Upscale] = new SeedVR2VideoUpscaler
         {
-            Image = LoadImage.ImageOut(Nodes.Source),
-            Dit = SeedVR2LoadDiTModel.Out(Dit),
-            Vae = SeedVR2LoadVAEModel.Out(Vae),
+            Image = LoadImage.ImageOut(EditNodes.Source),
+            Dit = SeedVR2LoadDiTModel.Out(Nodes.Dit),
+            Vae = SeedVR2LoadVAEModel.Out(Nodes.Vae),
             Seed = seed,
             Resolution = resolution,
             MaxResolution = p.MaxResolution,
@@ -154,9 +148,18 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
             OffloadDevice = offload,
         };
 
-        g[Save] = new SaveImage { Images = SeedVR2VideoUpscaler.Out(Upscale), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = SeedVR2VideoUpscaler.Out(Nodes.Upscale), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>SeedVR2's own loader/upscale node ids (source LoadImage reuses the inherited <c>EditNodes.Source</c>).</summary>
+file static class Nodes
+{
+    public const string Dit = "30";
+    public const string Vae = "31";
+    public const string Upscale = "32";
+    public const string Save = "9";
 }
 
 /// <summary>SeedVR2 restore/upscale parameters — the DiT/VAE model refs, sizing, colour match, and memory-fit knobs.

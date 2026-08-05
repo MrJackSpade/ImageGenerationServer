@@ -53,11 +53,6 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         new() { Key = WorkflowParamKeys.RefinerScheduler, Type = ParamType.String },
     }).ToArray();
 
-    /// <summary>Own nodes beyond the inherited txt2img roles
-    /// (Nodes.Model/Clip/Vae/Positive/Negative/Latent/Sampler/Decode/Save reused below).</summary>
-    private const string RefinerModel = "40";
-    private const string RefinerSampler = "30";
-
     protected override ComfyWorkflowGraph Build(Krea2RefineParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
@@ -106,8 +101,8 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         Output<Slot.Latent> finalLatent = KSampler.Out(Nodes.Sampler);
         if (polish)
         {
-            g[RefinerModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
-            g[RefinerSampler] = new KSampler
+            g[Krea2RefineWorkflowNodes.RefinerModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
+            g[Krea2RefineWorkflowNodes.RefinerSampler] = new KSampler
             {
                 Seed = ComfyGraph.Seed(p.Seed),
                 Steps = p.RefinerSteps,
@@ -115,16 +110,24 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
                 SamplerName = ComfyGraph.MapSampler(p.RefinerSampler ?? p.Sampler),
                 Scheduler = ComfyGraph.MapScheduler(p.RefinerScheduler ?? p.Scheduler),
                 Denoise = p.PolishDenoise,
-                Model = UNETLoader.ModelOut(RefinerModel),
+                Model = UNETLoader.ModelOut(Krea2RefineWorkflowNodes.RefinerModel),
                 Positive = posSrc,
                 Negative = negSrc,
                 LatentImage = KSampler.Out(Nodes.Sampler),
             };
-            finalLatent = KSampler.Out(RefinerSampler);
+            finalLatent = KSampler.Out(Krea2RefineWorkflowNodes.RefinerSampler);
         }
 
         g[Nodes.Decode] = new VAEDecode { Samples = finalLatent, Vae = vaeSrc };
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>Krea 2 refine's own node ids beyond the inherited txt2img roles
+/// (Nodes.Model/Clip/Vae/Positive/Negative/Latent/Sampler/Decode/Save reused).</summary>
+file static class Krea2RefineWorkflowNodes
+{
+    public const string RefinerModel = "40";
+    public const string RefinerSampler = "30";
 }

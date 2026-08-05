@@ -30,11 +30,24 @@ public sealed class PatchConflictException(string message) : Exception(message);
 /// </summary>
 public static class PatchApplier
 {
-    private const string ParentDirectory = "..";
-    private const string PyCache = "__pycache__";
-    private const string ListSeparator = ", ";
-    private const string Crlf = "\r\n";
-    private const string Lf = "\n";
+    /// <summary>Line endings, normalised for matching and restored on write.</summary>
+    private static class LineEnding
+    {
+        public const string Crlf = "\r\n";
+        public const string Lf = "\n";
+    }
+
+    /// <summary>Python runtime artifacts left inside a pack directory.</summary>
+    private static class PythonArtifact
+    {
+        public const string PyCache = "__pycache__";
+    }
+
+    /// <summary>Text formatting separators.</summary>
+    private static class Format
+    {
+        public const string ListSeparator = ", ";
+    }
 
     /// <summary>Could this patch be applied to <paramref name="root"/> right now, without writing anything?</summary>
     public static PatchProbe Probe(string root, IReadOnlyList<FileDiff> files, bool reverse)
@@ -116,7 +129,7 @@ public static class PatchApplier
         string current = Path.GetFullPath(directory);
 
         while (current.Length > stop.Length && current.StartsWith(stop, StringComparison.OrdinalIgnoreCase) && RemoveIfSpent(current))
-            current = Path.GetFullPath(Path.Combine(current, ParentDirectory));
+            current = Path.GetFullPath(Path.Combine(current, PathTokens.ParentDirectory));
     }
 
     /// <summary>
@@ -130,7 +143,7 @@ public static class PatchApplier
         if (Directory.EnumerateFiles(directory).Any()) return false;
 
         List<string> subdirectories = Directory.EnumerateDirectories(directory).ToList();
-        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PyCache, StringComparison.Ordinal))) return false;
+        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PythonArtifact.PyCache, StringComparison.Ordinal))) return false;
 
         foreach (string cache in subdirectories) Directory.Delete(cache, recursive: true);
         Directory.Delete(directory);
@@ -232,7 +245,7 @@ public static class PatchApplier
             throw new PatchConflictException(
                 occupied.Count == 1
                     ? $"{occupied[0]} is already there and differs from what this patch installs."
-                    : $"{occupied.Count} files are already there and differ from what this patch installs: {string.Join(ListSeparator, occupied)}.");
+                    : $"{occupied.Count} files are already there and differ from what this patch installs: {string.Join(Format.ListSeparator, occupied)}.");
 
         return new Outcome(writes, binaryWrites, deletes);
     }
@@ -242,7 +255,7 @@ public static class PatchApplier
         Join(Side(file.Hunks[0], reverse, wanted: false), EndsWithoutNewline(file, reverse, pre: false), useCrlf);
 
     /// <summary>Whether an existing file is a CRLF file, so rewriting it does not flip every line ending.</summary>
-    private static bool ReadCrlf(string path) => File.ReadAllText(path).Contains(Crlf, StringComparison.Ordinal);
+    private static bool ReadCrlf(string path) => File.ReadAllText(path).Contains(LineEnding.Crlf, StringComparison.Ordinal);
 
     /// <summary>The side of a hunk we expect to find (<paramref name="wanted"/>) or intend to leave behind.</summary>
     private static IReadOnlyList<string> Side(Hunk hunk, bool reverse, bool wanted) =>
@@ -326,7 +339,7 @@ public static class PatchApplier
     private static (List<string> Lines, bool Crlf) Read(string path)
     {
         string text = File.ReadAllText(path);
-        bool crlf = text.Contains(Crlf, StringComparison.Ordinal);
+        bool crlf = text.Contains(LineEnding.Crlf, StringComparison.Ordinal);
         List<string> lines = UnifiedDiff.SplitLines(text).ToList();
 
         // A trailing newline splits to an empty final element that is not a line of the file.
@@ -336,7 +349,7 @@ public static class PatchApplier
 
     private static string Join(IReadOnlyList<string> lines, bool endsWithoutNewline, bool useCrlf)
     {
-        string newline = useCrlf ? Crlf : Lf;
+        string newline = useCrlf ? LineEnding.Crlf : LineEnding.Lf;
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < lines.Count; i++)
         {

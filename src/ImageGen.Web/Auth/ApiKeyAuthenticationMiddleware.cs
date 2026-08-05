@@ -17,13 +17,16 @@ namespace ImageGen.Web.Auth;
 /// </summary>
 public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
 {
-    public const string HeaderName = "X-Api-Key";
+    public static class Keys
+    {
+        public const string HeaderName = "X-Api-Key";
 
-    /// <summary><see cref="HttpContext.Items"/> key marking a request as API-key (non-browser) authenticated.</summary>
-    private const string AuthViaApiKeyItemKey = "AuthViaApiKey";
+        /// <summary><see cref="HttpContext.Items"/> key marking a request as API-key (non-browser) authenticated.</summary>
+        public const string AuthViaApiKeyItemKey = "AuthViaApiKey";
 
-    /// <summary>The <c>Authorization: Bearer &lt;key&gt;</c> scheme prefix.</summary>
-    private const string BearerPrefix = "Bearer ";
+        /// <summary>The <c>Authorization: Bearer &lt;key&gt;</c> scheme prefix.</summary>
+        public const string BearerPrefix = "Bearer ";
+    }
 
     private readonly RequestDelegate _next = next;
 
@@ -43,7 +46,7 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
                     context.User = new ClaimsPrincipal(identity);
                     // Marks this request as API-key (non-browser) authenticated so downstream can scope by caller —
                     // e.g. /forge/workflows serves the API-visible list to these callers and the UI-visible list to cookies.
-                    context.Items[AuthViaApiKeyItemKey] = true;
+                    context.Items[Keys.AuthViaApiKeyItemKey] = true;
                 }
             }
         }
@@ -54,12 +57,12 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
     /// <summary>Pull the key from the <c>X-Api-Key</c> header, falling back to <c>Authorization: Bearer &lt;key&gt;</c>.</summary>
     private static string? ExtractKey(HttpRequest request)
     {
-        if (request.Headers.TryGetValue(HeaderName, out StringValues headerVal) && !string.IsNullOrWhiteSpace(headerVal))
+        if (request.Headers.TryGetValue(Keys.HeaderName, out StringValues headerVal) && !string.IsNullOrWhiteSpace(headerVal))
             return headerVal.ToString().Trim();
 
         string auth = request.Headers.Authorization.ToString();
-        if (auth.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
-            return auth[BearerPrefix.Length..].Trim();
+        if (auth.StartsWith(Keys.BearerPrefix, StringComparison.OrdinalIgnoreCase))
+            return auth[Keys.BearerPrefix.Length..].Trim();
 
         return null;
     }

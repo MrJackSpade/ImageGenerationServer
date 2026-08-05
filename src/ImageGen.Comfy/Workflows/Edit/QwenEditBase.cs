@@ -75,28 +75,6 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         return (x, y, w, h);
     }
 
-    /// <summary>This base's own node ids (role-named), on top of the inherited edit head
-    /// (Nodes.Model/Clip/Vae/Source). The per-reference load/scale nodes stay computed ($"{40+i*2}"). Values
-    /// preserved exactly so the emitted graph stays byte-identical.</summary>
-    protected const string KontextScale = "11";
-    protected const string Encode = "13";
-    protected const string SourceEncode = "14";
-    protected const string RefLatent = "30";
-    protected const string MultiRefLatent = "70";
-    protected const string ZeroNegative = "26";
-    protected const string ModelSampling = "2";
-    protected const string CfgNorm = "7";
-    protected const string RectCanvas = "80";
-    protected const string RectEncode = "81";
-    protected const string Sampler = "3";
-    protected const string Decode = "8";
-    protected const string RectResize = "82";
-    protected const string PasteCanvas = "83";
-    protected const string Composite = "84";
-    protected const string OutputSize = "85";
-    protected const string OutputScale = "86";
-    protected const string Save = "9";
-
     /// <summary>The TextEncodeQwenImageEditPlus node's variable input-field names carried in the encode's overflow bag.
     /// The fixed <c>clip</c>/<c>image1</c>/<c>prompt</c> are typed properties on the node; the per-reference image slots
     /// come from the <c>reference_inputs</c> param. <c>vae</c> is added only when at least one reference is present.</summary>
@@ -117,7 +95,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent
         // ourselves (VAE off the text-encode so it can't force-rescale) -> ref latent matches sample latent, no
         // per-turn resample -> no compounding blur over a multi-turn conversation.
-        g[KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(Nodes.Source) };
+        g[Nodes.KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
 
         string[] qInputs = p.ReferenceInputs ?? Array.Empty<string>();
         // Capacity is the smaller of the model's reference_max and the graph's available image slots — both hard
@@ -134,28 +112,28 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[scale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(load) };
             encRefs[qInputs[i]] = FluxKontextImageScale.Out(scale);
         }
-        g[SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(KontextScale), Vae = vae0 };
+        g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.KontextScale), Vae = vae0 };
         Output<Slot.Conditioning> cond;
         if (qn > 0)
         {
             encRefs[Inputs.Vae] = vae0;
-            g[Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(KontextScale), Prompt = instruction, Extra = encRefs };
-            g[MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), ReferenceLatentsMethod = ComfyWidgets.ReferenceLatents.IndexTimestepZero };
-            cond = FluxKontextMultiReferenceLatentMethod.Out(MultiRefLatent);
+            g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction, Extra = encRefs };
+            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = ComfyWidgets.ReferenceLatents.IndexTimestepZero };
+            cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
         }
         else
         {
-            g[Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(KontextScale), Prompt = instruction };
-            g[RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), Latent = VAEEncode.Out(SourceEncode) };
-            cond = ReferenceLatent.Out(RefLatent);
+            g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction };
+            g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
+            cond = ReferenceLatent.Out(Nodes.RefLatent);
         }
-        g[ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
+        g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
         Output<Slot.Model> ksModel = model0;
         if (!Aio)                                             // standard 2511 needs ModelSamplingAuraFlow + CFGNorm
         {
-            g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.1 };
-            g[CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(ModelSampling), Strength = 1.0 };
-            ksModel = CFGNorm.Out(CfgNorm);
+            g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.1 };
+            g[Nodes.CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(Nodes.ModelSampling), Strength = 1.0 };
+            ksModel = CFGNorm.Out(Nodes.CfgNorm);
         }
         // Optional canvas mask, implemented as a REFRAME (see Schema). Sample on a latent shaped like the drawing
         // rectangle instead of the full canvas, then paste the decoded result back onto a white canvas at the
@@ -171,17 +149,17 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         (int X, int Y, int W, int H)? rect = MaskGeom(Pct(p.MaskLeftPct), Pct(p.MaskRightPct), Pct(p.MaskTopPct), Pct(p.MaskBottomPct),
                             inputs.SourceWidth, inputs.SourceHeight);
 
-        Output<Slot.Latent> sampleLatent = VAEEncode.Out(SourceEncode);
+        Output<Slot.Latent> sampleLatent = VAEEncode.Out(Nodes.SourceEncode);
         if (rect is (int, int, int rw, int rh))
         {
             // Sample at the rectangle, aligned down to the VAE/patch stride; a blank white canvas is the starting
             // latent because denoise is 1.0, so only its SHAPE matters, not its content.
-            g[RectCanvas] = new EmptyImageLiteral { Width = AlignDown(rw), Height = AlignDown(rh), BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
-            g[RectEncode] = new VAEEncode { Pixels = EmptyImageLiteral.Out(RectCanvas), Vae = vae0 };
-            sampleLatent = VAEEncode.Out(RectEncode);
+            g[Nodes.RectCanvas] = new EmptyImageLiteral { Width = AlignDown(rw), Height = AlignDown(rh), BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
+            g[Nodes.RectEncode] = new VAEEncode { Pixels = EmptyImageLiteral.Out(Nodes.RectCanvas), Vae = vae0 };
+            sampleLatent = VAEEncode.Out(Nodes.RectEncode);
         }
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = seed,
             Steps = p.Steps,
@@ -191,28 +169,53 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             Denoise = 1.0,
             Model = ksModel,
             Positive = cond,
-            Negative = ConditioningZeroOut.Out(ZeroNegative),
+            Negative = ConditioningZeroOut.Out(Nodes.ZeroNegative),
             LatentImage = sampleLatent,
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
 
-        Output<Slot.Image> output = VAEDecode.Out(Decode);
+        Output<Slot.Image> output = VAEDecode.Out(Nodes.Decode);
         if (rect is (int px, int py, int pw, int ph))
         {
             // Undo the stride rounding, paste onto a white canvas at the rectangle's offset (both in source pixels),
             // then match the unmasked path's output dimensions exactly — GetImageSize reads the Kontext bucket node 11
             // chose, so a masked and an unmasked pose of the same portrait land on identical canvases and keep a
             // consistent sprite scale. When the source is already a bucket size this final scale is an identity.
-            g[RectResize] = new ImageScale { Image = VAEDecode.Out(Decode), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = pw, Height = ph, Crop = ComfyWidgets.Crop.Disabled };
-            g[PasteCanvas] = new EmptyImageLiteral { Width = inputs.SourceWidth, Height = inputs.SourceHeight, BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
-            g[Composite] = new ImageCompositePaste { Destination = EmptyImageLiteral.Out(PasteCanvas), Source = ImageScale.Out(RectResize), X = px, Y = py, ResizeSource = false };
-            g[OutputSize] = new GetImageSize { Image = FluxKontextImageScale.Out(KontextScale) };
-            g[OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(OutputSize), Height = GetImageSize.HeightOut(OutputSize), Crop = ComfyWidgets.Crop.Disabled };
-            output = ImageScaleFromSize.Out(OutputScale);
+            g[Nodes.RectResize] = new ImageScale { Image = VAEDecode.Out(Nodes.Decode), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = pw, Height = ph, Crop = ComfyWidgets.Crop.Disabled };
+            g[Nodes.PasteCanvas] = new EmptyImageLiteral { Width = inputs.SourceWidth, Height = inputs.SourceHeight, BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
+            g[Nodes.Composite] = new ImageCompositePaste { Destination = EmptyImageLiteral.Out(Nodes.PasteCanvas), Source = ImageScale.Out(Nodes.RectResize), X = px, Y = py, ResizeSource = false };
+            g[Nodes.OutputSize] = new GetImageSize { Image = FluxKontextImageScale.Out(Nodes.KontextScale) };
+            g[Nodes.OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Nodes.Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(Nodes.OutputSize), Height = GetImageSize.HeightOut(Nodes.OutputSize), Crop = ComfyWidgets.Crop.Disabled };
+            output = ImageScaleFromSize.Out(Nodes.OutputScale);
         }
-        g[Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>QwenEditBase's own node ids (role-named), on top of the inherited edit head
+/// (EditNodes.Model/Clip/Vae/Source). The per-reference load/scale nodes stay computed ($"{40+i*2}"). Values
+/// preserved exactly so the emitted graph stays byte-identical.</summary>
+file static class Nodes
+{
+    public const string KontextScale = "11";
+    public const string Encode = "13";
+    public const string SourceEncode = "14";
+    public const string RefLatent = "30";
+    public const string MultiRefLatent = "70";
+    public const string ZeroNegative = "26";
+    public const string ModelSampling = "2";
+    public const string CfgNorm = "7";
+    public const string RectCanvas = "80";
+    public const string RectEncode = "81";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string RectResize = "82";
+    public const string PasteCanvas = "83";
+    public const string Composite = "84";
+    public const string OutputSize = "85";
+    public const string OutputScale = "86";
+    public const string Save = "9";
 }
 
 /// <summary>Qwen-Image-Edit parameters, shared by the standard and AIO subclasses — the shared loader head knobs

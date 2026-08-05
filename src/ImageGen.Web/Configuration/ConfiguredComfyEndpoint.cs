@@ -18,15 +18,15 @@ public sealed class ConfiguredComfyEndpoint(IConfiguration configuration) : ICom
     /// setup page, surfaced as the null the config lookup actually returns rather than papered over with an empty
     /// string a consumer would then have to re-recognise as "unconfigured".
     /// </summary>
-    public string? BaseUrl => _configuration[MachineSettingSpecs.ComfyBaseUrl];
+    public string? BaseUrl => _configuration[MachineSettingSpecs.Keys.ComfyBaseUrl];
 
     /// <summary>Falls back to the historical literal, which is also what the gate node itself falls back to.</summary>
     public string GateToken
     {
         get
         {
-            string? configured = _configuration[MachineSettingSpecs.ComfyGateToken];
-            return string.IsNullOrWhiteSpace(configured) ? ComfyOptions.DefaultGateToken : configured.Trim();
+            string? configured = _configuration[MachineSettingSpecs.Keys.ComfyGateToken];
+            return string.IsNullOrWhiteSpace(configured) ? ComfyGateDefaults.GateToken : configured.Trim();
         }
     }
 }

@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Application.Images;
 
 /// <summary>
@@ -14,7 +16,6 @@ namespace ImageGen.Application.Images;
 /// </summary>
 public sealed class InMemoryUploadStore : IUploadStore
 {
-    private const string GuidFormat = "N";
     private readonly object _gate = new();
     private readonly Dictionary<string, UploadedImage> _index = new(StringComparer.Ordinal);
     private long _bytes;
@@ -27,7 +28,7 @@ public sealed class InMemoryUploadStore : IUploadStore
 
     public string Add(UploadedImage image)
     {
-        string id = Guid.NewGuid().ToString(GuidFormat);   // same shape as a generated image id, so callers can't tell them apart
+        string id = Guid.NewGuid().ToString(GuidFormats.NoDashes);   // same shape as a generated image id, so callers can't tell them apart
         lock (_gate)
         {
             _index[id] = image;

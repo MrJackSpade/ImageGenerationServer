@@ -22,14 +22,21 @@ namespace ImageGen.Web.Comfy;
 /// </summary>
 public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervisor> log)
 {
-    /// <summary>
-    /// The directory the container entrypoint shares with this process. Set by the image, never by a user: it
-    /// describes how this deployment is run, which is not something to configure from inside it.
-    /// </summary>
-    public const string DirectoryKey = Configuration.MachineSettingSpecs.ComfySupervisor;
+    public static class Keys
+    {
+        /// <summary>
+        /// The directory the container entrypoint shares with this process. Set by the image, never by a user: it
+        /// describes how this deployment is run, which is not something to configure from inside it.
+        /// </summary>
+        public const string DirectoryKey = Configuration.MachineSettingSpecs.Keys.ComfySupervisor;
+    }
 
-    private const string PidFile = "comfy.pid";
-    private const string RestartMarker = "comfy-restarting";
+    private static class Files
+    {
+        public const string PidFile = "comfy.pid";
+        public const string RestartMarker = "comfy-restarting";
+    }
+
     private const int Sigterm = 15;
 
     private readonly IConfiguration _config = config;
@@ -39,7 +46,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     {
         get
         {
-            string? dir = _config[DirectoryKey];
+            string? dir = _config[Keys.DirectoryKey];
             return string.IsNullOrWhiteSpace(dir) ? null : dir.Trim();
         }
     }
@@ -69,7 +76,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
         int pid = ReadPid() ?? throw new InvalidOperationException(
             "ComfyUI does not appear to be running — there is no process to restart.");
 
-        string marker = Path.Combine(directory, RestartMarker);
+        string marker = Path.Combine(directory, Files.RestartMarker);
         File.WriteAllText(marker, pid.ToString());
 
         if (!OperatingSystem.IsLinux())
@@ -96,7 +103,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
         string? directory = Directory;
         if (directory is null) return null;
 
-        string path = Path.Combine(directory, PidFile);
+        string path = Path.Combine(directory, Files.PidFile);
         if (!File.Exists(path)) return null;
         if (!int.TryParse(File.ReadAllText(path).Trim(), out int pid) || pid <= 1) return null;
 

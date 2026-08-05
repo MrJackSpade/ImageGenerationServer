@@ -10,27 +10,27 @@ namespace ImageGen.Comfy;
 /// </summary>
 file static class HighVram
 {
-    /// <summary>The loader block's node ids, named by role (values preserved: 4=model, 21=vae).</summary>
-    private static class Nodes
-    {
-        public const string Model = "4";
-        public const string Vae = "21";
-    }
-
     /// <summary>The model loader block (UNETLoader / UnetLoaderGGUF / CheckpointLoaderSimple), returning typed
     /// model+vae refs.</summary>
     public static (Output<Slot.Model> model, Output<Slot.Vae> vae) LoadDiffusion(ComfyWorkflowGraph g, Txt2ImgParams p, ResolvedRequirements req)
     {
-        LoaderKind loader = LoaderKinds.Parse(p.RequiredLoader());
+        LoaderKind loader = LoaderKindWire.Parse(p.RequiredLoader());
         if (loader == LoaderKind.Checkpoint)
         {
-            g[Nodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
-            return (CheckpointLoaderSimple.ModelOut(Nodes.Model), CheckpointLoaderSimple.VaeOut(Nodes.Model));   // model, (clip unused), vae
+            g[HighVramNodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
+            return (CheckpointLoaderSimple.ModelOut(HighVramNodes.Model), CheckpointLoaderSimple.VaeOut(HighVramNodes.Model));   // model, (clip unused), vae
         }
-        g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
-        g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
-        return (UNETLoader.ModelOut(Nodes.Model), VAELoader.VaeOut(Nodes.Vae));
+        g[HighVramNodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
+        g[HighVramNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
+        return (UNETLoader.ModelOut(HighVramNodes.Model), VAELoader.VaeOut(HighVramNodes.Vae));
     }
+}
+
+/// <summary>The loader block's node ids, named by role (values preserved: 4=model, 21=vae).</summary>
+file static class HighVramNodes
+{
+    public const string Model = "4";
+    public const string Vae = "21";
 }
 
 /// <summary>HiDream's flow-shift knob (ModelSamplingSD3).</summary>
@@ -145,9 +145,6 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
 {
     public override string Name => "chroma";
 
-    /// <summary>Chroma's only extra node id (reuses the inherited txt2img <c>Nodes.*</c>).</summary>
-    private const string T5Options = "22";
-
     protected override ComfyWorkflowGraph Build(ChromaParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -157,8 +154,8 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
             ? new CLIPLoaderGGUF { ClipName = clipName, Type = ComfyWidgets.ClipType.Chroma }
             : new CLIPLoader { ClipName = clipName, Type = ComfyWidgets.ClipType.Chroma, Device = ComfyWidgets.Device.Default };
         // Chroma needs T5 min-padding disabled (the official graph inserts T5TokenizerOptions before the encodes).
-        g[T5Options] = new T5TokenizerOptions { Clip = new Output<Slot.Clip>(Nodes.Clip, 0), MinPadding = 0, MinLength = 0 };
-        Output<Slot.Clip> clipSrc = T5TokenizerOptions.Out(T5Options);
+        g[ChromaWorkflowNodes.T5Options] = new T5TokenizerOptions { Clip = new Output<Slot.Clip>(Nodes.Clip, 0), MinPadding = 0, MinLength = 0 };
+        Output<Slot.Clip> clipSrc = T5TokenizerOptions.Out(ChromaWorkflowNodes.T5Options);
         g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
         Output<Slot.Model> modelSrc = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
 
@@ -183,4 +180,10 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>Chroma's only extra node id (reuses the inherited txt2img <c>Nodes.*</c>).</summary>
+file static class ChromaWorkflowNodes
+{
+    public const string T5Options = "22";
 }

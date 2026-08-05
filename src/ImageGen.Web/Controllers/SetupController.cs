@@ -28,8 +28,8 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
         // The box is pre-filled with the address a local ComfyUI almost always uses — so say whether that is a
         // real find or just the usual guess. A pre-filled field that looks authoritative and is not is worse than
         // an empty one: it invites a click-through and the failure surfaces at the first render instead.
-        ViewData[ViewDataKeys.Address] = ComfyProbe.LikelyLocal;
-        ProbeResult found = await _probe.TryAsync(ComfyProbe.LikelyLocal, ct);
+        ViewData[ViewDataKeys.Address] = ComfyProbe.Addresses.LikelyLocal;
+        ProbeResult found = await _probe.TryAsync(ComfyProbe.Addresses.LikelyLocal, ct);
         ViewData[ViewDataKeys.Detected] = found.Ok;
         ViewData[ViewDataKeys.ProbeError] = found.Error;
         return View();
@@ -61,7 +61,7 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
             }
         }
 
-        await _machine.SetAsync(MachineSettingSpecs.ComfyBaseUrl, baseUrl, ct);
+        await _machine.SetAsync(MachineSettingSpecs.Keys.ComfyBaseUrl, baseUrl, ct);
         return Redirect(Routes.Home);
     }
 

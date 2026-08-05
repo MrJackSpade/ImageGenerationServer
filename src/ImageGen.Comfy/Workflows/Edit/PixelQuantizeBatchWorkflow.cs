@@ -48,14 +48,6 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
-    /// <summary>This workflow's own node ids (source LoadImage is the inherited Nodes.Source; per-reference LoadImage/ImageBatch ids are computed 100+).</summary>
-    private const string Matte = "15";
-    private const string Quantize = "20";
-    private const string Save = "9";
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    private const string FpEngine = "fp";
-
     protected override ComfyWorkflowGraph Build(PixelQuantizeBatchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Batch = the source frame + every reference frame, IN ORDER, stacked into one (N,H,W,3) tensor via a chain of
@@ -64,9 +56,9 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
+            [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
-        Output<Slot.Image> batch = LoadImage.ImageOut(Nodes.Source);
+        Output<Slot.Image> batch = LoadImage.ImageOut(EditNodes.Source);
         int node = 100;
         foreach (string refName in inputs.ReferenceImageNames)
         {
@@ -80,17 +72,17 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         // BiRefNetMatte processes the batched tensor (same node the video matte runs per frame); output 0 = RGBA.
         if (p.KeyBackground)
         {
-            g[Matte] = new BiRefNetMatte { Image = batch, Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
-            batch = BiRefNetMatte.Out(Matte);
+            g[Nodes.Matte] = new BiRefNetMatte { Image = batch, Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
+            batch = BiRefNetMatte.Out(Nodes.Matte);
         }
 
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == FpEngine)
+        if (p.Engine == Nodes.FpEngine)
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
             // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
-            g[Quantize] = new PixelQuantizeFP
+            g[Nodes.Quantize] = new PixelQuantizeFP
             {
                 Image = batch,
                 GridW = gw,
@@ -106,7 +98,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         }
         else
         {
-            g[Quantize] = new PixelQuantize
+            g[Nodes.Quantize] = new PixelQuantize
             {
                 Image = batch,
                 GridW = gw,
@@ -116,9 +108,20 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
                 VirtualResolution = p.VirtualResolution,
             };
         }
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids (source LoadImage is the inherited EditNodes.Source; per-reference LoadImage/ImageBatch ids are computed 100+).</summary>
+file static class Nodes
+{
+    public const string Matte = "15";
+    public const string Quantize = "20";
+    public const string Save = "9";
+
+    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
+    public const string FpEngine = "fp";
 }
 
 /// <summary>Batch pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the

@@ -12,9 +12,6 @@ namespace ImageGen.Web.Updates;
 /// </summary>
 public static class AppVersion
 {
-    /// <summary>What the SDK stamps when nobody passed a version. Present means "this build was not released".</summary>
-    private const string Unstamped = "1.0.0";
-
     private static readonly Lazy<Version?> _current = new(Read);
 
     /// <summary>The running version, or null when this build carries none.</summary>
@@ -69,7 +66,7 @@ public static class AppVersion
 
         // The SDK stamps 1.0.0 when nobody set a version: a build that was never released, not a version to compare.
         // Distinct from the malformed case above — 1.0.0 parses fine, so it is a sentinel that maps to null, not a failure.
-        return parsed.ToString(3) == Unstamped ? null : parsed;
+        return parsed.ToString(3) == Sentinels.Unstamped ? null : parsed;
     }
 
     /// <summary>
@@ -89,5 +86,12 @@ public static class AppVersion
         int plus = value.IndexOf('+');
         if (plus >= 0) value = value[..plus];
         return value.Contains('-');
+    }
+
+    /// <summary>The SDK's unstamped-version sentinel.</summary>
+    private static class Sentinels
+    {
+        /// <summary>What the SDK stamps when nobody passed a version. Present means "this build was not released".</summary>
+        public const string Unstamped = "1.0.0";
     }
 }

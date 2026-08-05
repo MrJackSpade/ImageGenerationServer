@@ -5,12 +5,6 @@ namespace ImageGen.Web.ViewModels;
 
 public sealed class ImageDetailViewModel
 {
-    /// <summary>Placeholder chip text shown when the image has no prompt to display.</summary>
-    private const string NoPromptText = "(no prompt)";
-
-    /// <summary>Delimiter a run of plain prompt segments is rejoined on — byte-identical to the split delimiter.</summary>
-    private const string SegmentDelimiter = ",";
-
     public required ImageDetailView Entry { get; init; }
     public required bool IsBookmarked { get; init; }
     public string? NewerId { get; init; }
@@ -77,7 +71,7 @@ public sealed class ImageDetailViewModel
         get
         {
             if (string.IsNullOrWhiteSpace(Entry.Prompt))
-                return [new PromptChip(NoPromptText, null, string.Empty)];
+                return [new PromptChip(Labels.NoPromptText, null, string.Empty)];
 
             IReadOnlyDictionary<string, string> marks = Entry.Marks;
             List<(PromptChip Chip, int TypeRank)> chips = new List<(PromptChip, int)>();
@@ -88,7 +82,7 @@ public sealed class ImageDetailViewModel
                 if (plain.Count == 0) return;
                 // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
                 // the run's outer edges are trimmed for display. Plain runs carry no type rank; they group last by Kind.
-                string text = string.Join(SegmentDelimiter, plain).Trim();
+                string text = string.Join(Delimiters.SegmentDelimiter, plain).Trim();
                 if (text.Length > 0) chips.Add((new PromptChip(text, null, string.Empty), 0));
                 plain.Clear();
             }
@@ -114,7 +108,7 @@ public sealed class ImageDetailViewModel
             FlushPlain();
 
             if (chips.Count == 0)
-                return [new PromptChip(NoPromptText, null, string.Empty)];
+                return [new PromptChip(Labels.NoPromptText, null, string.Empty)];
 
             // Chips (Kind non-null) first, plain prose (Kind null) last; within the chips: state, then type, then name.
             // OrderBy is stable, so plain runs keep the order they were written in — prose is grouped, never reordered.
@@ -135,6 +129,20 @@ public sealed class ImageDetailViewModel
     /// the bookmark and ban stores are independent and nothing stops a token being written to both.
     /// </summary>
     private static int StateRank(PromptChip chip) => chip.Bookmarked ? 0 : chip.Banned ? 2 : 1;
+
+    /// <summary>User-facing chip labels.</summary>
+    private static class Labels
+    {
+        /// <summary>Placeholder chip text shown when the image has no prompt to display.</summary>
+        public const string NoPromptText = "(no prompt)";
+    }
+
+    /// <summary>Prompt-segment delimiters.</summary>
+    private static class Delimiters
+    {
+        /// <summary>Delimiter a run of plain prompt segments is rejoined on — byte-identical to the split delimiter.</summary>
+        public const string SegmentDelimiter = ",";
+    }
 }
 
 public sealed record PromptChip(

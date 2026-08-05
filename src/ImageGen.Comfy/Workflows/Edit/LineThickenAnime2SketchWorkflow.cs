@@ -24,47 +24,50 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
         new() { Key = WorkflowParamKeys.Resolution, Type = ParamType.Int, Min = 256, Max = 2048, Label = "Detector resolution" },
     };
 
-    /// <summary>This workflow's own node ids.</summary>
-    private const string Lineart = "20";
-    private const string Invert = "21";
-    private const string Size = "15";
-    private const string Scale = "22";
-    private const string Thicken = "23";
-    private const string Blend = "24";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(LineThickenAnime2SketchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = source },
+            [EditNodes.Source] = new LoadImage { Image = source },
         };
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
         // Extract anime line art (white-on-black), invert to dark-lines-on-white, force back to the source size.
-        g[Lineart] = new AnimeLineArtPreprocessor { Image = src, Resolution = p.Resolution };
-        g[Invert] = new ImageInvert { Image = AnimeLineArtPreprocessor.Out(Lineart) };
-        g[Size] = new GetImageSize { Image = src };
-        g[Scale] = new ImageScaleToImageSize
+        g[Nodes.Lineart] = new AnimeLineArtPreprocessor { Image = src, Resolution = p.Resolution };
+        g[Nodes.Invert] = new ImageInvert { Image = AnimeLineArtPreprocessor.Out(Nodes.Lineart) };
+        g[Nodes.Size] = new GetImageSize { Image = src };
+        g[Nodes.Scale] = new ImageScaleToImageSize
         {
-            Image = ImageInvert.Out(Invert),
+            Image = ImageInvert.Out(Nodes.Invert),
             UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
-            Width = GetImageSize.WidthOut(Size),
-            Height = GetImageSize.HeightOut(Size),
+            Width = GetImageSize.WidthOut(Nodes.Size),
+            Height = GetImageSize.HeightOut(Nodes.Size),
             Crop = ComfyWidgets.Crop.Disabled,
         };
         // Bolden the extracted lines, then multiply over the source (flat regions = white = unchanged).
-        g[Thicken] = new LineThicken { Image = ImageScaleToImageSize.Out(Scale), Thickness = p.Thickness };
-        g[Blend] = new ImageBlend
+        g[Nodes.Thicken] = new LineThicken { Image = ImageScaleToImageSize.Out(Nodes.Scale), Thickness = p.Thickness };
+        g[Nodes.Blend] = new ImageBlend
         {
             Image1 = src,
-            Image2 = LineThicken.Out(Thicken),
+            Image2 = LineThicken.Out(Nodes.Thicken),
             BlendFactor = 1.0,
             BlendMode = ComfyWidgets.Blend.Multiply,
         };
-        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = ImageBlend.Out(Nodes.Blend), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Lineart = "20";
+    public const string Invert = "21";
+    public const string Size = "15";
+    public const string Scale = "22";
+    public const string Thicken = "23";
+    public const string Blend = "24";
+    public const string Save = "9";
 }
 
 /// <summary>The anime2sketch thickener's parameters. <c>required</c> so an absent value throws at the deserializer

@@ -18,7 +18,7 @@ public sealed class UserCryptoTests
         string a = UserCrypto.EncryptRandomized(keys, plain);
         string b = UserCrypto.EncryptRandomized(keys, plain);
 
-        Assert.StartsWith(UserCrypto.RandomizedPrefix, a);
+        Assert.StartsWith(UserCrypto.Prefixes.Randomized, a);
         Assert.NotEqual(a, b);                                  // fresh nonce each call
         Assert.Equal(plain, UserCrypto.DecryptTolerant(keys, a));
         Assert.Equal(plain, UserCrypto.DecryptTolerant(keys, b));
@@ -32,7 +32,7 @@ public sealed class UserCryptoTests
         string a = UserCrypto.EncryptDeterministic(keys, "long_hair");
         string b = UserCrypto.EncryptDeterministic(keys, "long_hair");
 
-        Assert.StartsWith(UserCrypto.DeterministicPrefix, a);
+        Assert.StartsWith(UserCrypto.Prefixes.Deterministic, a);
         Assert.Equal(a, b);                                     // equality preserved → searchable / UNIQUE-safe
         Assert.NotEqual(a, UserCrypto.EncryptDeterministic(keys, "short_hair"));
         Assert.Equal("long_hair", UserCrypto.DecryptTolerant(keys, a));

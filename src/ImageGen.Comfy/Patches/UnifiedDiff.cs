@@ -69,7 +69,11 @@ public static class UnifiedDiff
     /// thing that makes a malformed patch findable.</summary>
     public sealed class FormatException(string message) : Exception(message);
 
-    private const string NoNewline = "\\ No newline at end of file";
+    /// <summary>The "no newline at end of file" sentinel a unified diff emits.</summary>
+    private static class Sentinel
+    {
+        public const string NoNewline = "\\ No newline at end of file";
+    }
 
     /// <summary>The fixed markers of the unified/git-diff format this reads and writes.</summary>
     private static class DiffMarker
@@ -165,7 +169,7 @@ public static class UnifiedDiff
                         continue;
                     }
 
-                    if (line == NoNewline)
+                    if (line == Sentinel.NoNewline)
                     {
                         // Applies to whichever side's last line we just read.
                         if (newLines.Count > 0 && (oldLines.Count == 0 || newLines.Count >= oldLines.Count)) newNoNewline = true;
@@ -316,19 +320,19 @@ public static class UnifiedDiff
                     if (o < hunk.OldLines.Count && n < hunk.NewLines.Count && hunk.OldLines[o] == hunk.NewLines[n])
                     {
                         text.Append(' ').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(NoNewline).Append('\n');
+                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
                         o++; n++;
                     }
                     else if (o < hunk.OldLines.Count && (n >= hunk.NewLines.Count || hunk.OldLines[o] != hunk.NewLines[n]))
                     {
                         text.Append('-').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(NoNewline).Append('\n');
+                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
                         o++;
                     }
                     else
                     {
                         text.Append('+').Append(hunk.NewLines[n]).Append('\n');
-                        if (n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline) text.Append(NoNewline).Append('\n');
+                        if (n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
                         n++;
                     }
                 }

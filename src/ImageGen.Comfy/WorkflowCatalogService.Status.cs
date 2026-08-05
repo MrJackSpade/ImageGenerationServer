@@ -128,16 +128,13 @@ public sealed partial class WorkflowCatalogService
         }
     }
 
-    /// <summary>The settings-page override key for a configuration's render-size aspect map.</summary>
-    private const string AspectOverrideKey = "param.aspect";
-
     /// <inheritdoc/>
     public async Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct)
     {
         // A render size outside what the model documents is refused here, with the model's own numbers in the
         // message. The browser's min/max is advisory — this is the write path — and storing 4096 for a model whose
         // envelope stops at 1920 buys a failed render minutes later instead of an answer now.
-        if (string.Equals(settingKey, AspectOverrideKey, StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(settingKey, SettingKeys.AspectOverride, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(settingValue))
         {
             GuardAspectAgainstEnvelope(configId, settingValue);

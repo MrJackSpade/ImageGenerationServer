@@ -19,8 +19,12 @@ internal static class Mp4Probe
     private static readonly HashSet<string> VideoSampleEntries = new(StringComparer.Ordinal)
         { "avc1", "avc3", "hvc1", "hev1", "av01", "vp09", "vp08", "mp4v", "encv" };
 
-    /// <summary>The sample-description box whose entries carry the visual sample entry.</summary>
-    private const string StsdBox = "stsd";
+    /// <summary>ISO-BMFF box FourCCs recognised by name.</summary>
+    private static class Boxes
+    {
+        /// <summary>The sample-description box whose entries carry the visual sample entry.</summary>
+        public const string StsdBox = "stsd";
+    }
 
     [AllowMagicStrings("exception message")]
     public static (int Width, int Height) GetDimensions(ReadOnlySpan<byte> b)
@@ -53,7 +57,7 @@ internal static class Mp4Probe
             string type = ReadType(b, pos + 4);
             int contentStart = pos + header;
 
-            if (type == StsdBox)
+            if (type == Boxes.StsdBox)
             {
                 if (TryReadStsd(b, contentStart, (int)boxEnd, out w, out h)) return true;
             }

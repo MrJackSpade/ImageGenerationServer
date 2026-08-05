@@ -18,16 +18,6 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 {
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 512, MinH = 512, MaxW = 2048, MaxH = 2048, Step = 16 };
 
-    /// <summary>Own node ids (source LoadImage is the inherited <c>Nodes.Source</c>). These must NOT reuse the
-    /// inherited loader-head ids — <c>Nodes.Clip</c> ("5") / <c>Nodes.Vae</c> ("6") carry the live CLIP/VAE loaders
-    /// that <c>clip0</c>/<c>vae0</c> point at; the split-loader path keeps them, so reusing "5"/"6" here would
-    /// overwrite the loaders and leave the clip/vae edges dangling into this node's own outputs.</summary>
-    private const string ScaledSource = "11";
-    private const string Encode = "7";
-    private const string Sampler = "12";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(MageFlowEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -36,7 +26,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training
         // distribution instead of asking the model to render at, e.g., 3000px.
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         Dictionary<string, object> refs = new Dictionary<string, object>();
@@ -55,7 +45,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
             refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
         }
 
-        g[Encode] = new TextEncodeMageFlowEdit
+        g[Nodes.Encode] = new TextEncodeMageFlowEdit
         {
             Clip = clip0,
             Prompt = inputs.Positive,
@@ -64,10 +54,10 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
             Width = 0,      // 0 -> follow the (scaled) reference's own size
             Height = 0,
             BatchSize = 1,
-            Image1 = ImageScaleToTotalPixels.Out(ScaledSource),
+            Image1 = ImageScaleToTotalPixels.Out(Nodes.ScaledSource),
             Extra = refs.Count > 0 ? refs : null,
         };
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -76,14 +66,27 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = model0,
-            Positive = TextEncodeMageFlowEdit.PositiveOut(Encode),
-            Negative = TextEncodeMageFlowEdit.NegativeOut(Encode),
-            LatentImage = TextEncodeMageFlowEdit.LatentOut(Encode),
+            Positive = TextEncodeMageFlowEdit.PositiveOut(Nodes.Encode),
+            Negative = TextEncodeMageFlowEdit.NegativeOut(Nodes.Encode),
+            LatentImage = TextEncodeMageFlowEdit.LatentOut(Nodes.Encode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Generate };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>Own node ids (source LoadImage is the inherited <c>EditNodes.Source</c>). These must NOT reuse the
+/// inherited loader-head ids — <c>EditNodes.Clip</c> ("5") / <c>EditNodes.Vae</c> ("6") carry the live CLIP/VAE loaders
+/// that <c>clip0</c>/<c>vae0</c> point at; the split-loader path keeps them, so reusing "5"/"6" here would
+/// overwrite the loaders and leave the clip/vae edges dangling into this node's own outputs.</summary>
+file static class Nodes
+{
+    public const string ScaledSource = "11";
+    public const string Encode = "7";
+    public const string Sampler = "12";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Mage-Flow-Edit parameters, shared by the standard and Turbo subclasses — the shared loader head knobs

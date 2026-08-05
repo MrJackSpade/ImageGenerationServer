@@ -10,9 +10,13 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IUserRepository
 {
-    /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against
-    /// this list — change one and renumber the other.</summary>
-    private const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs, PinBookmarkSuggestions";
+    private static class Sql
+    {
+        /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against
+        /// this list — change one and renumber the other.</summary>
+        public const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs, PinBookmarkSuggestions";
+    }
+
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
     private readonly ISqlDialect _dialect = dialect;
@@ -21,7 +25,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
     public async Task<User?> GetByIdAsync(long id, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Id = @id;");
+        await using DbCommand cmd = conn.Command($"SELECT {Sql.Columns} FROM dbo.AppUser WHERE Id = @id;");
         cmd.AddParam("@id", id);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;
@@ -30,7 +34,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Username = @username;");
+        await using DbCommand cmd = conn.Command($"SELECT {Sql.Columns} FROM dbo.AppUser WHERE Username = @username;");
         cmd.AddParam("@username", username);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;
@@ -49,7 +53,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
     public async Task<User?> GetByApiKeyAsync(string apiKey, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE ApiKey = @apiKey;");
+        await using DbCommand cmd = conn.Command($"SELECT {Sql.Columns} FROM dbo.AppUser WHERE ApiKey = @apiKey;");
         cmd.AddParam("@apiKey", apiKey);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;

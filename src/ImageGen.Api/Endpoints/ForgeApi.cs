@@ -30,7 +30,11 @@ namespace ImageGen.Api.Endpoints;
 public static class ForgeApi
 {
     /// <summary>Origin image URLs are built from (same-origin under the merged app).</summary>
-    public const string PublicBase = "/forge";
+    public static class Origin
+    {
+        /// <summary>Origin image URLs are built from (same-origin under the merged app).</summary>
+        public const string PublicBase = "/forge";
+    }
 
     /// <summary>Bounds for the `w` (width) parameter on the image and mp4 endpoints. Out-of-range is REFUSED, not
     /// clamped: the response carries `Cache-Control: immutable, max-age=1y` under a key built from the width, so a
@@ -276,7 +280,7 @@ public static class ForgeApi
     }
 
     private static string? UrlFor(string? imageId) =>
-        string.IsNullOrEmpty(imageId) ? null : $"{PublicBase}/image/{Uri.EscapeDataString(imageId)}";
+        string.IsNullOrEmpty(imageId) ? null : $"{Origin.PublicBase}/image/{Uri.EscapeDataString(imageId)}";
 
     /// <summary>
     /// Vet a request's optional generation mask at the boundary, so a bad name 400s here instead of failing a job that

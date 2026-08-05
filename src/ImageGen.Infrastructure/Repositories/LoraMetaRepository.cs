@@ -12,7 +12,11 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) : ILoraMetaRepository
 {
-    private const string Columns = "LoraName, Sha256, TrainedWords, ModelName, PreviewUrl, FetchedAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "LoraName, Sha256, TrainedWords, ModelName, PreviewUrl, FetchedAtUtc";
+    }
+
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
 
     public async Task<IReadOnlyDictionary<string, LoraMeta>> GetManyAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
@@ -25,7 +29,7 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
         for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
+        await using DbCommand cmd = conn.Command($"SELECT {Sql.Columns} FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
         for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
 
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);

@@ -19,15 +19,6 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
     /// <c>EditWorkflowBase.SharedSchema.Concat(…)</c>.</summary>
     public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema;
 
-    /// <summary>The shared edit head's node ids, named by role (values preserved so the emitted graph is byte-identical).</summary>
-    protected static class Nodes
-    {
-        public const string Model = "4";
-        public const string Clip = "5";
-        public const string Vae = "6";
-        public const string Source = "10";
-    }
-
     /// <summary>Emit the common edit head — the model/CLIP/VAE loaders (from the loader wire value + resolved
     /// requirements) and the source <c>LoadImage</c> at node "10" — as typed nodes, returning the model/clip/vae edges.
     /// Byte-identical to <see cref="EditWorkflowBase.LoadModel"/>.</summary>
@@ -36,27 +27,27 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
         out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0)
     {
         string file = req.RequiredCheckpoint();
-        LoaderKind loader = LoaderKinds.Parse(loaderWire);
+        LoaderKind loader = LoaderKindWire.Parse(loaderWire);
         if (loader == LoaderKind.Checkpoint)
         {
-            g[Nodes.Model] = new CheckpointLoaderSimple { CkptName = file };
-            model0 = CheckpointLoaderSimple.ModelOut(Nodes.Model);
-            vae0 = CheckpointLoaderSimple.VaeOut(Nodes.Model);
+            g[EditNodes.Model] = new CheckpointLoaderSimple { CkptName = file };
+            model0 = CheckpointLoaderSimple.ModelOut(EditNodes.Model);
+            vae0 = CheckpointLoaderSimple.VaeOut(EditNodes.Model);
             clip0 = req.TextEncoders.Count > 0
-                ? BuildClipLoader(g, Nodes.Clip, req.TextEncoders, clipType)
-                : CheckpointLoaderSimple.ClipOut(Nodes.Model);
+                ? BuildClipLoader(g, EditNodes.Clip, req.TextEncoders, clipType)
+                : CheckpointLoaderSimple.ClipOut(EditNodes.Model);
         }
         else
         {
-            g[Nodes.Model] = weightDtype is { Length: > 0 } wd
+            g[EditNodes.Model] = weightDtype is { Length: > 0 } wd
                 ? ComfyGraph.DiffusionLoaderNode(file, wd)
                 : ComfyGraph.DiffusionLoaderNode(file);
-            g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
-            model0 = UNETLoader.ModelOut(Nodes.Model);
-            vae0 = VAELoader.VaeOut(Nodes.Vae);
-            clip0 = BuildClipLoader(g, Nodes.Clip, req.TextEncoders, clipType);
+            g[EditNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
+            model0 = UNETLoader.ModelOut(EditNodes.Model);
+            vae0 = VAELoader.VaeOut(EditNodes.Vae);
+            clip0 = BuildClipLoader(g, EditNodes.Clip, req.TextEncoders, clipType);
         }
-        g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") };
+        g[EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") };
     }
 
     /// <summary>The CLIP loader a model's encoders call for, chosen by HOW MANY it declares (1→CLIPLoader,
@@ -78,4 +69,14 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
         };
         return new Output<Slot.Clip>(nodeId, 0);
     }
+}
+
+/// <summary>The shared edit head's node ids, named by role (values preserved so the emitted graph is byte-identical).
+/// Referenced by every edit workflow's <c>Build</c> and by <see cref="EditWorkflow{TParams}.LoadModel"/>.</summary>
+internal static class EditNodes
+{
+    public const string Model = "4";
+    public const string Clip = "5";
+    public const string Vae = "6";
+    public const string Source = "10";
 }

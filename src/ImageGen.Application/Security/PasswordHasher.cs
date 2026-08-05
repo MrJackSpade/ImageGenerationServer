@@ -10,17 +10,22 @@ namespace ImageGen.Application.Security;
 /// </summary>
 public static class PasswordHasher
 {
+    /// <summary>The stored-hash format's algorithm tag — the first '$'-separated field.</summary>
+    private static class Format
+    {
+        public const string Algorithm = "PBKDF2";
+    }
+
     private const int Iterations = 200_000;
     private const int SaltBytes = 16;
     private const int HashBytes = 32;
     private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
-    private const string Pbkdf2Algorithm = "PBKDF2";
 
     public static string Hash(string password)
     {
         byte[] salt = RandomNumberGenerator.GetBytes(SaltBytes);
         byte[] hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, HashBytes);
-        return $"PBKDF2${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
+        return $"{Format.Algorithm}${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
     /// <summary>Check <paramref name="password"/> against a stored hash. The ONLY thing false means is that the
@@ -41,7 +46,7 @@ public static class PasswordHasher
         if (parts.Length != 4)
             throw new InvalidOperationException(
                 $"Stored password hash is malformed: expected 4 '$'-separated fields, found {parts.Length}.");
-        if (parts[0] != Pbkdf2Algorithm)
+        if (parts[0] != Format.Algorithm)
             throw new InvalidOperationException("Stored password hash names an unknown algorithm (expected PBKDF2).");
         if (!int.TryParse(parts[1], out int iterations) || iterations <= 0)
             throw new InvalidOperationException("Stored password hash carries an unreadable iteration count.");

@@ -8,6 +8,13 @@ using System.Threading.Channels;
 
 namespace ImageGen.Comfy;
 
+/// <summary>ComfyUI folder-paths keys (the category names <c>/internal/folder_paths</c> returns).</summary>
+public static class ComfyFolderKeys
+{
+    /// <summary>ComfyUI's folder-paths key for the LoRA roots.</summary>
+    public const string Loras = "loras";
+}
+
 /// <summary>
 /// Background filler of the CivitAI cache for LoRA files (see <see cref="ILoraMetaPopulator"/>). Surfaces call
 /// <see cref="Request"/> and return a stub at once; this drains a queue one file at a time — resolving it on disk,
@@ -31,9 +38,6 @@ public sealed class LoraMetaPopulator(
 
     /// <summary>ComfyUI's loras folder roots, resolved once — they don't move while the app runs.</summary>
     private IReadOnlyList<string>? _loraRoots;
-
-    /// <summary>ComfyUI's folder-paths key for the LoRA roots.</summary>
-    private const string LorasFolderKey = "loras";
 
     public void Request(IReadOnlyCollection<string> loraNames)
     {
@@ -131,7 +135,7 @@ public sealed class LoraMetaPopulator(
         if (_loraRoots is not null)
             return _loraRoots;
         IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await comfy.GetFolderPathsAsync(ct);
-        return _loraRoots = folders.TryGetValue(LorasFolderKey, out IReadOnlyList<string>? roots) ? roots : [];
+        return _loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? roots) ? roots : [];
     }
 
     private static string? ResolveOnDisk(IReadOnlyList<string> roots, string name)

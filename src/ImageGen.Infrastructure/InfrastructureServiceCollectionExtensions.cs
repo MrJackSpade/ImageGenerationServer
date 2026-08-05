@@ -16,10 +16,13 @@ namespace ImageGen.Infrastructure;
 /// </summary>
 public static class InfrastructureServiceCollectionExtensions
 {
-    private const string ServerKey = "Server=";
-    private const string InitialCatalogKey = "Initial Catalog=";
-    private const string IntegratedSecurityKey = "Integrated Security=";
-    private const string TrustedConnectionKey = "Trusted_Connection=";
+    private static class ConnKeys
+    {
+        public const string ServerKey = "Server=";
+        public const string InitialCatalogKey = "Initial Catalog=";
+        public const string IntegratedSecurityKey = "Integrated Security=";
+        public const string TrustedConnectionKey = "Trusted_Connection=";
+    }
 
     /// <summary>
     /// Add the persistence layer for the given connection string, against the given engine.
@@ -108,10 +111,10 @@ public static class InfrastructureServiceCollectionExtensions
     private static void GuardConnectionStringMatchesProvider(string connectionString, DatabaseProvider provider)
     {
         bool looksLikeSqlServer =
-            connectionString.Contains(ServerKey, StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains(InitialCatalogKey, StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains(IntegratedSecurityKey, StringComparison.OrdinalIgnoreCase) ||
-            connectionString.Contains(TrustedConnectionKey, StringComparison.OrdinalIgnoreCase);
+            connectionString.Contains(ConnKeys.ServerKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(ConnKeys.InitialCatalogKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(ConnKeys.IntegratedSecurityKey, StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains(ConnKeys.TrustedConnectionKey, StringComparison.OrdinalIgnoreCase);
 
         if (provider == DatabaseProvider.Sqlite && looksLikeSqlServer)
             throw new InvalidOperationException(

@@ -22,23 +22,6 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).Concat(HunyuanSr.Schema).ToArray();
 
-    /// <summary>Own node ids (the model/clip/vae/source head is the inherited <c>Nodes</c>).</summary>
-    private const string ModelSampling = "30";
-    private const string SourceScale = "51";
-    private const string SourceSize = "52";
-    private const string ClipVisionLoader = "40";
-    private const string ClipVisionEncode = "41";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string ImageToVideo = "53";
-    private const string Scheduler = "55";
-    private const string SamplerSelect = "56";
-    private const string Noise = "57";
-    private const string Guider = "58";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(HunyuanVideo15I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -46,44 +29,64 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime LoRA on the Hunyuan model
-        g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
-        Output<Slot.Model> modelS = ModelSamplingSD3.Out(ModelSampling);
+        g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
+        Output<Slot.Model> modelS = ModelSamplingSD3.Out(Nodes.ModelSampling);
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.4;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
-        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(SourceScale) };
-        g[ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };
-        g[ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(SourceScale), Crop = ComfyWidgets.Crop.Center };
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
-        g[ImageToVideo] = new HunyuanVideo15ImageToVideo
+        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
+        g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.SourceScale) };
+        g[Nodes.ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };
+        g[Nodes.ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(Nodes.ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(Nodes.SourceScale), Crop = ComfyWidgets.Crop.Center };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.ImageToVideo] = new HunyuanVideo15ImageToVideo
         {
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
             Vae = vae0,
-            Width = GetImageSize.WidthOut(SourceSize),
-            Height = GetImageSize.HeightOut(SourceSize),
+            Width = GetImageSize.WidthOut(Nodes.SourceSize),
+            Height = GetImageSize.HeightOut(Nodes.SourceSize),
             Length = frames,
             BatchSize = 1,
-            StartImage = ImageScaleToTotalPixels.Out(SourceScale),
-            ClipVisionOutput = CLIPVisionEncode.Out(ClipVisionEncode),
+            StartImage = ImageScaleToTotalPixels.Out(Nodes.SourceScale),
+            ClipVisionOutput = CLIPVisionEncode.Out(Nodes.ClipVisionEncode),
         };
-        g[Scheduler] = new BasicScheduler { Model = modelS, Scheduler = scheduler, Steps = p.Steps, Denoise = 1.0 };
-        g[SamplerSelect] = new KSamplerSelect { SamplerName = sampler };
-        g[Noise] = new RandomNoise { NoiseSeed = seed };
-        g[Guider] = new CFGGuider { Model = modelS, Positive = HunyuanVideo15ImageToVideo.PositiveOut(ImageToVideo), Negative = HunyuanVideo15ImageToVideo.NegativeOut(ImageToVideo), Cfg = p.RequiredCfg() };
-        g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = CFGGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = BasicScheduler.Out(Scheduler), LatentImage = HunyuanVideo15ImageToVideo.LatentOut(ImageToVideo) };
+        g[Nodes.Scheduler] = new BasicScheduler { Model = modelS, Scheduler = scheduler, Steps = p.Steps, Denoise = 1.0 };
+        g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = sampler };
+        g[Nodes.Noise] = new RandomNoise { NoiseSeed = seed };
+        g[Nodes.Guider] = new CFGGuider { Model = modelS, Positive = HunyuanVideo15ImageToVideo.PositiveOut(Nodes.ImageToVideo), Negative = HunyuanVideo15ImageToVideo.NegativeOut(Nodes.ImageToVideo), Cfg = p.RequiredCfg() };
+        g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Nodes.Noise), Guider = CFGGuider.Out(Nodes.Guider), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = BasicScheduler.Out(Nodes.Scheduler), LatentImage = HunyuanVideo15ImageToVideo.LatentOut(Nodes.ImageToVideo) };
         // Optional super-resolution second pass (1080p). Conditioning is the raw text encode (Positive/Negative); the source
-        // image (raw LoadImage Nodes.Source) + SigCLIP vision (ClipVisionEncode) carry over as SR consistency cues. Returns the sampler node unchanged when off.
-        Output<Slot.Latent> outLatent = HunyuanSr.Refine(g, p, SamplerCustomAdvanced.Out(Sampler), CLIPTextEncode.Out(Positive), CLIPTextEncode.Out(Negative), vae0, LoadImage.ImageOut(Nodes.Source), CLIPVisionEncode.Out(ClipVisionEncode), sampler, scheduler, seed);
-        g[Decode] = HunyuanSr.Enabled(p)
+        // image (raw LoadImage EditNodes.Source) + SigCLIP vision (ClipVisionEncode) carry over as SR consistency cues. Returns the sampler node unchanged when off.
+        Output<Slot.Latent> outLatent = HunyuanSr.Refine(g, p, SamplerCustomAdvanced.Out(Nodes.Sampler), CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), vae0, LoadImage.ImageOut(EditNodes.Source), CLIPVisionEncode.Out(Nodes.ClipVisionEncode), sampler, scheduler, seed);
+        g[Nodes.Decode] = HunyuanSr.Enabled(p)
             ? new VAEDecodeTiled { Samples = outLatent, Vae = vae0, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
             : new VAEDecode { Samples = outLatent, Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Decode, 0), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Nodes.Decode, 0), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>Own node ids (the model/clip/vae/source head is the inherited <c>Nodes</c>).</summary>
+file static class Nodes
+{
+    public const string ModelSampling = "30";
+    public const string SourceScale = "51";
+    public const string SourceSize = "52";
+    public const string ClipVisionLoader = "40";
+    public const string ClipVisionEncode = "41";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string ImageToVideo = "53";
+    public const string Scheduler = "55";
+    public const string SamplerSelect = "56";
+    public const string Noise = "57";
+    public const string Guider = "58";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>HunyuanVideo 1.5 image→video parameters — the shared loader-head knobs (<c>loader</c>/<c>weight_dtype</c>/

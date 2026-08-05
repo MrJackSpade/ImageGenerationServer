@@ -14,25 +14,6 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KleinLike();
 
-    /// <summary>This subclass's own node ids.</summary>
-    private const string Positive = "60";
-    private const string ScaledImage = "62";
-    private const string Encode = "63";
-    private const string ImageSize = "64";
-    private const string Guidance = "65";
-    private const string RefLatent = "66";
-    private const string Projection = "35";
-    private const string Guider = "22";
-    private const string EmptyLatentNode = "28";
-    private const string Scheduler = "29";
-    private const string Noise = "20";
-    private const string SamplerSelect = "21";
-    private const string SplitSigmas = "27";
-    private const string Sampler = "23";
-    private const string Decode = "8";
-    private const string FinalQuantize = "36";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(Flux2Klein4bPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -45,39 +26,61 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
         string palette = p.Palette;
         int vres = p.VirtualResolution;
 
-        g[Positive] = new CLIPTextEncode { Text = instruction, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = instruction, Clip = clip0 };
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);   // override the megapixels bucket with the clean k×VRES size when on
-        g[ScaledImage] = snap is { } s
+        g[Nodes.ScaledImage] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
             : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 64 };
-        g[Encode] = new VAEEncode { Pixels = ImageScale.Out(ScaledImage), Vae = vae0 };
-        g[ImageSize] = new GetImageSize { Image = ImageScale.Out(ScaledImage) };
-        g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
-        g[RefLatent] = new ReferenceLatent { Conditioning = FluxGuidance.Out(Guidance), Latent = VAEEncode.Out(Encode) };
+        g[Nodes.Encode] = new VAEEncode { Pixels = ImageScale.Out(Nodes.ScaledImage), Vae = vae0 };
+        g[Nodes.ImageSize] = new GetImageSize { Image = ImageScale.Out(Nodes.ScaledImage) };
+        g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = p.Guidance };
+        g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = FluxGuidance.Out(Nodes.Guidance), Latent = VAEEncode.Out(Nodes.Encode) };
 
-        g[Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
-        g[Guider] = new BasicGuider { Model = PixelManifoldProjection.Out(Projection), Conditioning = ReferenceLatent.Out(RefLatent) };
-        g[EmptyLatentNode] = new EmptyFlux2LatentImage { Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize), BatchSize = 1 };
-        g[Scheduler] = new Flux2Scheduler { Steps = p.Steps, Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize) };
-        g[Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
-        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Nodes.Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
+        g[Nodes.Guider] = new BasicGuider { Model = PixelManifoldProjection.Out(Nodes.Projection), Conditioning = ReferenceLatent.Out(Nodes.RefLatent) };
+        g[Nodes.EmptyLatentNode] = new EmptyFlux2LatentImage { Width = GetImageSize.WidthOut(Nodes.ImageSize), Height = GetImageSize.HeightOut(Nodes.ImageSize), BatchSize = 1 };
+        g[Nodes.Scheduler] = new Flux2Scheduler { Steps = p.Steps, Width = GetImageSize.WidthOut(Nodes.ImageSize), Height = GetImageSize.HeightOut(Nodes.ImageSize) };
+        g[Nodes.Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
+        g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         // reference% -> img2img: 0 generates from the empty latent over the full schedule; >0 inits from the source
         // latent and runs only the denoise tail (SplitSigmasDenoise low_sigmas = denoise fraction of the steps).
         Output<Slot.Sigmas> sigmas;
         Output<Slot.Latent> initLatent;
         if (p.Reference > 0)
         {
-            g[SplitSigmas] = new SplitSigmasDenoise { Sigmas = Flux2Scheduler.Out(Scheduler), Denoise = PixelSnap.Denoise(p.Reference, 0) };
-            sigmas = SplitSigmasDenoise.LowOut(SplitSigmas);        // low_sigmas — the img2img tail
-            initLatent = VAEEncode.Out(Encode);    // source latent
+            g[Nodes.SplitSigmas] = new SplitSigmasDenoise { Sigmas = Flux2Scheduler.Out(Nodes.Scheduler), Denoise = PixelSnap.Denoise(p.Reference, 0) };
+            sigmas = SplitSigmasDenoise.LowOut(Nodes.SplitSigmas);        // low_sigmas — the img2img tail
+            initLatent = VAEEncode.Out(Nodes.Encode);    // source latent
         }
-        else { sigmas = Flux2Scheduler.Out(Scheduler); initLatent = EmptyFlux2LatentImage.Out(EmptyLatentNode); }
-        g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = BasicGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = sigmas, LatentImage = initLatent };
-        g[Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = vae0 };
-        g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
+        else { sigmas = Flux2Scheduler.Out(Nodes.Scheduler); initLatent = EmptyFlux2LatentImage.Out(Nodes.EmptyLatentNode); }
+        g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Nodes.Noise), Guider = BasicGuider.Out(Nodes.Guider), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = sigmas, LatentImage = initLatent };
+        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Nodes.Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>Flux2Klein4bPixelizeWorkflow's node ids.</summary>
+file static class Nodes
+{
+    public const string Positive = "60";
+    public const string ScaledImage = "62";
+    public const string Encode = "63";
+    public const string ImageSize = "64";
+    public const string Guidance = "65";
+    public const string RefLatent = "66";
+    public const string Projection = "35";
+    public const string Guider = "22";
+    public const string EmptyLatentNode = "28";
+    public const string Scheduler = "29";
+    public const string Noise = "20";
+    public const string SamplerSelect = "21";
+    public const string SplitSigmas = "27";
+    public const string Sampler = "23";
+    public const string Decode = "8";
+    public const string FinalQuantize = "36";
+    public const string Save = "9";
 }
 
 /// <summary>Flux.2-Klein 4B pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

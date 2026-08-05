@@ -89,27 +89,6 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
     /// the soft mask the model is conditioned on), so it wants to be several latent cells wide.</summary>
     private const double MaskBlurSigma = 8.0;
 
-    /// <summary>This base's own node ids, named by role; values are the graph-local keys, preserved exactly so the
-    /// emitted graph stays byte-identical.</summary>
-    private const string Grow = "30";
-    private const string MaskAsImage = "32";
-    private const string BlurredMaskImage = "33";
-    private const string BlurredMask = "34";
-    private const string SoftMask = "35";
-    private const string CeilingImage = "172";
-    private const string CeilingMaskAsImage = "173";
-    private const string CeilingMaskImage = "174";
-    private const string CeilingMask = "175";
-    private const string Positive = "13";
-    private const string Guidance = "14";
-    private const string Negative = "16";
-    private const string DiffDiff = "7";
-    private const string InpaintConditioning = "38";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Composite = "126";
-    private const string Save = "9";
-
     /// <summary>
     /// <c>GrowMask → MaskToImage → ImageBlur → ImageToMask → MaskComposite(add)</c>.
     ///
@@ -128,25 +107,25 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         int grow = p.MaskGrow;   // 0 = no grow; range enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
-            g[Grow] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
-            m = GrowMask.Out(Grow);
+            g[Nodes.Grow] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
+            m = GrowMask.Out(Nodes.Grow);
         }
 
         int blur = p.MaskBlur;
         if (blur == 0) return m;
 
-        g[MaskAsImage] = new MaskToImage { Mask = m };
-        g[BlurredMaskImage] = new ImageBlur { Image = MaskToImage.Out(MaskAsImage), BlurRadius = blur, Sigma = MaskBlurSigma };
-        g[BlurredMask] = new ImageToMask { Image = ImageBlur.Out(BlurredMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
-        g[SoftMask] = new MaskComposite
+        g[Nodes.MaskAsImage] = new MaskToImage { Mask = m };
+        g[Nodes.BlurredMaskImage] = new ImageBlur { Image = MaskToImage.Out(Nodes.MaskAsImage), BlurRadius = blur, Sigma = MaskBlurSigma };
+        g[Nodes.BlurredMask] = new ImageToMask { Image = ImageBlur.Out(Nodes.BlurredMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
+        g[Nodes.SoftMask] = new MaskComposite
         {
-            Destination = ImageToMask.Out(BlurredMask),
+            Destination = ImageToMask.Out(Nodes.BlurredMask),
             Source = rawMask,
             X = 0,
             Y = 0,
             Operation = ComfyWidgets.MaskOperation.Add,
         };
-        return MaskComposite.Out(SoftMask);
+        return MaskComposite.Out(Nodes.SoftMask);
     }
 
     /// <summary>Emit the ceiling scale for canvas AND mask, or leave both untouched. Both must travel together:
@@ -162,14 +141,14 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
         int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
 
-        g[CeilingImage] = new ImageScale { Image = image, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
-        g[CeilingMaskAsImage] = new MaskToImage { Mask = rawMask };
+        g[Nodes.CeilingImage] = new ImageScale { Image = image, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
+        g[Nodes.CeilingMaskAsImage] = new MaskToImage { Mask = rawMask };
         // nearest-exact keeps the mask binary; bilinear would ramp its edge and stack with SoftenMask.
-        g[CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(CeilingMaskAsImage), UpscaleMethod = ComfyWidgets.Upscale.NearestExact, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
-        g[CeilingMask] = new ImageToMask { Image = ImageScale.Out(CeilingMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
+        g[Nodes.CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(Nodes.CeilingMaskAsImage), UpscaleMethod = ComfyWidgets.Upscale.NearestExact, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
+        g[Nodes.CeilingMask] = new ImageToMask { Image = ImageScale.Out(Nodes.CeilingMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
 
-        image = ImageScale.Out(CeilingImage);
-        rawMask = ImageToMask.Out(CeilingMask);
+        image = ImageScale.Out(Nodes.CeilingImage);
+        rawMask = ImageToMask.Out(Nodes.CeilingMask);
     }
 
     protected override ComfyWorkflowGraph Build(FluxFillParams p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -182,17 +161,17 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
-        g[Negative] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = p.Guidance };
+        g[Nodes.Negative] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
 
         // Differential blending: the soft mask becomes a per-pixel denoise SCHEDULE, so the model harmonizes the
         // transition band across steps instead of us cross-fading two finished images. See the class doc.
         Output<Slot.Model> samplerModel = model0;
         if (p.Diffdiff)
         {
-            g[DiffDiff] = new DifferentialDiffusion { Model = model0 };
-            samplerModel = DifferentialDiffusion.Out(DiffDiff);
+            g[Nodes.DiffDiff] = new DifferentialDiffusion { Model = model0 };
+            samplerModel = DifferentialDiffusion.Out(Nodes.DiffDiff);
         }
 
         // The native fill conditioning — mask and masked-image are the MODEL's inputs here, not a ControlNet's.
@@ -200,17 +179,17 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         // surroundings. Sampling the full frame instead (noise_mask=false, the diffusers-reference shape) measures
         // strictly worse — Fill freewheels without the anchor (a moon hallucinates into an empty-prompt sky fill;
         // −27/−89 luminance vs −6 pinned). See the class doc before touching this.
-        g[InpaintConditioning] = new InpaintModelConditioning
+        g[Nodes.InpaintConditioning] = new InpaintModelConditioning
         {
-            Positive = FluxGuidance.Out(Guidance),
-            Negative = ConditioningZeroOut.Out(Negative),
+            Positive = FluxGuidance.Out(Nodes.Guidance),
+            Negative = ConditioningZeroOut.Out(Nodes.Negative),
             Vae = vae0,
             Pixels = image,
             Mask = softMask,
             NoiseMask = true,
         };
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -219,28 +198,52 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = samplerModel,
-            Positive = InpaintModelConditioning.PositiveOut(InpaintConditioning),
-            Negative = InpaintModelConditioning.NegativeOut(InpaintConditioning),
-            LatentImage = InpaintModelConditioning.LatentOut(InpaintConditioning),
+            Positive = InpaintModelConditioning.PositiveOut(Nodes.InpaintConditioning),
+            Negative = InpaintModelConditioning.NegativeOut(Nodes.InpaintConditioning),
+            LatentImage = InpaintModelConditioning.LatentOut(Nodes.InpaintConditioning),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
 
         // Paste-back so everything outside the region is bit-identical to the source rather than a VAE round-trip of
         // it, with the decode's tint fitted on the outside pixels and inverted first (a small correction under the
         // noise-mask pinning — see the class doc). The same soft mask crossfades the band DifferentialDiffusion
         // already harmonized.
-        g[Composite] = new ImageCompositeMaskedColorCorrected
+        g[Nodes.Composite] = new ImageCompositeMaskedColorCorrected
         {
             Destination = image,
-            Source = VAEDecode.Out(Decode),
+            Source = VAEDecode.Out(Nodes.Decode),
             X = 0,
             Y = 0,
             Mask = softMask,
             CorrectionMethod = p.ColorCorrect ? "Linear2" : "None",
         };
-        g[Save] = new SaveImage { Images = ImageCompositeMaskedColorCorrected.Out(Composite), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = ImageCompositeMaskedColorCorrected.Out(Nodes.Composite), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>FluxFillBase's own node ids, named by role; values are the graph-local keys, preserved exactly so the
+/// emitted graph stays byte-identical.</summary>
+file static class Nodes
+{
+    public const string Grow = "30";
+    public const string MaskAsImage = "32";
+    public const string BlurredMaskImage = "33";
+    public const string BlurredMask = "34";
+    public const string SoftMask = "35";
+    public const string CeilingImage = "172";
+    public const string CeilingMaskAsImage = "173";
+    public const string CeilingMaskImage = "174";
+    public const string CeilingMask = "175";
+    public const string Positive = "13";
+    public const string Guidance = "14";
+    public const string Negative = "16";
+    public const string DiffDiff = "7";
+    public const string InpaintConditioning = "38";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Composite = "126";
+    public const string Save = "9";
 }
 
 /// <summary>FLUX.1 Fill parameters, shared by the inpaint and outpaint subclasses — the shared loader head knobs

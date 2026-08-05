@@ -14,3 +14,4 @@ IMGNULL003 | Nullability | Error | Nullable value-type property/field (int?/doub
 IMGNULL004 | Nullability | Error | [AllowNullable] justification is empty; give a non-empty reason.
 IMGSTR001 | Maintainability | Error | Magic string literal in an equality comparison or method/constructor/indexer argument; well-known args (Exception/ILogger message, any sql, AddParam name, ToString/ParseExact format) and [AllowMagicStrings] scopes/parameters are exempt; use a named constant.
 IMGSTR002 | Maintainability | Error | [AllowMagicStrings] justification is empty; give a non-empty reason.
+IMGSTR003 | Maintainability | Error | const string outside a pure holder; a const string may only live in a static class whose members are all const strings. No opt-out.

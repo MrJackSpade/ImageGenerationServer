@@ -9,7 +9,7 @@ internal static class EditWorkflowBase
 {
     internal static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
         // model fits a 24GB card alongside its text encoder instead of swapping against it.
         new() { Key = WorkflowParamKeys.WeightDtype, Type = ParamType.String },

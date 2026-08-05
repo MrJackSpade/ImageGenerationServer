@@ -11,9 +11,6 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
 {
-    /// <summary>Mage's unified text-encode + zero-latent node, emitting the (positive, negative, latent) triple.</summary>
-    private const string Encode = "5";
-
     protected override ComfyWorkflowGraph Build(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
@@ -26,7 +23,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
         // Mage's unified conditioning node in its text-only mode: no image inputs -> pure t2i, and it also produces
         // the zero latent (batch×128×h/16×w/16) so the sampler's shape always matches the model. vae is unused here
         // (only edits encode reference latents), so it is left unconnected.
-        g[Encode] = new TextEncodeMageFlowGen
+        g[MageFlowGenBaseNodes.Encode] = new TextEncodeMageFlowGen
         {
             Clip = CLIPLoader.ClipOut(Nodes.Clip),
             Prompt = inputs.Positive,
@@ -45,14 +42,21 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = UNETLoader.ModelOut(Nodes.Model),
-            Positive = TextEncodeMageFlowGen.PositiveOut(Encode),
-            Negative = TextEncodeMageFlowGen.NegativeOut(Encode),
-            LatentImage = TextEncodeMageFlowGen.LatentOut(Encode),
+            Positive = TextEncodeMageFlowGen.PositiveOut(MageFlowGenBaseNodes.Encode),
+            Negative = TextEncodeMageFlowGen.NegativeOut(MageFlowGenBaseNodes.Encode),
+            LatentImage = TextEncodeMageFlowGen.LatentOut(MageFlowGenBaseNodes.Encode),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>Mage-Flow's own node id: its unified text-encode + zero-latent node, emitting the (positive, negative,
+/// latent) triple. Reuses the inherited txt2img <c>Nodes.*</c> for the shared roles.</summary>
+file static class MageFlowGenBaseNodes
+{
+    public const string Encode = "5";
 }
 
 /// <summary>Mage-Flow (RL-aligned) text-to-image — full CFG (cfg 5, negatives supported), ~20 steps.</summary>

@@ -10,11 +10,15 @@ namespace ImageGen.TagModel;
 /// </summary>
 public static class TagModelServiceCollectionExtensions
 {
-    /// <summary>Folder beside the executable that holds the tag model.</summary>
-    private const string TagModelFolder = "tagmodel";
+    /// <summary>Folder names composing the path to the tag model artifacts.</summary>
+    private static class Folders
+    {
+        /// <summary>Folder beside the executable that holds the tag model.</summary>
+        public const string TagModelFolder = "tagmodel";
 
-    /// <summary>Sub-folder holding the published artifacts.</summary>
-    private const string ArtifactsFolder = "artifacts";
+        /// <summary>Sub-folder holding the published artifacts.</summary>
+        public const string ArtifactsFolder = "artifacts";
+    }
 
     /// <summary>
     /// Where the artifacts live: <c>tagmodel/artifacts</c> beside the executable, always.
@@ -25,7 +29,7 @@ public static class TagModelServiceCollectionExtensions
     /// would fail to find the model and refuse to start, naming a path that does not exist. The install script writes
     /// here, the app reads here, and there is nothing to keep in step.</para>
     /// </summary>
-    public static string ArtifactsDirectory => Path.Combine(AppContext.BaseDirectory, TagModelFolder, ArtifactsFolder);
+    public static string ArtifactsDirectory => Path.Combine(AppContext.BaseDirectory, Folders.TagModelFolder, Folders.ArtifactsFolder);
 
     /// <summary>
     /// Load the artifacts from <see cref="ArtifactsDirectory"/> and register both tag ports.

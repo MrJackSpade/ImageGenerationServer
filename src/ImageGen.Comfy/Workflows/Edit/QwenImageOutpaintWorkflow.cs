@@ -57,21 +57,15 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
         // sets it to 0 too — so seam softening happens in exactly one place: mask_grow + mask_blur.
     }).ToArray();
 
-    /// <summary>This workflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>
-    private const string Pad = "20";
-    private const string StretchScale = "21";
-    private const string PrefillBlur = "22";
-    private const string PrefillComposite = "23";
-
     protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
         int pl = p.PadLeft, pt = p.PadTop;
         int pr = p.PadRight, pb = p.PadBottom;
 
-        g[Pad] = new ImagePadForOutpaint
+        g[Nodes.Pad] = new ImagePadForOutpaint
         {
-            Image = LoadImage.ImageOut(Nodes.Source),
+            Image = LoadImage.ImageOut(EditNodes.Source),
             Left = pl,
             Top = pt,
             Right = pr,
@@ -81,7 +75,7 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
             // the original pixels — a mushy seam. Softening happens once, in SoftenMask.
             Feathering = 0,
         };
-        rawMask = ImagePadForOutpaint.MaskOut(Pad);
+        rawMask = ImagePadForOutpaint.MaskOut(Nodes.Pad);
 
         // GREY MUST NOT EXIST. ImagePadForOutpaint fills the new area with flat 0.5 grey, and that grey is the whole
         // halo family: any mask softness anywhere — the blur ramp, the latent blend, the composite crossfade — mixes
@@ -96,24 +90,33 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
         // does not work here.)
         // CanvasSize refuses a source with unknown dimensions, so the padded canvas is always real here.
         (int W, int H) canvas = CanvasSize(p, inputs);
-        g[StretchScale] = new ImageScale
+        g[Nodes.StretchScale] = new ImageScale
         {
-            Image = LoadImage.ImageOut(Nodes.Source),
+            Image = LoadImage.ImageOut(EditNodes.Source),
             UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
             Width = canvas.W,
             Height = canvas.H,
             Crop = ComfyWidgets.Crop.Disabled,
         };
         // sigma 10.0 is ImageBlur's node maximum.
-        g[PrefillBlur] = new ImageBlur { Image = ImageScale.Out(StretchScale), BlurRadius = 31, Sigma = 10.0 };
-        g[PrefillComposite] = new ImageCompositeMaskedNoMask
+        g[Nodes.PrefillBlur] = new ImageBlur { Image = ImageScale.Out(Nodes.StretchScale), BlurRadius = 31, Sigma = 10.0 };
+        g[Nodes.PrefillComposite] = new ImageCompositeMaskedNoMask
         {
-            Destination = ImageBlur.Out(PrefillBlur),
-            Source = LoadImage.ImageOut(Nodes.Source),
+            Destination = ImageBlur.Out(Nodes.PrefillBlur),
+            Source = LoadImage.ImageOut(EditNodes.Source),
             X = pl,
             Y = pt,
             ResizeSource = false,
         };
-        image = ImageCompositeMaskedNoMask.Out(PrefillComposite);
+        image = ImageCompositeMaskedNoMask.Out(Nodes.PrefillComposite);
     }
+}
+
+/// <summary>QwenImageOutpaintWorkflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>
+file static class Nodes
+{
+    public const string Pad = "20";
+    public const string StretchScale = "21";
+    public const string PrefillBlur = "22";
+    public const string PrefillComposite = "23";
 }

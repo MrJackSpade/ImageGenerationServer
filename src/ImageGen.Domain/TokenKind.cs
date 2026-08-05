@@ -19,10 +19,14 @@ public static class TokenKinds
 {
     public const string Tag = "tag";
     public const string Artist = "artist";
+}
 
-    public static string ToWire(this TokenKind kind) => kind == TokenKind.Artist ? Artist : Tag;
+/// <summary>Converts <see cref="TokenKind"/> to and from its <see cref="TokenKinds"/> wire spelling.</summary>
+public static class TokenKindWire
+{
+    public static string ToWire(this TokenKind kind) => kind == TokenKind.Artist ? TokenKinds.Artist : TokenKinds.Tag;
 
     /// <summary>Anything that isn't "artist" is a tag — the marks map only ever carries the two.</summary>
     public static TokenKind Parse(string? kind) =>
-        string.Equals(kind, Artist, StringComparison.OrdinalIgnoreCase) ? TokenKind.Artist : TokenKind.Tag;
+        string.Equals(kind, TokenKinds.Artist, StringComparison.OrdinalIgnoreCase) ? TokenKind.Artist : TokenKind.Tag;
 }

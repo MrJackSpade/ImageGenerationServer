@@ -37,14 +37,12 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
         new() { Key = WorkflowParamKeys.MaskGrow,  Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
-    private const string Pad = "20";
-
     protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        g[Pad] = new ImagePadForOutpaint
+        g[Nodes.Pad] = new ImagePadForOutpaint
         {
-            Image = LoadImage.ImageOut(Nodes.Source),
+            Image = LoadImage.ImageOut(EditNodes.Source),
             Left = p.PadLeft,
             Top = p.PadTop,
             Right = p.PadRight,
@@ -52,7 +50,13 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
             // Softening happens once, in SoftenMask — the node's own feathering would stack with it.
             Feathering = 0,
         };
-        image = ImagePadForOutpaint.ImageOut(Pad);
-        rawMask = ImagePadForOutpaint.MaskOut(Pad);
+        image = ImagePadForOutpaint.ImageOut(Nodes.Pad);
+        rawMask = ImagePadForOutpaint.MaskOut(Nodes.Pad);
     }
+}
+
+/// <summary>FluxFillOutpaintWorkflow's own node ids.</summary>
+file static class Nodes
+{
+    public const string Pad = "20";
 }

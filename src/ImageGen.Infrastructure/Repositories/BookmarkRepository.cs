@@ -11,16 +11,19 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher, ISqlDialect dialect) : IBookmarkRepository
 {
-    private const string MarkTable = "dbo.ImageBookmarkMark";
-    private const string MarkParent = "ImageBookmarkId";
+    private static class Sql
+    {
+        public const string MarkTable = "dbo.ImageBookmarkMark";
+        public const string MarkParent = "ImageBookmarkId";
 
-    private const string TokenCatTable = "dbo.TokenBookmarkCategory";
-    private const string TokenCatParent = "TokenBookmarkId";
-    private const string ImageCatTable = "dbo.ImageBookmarkCategory";
-    private const string ImageCatParent = "ImageBookmarkId";
+        public const string TokenCatTable = "dbo.TokenBookmarkCategory";
+        public const string TokenCatParent = "TokenBookmarkId";
+        public const string ImageCatTable = "dbo.ImageBookmarkCategory";
+        public const string ImageCatParent = "ImageBookmarkId";
 
-    private const string ImageColumns =
-        "Id, UserId, GatewayImageId, Prompt, ModelFriendly, ModelId, Aspect, OriginalCreatedAtUtc, SavedAtUtc";
+        public const string ImageColumns =
+            "Id, UserId, GatewayImageId, Prompt, ModelFriendly, ModelId, Aspect, OriginalCreatedAtUtc, SavedAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
@@ -45,7 +48,7 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
                     reader.IsDBNull(5) ? null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)));
 
         Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(
-            conn, TokenCatTable, TokenCatParent, raw.Select(r => r.Id).ToList(), userId, _cipher, ct);
+            conn, Sql.TokenCatTable, Sql.TokenCatParent, raw.Select(r => r.Id).ToList(), userId, _cipher, ct);
 
         List<TokenBookmark> list = new List<TokenBookmark>(raw.Count);
         foreach (TokenBookmarkRow r in raw)
@@ -121,7 +124,7 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         List<ImageBookmark> rows = new List<ImageBookmark>();
         List<long> ids = new List<long>();
         await using (DbCommand cmd = conn.Command(
-            $"SELECT {ImageColumns} FROM dbo.ImageBookmark WHERE UserId = @userId ORDER BY SavedAtUtc DESC, Id DESC;"))
+            $"SELECT {Sql.ImageColumns} FROM dbo.ImageBookmark WHERE UserId = @userId ORDER BY SavedAtUtc DESC, Id DESC;"))
         {
             cmd.AddParam("@userId", userId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
@@ -133,8 +136,8 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
             }
         }
 
-        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, MarkTable, MarkParent, ids, userId, _cipher, ct);
-        Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(conn, ImageCatTable, ImageCatParent, ids, userId, _cipher, ct);
+        Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
+        Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(conn, Sql.ImageCatTable, Sql.ImageCatParent, ids, userId, _cipher, ct);
         List<ImageBookmark> result = new List<ImageBookmark>(rows.Count);
         foreach (ImageBookmark i in rows)
             result.Add(await WithMarksAsync(i, marks, cats, ct));
@@ -192,7 +195,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageBookmark WHERE UserId = @userId AND Gat
         if (newId is null)
             return false;
 
-        await MarkIo.InsertAsync(conn, tx, MarkTable, MarkParent, newId.Value, b.Marks, b.UserId, _cipher, ct);
+        await MarkIo.InsertAsync(conn, tx, Sql.MarkTable, Sql.MarkParent, newId.Value, b.Marks, b.UserId, _cipher, ct);
         return true;
     }
 
@@ -339,7 +342,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
                 ?? throw new InvalidOperationException("Token bookmark row is missing immediately after being ensured.");
         }
 
-        await CategoryIo.ReplaceAsync(conn, tx, TokenCatTable, TokenCatParent, id, categories, bookmark.UserId, _cipher, ct);
+        await CategoryIo.ReplaceAsync(conn, tx, Sql.TokenCatTable, Sql.TokenCatParent, id, categories, bookmark.UserId, _cipher, ct);
         await tx.CommitAsync(ct);
     }
 
@@ -365,7 +368,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
                 ?? throw new InvalidOperationException("Image bookmark row is missing immediately after being ensured.");
         }
 
-        await CategoryIo.ReplaceAsync(conn, tx, ImageCatTable, ImageCatParent, id, categories, bookmark.UserId, _cipher, ct);
+        await CategoryIo.ReplaceAsync(conn, tx, Sql.ImageCatTable, Sql.ImageCatParent, id, categories, bookmark.UserId, _cipher, ct);
         await tx.CommitAsync(ct);
     }
 

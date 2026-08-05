@@ -53,10 +53,10 @@ public static class PromptFinalizer
 
         // 2) Render: strip the LEADING '#' of a segment always; the leading '@'
         //    unless kept; '_'->space per non-score_ segment when the model wants spaces.
-        string s = string.Join(SegmentSeparator, raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
+        string s = string.Join(Tokens.SegmentSeparator, raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
         if (tg.UnderscoresToSpaces)
-            s = string.Join(SegmentSeparator, s.Split(',').Select(seg =>
-                seg.TrimStart().StartsWith(ScorePrefix) ? seg : seg.Replace('_', ' ')));
+            s = string.Join(Tokens.SegmentSeparator, s.Split(',').Select(seg =>
+                seg.TrimStart().StartsWith(Tokens.ScorePrefix) ? seg : seg.Replace('_', ' ')));
         return new FinalizedPrompt(s, marks);
     }
 
@@ -135,8 +135,14 @@ public static class PromptFinalizer
         return p.Length == 0 ? segment : p + ", " + segment;
     }
 
-    private const string SegmentSeparator = ",";
-    private const string ScorePrefix = "score_";
+    /// <summary>Literal tokens the finalizer matches or joins on while normalizing a tag prompt.</summary>
+    private static class Tokens
+    {
+        /// <summary>The tag separator a prompt is split and rejoined on.</summary>
+        public const string SegmentSeparator = ",";
+        /// <summary>The quality-score tag prefix (<c>score_9</c>, …) whose underscores are kept as-is.</summary>
+        public const string ScorePrefix = "score_";
+    }
 
     private static readonly char[] Separators = [',', ' ', '\t', '\r', '\n'];
 }

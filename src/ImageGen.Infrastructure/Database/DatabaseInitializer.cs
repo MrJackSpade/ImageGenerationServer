@@ -27,21 +27,26 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly DatabaseProvider _provider = provider;
 
-    /// <summary>Embedded schema resources, matched by suffix in <see cref="ReadEmbeddedSchema"/>.</summary>
-    private const string SqliteSchemaResource = "schema.sqlite.sql";
-    private const string SqlServerSchemaResource = "schema.sql";
+    /// <summary>SQL fragments and match tokens for the schema replay: the embedded resource names, the line-comment
+    /// marker, and the named groups of <see cref="AddColumn"/>.</summary>
+    private static class Sql
+    {
+        /// <summary>Embedded schema resources, matched by suffix in <see cref="ReadEmbeddedSchema"/>.</summary>
+        public const string SqliteSchemaResource = "schema.sqlite.sql";
+        public const string SqlServerSchemaResource = "schema.sql";
 
-    /// <summary>Line-comment marker stripped before the SQLite script is split into statements.</summary>
-    private const string LineCommentPrefix = "--";
+        /// <summary>Line-comment marker stripped before the SQLite script is split into statements.</summary>
+        public const string LineCommentPrefix = "--";
 
-    /// <summary>Named groups of <see cref="AddColumn"/>, read back off a successful match.</summary>
-    private const string TableGroup = "table";
-    private const string ColumnGroup = "col";
+        /// <summary>Named groups of <see cref="AddColumn"/>, read back off a successful match.</summary>
+        public const string TableGroup = "table";
+        public const string ColumnGroup = "col";
+    }
 
     /// <summary>An additive column: <c>ALTER TABLE [dbo.]Table ADD [COLUMN] Name …</c>. Matched so the runner can
     /// skip it when the column already exists — the one statement in the SQLite script that is not self-idempotent.</summary>
     private static readonly Regex AddColumn = new(
-        $@"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<{TableGroup}>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<{ColumnGroup}>\w+)",
+        $@"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<{Sql.TableGroup}>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<{Sql.ColumnGroup}>\w+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Create anything the configured provider's schema says is missing.</summary>
@@ -49,9 +54,9 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     {
         await using DbConnection connection = await _connectionFactory.OpenAsync(ct);
         if (_provider == DatabaseProvider.Sqlite)
-            await ApplySqliteAsync(connection, ReadEmbeddedSchema(SqliteSchemaResource), ct);
+            await ApplySqliteAsync(connection, ReadEmbeddedSchema(Sql.SqliteSchemaResource), ct);
         else
-            await ApplySqlServerAsync(connection, ReadEmbeddedSchema(SqlServerSchemaResource), ct);
+            await ApplySqlServerAsync(connection, ReadEmbeddedSchema(Sql.SqlServerSchemaResource), ct);
     }
 
     /// <summary>
@@ -77,7 +82,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         foreach (string statement in SqliteStatements(script))
         {
             Match add = AddColumn.Match(statement);
-            if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups[TableGroup].Value, add.Groups[ColumnGroup].Value, ct))
+            if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups[Sql.TableGroup].Value, add.Groups[Sql.ColumnGroup].Value, ct))
                 continue;   // already applied by an earlier run or an earlier version — replaying it is a no-op, not an error
 
             await using DbCommand command = connection.Command(statement);
@@ -122,7 +127,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         StringBuilder code = new StringBuilder(script.Length);
         foreach (string line in script.Split('\n'))
         {
-            int comment = line.IndexOf(LineCommentPrefix, StringComparison.Ordinal);
+            int comment = line.IndexOf(Sql.LineCommentPrefix, StringComparison.Ordinal);
             code.Append(comment >= 0 ? line[..comment] : line).Append('\n');
         }
 

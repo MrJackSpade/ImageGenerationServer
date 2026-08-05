@@ -33,24 +33,40 @@ public sealed record UpdateStatus(string? Current, string? Latest, string? Url)
 /// </param>
 public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration config, ILogger<UpdateCheck> log, Version? running)
 {
-    /// <summary>Turns the check off entirely. It contacts github.com, and that should be refusable.</summary>
-    public const string EnabledKey = MachineSettingSpecs.UpdatesEnabled;
+    /// <summary>Configuration key gating the update check.</summary>
+    public static class Keys
+    {
+        /// <summary>Turns the check off entirely. It contacts github.com, and that should be refusable.</summary>
+        public const string EnabledKey = MachineSettingSpecs.Keys.UpdatesEnabled;
+    }
 
-    /// <summary>Where releases are published. Not configurable: it is where THIS application comes from.</summary>
-    private const string LatestRelease = "https://api.github.com/repos/MrJackSpade/ImageGenerationServer/releases/latest";
-    private const string ReleasesPage = "https://github.com/MrJackSpade/ImageGenerationServer/releases";
+    /// <summary>The GitHub addresses the update check talks to.</summary>
+    private static class Endpoints
+    {
+        /// <summary>Where releases are published. Not configurable: it is where THIS application comes from.</summary>
+        public const string LatestRelease = "https://api.github.com/repos/MrJackSpade/ImageGenerationServer/releases/latest";
+        public const string ReleasesPage = "https://github.com/MrJackSpade/ImageGenerationServer/releases";
+    }
 
-    /// <summary>User-Agent sent on the GitHub API request; GitHub rejects requests without one.</summary>
-    private const string UserAgent = "ImageGen";
+    /// <summary>Request header values sent to the GitHub API.</summary>
+    private static class Headers
+    {
+        /// <summary>User-Agent sent on the GitHub API request; GitHub rejects requests without one.</summary>
+        public const string UserAgent = "ImageGen";
 
-    /// <summary>Accept header selecting GitHub's JSON media type.</summary>
-    private const string GitHubJsonMediaType = "application/vnd.github+json";
+        /// <summary>Accept header selecting GitHub's JSON media type.</summary>
+        public const string GitHubJsonMediaType = "application/vnd.github+json";
+    }
 
-    /// <summary>Release JSON property carrying the tag name.</summary>
-    private const string TagNameProperty = "tag_name";
+    /// <summary>Release JSON property names read from the response.</summary>
+    private static class Props
+    {
+        /// <summary>Release JSON property carrying the tag name.</summary>
+        public const string TagNameProperty = "tag_name";
 
-    /// <summary>Release JSON property carrying the release page URL.</summary>
-    private const string HtmlUrlProperty = "html_url";
+        /// <summary>Release JSON property carrying the release page URL.</summary>
+        public const string HtmlUrlProperty = "html_url";
+    }
 
     private readonly IHttpClientFactory _httpFactory = httpFactory;
     private readonly IConfiguration _config = config;
@@ -101,19 +117,19 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
             return UpdateStatus.Nothing;
         }
 
-        if (!_config.IsOn(EnabledKey))
+        if (!_config.IsOn(Keys.EnabledKey))
         {
-            _log.LogDebug("Update check skipped: {Key} is off.", EnabledKey);
+            _log.LogDebug("Update check skipped: {Key} is off.", Keys.EnabledKey);
             return UpdateStatus.Nothing;
         }
 
         try
         {
             HttpClient http = _httpFactory.CreateClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
-            http.DefaultRequestHeaders.Accept.ParseAdd(GitHubJsonMediaType);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(Headers.UserAgent);
+            http.DefaultRequestHeaders.Accept.ParseAdd(Headers.GitHubJsonMediaType);
 
-            using HttpResponseMessage response = await http.GetAsync(LatestRelease, ct);
+            using HttpResponseMessage response = await http.GetAsync(Endpoints.LatestRelease, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _log.LogInformation("Update check answered {Status}; no update will be reported this run.", (int)response.StatusCode);
@@ -121,7 +137,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
             }
 
             using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            string? tag = document.RootElement.TryGetProperty(TagNameProperty, out JsonElement t) ? t.GetString() : null;
+            string? tag = document.RootElement.TryGetProperty(Props.TagNameProperty, out JsonElement t) ? t.GetString() : null;
 
             // A pre-release tag (a '-suffix' build: -test, -rc.1, …) is never offered as an update. GitHub's
             // /releases/latest already skips releases FLAGGED prerelease, but a test tag published as a normal
@@ -149,8 +165,8 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
             _log.LogInformation("Update check: running {Current}, {Latest} is available.", current, latest);
 
-            string? url = document.RootElement.TryGetProperty(HtmlUrlProperty, out JsonElement u) ? u.GetString() : null;
-            return new UpdateStatus(current.ToString(), latest.ToString(), url ?? ReleasesPage);
+            string? url = document.RootElement.TryGetProperty(Props.HtmlUrlProperty, out JsonElement u) ? u.GetString() : null;
+            return new UpdateStatus(current.ToString(), latest.ToString(), url ?? Endpoints.ReleasesPage);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

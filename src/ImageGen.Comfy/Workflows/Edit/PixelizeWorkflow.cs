@@ -25,7 +25,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
     private static readonly IReadOnlyList<ParamSpec> PixelizeSchemaSpec = new ParamSpec[]
     {
         // model loading (consumed by EditWorkflow.LoadModel)
-        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
+        new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
         // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
         // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.
@@ -66,18 +66,6 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     };
 
-    /// <summary>This workflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>
-    private const string WorkingScale = "30";
-    private const string InitEncode = "31";
-    private const string Positive = "32";
-    private const string Guidance = "33";
-    private const string Projection = "35";
-    private const string Negative = "37";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string FinalQuantize = "36";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -92,27 +80,27 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         // source image -> working resolution -> init latent. Default: preserve input aspect at a megapixel area
         // (snapped /16). When snapping is on, override with the clean k×VRES render size instead.
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
-        g[WorkingScale] = snap is { } s
+        g[Nodes.WorkingScale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
             : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 16 };
-        g[InitEncode] = new VAEEncode { Pixels = ImageScale.Out(WorkingScale), Vae = vae0 };
+        g[Nodes.InitEncode] = new VAEEncode { Pixels = ImageScale.Out(Nodes.WorkingScale), Vae = vae0 };
 
         // conditioning: the harness's fixed style prompt (or the caller's instruction if it's blanked),
         // optional Flux guidance, empty negative (cfg 1 ignores it)
         string prompt = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
-        g[Positive] = new CLIPTextEncode { Text = prompt, Clip = clip0 };
-        Output<Slot.Conditioning> posSrc = CLIPTextEncode.Out(Positive);
+        g[Nodes.Positive] = new CLIPTextEncode { Text = prompt, Clip = clip0 };
+        Output<Slot.Conditioning> posSrc = CLIPTextEncode.Out(Nodes.Positive);
         if (p.Guidance is double gd)
         {
-            g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = gd };
-            posSrc = FluxGuidance.Out(Guidance);
+            g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = gd };
+            posSrc = FluxGuidance.Out(Nodes.Guidance);
         }
-        g[Negative] = new CLIPTextEncode { Text = "", Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = "", Clip = clip0 };
 
         // patch the model with the per-step pixel-manifold projection (the diffusion pixelizer)
-        g[Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
+        g[Nodes.Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
 
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -120,17 +108,32 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = PixelSnap.Denoise(p.Reference, 70),   // reference% -> denoise (default 70 → denoise 0.3)
-            Model = PixelManifoldProjection.Out(Projection),
+            Model = PixelManifoldProjection.Out(Nodes.Projection),
             Positive = posSrc,
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = VAEEncode.Out(InitEncode),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = VAEEncode.Out(Nodes.InitEncode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
         // authoritative final render — quantize the decode so VAE noise never reaches the output
-        g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Nodes.Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>
+file static class Nodes
+{
+    public const string WorkingScale = "30";
+    public const string InitEncode = "31";
+    public const string Positive = "32";
+    public const string Guidance = "33";
+    public const string Projection = "35";
+    public const string Negative = "37";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string FinalQuantize = "36";
+    public const string Save = "9";
 }
 
 /// <summary>Diffusion-pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

@@ -10,7 +10,10 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class PendingJobRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : IPendingJobRepository
 {
-    private const string Columns = "Id, UserId, JobId, Prompt, ModelFriendly, ModelId, Aspect, CreatedAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "Id, UserId, JobId, Prompt, ModelFriendly, ModelId, Aspect, CreatedAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly IUserCipher _cipher = cipher;
@@ -38,7 +41,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.PendingJob ORDER BY CreatedAtUtc ASC, Id ASC;");
+            $"SELECT {Sql.Columns} FROM dbo.PendingJob ORDER BY CreatedAtUtc ASC, Id ASC;");
         return await ReadAllAsync(cmd, ct);
     }
 
@@ -46,7 +49,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.PendingJob WHERE UserId = @userId ORDER BY CreatedAtUtc ASC, Id ASC;");
+            $"SELECT {Sql.Columns} FROM dbo.PendingJob WHERE UserId = @userId ORDER BY CreatedAtUtc ASC, Id ASC;");
         cmd.AddParam("@userId", userId);
         return await ReadAllAsync(cmd, ct);
     }

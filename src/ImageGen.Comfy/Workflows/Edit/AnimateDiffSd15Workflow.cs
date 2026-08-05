@@ -11,22 +11,6 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
-    private const string ScaledSource = "11";
-    private const string SourceSize = "15";
-    private const string MotionLoad = "20";
-    private const string MotionApply = "21";
-    private const string EvolvedSampling = "22";
-    private const string Positive = "13";
-    private const string Negative = "12";
-    private const string Latent = "7";
-    private const string SparseCtrlLoader = "23";
-    private const string SparseCtrlPreprocess = "24";
-    private const string ControlNetApply = "25";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(AnimateDiffSd15Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -37,22 +21,41 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
         double budgetMp = 0.26;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
-        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
-        g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
-        g[MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
-        g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(MotionApply) };
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
-        g[Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = frames };
-        g[SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
-        g[SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Latent) };
-        g[ControlNetApply] = new ControlNetApplyAdvanced { Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(SparseCtrlLoader), Image = ACN_SparseCtrlRGBPreprocessor.Out(SparseCtrlPreprocess), Strength = 1.0, StartPercent = 0.0, EndPercent = 1.0, Vae = vae0 };
-        g[Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = 1.0, Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply), Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply), LatentImage = EmptyLatentImageSized.Out(Latent) };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+        g[Nodes.MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
+        g[Nodes.MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(Nodes.MotionLoad) };
+        g[Nodes.EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(Nodes.MotionApply) };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Nodes.Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize), BatchSize = frames };
+        g[Nodes.SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
+        g[Nodes.SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Nodes.Latent) };
+        g[Nodes.ControlNetApply] = new ControlNetApplyAdvanced { Positive = CLIPTextEncode.Out(Nodes.Positive), Negative = CLIPTextEncode.Out(Nodes.Negative), ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(Nodes.SparseCtrlLoader), Image = ACN_SparseCtrlRGBPreprocessor.Out(Nodes.SparseCtrlPreprocess), Strength = 1.0, StartPercent = 0.0, EndPercent = 1.0, Vae = vae0 };
+        g[Nodes.Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = 1.0, Model = ADE_UseEvolvedSampling.Out(Nodes.EvolvedSampling), Positive = ControlNetApplyAdvanced.PositiveOut(Nodes.ControlNetApply), Negative = ControlNetApplyAdvanced.NegativeOut(Nodes.ControlNetApply), LatentImage = EmptyLatentImageSized.Out(Nodes.Latent) };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
+}
+
+/// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
+file static class Nodes
+{
+    public const string ScaledSource = "11";
+    public const string SourceSize = "15";
+    public const string MotionLoad = "20";
+    public const string MotionApply = "21";
+    public const string EvolvedSampling = "22";
+    public const string Positive = "13";
+    public const string Negative = "12";
+    public const string Latent = "7";
+    public const string SparseCtrlLoader = "23";
+    public const string SparseCtrlPreprocess = "24";
+    public const string ControlNetApply = "25";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>SD1.5 AnimateDiff i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

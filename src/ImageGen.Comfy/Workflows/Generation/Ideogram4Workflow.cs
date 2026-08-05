@@ -41,16 +41,6 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         new() { Key = WorkflowParamKeys.Std,         Type = ParamType.Double, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
     }).ToArray();
 
-    /// <summary>Own node ids beyond the inherited txt2img roles.</summary>
-    private const string UncondModel = "40";
-    private const string NegativeZeroOut = "26";
-    private const string CfgOverride = "2";
-    private const string Guider = "22";
-    private const string Sigmas = "17";
-    private const string SamplerSelect = "16";
-    private const string Noise = "18";
-    private const string Sampler = "23";
-
     protected override ComfyWorkflowGraph Build(Ideogram4Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
@@ -58,40 +48,53 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
-        g[UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
+        g[Ideogram4WorkflowNodes.UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = CLIPLoader.ClipOut(Nodes.Clip) };
-        g[NegativeZeroOut] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
+        g[Ideogram4WorkflowNodes.NegativeZeroOut] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
 
         // Asymmetric CFG: CFGOverride raises guidance on the conditional model over the last (1 - start_percent) of the
         // schedule; DualModelGuider then fuses the (override) conditional and the unconditional model at the base cfg.
-        g[CfgOverride] = new CFGOverride { Model = UNETLoader.ModelOut(Nodes.Model), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
-        g[Guider] = new DualModelGuider
+        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = UNETLoader.ModelOut(Nodes.Model), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
+        g[Ideogram4WorkflowNodes.Guider] = new DualModelGuider
         {
-            Model = ImageGen.Comfy.CFGOverride.Out(CfgOverride),
+            Model = ImageGen.Comfy.CFGOverride.Out(Ideogram4WorkflowNodes.CfgOverride),
             Positive = CLIPTextEncode.Out(Nodes.Positive),
-            ModelNegative = UNETLoader.ModelOut(UncondModel),
-            Negative = ConditioningZeroOut.Out(NegativeZeroOut),
+            ModelNegative = UNETLoader.ModelOut(Ideogram4WorkflowNodes.UncondModel),
+            Negative = ConditioningZeroOut.Out(Ideogram4WorkflowNodes.NegativeZeroOut),
             Cfg = p.RequiredCfg(),
         };
 
         g[Nodes.Latent] = new EmptyLatent(ComfyNodeTypes.EmptyFlux2LatentImage) { Width = w, Height = h, BatchSize = 1 };
-        g[Sigmas] = new Ideogram4Scheduler { Steps = p.Steps, Width = w, Height = h, Mu = p.Mu, Std = p.Std };
-        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
-        g[Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
-        g[Sampler] = new SamplerCustomAdvanced
+        g[Ideogram4WorkflowNodes.Sigmas] = new Ideogram4Scheduler { Steps = p.Steps, Width = w, Height = h, Mu = p.Mu, Std = p.Std };
+        g[Ideogram4WorkflowNodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Ideogram4WorkflowNodes.Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
+        g[Ideogram4WorkflowNodes.Sampler] = new SamplerCustomAdvanced
         {
-            Noise = RandomNoise.Out(Noise),
-            Guider = DualModelGuider.Out(Guider),
-            Sampler = KSamplerSelect.Out(SamplerSelect),
-            Sigmas = Ideogram4Scheduler.Out(Sigmas),
+            Noise = RandomNoise.Out(Ideogram4WorkflowNodes.Noise),
+            Guider = DualModelGuider.Out(Ideogram4WorkflowNodes.Guider),
+            Sampler = KSamplerSelect.Out(Ideogram4WorkflowNodes.SamplerSelect),
+            Sigmas = Ideogram4Scheduler.Out(Ideogram4WorkflowNodes.Sigmas),
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
 
-        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
+        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Ideogram4WorkflowNodes.Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+}
+
+/// <summary>Ideogram 4's own node ids beyond the inherited txt2img roles.</summary>
+file static class Ideogram4WorkflowNodes
+{
+    public const string UncondModel = "40";
+    public const string NegativeZeroOut = "26";
+    public const string CfgOverride = "2";
+    public const string Guider = "22";
+    public const string Sigmas = "17";
+    public const string SamplerSelect = "16";
+    public const string Noise = "18";
+    public const string Sampler = "23";
 }

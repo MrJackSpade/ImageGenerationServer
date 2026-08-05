@@ -59,12 +59,6 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
                 Choices = new[] { "lanczos", "bicubic", "bilinear", "area", "nearest-exact" } },
     };
 
-    /// <summary>This workflow's own node ids (source LoadImage reuses the inherited <c>Nodes.Source</c>).</summary>
-    private const string UpscaleModel = "20";
-    private const string Upscale = "21";
-    private const string Resample = "22";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(UpscaleParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Node ids stay clear of the shared edit head (3/4/5/6/8/9/10/13/14) — only LoadImage "10" and SaveImage "9"
@@ -72,15 +66,15 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
         string source = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.");
         ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = new LoadImage { Image = source },
-            [UpscaleModel] = new UpscaleModelLoader { ModelName = p.UpscaleModel },
+            [EditNodes.Source] = new LoadImage { Image = source },
+            [Nodes.UpscaleModel] = new UpscaleModelLoader { ModelName = p.UpscaleModel },
         };
-        g[Upscale] = new ImageUpscaleWithModel
+        g[Nodes.Upscale] = new ImageUpscaleWithModel
         {
-            UpscaleModel = UpscaleModelLoader.Out(UpscaleModel),
-            Image = LoadImage.ImageOut(Nodes.Source),
+            UpscaleModel = UpscaleModelLoader.Out(Nodes.UpscaleModel),
+            Image = LoadImage.ImageOut(EditNodes.Source),
         };
-        Output<Slot.Image> outImage = ImageUpscaleWithModel.Out(Upscale);
+        Output<Slot.Image> outImage = ImageUpscaleWithModel.Out(Nodes.Upscale);
 
         // Fit the net's fixed-factor output to the requested scale. A model_scale of 0 (config typo) would divide by
         // zero, so fall back to "the net's output is already what was asked for" and emit no resample.
@@ -91,14 +85,23 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
             double ratio = scale / modelScale;
             if (Math.Abs(ratio - 1.0) > 0.001)   // exactly native → the SR output IS the answer, no resample node
             {
-                g[Resample] = new ImageScaleBy { Image = outImage, UpscaleMethod = p.Resample, ScaleBy = ratio };
-                outImage = ImageScaleBy.Out(Resample);
+                g[Nodes.Resample] = new ImageScaleBy { Image = outImage, UpscaleMethod = p.Resample, ScaleBy = ratio };
+                outImage = ImageScaleBy.Out(Nodes.Resample);
             }
         }
 
-        g[Save] = new SaveImage { Images = outImage, FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Save] = new SaveImage { Images = outImage, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>UpscaleWorkflow's own node ids (source LoadImage reuses the inherited <c>EditNodes.Source</c>).</summary>
+file static class Nodes
+{
+    public const string UpscaleModel = "20";
+    public const string Upscale = "21";
+    public const string Resample = "22";
+    public const string Save = "9";
 }
 
 /// <summary>Upscaler parameters. <c>model_scale</c>/<c>scale</c> were read as doubles (the ratio math); the model-ref

@@ -16,7 +16,7 @@ public static class WireMapping
 
     public static long ToMs(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 
-    public static TokenKind ParseKind(string kind) => TokenKinds.Parse(kind);
+    public static TokenKind ParseKind(string kind) => TokenKindWire.Parse(kind);
 
     public static string KindToString(TokenKind kind) => kind.ToWire();
 

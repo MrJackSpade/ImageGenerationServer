@@ -17,20 +17,6 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KontextLike();
 
-    /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes; FlattenOnWhite owns 11-14
-    /// internally).</summary>
-    private const string Positive = "60";
-    private const string Scale = "62";
-    private const string Encode = "63";
-    private const string RefLatent = "64";
-    private const string Guidance = "65";
-    private const string NegativeZero = "66";
-    private const string Projection = "35";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Quantize = "36";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(FluxKontextPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -43,18 +29,18 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
         string palette = p.Palette;
         int vres = p.VirtualResolution;
 
-        g[Positive] = new CLIPTextEncode { Text = instruction, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = instruction, Clip = clip0 };
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
-        g[Scale] = snap is { } s
+        g[Nodes.Scale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
             : new FluxKontextImageScale { Image = src };
-        g[Encode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Scale), Vae = vae0 };
-        g[RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Positive), Latent = VAEEncode.Out(Encode) };
-        g[Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(RefLatent), Guidance = p.Guidance };
-        g[NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
+        g[Nodes.Encode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.Scale), Vae = vae0 };
+        g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Latent = VAEEncode.Out(Nodes.Encode) };
+        g[Nodes.Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(Nodes.RefLatent), Guidance = p.Guidance };
+        g[Nodes.NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
 
-        g[Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
-        g[Sampler] = new KSampler
+        g[Nodes.Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -62,16 +48,33 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = PixelSnap.Denoise(p.Reference, 0),   // reference% -> denoise; 0 (default) == 1.0 == regenerate from the source ref
-            Model = PixelManifoldProjection.Out(Projection),
-            Positive = FluxGuidance.Out(Guidance),
-            Negative = ConditioningZeroOut.Out(NegativeZero),
-            LatentImage = VAEEncode.Out(Encode),
+            Model = PixelManifoldProjection.Out(Nodes.Projection),
+            Positive = FluxGuidance.Out(Nodes.Guidance),
+            Negative = ConditioningZeroOut.Out(Nodes.NegativeZero),
+            LatentImage = VAEEncode.Out(Nodes.Encode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Quantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Quantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Nodes.Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes; FlattenOnWhite owns 11-14
+/// internally).</summary>
+file static class Nodes
+{
+    public const string Positive = "60";
+    public const string Scale = "62";
+    public const string Encode = "63";
+    public const string RefLatent = "64";
+    public const string Guidance = "65";
+    public const string NegativeZero = "66";
+    public const string Projection = "35";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Quantize = "36";
+    public const string Save = "9";
 }
 
 /// <summary>Flux.1-Kontext pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

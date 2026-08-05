@@ -11,7 +11,10 @@ namespace ImageGen.Infrastructure.Repositories;
 [AllowMagicStrings("SQL query text and its bound @parameter-name tokens")]
 public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory, IUserCipher cipher) : IBannedTokenRepository
 {
-    private const string Columns = "Id, UserId, ModelId, Name, Kind, SavedAtUtc";
+    private static class Sql
+    {
+        public const string Columns = "Id, UserId, ModelId, Name, Kind, SavedAtUtc";
+    }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     private readonly IUserCipher _cipher = cipher;
@@ -20,7 +23,7 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.BannedToken WHERE UserId = @userId "
+            $"SELECT {Sql.Columns} FROM dbo.BannedToken WHERE UserId = @userId "
             + "ORDER BY ModelId, SavedAtUtc DESC, Id DESC;");
         cmd.AddParam("@userId", userId);
         return await ReadAllAsync(cmd, ct);
@@ -30,7 +33,7 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
-            $"SELECT {Columns} FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId "
+            $"SELECT {Sql.Columns} FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId "
             + "ORDER BY SavedAtUtc DESC, Id DESC;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@modelId", modelId);

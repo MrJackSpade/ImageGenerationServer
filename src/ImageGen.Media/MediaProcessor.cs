@@ -12,14 +12,18 @@ namespace ImageGen.Media;
 /// </summary>
 public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
 {
-    /// <summary>MIME type of the animated-webp thumbnail.</summary>
-    private const string WebpMimeType = "image/webp";
+    /// <summary>MIME types written on the media payloads this processor produces.</summary>
+    private static class MimeTypes
+    {
+        /// <summary>MIME type of the animated-webp thumbnail.</summary>
+        public const string WebpMimeType = "image/webp";
 
-    /// <summary>MIME type of the still JPEG thumbnail.</summary>
-    private const string JpegMimeType = "image/jpeg";
+        /// <summary>MIME type of the still JPEG thumbnail.</summary>
+        public const string JpegMimeType = "image/jpeg";
 
-    /// <summary>MIME type of the only stored clip ImageSharp can't identify (the MiniMax-H3 mp4).</summary>
-    private const string Mp4MimeType = "video/mp4";
+        /// <summary>MIME type of the only stored clip ImageSharp can't identify (the MiniMax-H3 mp4).</summary>
+        public const string Mp4MimeType = "video/mp4";
+    }
 
     /// <inheritdoc/>
     /// <remarks>Measured: silent declines &lt;= 0.039, smallest real edit (glasses) 0.047 — 0.043 splits them.</remarks>
@@ -40,7 +44,7 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     public ImageDimensions IdentifyVideo(byte[] bytes)
     {
         (int w, int h) = Mp4Probe.GetDimensions(bytes);
-        return new ImageDimensions(w, h, Mp4MimeType);
+        return new ImageDimensions(w, h, MimeTypes.Mp4MimeType);
     }
 
     /// <inheritdoc/>
@@ -67,10 +71,10 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
         if (image.Frames.Count > 1)
         {
             image.Save(ms, new WebpEncoder { Quality = 80 });
-            return new MediaPayload(ms.ToArray(), WebpMimeType);
+            return new MediaPayload(ms.ToArray(), MimeTypes.WebpMimeType);
         }
         image.Save(ms, new JpegEncoder { Quality = 80 });
-        return new MediaPayload(ms.ToArray(), JpegMimeType);
+        return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }
 
     /// <inheritdoc/>
@@ -83,6 +87,6 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
         using MemoryStream ms = new MemoryStream();
         image.Save(ms, new JpegEncoder { Quality = 80 });
-        return new MediaPayload(ms.ToArray(), JpegMimeType);
+        return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }
 }

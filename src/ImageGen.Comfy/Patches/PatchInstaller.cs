@@ -15,11 +15,19 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     private readonly PackSource _packs = packs;
     private readonly ILogger<PatchInstaller> _log = log;
 
-    private const string CurrentDirectory = ".";
-    private const string RequirementsFileName = "requirements.txt";
-    private const string TorchPin = "torch==";
-    private const string TorchvisionPin = "torchvision==";
-    private const string TorchaudioPin = "torchaudio==";
+    /// <summary>Torch package name prefixes, pinned so pip never replaces the GPU build.</summary>
+    private static class TorchPin
+    {
+        public const string Torch = "torch==";
+        public const string Torchvision = "torchvision==";
+        public const string Torchaudio = "torchaudio==";
+    }
+
+    /// <summary>Well-known file names in a fetched pack.</summary>
+    private static class Files
+    {
+        public const string Requirements = "requirements.txt";
+    }
 
     /// <summary>
     /// Put <paramref name="patch"/> in place under <paramref name="comfyRoot"/>.
@@ -59,7 +67,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         // need gguf and sentencepiece -- and those are just as absent on a box that has never installed them. pip is
         // cheap and idempotent when everything is already satisfied, so doing it every time costs a second and
         // removes a way for a pack to be present and permanently unable to import.
-        return patch.Target == CurrentDirectory ? null : await InstallRequirementsAsync(target, python, ct);
+        return patch.Target == PathTokens.CurrentDirectory ? null : await InstallRequirementsAsync(target, python, ct);
     }
 
     /// <summary>
@@ -100,7 +108,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// </summary>
     private async Task<string?> InstallRequirementsAsync(string packDirectory, string? python, CancellationToken ct)
     {
-        string requirements = Path.Combine(packDirectory, RequirementsFileName);
+        string requirements = Path.Combine(packDirectory, Files.Requirements);
         if (!File.Exists(requirements)) return null;
 
         if (string.IsNullOrWhiteSpace(python))
@@ -165,9 +173,9 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         IEnumerable<string> pinned = installed
             .Split('\n')
             .Select(line => line.Trim())
-            .Where(line => line.StartsWith(TorchPin, StringComparison.OrdinalIgnoreCase)
-                        || line.StartsWith(TorchvisionPin, StringComparison.OrdinalIgnoreCase)
-                        || line.StartsWith(TorchaudioPin, StringComparison.OrdinalIgnoreCase));
+            .Where(line => line.StartsWith(TorchPin.Torch, StringComparison.OrdinalIgnoreCase)
+                        || line.StartsWith(TorchPin.Torchvision, StringComparison.OrdinalIgnoreCase)
+                        || line.StartsWith(TorchPin.Torchaudio, StringComparison.OrdinalIgnoreCase));
 
         string path = Path.Combine(Path.GetTempPath(), $"imagegen-torch-constraints-{Environment.ProcessId}.txt");
         File.WriteAllLines(path, pinned);

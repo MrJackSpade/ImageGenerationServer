@@ -44,24 +44,27 @@ public static class TypeMask
 
     /// <summary>Each category's wire name, as gelbooru/the tag model spells it. The single source of truth referenced
     /// by <see cref="Names"/> so the wire spelling is written once.</summary>
-    public const string NameGeneral = "general";
-    public const string NameArtist = "artist";
-    public const string NameCopyright = "copyright";
-    public const string NameCharacter = "character";
-    public const string NameMeta = "meta";
-    public const string NameDeprecated = "deprecated";
-    public const string NameUnknown = "unknown";
+    public static class WireNames
+    {
+        public const string NameGeneral = "general";
+        public const string NameArtist = "artist";
+        public const string NameCopyright = "copyright";
+        public const string NameCharacter = "character";
+        public const string NameMeta = "meta";
+        public const string NameDeprecated = "deprecated";
+        public const string NameUnknown = "unknown";
+    }
 
     /// <summary>Names as the wire protocol spells them, for the caller's <c>types</c> list.</summary>
     public static readonly IReadOnlyDictionary<int, string> Names = new Dictionary<int, string>
     {
-        [CategoryGeneral] = NameGeneral,
-        [CategoryArtist] = NameArtist,
-        [CategoryCopyright] = NameCopyright,
-        [CategoryCharacter] = NameCharacter,
-        [CategoryMeta] = NameMeta,
-        [CategoryDeprecated] = NameDeprecated,
-        [CategoryUnknown] = NameUnknown,
+        [CategoryGeneral] = WireNames.NameGeneral,
+        [CategoryArtist] = WireNames.NameArtist,
+        [CategoryCopyright] = WireNames.NameCopyright,
+        [CategoryCharacter] = WireNames.NameCharacter,
+        [CategoryMeta] = WireNames.NameMeta,
+        [CategoryDeprecated] = WireNames.NameDeprecated,
+        [CategoryUnknown] = WireNames.NameUnknown,
     };
 
     /// <summary>
@@ -73,11 +76,15 @@ public static class TypeMask
     /// </summary>
     public const int NoArtist = AllTypes & ~(1 << CategoryArtist);
 
-    /// <summary>Separator joining type names in an exception message.</summary>
-    private const string NameListSeparator = ", ";
+    /// <summary>Delimiters used when composing diagnostic text.</summary>
+    private static class Separators
+    {
+        /// <summary>Separator joining type names in an exception message.</summary>
+        public const string NameListSeparator = ", ";
 
-    /// <summary>Separator joining suppressed category names in the compact <see cref="Describe"/> output.</summary>
-    private const string CategorySeparator = ",";
+        /// <summary>Separator joining suppressed category names in the compact <see cref="Describe"/> output.</summary>
+        public const string CategorySeparator = ",";
+    }
 
     /// <summary>True when <paramref name="mask"/> permits category <paramref name="category"/>.</summary>
     public static bool Allows(int mask, int category) => ((mask >> category) & 1) != 0;
@@ -108,8 +115,8 @@ public static class TypeMask
         string[] unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length > 0)
             throw new ArgumentException(
-                $"unknown tag type(s) {string.Join(NameListSeparator, unknown)}; the suppressible types are "
-                + string.Join(NameListSeparator, suppressible.Keys.Order(StringComparer.Ordinal)),
+                $"unknown tag type(s) {string.Join(Separators.NameListSeparator, unknown)}; the suppressible types are "
+                + string.Join(Separators.NameListSeparator, suppressible.Keys.Order(StringComparer.Ordinal)),
                 nameof(allowedNames));
 
         int mask = AllTypes;
@@ -126,6 +133,6 @@ public static class TypeMask
             .Where(c => Names.ContainsKey(c) && !Allows(mask, c))
             .Select(c => Names[c])
             .ToArray();
-        return missing.Length == 0 ? "all" : "no:" + string.Join(CategorySeparator, missing);
+        return missing.Length == 0 ? "all" : "no:" + string.Join(Separators.CategorySeparator, missing);
     }
 }

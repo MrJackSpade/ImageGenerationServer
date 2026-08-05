@@ -36,14 +36,25 @@ public sealed class RenderOrchestrator
     /// landed) before it is declared LOST. Debounces the history-flush race; NOT a render deadline.</summary>
     private const int LivenessVanishThreshold = 3;
 
-    private const string GuidFormat = "N";
-    private const string SeedKey = "seed";
-    private const string ListSeparator = ", ";
-    private const string Mp4Extension = ".mp4";
-    private const string WebpExtension = ".webp";
-    private const string LogCategorySubmit = "submit";
-    private const string LogCategorySubmitEdit = "submit_edit";
-    private const string LogCategoryRandomPrompt = "random_prompt";
+    /// <summary>The param-bag key the orchestrator injects a random seed under when a submission pins none.</summary>
+    private static class Keys
+    {
+        public const string Seed = "seed";
+    }
+
+    /// <summary>Separator for naming a list of values in a user-facing string.</summary>
+    private static class Format
+    {
+        public const string ListSeparator = ", ";
+    }
+
+    /// <summary>The user-activity-log category tags this orchestrator writes under.</summary>
+    private static class LogCategories
+    {
+        public const string Submit = "submit";
+        public const string SubmitEdit = "submit_edit";
+        public const string RandomPrompt = "random_prompt";
+    }
 
     private readonly object _lock = new();
     private readonly Dictionary<string, RenderJob> _jobs = new(StringComparer.Ordinal);
@@ -120,7 +131,7 @@ public sealed class RenderOrchestrator
     {
         RenderJob job = new RenderJob
         {
-            JobId = Guid.NewGuid().ToString(GuidFormat),
+            JobId = Guid.NewGuid().ToString(GuidFormats.NoDashes),
             Owner = owner,
             MachineName = _machine,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -218,8 +229,8 @@ public sealed class RenderOrchestrator
     private static Dictionary<string, JsonElement> WithSeed(Dictionary<string, JsonElement>? overrides)
     {
         Dictionary<string, JsonElement> d = overrides is null ? new Dictionary<string, JsonElement>() : new Dictionary<string, JsonElement>(overrides);
-        if (!d.ContainsKey(SeedKey))
-            d[SeedKey] = JsonSerializer.SerializeToElement(Random.Shared.NextInt64(1, long.MaxValue));
+        if (!d.ContainsKey(Keys.Seed))
+            d[Keys.Seed] = JsonSerializer.SerializeToElement(Random.Shared.NextInt64(1, long.MaxValue));
         return d;
     }
 
@@ -743,7 +754,7 @@ public sealed class RenderOrchestrator
                 slot.RawPrompt = edit.Instruction;
                 slot.RawNegativePrompt = edit.NegativePrompt;
                 slot.EffectivePrompt = editFinal.Rendered; slot.Marks = editFinal.Marks;
-                await _userLog.LogAsync(slot.Job.Owner, LogCategorySubmitEdit, editFinal.Rendered, ct);
+                await _userLog.LogAsync(slot.Job.Owner, LogCategories.SubmitEdit, editFinal.Rendered, ct);
                 // Finalize the negative with the SAME rules as the instruction/positive: the negative box shares the
                 // tag/artist autocomplete, so its text arrives carrying '#'/'@' markers (and underscores). Without this
                 // those markers leak raw into the negative conditioning and degrade output. Marks aren't kept (negatives
@@ -803,12 +814,12 @@ public sealed class RenderOrchestrator
                     // it comes up. Bounds THIS path only — tag autocomplete is unaffected by it.
                     IReadOnlyList<string> allowedTypes = await AllowedTagTypesAsync(slot.Job.Owner, slot.Gen.TagTypes, ct);
                     IReadOnlyList<string>? gen = await _tagModel.GenerateAsync(seed, slot.Gen.Temperature, bannedTags, allowedTypes, ct);
-                    string genOut = gen is null ? "(null)" : string.Join(ListSeparator, gen);
+                    string genOut = gen is null ? "(null)" : string.Join(Format.ListSeparator, gen);
                     // The predictor's in/out goes to the PER-USER ENCRYPTED log and nowhere else. Duplicating it to
                     // the plaintext app log would be one toggle away from writing prompts to disk permanently once a
                     // file sink exists — and the encrypted line below already carries the same content, so that
                     // duplication would buy nothing but the risk.
-                    await _userLog.LogAsync(slot.Job.Owner, LogCategoryRandomPrompt, $"IN seed=[{seed}]  OUT=[{genOut}]", ct);
+                    await _userLog.LogAsync(slot.Job.Owner, LogCategories.RandomPrompt, $"IN seed=[{seed}]  OUT=[{genOut}]", ct);
                     if (gen is { Count: > 0 })
                     {
                         // Appended on the canonical token in marker form: the finalizer renders it (folding underscores
@@ -817,7 +828,7 @@ public sealed class RenderOrchestrator
                         // their category from.
                         List<string> additions = PromptFinalizer.MarkSampled(gen, bannedTags, _tags.IsArtist);
                         if (additions.Count > 0)
-                            raw = PromptFinalizer.Append(raw, string.Join(ListSeparator, additions));
+                            raw = PromptFinalizer.Append(raw, string.Join(Format.ListSeparator, additions));
                     }
                 }
                 // Random-artist: pick a fresh artist PER SLOT (so a batch gets a different one per image), model permitting.
@@ -839,7 +850,7 @@ public sealed class RenderOrchestrator
                 slot.RawNegativePrompt = slot.Gen.NegativePrompt;
                 slot.EffectivePrompt = final.Rendered;
                 slot.Marks = final.Marks;
-                await _userLog.LogAsync(slot.Job.Owner, LogCategorySubmit, final.Rendered, ct);
+                await _userLog.LogAsync(slot.Job.Owner, LogCategories.Submit, final.Rendered, ct);
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
                 string genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
@@ -947,8 +958,8 @@ public sealed class RenderOrchestrator
             // AUDIO track (webp can't carry audio; see MiniMaxH3Workflows -> SaveVideo). Content type follows the
             // container; it rides through the blob and the serve path (/image/{id}, /image/{id}/mp4 pass-through) with
             // the audio intact and never re-transcoded.
-            bool isMp4 = img.Filename.EndsWith(Mp4Extension, StringComparison.OrdinalIgnoreCase);
-            bool isVideo = isMp4 || img.Filename.EndsWith(WebpExtension, StringComparison.OrdinalIgnoreCase);
+            bool isMp4 = img.Filename.EndsWith(MediaFileExtensions.Mp4, StringComparison.OrdinalIgnoreCase);
+            bool isVideo = isMp4 || img.Filename.EndsWith(MediaFileExtensions.Webp, StringComparison.OrdinalIgnoreCase);
             string contentType = isMp4 ? "video/mp4" : isVideo ? "image/webp" : "image/png";
 
             // A workflow that DECLARES video must have produced a clip. SaveAnimatedWEBP writes a .webp whether it was
@@ -1177,7 +1188,7 @@ public sealed class RenderOrchestrator
                 ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
-                : slot.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList();
+                : slot.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value))).ToList();
             // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
             // and Reload reproduces the exact stack; empty for edits and for generations that used none.
             IReadOnlyList<LoraSelection>? genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
@@ -1316,7 +1327,7 @@ public sealed class RenderOrchestrator
                 EffectivePrompt = s.EffectivePrompt,
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
-                Marks = s.Marks is null ? [] : s.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList(),
+                Marks = s.Marks is null ? [] : s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value))).ToList(),
                 GenStartedAtUtc = s.GenStartedAt?.UtcDateTime,
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
                 // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the
@@ -1641,7 +1652,7 @@ public sealed class RenderOrchestrator
         HashSet<string> guideKeys = PromptMarkers.GuideKeys(raw);
         HashSet<string> hidden = typed.Marks.Where(kv => kv.Value == TokenKinds.Artist).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
         hidden.UnionWith(inertKeys);
-        string seed = string.Join(ListSeparator, PromptMarkers.Segments(typed.Rendered)
+        string seed = string.Join(Format.ListSeparator, PromptMarkers.Segments(typed.Rendered)
                                                  .Where(seg => !hidden.Contains(PromptMarkers.Key(seg))));
 
         // Both kinds must be banned for this call, for opposite reasons that land in the same place: an inert tag is

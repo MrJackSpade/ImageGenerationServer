@@ -11,20 +11,6 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 {
     public override string Name => "flux1-kontext";
 
-    /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes). Two FluxKontextImageScale and two
-    /// VAEEncode are disambiguated by input: the source vs the stitched source+refs.</summary>
-    private const string Positive = "13";
-    private const string SourceScale = "11";
-    private const string SourceEncode = "12";
-    private const string StitchScale = "18";
-    private const string StitchEncode = "19";
-    private const string RefLatent = "15";
-    private const string Guidance = "14";
-    private const string NegativeZero = "16";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(FluxKontextParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
@@ -32,9 +18,9 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         long seed = ComfyGraph.Seed(p.Seed);
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
-        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(Nodes.Source) };
-        g[SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(SourceScale), Vae = vae0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Nodes.SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
+        g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.SourceScale), Vae = vae0 };
         // No reference_max declared → this editor takes no refs (capacity 0). Supplying references anyway is REFUSED,
         // not silently ignored.
         int rm = p.ReferenceMax ?? 0;
@@ -44,7 +30,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         Output<Slot.Latent> refLatent;
         if (fn > 0)
         {
-            Output<Slot.Image> stitched = LoadImage.ImageOut(Nodes.Source);
+            Output<Slot.Image> stitched = LoadImage.ImageOut(EditNodes.Source);
             for (int i = 0; i < fn; i++)
             {
                 string load = $"{40 + i}", stitch = $"{50 + i}";
@@ -52,15 +38,15 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
                 g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = ComfyWidgets.Stitch.Right, MatchImageSize = true, SpacingWidth = 0, SpacingColor = ComfyWidgets.Spacing.White };
                 stitched = ImageStitch.Out(stitch);
             }
-            g[StitchScale] = new FluxKontextImageScale { Image = stitched };
-            g[StitchEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(StitchScale), Vae = vae0 };
-            refLatent = VAEEncode.Out(StitchEncode);
+            g[Nodes.StitchScale] = new FluxKontextImageScale { Image = stitched };
+            g[Nodes.StitchEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.StitchScale), Vae = vae0 };
+            refLatent = VAEEncode.Out(Nodes.StitchEncode);
         }
-        else refLatent = VAEEncode.Out(SourceEncode);
-        g[RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Positive), Latent = refLatent };
-        g[Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(RefLatent), Guidance = p.Guidance };
-        g[NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
-        g[Sampler] = new KSampler
+        else refLatent = VAEEncode.Out(Nodes.SourceEncode);
+        g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Latent = refLatent };
+        g[Nodes.Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(Nodes.RefLatent), Guidance = p.Guidance };
+        g[Nodes.NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = seed,
             Steps = p.Steps,
@@ -69,14 +55,31 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = model0,
-            Positive = FluxGuidance.Out(Guidance),
-            Negative = ConditioningZeroOut.Out(NegativeZero),
-            LatentImage = VAEEncode.Out(SourceEncode),
+            Positive = FluxGuidance.Out(Nodes.Guidance),
+            Negative = ConditioningZeroOut.Out(Nodes.NegativeZero),
+            LatentImage = VAEEncode.Out(Nodes.SourceEncode),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>FluxKontextEditWorkflow's own node ids (the model/clip/vae/source head is the inherited <c>EditNodes</c>).
+/// Two FluxKontextImageScale and two VAEEncode are disambiguated by input: the source vs the stitched source+refs.</summary>
+file static class Nodes
+{
+    public const string Positive = "13";
+    public const string SourceScale = "11";
+    public const string SourceEncode = "12";
+    public const string StitchScale = "18";
+    public const string StitchEncode = "19";
+    public const string RefLatent = "15";
+    public const string Guidance = "14";
+    public const string NegativeZero = "16";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Flux.1 Kontext parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>

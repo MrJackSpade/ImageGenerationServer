@@ -9,8 +9,11 @@ namespace ImageGen.Web.Auth;
 /// </summary>
 public sealed class AuthOptions(IConfiguration configuration)
 {
-    /// <summary>Machine setting key holding the shared registration code.</summary>
-    private const string RegistrationCodeKey = "Auth:RegistrationCode";
+    private static class Keys
+    {
+        /// <summary>Machine setting key holding the shared registration code.</summary>
+        public const string RegistrationCodeKey = "Auth:RegistrationCode";
+    }
 
     private readonly IConfiguration _configuration = configuration;
 
@@ -19,7 +22,7 @@ public sealed class AuthOptions(IConfiguration configuration)
     /// honest meaning of an unset setting, carried by the nullable itself rather than by a "" the app would have to
     /// re-interpret. When present, registration must supply this code (it protects the internet-reachable endpoint).
     /// </summary>
-    public string? RegistrationCode => _configuration[RegistrationCodeKey];
+    public string? RegistrationCode => _configuration[Keys.RegistrationCodeKey];
 
     public bool RegistrationRequiresCode => !string.IsNullOrEmpty(RegistrationCode);
 }

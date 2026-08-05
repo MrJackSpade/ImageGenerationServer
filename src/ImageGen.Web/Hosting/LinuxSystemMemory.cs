@@ -20,10 +20,13 @@ namespace ImageGen.Web.Hosting;
 /// </summary>
 public sealed class LinuxSystemMemory : ISystemMemory
 {
-    private const string MemInfoPath = "/proc/meminfo";
+    private static class MemInfo
+    {
+        public const string MemInfoPath = "/proc/meminfo";
 
-    /// <summary>The <c>/proc/meminfo</c> line prefix carrying the kernel's available-memory estimate.</summary>
-    private const string MemAvailablePrefix = "MemAvailable:";
+        /// <summary>The <c>/proc/meminfo</c> line prefix carrying the kernel's available-memory estimate.</summary>
+        public const string MemAvailablePrefix = "MemAvailable:";
+    }
 
     /// <inheritdoc />
     public long AvailableBytes()
@@ -33,16 +36,16 @@ public sealed class LinuxSystemMemory : ISystemMemory
         string[] lines;
         try
         {
-            lines = File.ReadAllLines(MemInfoPath);
+            lines = File.ReadAllLines(MemInfo.MemInfoPath);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"could not read {MemInfoPath}; available memory is unknown.", ex);
+            throw new InvalidOperationException($"could not read {MemInfo.MemInfoPath}; available memory is unknown.", ex);
         }
 
         foreach (string line in lines)
         {
-            if (!line.StartsWith(MemAvailablePrefix, StringComparison.Ordinal))
+            if (!line.StartsWith(MemInfo.MemAvailablePrefix, StringComparison.Ordinal))
                 continue;
 
             // "MemAvailable:    1234567 kB"
@@ -50,11 +53,11 @@ public sealed class LinuxSystemMemory : ISystemMemory
             if (fields.Length >= 2 && long.TryParse(fields[1], CultureInfo.InvariantCulture, out long kilobytes))
                 return kilobytes * 1024L;
 
-            throw new InvalidOperationException($"could not parse '{line}' from {MemInfoPath}.");
+            throw new InvalidOperationException($"could not parse '{line}' from {MemInfo.MemInfoPath}.");
         }
 
         throw new InvalidOperationException(
-            $"{MemInfoPath} has no MemAvailable line; available memory is unknown. (It has been present since "
+            $"{MemInfo.MemInfoPath} has no MemAvailable line; available memory is unknown. (It has been present since "
             + "Linux 3.14, so this is an unexpected kernel or a substituted procfs.)");
     }
 }

@@ -42,28 +42,16 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         new() { Key = WorkflowParamKeys.MaskGrow,       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
-    private const string ClipSkip = "19";
-    private const string Positive = "13";
-    private const string Negative = "14";
-    private const string Encode = "12";
-    private const string MaskImage = "11";
-    private const string GrowMaskNode = "30";
-    private const string NoiseMask = "31";
-    private const string Sampler = "3";
-    private const string Decode = "8";
-    private const string Save = "9";
-
     protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         // clip-skip applies only to a checkpoint's baked CLIP (Anima loads split → no-op there; kept for parity).
-        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
+        if (LoaderKindWire.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
-            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
+            g[Nodes.ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(Nodes.ClipSkip);
         }
 
         // Positive = quality prefix + the user's full prompt; negative = the config default with the UI negative
@@ -71,31 +59,31 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
-        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
-        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
+        g[Nodes.Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // Source RGB (LoadImage IMAGE, node "10") stays PRISTINE → latent, so the region outside the mask is preserved
         // and the masked region has the real pixels to partially-denoise from (identity kept, expression changed).
-        g[Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(Nodes.Source), Vae = vae0 };
+        g[Nodes.Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(EditNodes.Source), Vae = vae0 };
         // Mask: a SEPARATE white-on-black image via LoadImageMask (red channel). Fallback to the source alpha only if
         // no mask image was supplied. SetLatentNoiseMask confines denoising to the masked (white) region.
         Output<Slot.Mask> maskSrc;
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            g[MaskImage] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
-            maskSrc = LoadImageMask.Out(MaskImage);
+            g[Nodes.MaskImage] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
+            maskSrc = LoadImageMask.Out(Nodes.MaskImage);
         }
-        else maskSrc = LoadImage.MaskOut(Nodes.Source);
+        else maskSrc = LoadImage.MaskOut(EditNodes.Source);
         int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
-            g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
-            maskSrc = GrowMask.Out(GrowMaskNode);
+            g[Nodes.GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
+            maskSrc = GrowMask.Out(Nodes.GrowMaskNode);
         }
-        g[NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Encode), Mask = maskSrc };
+        g[Nodes.NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Nodes.Encode), Mask = maskSrc };
 
         double dn = p.Denoise;
-        g[Sampler] = new KSampler
+        g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),
             Steps = p.Steps,
@@ -104,14 +92,29 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = dn,
             Model = model0,
-            Positive = CLIPTextEncode.Out(Positive),
-            Negative = CLIPTextEncode.Out(Negative),
-            LatentImage = SetLatentNoiseMask.Out(NoiseMask),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = SetLatentNoiseMask.Out(Nodes.NoiseMask),
         };
-        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
+}
+
+/// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
+file static class Nodes
+{
+    public const string ClipSkip = "19";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string Encode = "12";
+    public const string MaskImage = "11";
+    public const string GrowMaskNode = "30";
+    public const string NoiseMask = "31";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
 }
 
 /// <summary>Anima masked-inpaint parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/

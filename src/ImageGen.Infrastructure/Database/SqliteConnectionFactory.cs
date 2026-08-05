@@ -28,12 +28,15 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
     /// operation rather than an error. Deliberately generous: waiting is always better than failing a user's job.</summary>
     private const int BusyTimeoutMs = 30_000;
 
-    /// <summary>The throwaway in-memory database opened per connection; every real table lives in the ATTACHed file.</summary>
-    private const string InMemoryConnectionString = "Data Source=:memory:";
+    private static class Sql
+    {
+        /// <summary>The throwaway in-memory database opened per connection; every real table lives in the ATTACHed file.</summary>
+        public const string InMemoryConnectionString = "Data Source=:memory:";
 
-    /// <summary>SQLite string-literal escaping: a single quote, and that quote doubled.</summary>
-    private const string SingleQuote = "'";
-    private const string EscapedSingleQuote = "''";
+        /// <summary>SQLite string-literal escaping: a single quote, and that quote doubled.</summary>
+        public const string SingleQuote = "'";
+        public const string EscapedSingleQuote = "''";
+    }
 
     private readonly string _dataSource;
 
@@ -61,7 +64,7 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
     /// <inheritdoc />
     public async Task<DbConnection> OpenAsync(CancellationToken ct)
     {
-        SqliteConnection connection = new SqliteConnection(InMemoryConnectionString);
+        SqliteConnection connection = new SqliteConnection(Sql.InMemoryConnectionString);
         await connection.OpenAsync(ct);
         try
         {
@@ -69,7 +72,7 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
             // The path is interpolated because ATTACH will not take a parameter for it. Single quotes are doubled,
             // which is the whole of SQLite string-literal escaping.
             setup.CommandText =
-                $"ATTACH DATABASE '{_dataSource.Replace(SingleQuote, EscapedSingleQuote)}' AS dbo;" +
+                $"ATTACH DATABASE '{_dataSource.Replace(Sql.SingleQuote, Sql.EscapedSingleQuote)}' AS dbo;" +
                 "PRAGMA dbo.journal_mode = WAL;" +
                 "PRAGMA foreign_keys = ON;" +
                 $"PRAGMA busy_timeout = {BusyTimeoutMs};";

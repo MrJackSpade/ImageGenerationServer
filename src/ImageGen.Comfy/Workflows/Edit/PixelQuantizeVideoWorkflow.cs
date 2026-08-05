@@ -32,19 +32,6 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => QuantizeSchema;
 
-    /// <summary>Node ids named by role. Values preserved exactly.</summary>
-    private static class Nodes
-    {
-        public const string Source = "10";
-        public const string Frames = "11";
-        public const string Matte = "15";
-        public const string Quantize = "20";
-        public const string Save = "9";
-    }
-
-    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
-    private const string FpEngine = "fp";
-
     private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
     {
         // Virtual resolution = the grid's longest edge (aspect from the frame); each frame keeps its input resolution.
@@ -96,7 +83,7 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
             frames = BiRefNetMatte.Out(Nodes.Matte);
         }
         // Both engines process the whole (N,H,W,C) frame batch and return N quantized frames at the same resolution.
-        if (p.Engine == FpEngine)
+        if (p.Engine == Nodes.FpEngine)
         {
             // Feature-preserving: derives ONE global palette across all frames, so 'palette'/'final_method' are unused.
             g[Nodes.Quantize] = new PixelQuantizeFP
@@ -150,6 +137,19 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
             };
         return g;
     }
+}
+
+/// <summary>Node ids named by role. Values preserved exactly.</summary>
+file static class Nodes
+{
+    public const string Source = "10";
+    public const string Frames = "11";
+    public const string Matte = "15";
+    public const string Quantize = "20";
+    public const string Save = "9";
+
+    /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
+    public const string FpEngine = "fp";
 }
 
 /// <summary>Video pixel-quantizer parameters — the grid/virtual-resolution snap, the output frame rate, the engine

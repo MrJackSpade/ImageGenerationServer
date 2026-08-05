@@ -47,12 +47,19 @@ public static class ComfyPatchCatalog
         public const string Warn = "warn";
     }
 
-    private const string ManifestFileName = "packs.json";
-    private const string PatchGlob = "*.patch";
-    private const string AllFilesGlob = "*";
-    private const string HeaderSeparator = "---";
-    private const string CurrentDirectory = ".";
-    private const string ParentDirectory = "..";
+    /// <summary>File names and globs used when discovering patches and packs.</summary>
+    private static class Files
+    {
+        public const string Manifest = "packs.json";
+        public const string PatchGlob = "*.patch";
+        public const string AllFilesGlob = "*";
+    }
+
+    /// <summary>Markers in an authored patch file.</summary>
+    private static class Marker
+    {
+        public const string HeaderSeparator = "---";
+    }
 
     public sealed class LoadException(string message) : Exception(message);
 
@@ -66,7 +73,7 @@ public static class ComfyPatchCatalog
         List<ComfyPatch> patches = new List<ComfyPatch>();
 
         if (!string.IsNullOrWhiteSpace(patchDirectory) && Directory.Exists(patchDirectory))
-            foreach (string? file in Directory.EnumerateFiles(patchDirectory, PatchGlob).OrderBy(f => f, StringComparer.Ordinal))
+            foreach (string? file in Directory.EnumerateFiles(patchDirectory, Files.PatchGlob).OrderBy(f => f, StringComparer.Ordinal))
                 patches.Add(ReadAuthored(file));
 
         if (!string.IsNullOrWhiteSpace(nodesDirectory) && Directory.Exists(nodesDirectory))
@@ -94,7 +101,7 @@ public static class ComfyPatchCatalog
         for (; index < lines.Length; index++)
         {
             string line = lines[index];
-            if (line == HeaderSeparator) { index++; sawSeparator = true; break; }
+            if (line == Marker.HeaderSeparator) { index++; sawSeparator = true; break; }
 
             // Continuation: a leading space folds the line onto the previous field, so Does: and Why: can be
             // paragraphs rather than one unwrappable line.
@@ -119,8 +126,8 @@ public static class ComfyPatchCatalog
         string? Optional(string field) => fields.TryGetValue(field, out string? value) && value.Length > 0 ? value : null;
 
         string target = Required(HeaderField.Target).Replace('\\', '/').Trim('/');
-        if (target.Length == 0) target = CurrentDirectory;
-        if (target != CurrentDirectory && (Path.IsPathRooted(target) || target.Split('/').Contains(ParentDirectory)))
+        if (target.Length == 0) target = PathTokens.CurrentDirectory;
+        if (target != PathTokens.CurrentDirectory && (Path.IsPathRooted(target) || target.Split('/').Contains(PathTokens.ParentDirectory)))
             throw new LoadException($"{name}: Target '{target}' leaves the ComfyUI directory.");
 
         string? source = Optional(HeaderField.Source);
@@ -177,7 +184,7 @@ public static class ComfyPatchCatalog
 
     private static List<ComfyPatch> ReadNodePacks(string nodesDirectory)
     {
-        string manifestPath = Path.Combine(nodesDirectory, ManifestFileName);
+        string manifestPath = Path.Combine(nodesDirectory, Files.Manifest);
         if (!File.Exists(manifestPath))
             throw new LoadException($"{nodesDirectory} has no packs.json, so nothing in it can be described as a patch.");
 
@@ -215,7 +222,7 @@ public static class ComfyPatchCatalog
     {
         List<FileDiff> files = new List<FileDiff>();
 
-        foreach (string? file in Directory.EnumerateFiles(packRoot, AllFilesGlob, SearchOption.AllDirectories)
+        foreach (string? file in Directory.EnumerateFiles(packRoot, Files.AllFilesGlob, SearchOption.AllDirectories)
                      .OrderBy(f => f, StringComparer.Ordinal))
         {
             string relative = Path.GetRelativePath(packRoot, file).Replace('\\', '/');
