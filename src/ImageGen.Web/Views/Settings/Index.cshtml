@@ -23,6 +23,12 @@
         <span class="sl-name">LoRAs</span>
         <span class="sl-desc">Cover images and trigger words for your LoRAs, fetched from CivitAI. Redefine triggers and pick which auto-attach to the prompt.</span>
     </a>
+    @* A control, not a link — a terse name with the behaviour in the tooltip. Disabled until settings.js has read the
+       stored value, so a click before load can't save a wrong one. *@
+    <label class="settings-card settings-toggle" title="Show your bookmarked tags and artists first in autocomplete, each with a ★.">
+        <span class="sl-name">Pin bookmarks in autocomplete</span>
+        <input type="checkbox" id="pinBookmarks" disabled>
+    </label>
 
     <h3 class="settings-group">This machine <span class="settings-group-note">shared by everyone here</span></h3>
     <a class="settings-card settings-link" href="/settings/models">
@@ -43,3 +49,8 @@
    are per-generation there: the temperature is the Random prompt slider itself (0 = off), and the tag-kind mask is the
    chip row that appears under that slider once it's above 0. The stored account mask remains only as the server-side
    fallback for a caller that sends none (the MCP), settable via PUT /api/settings/generation-tag-types. *@
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/settings.js" asp-append-version="true"></script>
+}

@@ -1068,5 +1068,6 @@ function startLiveSync() {
     }
   }
   buildTagTypes(s);   // same response carries the generation mask + its options
+  if (s) setTagBoxPinBookmarks(s.pinBookmarks);   // one account toggle governs every tag box on this page
   startLiveSync();
 })();

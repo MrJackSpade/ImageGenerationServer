@@ -525,3 +525,12 @@ ALTER TABLE dbo.GenTiming ADD COLUMN RenderWidth INTEGER NULL;
 ALTER TABLE dbo.GenTiming ADD COLUMN RenderHeight INTEGER NULL;
 ALTER TABLE dbo.GenTiming ADD COLUMN Steps INTEGER NULL;
 ALTER TABLE dbo.GenTiming ADD COLUMN Frames INTEGER NULL;
+
+
+-- --- 0.12.0 -----------------------------------------------------------------------------------------------------
+
+-- Per-user toggle: pin the user's matching bookmarked tags/artists to the top of the '#'/'@' autocomplete. New column
+-- on the pre-existing AppUser table, so it MUST be an ALTER (an existing database skips the 0.9.0 CREATE, so an inlined
+-- column would never arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = off, so
+-- autocomplete is unchanged until the user turns it on, and existing rows adopt "off" without a backfill.
+ALTER TABLE dbo.AppUser ADD COLUMN PinBookmarkSuggestions INTEGER NOT NULL DEFAULT 0;

@@ -89,6 +89,18 @@ public sealed class SqliteSchemaMigrationTests
                 "ConfigId TEXT NOT NULL, IsEdit INTEGER NOT NULL, DurationMs INTEGER NOT NULL, CreatedAtUtc TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);");
             Assert.DoesNotContain("RenderWidth", await ColumnsAsync(factory, "GenTiming"));
 
+            // AppUser as a 0.9.0 database has it: the full 0.9.0 column set (those columns are inline in the 0.9.0
+            // CREATE, not later ALTERs, so a real 0.9.0 database already carries them) but WITHOUT the 0.12.0
+            // PinBookmarkSuggestions column. The 0.9.0 CREATE TABLE IF NOT EXISTS skips this table, so the 0.12.0 ADD
+            // COLUMN is the only path that column can arrive by.
+            await ExecAsync(factory,
+                "CREATE TABLE dbo.AppUser (Id INTEGER PRIMARY KEY AUTOINCREMENT, Username TEXT NOT NULL COLLATE NOCASE, " +
+                "PasswordHash TEXT NOT NULL, DisplayName TEXT NOT NULL, CreatedAtUtc TEXT NOT NULL, " +
+                "ComposerPrefs TEXT NULL, EditPrefs TEXT NULL, FavoriteWorkflowIds TEXT NULL, CustomWorkflowTags TEXT NULL, " +
+                "HiddenWorkflowIds TEXT NULL, GenerationTagTypes TEXT NULL, BookmarkPrefs TEXT NULL, ApiKey TEXT NULL, " +
+                "CONSTRAINT UQ_AppUser_Username UNIQUE (Username));");
+            Assert.DoesNotContain("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));
+
             await InitAsync(factory);
 
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));   // the 0.9.1 ADD COLUMN reached it
@@ -97,6 +109,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.NotEmpty(await ColumnsAsync(factory, "LoraPreview"));           // 0.9.3
             Assert.Contains("RenderWidth", await ColumnsAsync(factory, "GenTiming"));   // 0.11.0 ADD COLUMN reached the pre-existing GenTiming
             Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
+            Assert.Contains("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));   // 0.12.0 ADD COLUMN reached the pre-existing AppUser
         }
         finally { Cleanup(path); }
     }

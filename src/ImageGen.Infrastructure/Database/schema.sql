@@ -79,6 +79,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppUser_ApiKey')
     CREATE UNIQUE INDEX UQ_AppUser_ApiKey ON dbo.AppUser (ApiKey) WHERE ApiKey IS NOT NULL;
 GO
 
+-- Per-user toggle: pin the user's matching bookmarked tags/artists to the top of the '#'/'@' autocomplete. A plain
+-- boolean, not sensitive, stored as a BIT with a default -- 0 = off, so autocomplete is unchanged until the user turns
+-- it on. NOT NULL with a constant default so existing rows adopt "off" without a backfill.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'PinBookmarkSuggestions' AND Object_ID = Object_ID('dbo.AppUser'))
+    ALTER TABLE dbo.AppUser ADD PinBookmarkSuggestions BIT NOT NULL CONSTRAINT DF_AppUser_PinBookmarkSuggestions DEFAULT 0;
+GO
+
 -- Per-user data-encryption key, kept in its OWN deliberately-obvious table (not on AppUser) so routine queries over
 -- user/history/bookmark data never pull key material into a result set, and the table name flags it as "don't SELECT".
 -- KeyMaterial is a random 32 bytes; the app derives subkeys (HKDF) for randomized + deterministic column encryption.

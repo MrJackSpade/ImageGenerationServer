@@ -51,4 +51,7 @@ public interface IUserRepository
     /// <summary>Set (or clear, when null = unset/default) a user's generation mask: the JSON array of tag-type names
     /// the tag model may generate (stored plain, validated by the caller).</summary>
     Task UpdateGenerationTagTypesAsync(long userId, string? typesJson, CancellationToken ct);
+
+    /// <summary>Set whether the '#'/'@' autocomplete pins this user's matching bookmarked tags/artists to the top.</summary>
+    Task UpdatePinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct);
 }

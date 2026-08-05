@@ -14,6 +14,12 @@
 // /forge/tags (count- or model-ranked). POST,
 // not GET: the request carries the prompt being typed, and a URL would leave it in the browser's own history.
 // Depends on core.js globals: GATEWAY, escapeHtml. Returns { close, isOpen }.
+//
+// One account-level toggle governs whether the caller's matching bookmarks are pinned to the top of the results
+// (with a pin icon). It's the same value for every box on the page, so it lives at module scope here rather than as a
+// per-box option; a page that has loaded /api/settings calls setTagBoxPinBookmarks(s.pinBookmarks) once at boot.
+let tagBoxPinBookmarks = false;
+function setTagBoxPinBookmarks(on) { tagBoxPinBookmarks = !!on; }
 function initTagBox(opts) {
   const input = opts.input, pop = opts.pop;
   const getModel = opts.getModel || (() => null), onAccept = opts.onAccept || (() => {});
@@ -36,9 +42,12 @@ function initTagBox(opts) {
     pop.innerHTML = "";
     state.items.forEach((it, i) => {
       const cat = tagCategoryClass(it.type);
-      const o = document.createElement("div"); o.className = "opt" + (i === state.sel ? " sel" : "") + (cat ? " " + cat : ""); o.setAttribute("role", "option"); o.dataset.i = i;
+      const o = document.createElement("div"); o.className = "opt" + (i === state.sel ? " sel" : "") + (cat ? " " + cat : "") + (it.bookmarked ? " bookmarked" : ""); o.setAttribute("role", "option"); o.dataset.i = i;
       const meta = (it.p != null) ? `${(it.p * 100).toFixed(it.p >= 0.01 ? 1 : 2)}%` + (it.lift != null ? ` · ×${it.lift >= 10 ? Math.round(it.lift) : it.lift.toFixed(1)}` : "") : Number(it.count || 0).toLocaleString();
-      o.innerHTML = `<span class="nm"><span class="mk">${state.tok.marker}</span>${escapeHtml(it.name)}</span><span class="ct">${meta}</span>`;
+      // The ★ IS the "bookmarked" indicator — no label. Inside .nm (before the marker) so the row keeps its two-group
+      // name↔count layout and the star inherits the name's category colour.
+      const pin = it.bookmarked ? `<span class="pin" title="Bookmarked" aria-label="Bookmarked">★</span>` : "";
+      o.innerHTML = `<span class="nm">${pin}<span class="mk">${state.tok.marker}</span>${escapeHtml(it.name)}</span><span class="ct">${meta}</span>`;
       pop.appendChild(o);
     });
     position(); pop.classList.remove("hidden");
@@ -83,7 +92,7 @@ function initTagBox(opts) {
       const r = await fetch(`${GATEWAY}/tags`, {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ q: tok.frag, kind, limit: 10, ctx }),
+        body: JSON.stringify({ q: tok.frag, kind, limit: 10, ctx, pinBookmarks: tagBoxPinBookmarks }),
       });
       // A failed lookup is REPORTED, not just closed. Closing the popup is visually identical to "no tags matched",
       // so a dead /tags route would go unnoticed.

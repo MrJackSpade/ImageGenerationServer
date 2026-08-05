@@ -215,6 +215,9 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .tag-pop .opt{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--ink)}
 .tag-pop .opt .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag-pop .opt .nm .mk{color:var(--accent-2);font-weight:700;margin-right:1px}
+/* The ★ marking a pinned bookmark: small, before the marker, coloured like the count (neutral) so it doesn't fight
+   the category-coloured name. */
+.tag-pop .opt .nm .pin{color:var(--accent-2);font-size:11px;margin-right:4px}
 .tag-pop .opt .ct{flex:none;color:var(--ink-faint);font:12px var(--mono)}
 .tag-pop .opt.sel,.tag-pop .opt:hover{background:var(--panel)}
 /* Category-color a suggestion's name (a left bar would jump on select) so it matches its future chip's border. */
@@ -645,6 +648,11 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .settings-group-note{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint);margin-left:8px}
 .settings-link{display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;transition:.15s}
 .settings-link:hover{border-color:var(--accent)}
+/* A toggle card: the name on the left, its checkbox on the right, the whole card clickable. */
+.settings-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer;transition:.15s}
+.settings-toggle:hover{border-color:var(--accent)}
+.settings-toggle input{accent-color:var(--accent);width:18px;height:18px;cursor:pointer;flex:none}
+.settings-toggle input:disabled{cursor:default;opacity:.5}
 .sl-name{font-size:15px;font-weight:650;color:var(--ink)}
 .sl-desc{font-size:13px;color:var(--ink-soft);line-height:1.5}
 .settings-warn{margin:0 2px;color:var(--warn)}

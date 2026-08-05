@@ -105,6 +105,29 @@
 // slider that it qualifies, and is built by compose.js (buildTagTypes) from the same /api/settings response. It is
 // the same account setting on the same PUT route — surfaced there, not here.
 
+// --- pin bookmarks in autocomplete (account toggle, on the settings index) ----------------------
+// Governs every tag box across the composer/edit/inpaint boxes at once (tagbox.js reads it from /api/settings). Loaded
+// disabled so a click before the stored value is known can't persist the wrong state.
+(function () {
+  const box = $("pinBookmarks");
+  if (!box) return;
+  fetchSettings()
+    .then(s => { box.checked = !!s.pinBookmarks; box.disabled = false; })
+    // A failed read leaves the box disabled rather than showing a default the user might then "confirm" by clicking —
+    // an unknown value must not masquerade as "off".
+    .catch(e => { console.error("Your settings couldn’t be loaded:", e); toast("Couldn’t load your settings — reload"); });
+  box.addEventListener("change", async () => {
+    try {
+      const r = await savePinBookmarks(box.checked);
+      if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    } catch (e) {
+      console.error("pin-bookmarks save failed:", e);
+      box.checked = !box.checked;   // revert the optimistic flip so the control reflects what is actually stored
+      toast("Couldn’t save");
+    }
+  });
+})();
+
 // --- free VRAM ----------------------------------------------------------------------------------
 // Asks the renderer to unload its models. It applies the request between prompts, so clicking this mid-render is
 // safe — nothing running is cancelled.

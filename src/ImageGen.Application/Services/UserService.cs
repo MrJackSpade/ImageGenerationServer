@@ -59,6 +59,10 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
         return null;
     }
 
+    /// <summary>Set whether the '#'/'@' autocomplete pins the user's matching bookmarked tags/artists to the top.</summary>
+    public Task SetPinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct) =>
+        _users.UpdatePinBookmarkSuggestionsAsync(userId, pin, ct);
+
     /// <summary>Create a new account. Returns null if the username is already taken.</summary>
     public Task<User?> RegisterAsync(string username, string password, string displayName, CancellationToken ct)
     {

@@ -28,6 +28,7 @@ public static class SettingsEndpoints
                 composerPrefs = user.ComposerPrefs,
                 editPrefs = user.EditPrefs,
                 bookmarkPrefs = user.BookmarkPrefs,
+                pinBookmarks = user.PinBookmarkSuggestions,
                 favoriteWorkflowIds = workflows.Favorites,
                 customWorkflowTags = workflows.Tags,
                 hiddenWorkflowIds = workflows.Hidden,
@@ -130,6 +131,17 @@ public static class SettingsEndpoints
             string? error = await users.SetGenerationTagTypesAsync(userId, request.GenerationTagTypes, context.RequestAborted);
             return error is null ? Results.NoContent() : Results.BadRequest(new { error });
         });
+
+        // Whether autocomplete pins the user's matching bookmarks to the top — one PUT, one column, like the rest.
+        api.MapPut(Routes.PinBookmarks, async (HttpContext context, UserService users) =>
+        {
+            PinBookmarksRequest? request = await Json.ReadAsync<PinBookmarksRequest>(context);
+            if (request is null) return Results.BadRequest();
+
+            long userId = context.User.GetRequiredUserId();
+            await users.SetPinBookmarkSuggestionsAsync(userId, request.PinBookmarks, context.RequestAborted);
+            return Results.NoContent();
+        });
     }
 
     /// <summary>Route templates for the settings endpoints.</summary>
@@ -161,5 +173,8 @@ public static class SettingsEndpoints
 
         /// <summary>The generation mask (which tag types the random-prompt model may emit).</summary>
         public const string GenerationTagTypes = "/settings/generation-tag-types";
+
+        /// <summary>Whether autocomplete pins the user's matching bookmarks to the top.</summary>
+        public const string PinBookmarks = "/settings/pin-bookmarks";
     }
 }

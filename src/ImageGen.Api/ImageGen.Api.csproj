@@ -5,6 +5,11 @@
     <ProjectReference Include="..\ImageGen.Domain\ImageGen.Domain.csproj" />
   </ItemGroup>
 
+  <!-- The test suite exercises a few endpoint-internal helpers directly (e.g. the autocomplete bookmark merge). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ImageGen.Tests" />
+  </ItemGroup>
+
   <!-- The JSON/minimal-API presentation layer: wire contracts + endpoint modules mounted under /api and /forge.
        FrameworkReference gives it the minimal-API + WebSocket types. It depends only on the Application ports/services
        and Domain — never on an adapter (Comfy/Media/Infrastructure). -->

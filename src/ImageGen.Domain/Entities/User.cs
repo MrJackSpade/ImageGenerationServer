@@ -45,6 +45,11 @@ public sealed class User
     /// plain. Null = unset, which resolves to the default (artists off).</summary>
     public string? GenerationTagTypes { get; init; }
 
+    /// <summary>Whether the '#'/'@' autocomplete pins the user's matching bookmarked tags/artists to the top of its
+    /// suggestions (each with a pin). A per-user toggle, off by default — false means autocomplete behaves exactly as
+    /// it did before the toggle existed.</summary>
+    public bool PinBookmarkSuggestions { get; init; }
+
     /// <summary>Bearer API key (a bare GUID) for non-browser callers — presenting it as the <c>X-Api-Key</c> /
     /// <c>Authorization: Bearer</c> header authenticates the request as this user. A secret: stored as-is (lookup is
     /// by equality) and never serialised into a user-facing response. Null = no key (cookie login only).</summary>

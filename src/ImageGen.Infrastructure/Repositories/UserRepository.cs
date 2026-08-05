@@ -12,7 +12,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
 {
     /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against
     /// this list — change one and renumber the other.</summary>
-    private const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs";
+    private const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs, PinBookmarkSuggestions";
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
     private readonly ISqlDialect _dialect = dialect;
@@ -244,6 +244,15 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task UpdatePinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct)
+    {
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET PinBookmarkSuggestions = @pin WHERE Id = @id;");
+        cmd.AddParam("@pin", pin);   // BIT on SQL Server, INTEGER on SQLite — the provider binds the bool either way
+        cmd.AddParam("@id", userId);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private async Task<User> MapUserAsync(DbDataReader r, CancellationToken ct)
     {
         long userId = r.GetInt64(0);
@@ -262,6 +271,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
             ApiKey = r.IsDBNull(7) ? null : r.GetString(7),
             GenerationTagTypes = r.IsDBNull(8) ? null : r.GetString(8),
             BookmarkPrefs = await _cipher.DecryptNullableAsync(userId, bookmarkPrefs, ct),
+            PinBookmarkSuggestions = r.AsBool(10),
         };
     }
 }

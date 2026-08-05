@@ -1308,7 +1308,8 @@ async function recoverOutpaintJob() {
 
 // --- boot ---------------------------------------------------------------------------------------
 (async () => {
-  await loadEditModels();   // also seeds savedMode/savedBrushSize/editParamPrefs/selectedEditIds from the account blob
+  const settings = await loadEditModels();   // also seeds savedMode/savedBrushSize/editParamPrefs/selectedEditIds from the account blob
+  setTagBoxPinBookmarks(settings.pinBookmarks);   // one account toggle governs every tag box on this page
   editCurrent = seed.id;
   srcIsVideo = await detectSrcVideo(seed.id);   // a clip seed → collapse the editor to the single V2V mode
   renderSrc(); renderEditRefs(); renderEditLastFrame();

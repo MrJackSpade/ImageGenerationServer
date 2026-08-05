@@ -171,7 +171,11 @@ public sealed record EditPrefsRequest
 /// <param name="Kind">"artist" for '@' completion; anything else means tags.</param>
 /// <param name="Limit">How many suggestions to return (clamped server-side).</param>
 /// <param name="Ctx">The rest of the prompt's '#' tags, for model ranking. Null when there is no context.</param>
-public sealed record TagQueryRequest(string? Q = null, string? Kind = null, int? Limit = null, string? Ctx = null);
+/// <param name="PinBookmarks">When true, the caller's matching bookmarked tags/artists are pinned to the top of the
+/// results (deduped against the ranked suggestions). Absent/false = the results are exactly the ranked suggestions, as
+/// before the toggle existed — so the per-keystroke bookmark load only happens for users who turned it on.</param>
+public sealed record TagQueryRequest(
+    string? Q = null, string? Kind = null, int? Limit = null, string? Ctx = null, bool PinBookmarks = false);
 
 /// <summary>
 /// A history page query. In a BODY for the same reason as <see cref="TagQueryRequest"/>: <see cref="Search"/> is
@@ -235,6 +239,13 @@ public sealed record HiddenApiWorkflowsRequest
 public sealed record GenerationTagTypesRequest
 {
     public IReadOnlyList<string>? GenerationTagTypes { get; init; }
+}
+
+/// <summary>Whether the '#'/'@' autocomplete pins the user's matching bookmarked tags/artists to the top. A plain
+/// per-user boolean; required, so an absent field is a malformed request rather than a silent "off".</summary>
+public sealed record PinBookmarksRequest
+{
+    public required bool PinBookmarks { get; init; }
 }
 
 /// <summary>A model's bans plus its id, for the Settings manager's grouped list.</summary>

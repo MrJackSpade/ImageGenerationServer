@@ -547,7 +547,8 @@ public static class ForgeApi
         // every keystroke — as a query string that puts the prompt, keystroke by keystroke, into the browser's own
         // history and address-bar autocomplete, on the user's machine, where nothing server-side can ever clean it
         // up. It also reaches request logs, proxies and Referer headers. A body goes in none of those places.
-        app.MapPost(Routes.Tags, async (TagQueryRequest req, ITagCatalog tags, ITagModelClient model) =>
+        app.MapPost(Routes.Tags, async (TagQueryRequest req, HttpRequest http, ITagCatalog tags, ITagModelClient model,
+            IBookmarkRepository bookmarks, CancellationToken ct) =>
         {
             bool artist = string.Equals(req.Kind, Discriminators.Artist, StringComparison.OrdinalIgnoreCase);
             // A present limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
@@ -555,41 +556,81 @@ public static class ForgeApi
             int n = req.Limit ?? 10;
             if (n is < 1 or > 50) return Results.BadRequest(new { error = "limit must be between 1 and 50." });
             string frag = req.Q ?? "";
-            string? ctx = req.Ctx;
 
-            if (!artist && !string.IsNullOrWhiteSpace(ctx) && model.Enabled)
-            {
-                IReadOnlyList<TagSuggestion>? sug = await model.QueryAsync(ctx, frag, n, CancellationToken.None);
-                if (sug is { Count: > 0 })
-                    // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours
-                    // it; without it the model-ranked path would return whatever the tag server sent, so the SAME
-                    // request would yield 10 or up to 100 results depending on which branch ran -- invisible to the caller.
-                    return Results.Ok(sug.Take(n).Select(s =>
-                    {
-                        TagEntry? meta = tags.Lookup(s.Name);
-                        return new
-                        {
-                            name = s.Name,
-                            p = (double?)s.P,
-                            lift = s.Lift,
-                            count = meta?.Count ?? 0,
-                            type = meta?.Type ?? 0
-                        };
-                    }));
-            }
+            IReadOnlyList<TagSuggestionItem> ranked = await RankTagsAsync(artist, frag, req.Ctx, n, tags, model);
 
-            return Results.Ok(tags.Query(frag, artist, n).Select(t => new
-            {
-                name = t.Name,
-                p = (double?)null,
-                lift = (double?)null,
-                count = t.Count,
-                type = t.Type
-            }));
+            // Toggle off (the default): the ranked suggestions, untouched — and the bookmark store is never touched, so
+            // the per-keystroke load + decrypt is paid only by users who turned pinning on.
+            if (!req.PinBookmarks) return Results.Ok(ranked);
+
+            // Pin the user's matching bookmarks to the top. Match the catalog's own Query — substring, case-insensitive
+            // — so a bookmark surfaces on exactly the fragments a plain suggestion would. Name-ordered. Deduped against
+            // the ranked names, so a bookmarked tag the ranker also returned appears once (as the pinned bookmark), then
+            // the ranked remainder fills up to n — the limit still holds, and the pins the user asked for come first.
+            long userId = OwnerOf(http);
+            TokenKind kind = artist ? TokenKind.Artist : TokenKind.Tag;
+            IReadOnlyList<TokenBookmark> saved = await bookmarks.GetTokensAsync(userId, ct);
+            List<TagSuggestionItem> pinned = saved
+                .Where(b => b.Kind == kind && b.Name.Contains(frag, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(b => BookmarkItem(b.Name, tags))
+                .ToList();
+
+            return Results.Ok(MergePinnedFirst(pinned, ranked, n));
         });
 
         app.MapGet(Routes.TagsStatus, (ITagCatalog tags) =>
             Results.Ok(new { loaded = tags.Loaded, status = tags.Status, tags = tags.TagCount, artists = tags.ArtistCount }));
+    }
+
+    /// <summary>One autocomplete suggestion on the wire: the token name, its model-ranked probability/lift (null on the
+    /// count-ranked path), its catalog count/category, and whether it is one of the caller's bookmarks (pinned).</summary>
+    internal sealed record TagSuggestionItem(string Name, double? P, double? Lift, int Count, int Type, bool Bookmarked);
+
+    /// <summary>Merge the caller's pinned bookmarks in front of the ranked suggestions: the <paramref name="pinned"/>
+    /// items first (in the order given), then the <paramref name="ranked"/> items with any whose name a pin already
+    /// carries dropped — so a token that is both bookmarked and ranked appears once, as the pin — and the whole thing
+    /// capped at <paramref name="n"/>. Capping keeps the endpoint's stated limit intact even when the user has more
+    /// matching bookmarks than a page holds; the pins they asked for simply win the limited slots.</summary>
+    internal static List<TagSuggestionItem> MergePinnedFirst(
+        IReadOnlyList<TagSuggestionItem> pinned, IReadOnlyList<TagSuggestionItem> ranked, int n)
+    {
+        HashSet<string> pinnedNames = pinned.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return pinned.Concat(ranked.Where(r => !pinnedNames.Contains(r.Name))).Take(n).ToList();
+    }
+
+    /// <summary>The ranked autocomplete suggestions, exactly as the endpoint has always produced them: model-ranked for
+    /// a '#' tag that has prompt context and an enabled model, otherwise the catalog's count-ranked substring match.
+    /// None are marked bookmarked — that decoration is the caller's job after merging in their own bookmarks.</summary>
+    private static async Task<IReadOnlyList<TagSuggestionItem>> RankTagsAsync(
+        bool artist, string frag, string? ctx, int n, ITagCatalog tags, ITagModelClient model)
+    {
+        if (!artist && !string.IsNullOrWhiteSpace(ctx) && model.Enabled)
+        {
+            IReadOnlyList<TagSuggestion>? sug = await model.QueryAsync(ctx, frag, n, CancellationToken.None);
+            if (sug is { Count: > 0 })
+                // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours it;
+                // without it the model-ranked path would return whatever the tag server sent, so the SAME request would
+                // yield 10 or up to 100 results depending on which branch ran -- invisible to the caller.
+                return sug.Take(n).Select(s =>
+                {
+                    TagEntry? meta = tags.Lookup(s.Name);
+                    return new TagSuggestionItem(s.Name, s.P, s.Lift, meta?.Count ?? 0, meta?.Type ?? 0, false);
+                }).ToList();
+        }
+
+        return tags.Query(frag, artist, n)
+            .Select(t => new TagSuggestionItem(t.Name, null, null, t.Count, t.Type, false))
+            .ToList();
+    }
+
+    /// <summary>A bookmarked token as a suggestion item: no model probability (it wasn't ranked), decorated with its
+    /// real catalog count/category so the pinned entry renders with the same colour as an unpinned one, and flagged
+    /// bookmarked so the client draws its pin.</summary>
+    private static TagSuggestionItem BookmarkItem(string name, ITagCatalog tags)
+    {
+        TagEntry? meta = tags.Lookup(name);
+        return new TagSuggestionItem(name, null, null, meta?.Count ?? 0, meta?.Type ?? 0, true);
     }
 
     #endregion
