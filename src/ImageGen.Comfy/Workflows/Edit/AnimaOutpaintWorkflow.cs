@@ -138,7 +138,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
             LatentImage = SetLatentNoiseMask.Out(NoiseMask),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

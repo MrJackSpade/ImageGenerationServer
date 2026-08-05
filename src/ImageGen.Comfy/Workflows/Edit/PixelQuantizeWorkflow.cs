@@ -123,7 +123,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
                 VirtualResolution = p.VirtualResolution,
             };
         }
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

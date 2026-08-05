@@ -68,7 +68,7 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
         g[Quantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

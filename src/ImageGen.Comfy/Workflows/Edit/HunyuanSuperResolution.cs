@@ -100,10 +100,10 @@ internal static class HunyuanSr
         {
             Model = LatentUpscaleModelLoader.Out(Nodes.UpsamplerLoader),
             Samples = baseLatent,
-            UpscaleMethod = "bilinear",
+            UpscaleMethod = ComfyWidgets.Upscale.Bilinear,
             Width = Req(p.SrWidth, WorkflowParamKeys.SrWidth),
             Height = Req(p.SrHeight, WorkflowParamKeys.SrHeight),
-            Crop = "disabled",
+            Crop = ComfyWidgets.Crop.Disabled,
         };
         // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
         // start_image/clip_vision_output ride the i2v path only; null here omits them, byte-identical to the old conditional dict.

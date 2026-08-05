@@ -143,9 +143,11 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
 // WITH the application -- the release archive copies configurations/ next to the binary, so the only correct answer
 // is the one below. Nothing in the repo, the deploy, or any box ever set it: it was a text box whose every valid
 // value was already its default, and whose invalid values fail the boot.
+// The catalogue ships WITH the application: the release archive copies this directory next to the binary.
+const string shippedCatalogDir = "configurations";
 ComfyOptions comfyOptions = new ComfyOptions
 {
-    CatalogPath = "configurations",
+    CatalogPath = shippedCatalogDir,
 };
 // ffmpeg runs IN-PROCESS (Loxifi.FFmpeg), so there is no executable to locate, no download step, and no path to
 // configure. The defaults pick Cisco's OpenH264 from the LGPL runtime -- see MediaOptions for why x264 is not the

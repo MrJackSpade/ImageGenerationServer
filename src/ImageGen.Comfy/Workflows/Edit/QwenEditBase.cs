@@ -141,7 +141,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         {
             encRefs[Inputs.Vae] = vae0;
             g[Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(KontextScale), Prompt = instruction, Extra = encRefs };
-            g[MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), ReferenceLatentsMethod = "index_timestep_zero" };
+            g[MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), ReferenceLatentsMethod = ComfyWidgets.ReferenceLatents.IndexTimestepZero };
             cond = FluxKontextMultiReferenceLatentMethod.Out(MultiRefLatent);
         }
         else
@@ -204,14 +204,14 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             // then match the unmasked path's output dimensions exactly — GetImageSize reads the Kontext bucket node 11
             // chose, so a masked and an unmasked pose of the same portrait land on identical canvases and keep a
             // consistent sprite scale. When the source is already a bucket size this final scale is an identity.
-            g[RectResize] = new ImageScale { Image = VAEDecode.Out(Decode), UpscaleMethod = "lanczos", Width = pw, Height = ph, Crop = "disabled" };
+            g[RectResize] = new ImageScale { Image = VAEDecode.Out(Decode), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = pw, Height = ph, Crop = ComfyWidgets.Crop.Disabled };
             g[PasteCanvas] = new EmptyImageLiteral { Width = inputs.SourceWidth, Height = inputs.SourceHeight, BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
             g[Composite] = new ImageCompositePaste { Destination = EmptyImageLiteral.Out(PasteCanvas), Source = ImageScale.Out(RectResize), X = px, Y = py, ResizeSource = false };
             g[OutputSize] = new GetImageSize { Image = FluxKontextImageScale.Out(KontextScale) };
-            g[OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Composite), UpscaleMethod = "lanczos", Width = GetImageSize.WidthOut(OutputSize), Height = GetImageSize.HeightOut(OutputSize), Crop = "disabled" };
+            g[OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(OutputSize), Height = GetImageSize.HeightOut(OutputSize), Crop = ComfyWidgets.Crop.Disabled };
             output = ImageScaleFromSize.Out(OutputScale);
         }
-        g[Save] = new SaveImage { Images = output, FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

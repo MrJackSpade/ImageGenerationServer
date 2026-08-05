@@ -96,7 +96,7 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
             }
         }
 
-        g[Save] = new SaveImage { Images = outImage, FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = outImage, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

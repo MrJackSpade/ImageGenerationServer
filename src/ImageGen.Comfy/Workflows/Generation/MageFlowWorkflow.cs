@@ -20,7 +20,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)
-        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "mage", Device = "default" };
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Mage, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
         // Mage's unified conditioning node in its text-only mode: no image inputs -> pure t2i, and it also produces
@@ -50,7 +50,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
             LatentImage = TextEncodeMageFlowGen.LatentOut(Encode),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

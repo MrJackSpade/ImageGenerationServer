@@ -12,12 +12,14 @@ namespace ImageGen.Analyzers;
 /// meaning lives only in the quotes, so a second copy silently drifts out of sync and a rename never reaches
 /// it. Introduce a named constant and use that instead.
 ///
-/// <para>Two shapes are covered. <b>Equality</b>: the <c>==</c>/<c>!=</c> operators, an <c>Equals(...)</c> call
+/// <para>Three shapes are covered. <b>Equality</b>: the <c>==</c>/<c>!=</c> operators, an <c>Equals(...)</c> call
 /// (as the receiver or an argument), and every constant pattern — <c>is "x"</c>, a <c>switch</c> arm
 /// <c>"x" =&gt; …</c>, and both classic (<c>case "x":</c>) and pattern (<c>case "x" when …</c>) switch labels.
 /// <b>Arguments</b>: a literal passed to any method call (<c>Log("x")</c>), constructor
 /// (<c>new StringBuilder("x")</c>), or indexer (<c>map["x"]</c>, <c>map?["x"]</c>, the <c>["x"] = …</c> form
-/// in a collection initializer).</para>
+/// in a collection initializer). <b>Object-initializer values</b>: a literal assigned to a member in an object
+/// initializer (<c>new ParamSpec { Key = "steps" }</c>) — the mirror of a constructor argument — except for a
+/// well-known display-prose property (see <see cref="IsExemptWellKnownProperty"/>).</para>
 ///
 /// <para>Several built-in carve-outs skip an argument by its (parameter, method) name — see
 /// <see cref="IsExemptWellKnownParameter"/>: an exception or <c>ILogger</c> <c>message</c> (diagnostic prose),
@@ -31,9 +33,10 @@ namespace ImageGen.Analyzers;
 /// Attribute arguments (<c>[Obsolete("x")]</c>) are out of scope — they are declarative metadata, not a call.</para>
 ///
 /// <para>Annotate a class, struct, method, or constructor with <c>[AllowMagicStrings("reason")]</c> to exempt
-/// the literals lexically inside it, or a <b>parameter</b> to exempt a literal passed to it at every call site —
-/// declare it once on a custom logging method's message parameter instead of on every caller. The reason is
-/// mandatory (<c>IMGSTR002</c>).</para>
+/// the literals lexically inside it, a <b>parameter</b> to exempt a literal passed to it at every call site —
+/// declare it once on a custom logging method's message parameter instead of on every caller — or a
+/// <b>property/field</b> to exempt a literal assigned to it in an object initializer at every construction site.
+/// The reason is mandatory (<c>IMGSTR002</c>).</para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
@@ -59,11 +62,13 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "A string literal used in an equality comparison (==, !=, Equals, or an is/switch/case "
-            + "constant pattern) or passed as an argument to a method, constructor, or indexer is a magic string: "
+            + "constant pattern), passed as an argument to a method, constructor, or indexer, or assigned to a member "
+            + "in an object initializer is a magic string: "
             + "its meaning lives only in the quotes and a duplicate drifts out of sync silently. Introduce a named "
             + "constant and use that. A few well-known arguments are exempt by parameter name — an Exception/ILogger "
             + "message, any sql argument, an AddParam name, a ToString/ParseExact format specifier — as is any "
-            + "argument whose parameter is marked [AllowMagicStrings]. "
+            + "argument whose parameter is marked [AllowMagicStrings], a well-known display-prose property "
+            + "(Label, Help, Summary, …), and any property marked [AllowMagicStrings]. "
             + "string.Empty is a field, not a literal, so it is never reported; the empty "
             + "literal \"\" is. Where hardcoding the literal is genuinely the point, annotate the enclosing type "
             + "or member with [AllowMagicStrings(\"reason\")].");
@@ -100,6 +105,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
             SyntaxKind.ElementBindingExpression);
         context.RegisterSyntaxNodeAction(AnalyzeConstantPattern, SyntaxKind.ConstantPattern);
         context.RegisterSyntaxNodeAction(AnalyzeCaseLabel, SyntaxKind.CaseSwitchLabel);
+        context.RegisterSyntaxNodeAction(AnalyzeInitializerAssignment, SyntaxKind.SimpleAssignmentExpression);
         context.RegisterSyntaxNodeAction(AnalyzeAllowAttribute, SyntaxKind.Attribute);
     }
 
@@ -239,6 +245,40 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         CaseSwitchLabelSyntax label = (CaseSwitchLabelSyntax)context.Node;
         ReportIfLiteral(context, label.Value);
     }
+
+    /// <summary>
+    /// Flags a string literal assigned to a member in an object initializer — the <c>Prop = "literal"</c> form of
+    /// <c>new Foo { Prop = "literal" }</c> — mirroring the treatment of a constructor argument. Only assignments that
+    /// live directly in an object initializer are considered (an ordinary <c>x = "literal"</c> statement is not a
+    /// magic string — its meaning is the variable it fills). The assigned member is resolved so the opt-out can key on
+    /// it: a member marked <c>[AllowMagicStrings]</c>, or a well-known display-prose property
+    /// (<see cref="IsExemptWellKnownProperty"/>), is skipped.
+    /// </summary>
+    private static void AnalyzeInitializerAssignment(SyntaxNodeAnalysisContext context)
+    {
+        AssignmentExpressionSyntax assignment = (AssignmentExpressionSyntax)context.Node;
+        if (assignment.Parent is not InitializerExpressionSyntax { RawKind: (int)SyntaxKind.ObjectInitializerExpression })
+            return;
+        if (context.SemanticModel.GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol is { } member
+            && (HasAllowAttribute(member) || IsExemptWellKnownProperty(member.Name)))
+            return;
+        ReportIfLiteral(context, assignment.Right);
+    }
+
+    /// <summary>
+    /// True for a well-known display-prose property whose string value is human-readable UI text, not a magic
+    /// identifier — the object-initializer mirror of <see cref="IsExemptWellKnownParameter"/>. Matched by the member's
+    /// simple name so the exemption follows the property across every construction site, keeping the churn off the
+    /// display strings (a <c>ParamSpec.Label</c>, a card <c>Summary</c>) without annotating every schema. Identifier
+    /// properties (<c>Key</c>, <c>Choices</c>, a node's widget-value input) are deliberately absent — those ARE magic
+    /// strings and must be const-extracted or annotated <c>[AllowMagicStrings]</c>.
+    /// </summary>
+    private static bool IsExemptWellKnownProperty(string name) => name switch
+    {
+        "Label" or "Help" or "Summary" or "Hint" or "Note" or "Notes" or "Placeholder"
+            or "Description" or "Title" or "Text" or "Tooltip" => true,
+        _ => false,
+    };
 
     /// <summary>
     /// Reports at <paramref name="expression"/> when it is a string literal and no enclosing scope opts out.

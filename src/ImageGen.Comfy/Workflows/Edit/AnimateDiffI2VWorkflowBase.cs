@@ -83,7 +83,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         }
 
         g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") };
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = frames };
 
@@ -94,7 +94,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         // IP-Adapter: UnifiedLoader auto-resolves the IP-Adapter PLUS model + CLIP-ViT-H from the preset, then apply
         // the SOURCE image so the subject's identity carries into every generated frame.
         g[IpAdapterLoader] = new IPAdapterUnifiedLoader { Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Preset = p.IpadapterPreset };
-        g[IpAdapterApply] = new IPAdapter { Model = IPAdapterUnifiedLoader.ModelOut(IpAdapterLoader), Ipadapter = IPAdapterUnifiedLoader.IpadapterOut(IpAdapterLoader), Image = ImageScaleToTotalPixels.Out(ScaledSource), Weight = p.IpadapterWeight, StartAt = 0.0, EndAt = 1.0, WeightType = "standard" };
+        g[IpAdapterApply] = new IPAdapter { Model = IPAdapterUnifiedLoader.ModelOut(IpAdapterLoader), Ipadapter = IPAdapterUnifiedLoader.IpadapterOut(IpAdapterLoader), Image = ImageScaleToTotalPixels.Out(ScaledSource), Weight = p.IpadapterWeight, StartAt = 0.0, EndAt = 1.0, WeightType = ComfyWidgets.IpAdapterWeight.Standard };
 
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
@@ -129,7 +129,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
             LatentImage = EmptyLatentImageSized.Out(Latent),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 90, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 90, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

@@ -66,11 +66,11 @@ public sealed class DeflickerAutoVideoWorkflow : Workflow<DeflickerAutoParams>
             [Nodes.Save] = new SaveAnimatedWEBP
             {
                 Images = DeflickerAuto.ImageOut(Nodes.Deflicker),
-                FilenamePrefix = "forgemcp_edit",
+                FilenamePrefix = OutputPrefixes.Edit,
                 Fps = GetVideoComponents.FpsOut(Nodes.Components),
                 Lossless = true,
                 Quality = 100,
-                Method = "default",
+                Method = ComfyWidgets.WebpMethod.Default,
             },
         };
     }

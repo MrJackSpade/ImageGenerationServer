@@ -71,7 +71,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         // Base diffusion model (req.Checkpoint) + (only when polishing) Turbo refiner (req.MotionModel slot). Shared
         // Qwen3-VL encoder + VAE.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
-        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "krea2", Device = "default" };
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Krea2, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
         Output<Slot.Model> baseModel = ComfyGraph.ApplyLora(g, UNETLoader.ModelOut(Nodes.Model), p.Lora, p.LoraStrength);   // optional LoRA on the base model only
@@ -124,7 +124,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         }
 
         g[Nodes.Decode] = new VAEDecode { Samples = finalLatent, Vae = vaeSrc };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

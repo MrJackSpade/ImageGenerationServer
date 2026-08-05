@@ -39,7 +39,7 @@ public sealed class LineThickenErodeWorkflow : EditWorkflow<LineThickenErodePara
         };
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
         g[Thicken] = new LineThicken { Image = src, Thickness = p.Thickness };
-        g[Save] = new SaveImage { Images = LineThicken.Out(Thicken), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = LineThicken.Out(Thicken), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

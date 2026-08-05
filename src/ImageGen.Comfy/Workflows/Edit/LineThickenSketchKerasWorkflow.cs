@@ -45,9 +45,9 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflow<LineThickenSke
             Image1 = src,
             Image2 = LineThicken.Out(Thicken),
             BlendFactor = 1.0,
-            BlendMode = "multiply",
+            BlendMode = ComfyWidgets.Blend.Multiply,
         };
-        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

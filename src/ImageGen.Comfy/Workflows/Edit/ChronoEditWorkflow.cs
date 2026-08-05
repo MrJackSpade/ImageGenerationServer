@@ -50,10 +50,10 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 
         // Source image, scaled to a ~0.5MP budget (preserves aspect; 720² ≈ 0.52MP), reused as both the i2v start
         // frame and the clip-vision input.
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[ClipVisionLoaderNode] = new CLIPVisionLoader { ClipName = p.ClipVision };
-        g[ClipVisionEncodeNode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoaderNode), Image = ImageScaleToTotalPixels.Out(ScaledSource), Crop = "none" };
+        g[ClipVisionEncodeNode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoaderNode), Image = ImageScaleToTotalPixels.Out(ScaledSource), Crop = ComfyWidgets.Crop.None };
 
         g[PositiveEncode] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[NegativeEncode] = new CLIPTextEncode { Text = Negative, Clip = clip0 };
@@ -87,7 +87,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
         // Keep the LAST frame of the short trajectory as the edited still.
         g[LastFrame] = new ImageFromBatch { Image = VAEDecode.Out(Decode), BatchIndex = Math.Max(0, len - 1), Length = 1 };
-        g[Save] = new SaveImage { Images = ImageFromBatch.Out(LastFrame), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = ImageFromBatch.Out(LastFrame), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

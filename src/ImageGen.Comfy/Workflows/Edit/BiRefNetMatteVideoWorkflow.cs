@@ -52,11 +52,11 @@ public sealed class BiRefNetMatteVideoWorkflow : Workflow<MatteParams>
             [Nodes.Save] = new SaveAnimatedWEBP
             {
                 Images = BiRefNetMatte.Out(Nodes.Matte),
-                FilenamePrefix = "forgemcp_edit",
+                FilenamePrefix = OutputPrefixes.Edit,
                 Fps = GetVideoComponents.FpsOut(Nodes.Components),
                 Lossless = true,
                 Quality = 100,
-                Method = "default",
+                Method = ComfyWidgets.WebpMethod.Default,
             },
         };
     }

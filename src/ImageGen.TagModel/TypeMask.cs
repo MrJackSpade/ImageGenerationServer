@@ -42,16 +42,26 @@ public static class TypeMask
     public static readonly int[] Droppable =
         [CategoryGeneral, CategoryArtist, CategoryCopyright, CategoryCharacter, CategoryMeta];
 
+    /// <summary>Each category's wire name, as gelbooru/the tag model spells it. The single source of truth referenced
+    /// by <see cref="Names"/> so the wire spelling is written once.</summary>
+    public const string NameGeneral = "general";
+    public const string NameArtist = "artist";
+    public const string NameCopyright = "copyright";
+    public const string NameCharacter = "character";
+    public const string NameMeta = "meta";
+    public const string NameDeprecated = "deprecated";
+    public const string NameUnknown = "unknown";
+
     /// <summary>Names as the wire protocol spells them, for the caller's <c>types</c> list.</summary>
     public static readonly IReadOnlyDictionary<int, string> Names = new Dictionary<int, string>
     {
-        [CategoryGeneral] = "general",
-        [CategoryArtist] = "artist",
-        [CategoryCopyright] = "copyright",
-        [CategoryCharacter] = "character",
-        [CategoryMeta] = "meta",
-        [CategoryDeprecated] = "deprecated",
-        [CategoryUnknown] = "unknown",
+        [CategoryGeneral] = NameGeneral,
+        [CategoryArtist] = NameArtist,
+        [CategoryCopyright] = NameCopyright,
+        [CategoryCharacter] = NameCharacter,
+        [CategoryMeta] = NameMeta,
+        [CategoryDeprecated] = NameDeprecated,
+        [CategoryUnknown] = NameUnknown,
     };
 
     /// <summary>

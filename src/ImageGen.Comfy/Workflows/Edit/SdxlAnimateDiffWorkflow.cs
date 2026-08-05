@@ -37,7 +37,7 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
         double budgetMp = 0.6;   // SDXL AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
         g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
         g[ApplyMotion] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
         g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(ApplyMotion) };
@@ -47,7 +47,7 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
         g[RepeatLatent] = new RepeatLatentBatch { Samples = VAEEncode.Out(Encode), Amount = frames };
         g[Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = denoise, Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), LatentImage = RepeatLatentBatch.Out(RepeatLatent) };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

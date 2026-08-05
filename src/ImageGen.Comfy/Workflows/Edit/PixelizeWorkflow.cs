@@ -93,7 +93,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
         g[WorkingScale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = "lanczos", Megapixels = p.Megapixels, ResolutionSteps = 16 };
+            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 16 };
         g[InitEncode] = new VAEEncode { Pixels = ImageScale.Out(WorkingScale), Vae = vae0 };
 
         // conditioning: the harness's fixed style prompt (or the caller's instruction if it's blanked),
@@ -127,7 +127,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
         // authoritative final render — quantize the decode so VAE noise never reaches the output
         g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

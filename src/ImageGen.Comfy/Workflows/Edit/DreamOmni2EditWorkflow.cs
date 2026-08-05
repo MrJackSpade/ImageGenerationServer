@@ -48,7 +48,7 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
             GuidanceScale = p.Cfg,
             Seed = ComfyGraph.Seed(p.Seed),
         };
-        g[Save] = new SaveImage { Images = RunningHubDreamOmni2Editor.Out(Editor), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = RunningHubDreamOmni2Editor.Out(Editor), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

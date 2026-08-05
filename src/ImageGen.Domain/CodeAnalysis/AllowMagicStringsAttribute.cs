@@ -6,7 +6,9 @@ namespace ImageGen.Domain.CodeAnalysis;
 /// <para>On a class, struct, method, or constructor it exempts every string-literal comparison or argument
 /// lexically inside it, including nested members. On a <b>parameter</b> it exempts a string literal passed to
 /// that parameter at every call site — declare it once on, say, a custom logging method's <c>message</c>
-/// parameter instead of repeating the attribute on every caller.</para>
+/// parameter instead of repeating the attribute on every caller. On a <b>property or field</b> it exempts a
+/// string literal assigned to that member in an object initializer (<c>new X { Prop = "literal" }</c>) at every
+/// construction site — declare it once on the member whose value is deliberately a hardcoded token.</para>
 ///
 /// <para>A <paramref name="justification"/> is required — the constructor takes no parameterless form, so the
 /// compiler rejects a bare <c>[AllowMagicStrings]</c>, and <c>IMGSTR002</c> rejects an empty or whitespace one.
@@ -15,7 +17,7 @@ namespace ImageGen.Domain.CodeAnalysis;
 /// </summary>
 [AttributeUsage(
     AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Method | AttributeTargets.Constructor
-    | AttributeTargets.Parameter,
+    | AttributeTargets.Parameter | AttributeTargets.Property | AttributeTargets.Field,
     AllowMultiple = false,
     Inherited = false)]
 public sealed class AllowMagicStringsAttribute : Attribute

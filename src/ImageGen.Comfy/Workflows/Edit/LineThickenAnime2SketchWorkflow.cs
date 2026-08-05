@@ -48,10 +48,10 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
         g[Scale] = new ImageScaleToImageSize
         {
             Image = ImageInvert.Out(Invert),
-            UpscaleMethod = "lanczos",
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
             Width = GetImageSize.WidthOut(Size),
             Height = GetImageSize.HeightOut(Size),
-            Crop = "disabled",
+            Crop = ComfyWidgets.Crop.Disabled,
         };
         // Bolden the extracted lines, then multiply over the source (flat regions = white = unchanged).
         g[Thicken] = new LineThicken { Image = ImageScaleToImageSize.Out(Scale), Thickness = p.Thickness };
@@ -60,9 +60,9 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
             Image1 = src,
             Image2 = LineThicken.Out(Thicken),
             BlendFactor = 1.0,
-            BlendMode = "multiply",
+            BlendMode = ComfyWidgets.Blend.Multiply,
         };
-        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

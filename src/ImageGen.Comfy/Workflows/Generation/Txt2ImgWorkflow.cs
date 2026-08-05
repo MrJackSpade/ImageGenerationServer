@@ -136,8 +136,8 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
             modelSrc = UNETLoader.ModelOut(Nodes.Model);
             string clipType = p.RequiredClipType();
             g[Nodes.Clip] = p.Dual
-                ? new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = clipType, Device = "default" }
-                : new CLIPLoader { ClipName = req.TextEncoder(0), Type = clipType, Device = "default" };
+                ? new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = clipType, Device = ComfyWidgets.Device.Default }
+                : new CLIPLoader { ClipName = req.TextEncoder(0), Type = clipType, Device = ComfyWidgets.Device.Default };
             clipSrc = new Output<Slot.Clip>(Nodes.Clip, 0);
             g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
             vaeSrc = VAELoader.VaeOut(Nodes.Vae);
@@ -185,7 +185,7 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vaeSrc };
-        g[Nodes.Save] = new SaveImage { Images = PostDecodeImage(g, VAEDecode.Out(Nodes.Decode), p), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = PostDecodeImage(g, VAEDecode.Out(Nodes.Decode), p), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 

@@ -71,10 +71,10 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
         {
             >= 4 => new QuadrupleCLIPLoader { ClipName1 = At(0), ClipName2 = At(1), ClipName3 = At(2), ClipName4 = At(3) },
             3 => new TripleCLIPLoader { ClipName1 = At(0), ClipName2 = At(1), ClipName3 = At(2) },
-            2 => new DualCLIPLoader { ClipName1 = At(0), ClipName2 = At(1), Type = clipType, Device = "default" },
+            2 => new DualCLIPLoader { ClipName1 = At(0), ClipName2 = At(1), Type = clipType, Device = ComfyWidgets.Device.Default },
             _ => ComfyGraph.IsGguf(At(0))
                 ? new CLIPLoaderGGUF { ClipName = At(0), Type = clipType }
-                : new CLIPLoader { ClipName = At(0), Type = clipType, Device = "default" },
+                : new CLIPLoader { ClipName = At(0), Type = clipType, Device = ComfyWidgets.Device.Default },
         };
         return new Output<Slot.Clip>(nodeId, 0);
     }

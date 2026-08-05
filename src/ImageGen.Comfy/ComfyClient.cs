@@ -333,9 +333,12 @@ public sealed class ComfyClient : IComfyClient
     /// that holds the real files. Only these are narrowed: a loader that already enumerates its folder needs no
     /// second opinion, and asking for one would only add a request per kind.
     /// </summary>
+    /// <summary>The ComfyUI model folder that holds the SeedVR2 upscaler weights.</summary>
+    private const string SeedVr2Folder = "seedvr2";
+
     private static readonly Dictionary<RequirementKind, string> FolderForKind = new()
     {
-        [RequirementKind.SeedVr2] = "seedvr2",
+        [RequirementKind.SeedVr2] = SeedVr2Folder,
     };
 
     /// <summary>

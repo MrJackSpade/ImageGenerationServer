@@ -51,10 +51,10 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         int frames = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.4;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 16 };
+        g[SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(SourceScale) };
         g[ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };
-        g[ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(SourceScale), Crop = "center" };
+        g[ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(SourceScale), Crop = ComfyWidgets.Crop.Center };
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
         g[ImageToVideo] = new HunyuanVideo15ImageToVideo
@@ -80,7 +80,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         g[Decode] = HunyuanSr.Enabled(p)
             ? new VAEDecodeTiled { Samples = outLatent, Vae = vae0, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
             : new VAEDecode { Samples = outLatent, Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Decode, 0), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Decode, 0), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

@@ -154,7 +154,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
             OffloadDevice = offload,
         };
 
-        g[Save] = new SaveImage { Images = SeedVR2VideoUpscaler.Out(Upscale), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = SeedVR2VideoUpscaler.Out(Upscale), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

@@ -46,7 +46,7 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
                 DiffusionModel = p.DiffusionModel,
                 Vae = p.Step1xVae,
                 TextEncoder = TextEncoder,
-                Dtype = "bfloat16",
+                Dtype = ComfyWidgets.WeightDtype.BFloat16,
                 Quantized = true,
                 Offload = true,
             },
@@ -56,13 +56,13 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
             Model = Step1XEditModelLoader.Out(ModelLoader),
             InputImage = LoadImage.ImageOut(Nodes.Source),
             Prompt = inputs.Positive,
-            NegativePrompt = "",
+            NegativePrompt = string.Empty,
             NumSteps = p.Steps,
             CfgGuidance = p.Cfg,
             Seed = ComfyGraph.Seed(p.Seed),
             SizeLevel = p.Width,
         };
-        g[Save] = new SaveImage { Images = Step1XEditGenerate.Out(Generate), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = Step1XEditGenerate.Out(Generate), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

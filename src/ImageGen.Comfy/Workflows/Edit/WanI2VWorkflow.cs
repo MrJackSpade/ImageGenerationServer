@@ -42,7 +42,7 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         int len = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.9;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
         g[ImageSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaleSource) };
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
@@ -61,7 +61,7 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
             LatentImage = Wan22ImageToVideoLatent.Out(Latent),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

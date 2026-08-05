@@ -132,20 +132,20 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
             ? new SaveAnimatedWEBPFixedFps
             {
                 Images = PixelQuantize.Out(Nodes.Quantize),
-                FilenamePrefix = "forgemcp_edit",
+                FilenamePrefix = OutputPrefixes.Edit,
                 Fps = fps,
                 Lossless = key,
                 Quality = quality,
-                Method = "default",
+                Method = ComfyWidgets.WebpMethod.Default,
             }
             : new SaveAnimatedWEBP
             {
                 Images = PixelQuantize.Out(Nodes.Quantize),
-                FilenamePrefix = "forgemcp_edit",
+                FilenamePrefix = OutputPrefixes.Edit,
                 Fps = GetVideoComponents.FpsOut(Nodes.Frames),
                 Lossless = key,
                 Quality = quality,
-                Method = "default",
+                Method = ComfyWidgets.WebpMethod.Default,
             };
         return g;
     }

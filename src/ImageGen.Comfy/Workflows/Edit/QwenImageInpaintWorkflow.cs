@@ -45,7 +45,7 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
     {
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            g[MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = "red" };
+            g[MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
             rawMask = LoadImageMask.Out(MaskLoad);
         }
         else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha

@@ -15,7 +15,7 @@ public sealed class EditController(HistoryService history) : Controller
     /// image area, and picking a file uploads it and makes it the source for every mode.</summary>
     [HttpGet("/edit")]
     public IActionResult New() =>
-        View(Views.Index, new EditViewModel { ImageId = "", InitialPrompt = "", InitialTagPrompt = "" });
+        View(Views.Index, new EditViewModel { ImageId = string.Empty, InitialPrompt = string.Empty, InitialTagPrompt = string.Empty });
 
     [HttpGet("/edit/{id}")]
     public async Task<IActionResult> Index(string id, CancellationToken ct)

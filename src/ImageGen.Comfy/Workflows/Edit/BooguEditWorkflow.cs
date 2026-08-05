@@ -52,7 +52,7 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
         double mp = p.Megapixels;
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = mp, ResolutionSteps = 16 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = 16 };
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries
         // 3.16) — sampling quality depends on it being on the model the scheduler/sampler see.
@@ -95,7 +95,7 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
             LatentImage = EmptyLatentFromSize.Out(Latent),
         };
         g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

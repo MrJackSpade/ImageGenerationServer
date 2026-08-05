@@ -59,7 +59,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
-        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "ideogram4", Device = "default" };
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = CLIPLoader.ClipOut(Nodes.Clip) };
@@ -91,7 +91,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         };
 
         g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

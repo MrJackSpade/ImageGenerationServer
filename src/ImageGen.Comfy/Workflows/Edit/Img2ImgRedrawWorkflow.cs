@@ -53,7 +53,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
     }).ToArray();
 
     /// <summary>The <c>clip_type</c> value that marks a Chroma text encoder (needs the T5TokenizerOptions pass).</summary>
-    private const string ChromaClipType = "chroma";
+    private const string ChromaClipType = ComfyWidgets.ClipType.Chroma;
 
     /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes).</summary>
     private const string ClipSkip = "19";
@@ -133,10 +133,10 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
                 g[SourceScale] = new ImageScale
                 {
                     Image = LoadImage.ImageOut(Nodes.Source),
-                    UpscaleMethod = "lanczos",
+                    UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
                     Width = Snap16((int)Math.Round(sw * f)),
                     Height = Snap16((int)Math.Round(sh * f)),
-                    Crop = "disabled",
+                    Crop = ComfyWidgets.Crop.Disabled,
                 };
                 encPixels = ImageScale.Out(SourceScale);
             }
@@ -161,7 +161,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
             LatentImage = VAEEncode.Out(Encode),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

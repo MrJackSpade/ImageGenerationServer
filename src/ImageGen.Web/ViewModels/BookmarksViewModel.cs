@@ -34,8 +34,12 @@ public sealed record ArtistCard
 
 public sealed class BookmarkFilterViewModel
 {
+    /// <summary>The two <see cref="Kind"/> values: an artist bookmark vs a tag bookmark.</summary>
+    public const string KindArtist = "artist";
+    public const string KindTag = "tag";
+
     public required string Token { get; init; }
-    /// <summary>"artist" | "tag".</summary>
+    /// <summary><see cref="KindArtist"/> | <see cref="KindTag"/>.</summary>
     public required string Kind { get; init; }
     public required IReadOnlyList<HistoryItemView> Items { get; init; }
 }

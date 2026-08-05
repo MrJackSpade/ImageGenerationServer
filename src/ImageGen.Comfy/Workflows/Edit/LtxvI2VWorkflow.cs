@@ -35,10 +35,10 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
         int frames = p.Length;
         double fps = p.Fps;
         // LTX loads its own external T5 (clip_type "ltxv").
-        g[T5Loader] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "ltxv", Device = "default" };
+        g[T5Loader] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ltxv, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> ltxClip = CLIPLoader.ClipOut(T5Loader);
         double budgetMp = 0.39;   // LTX's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = ltxClip };
         g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = ltxClip };
@@ -48,7 +48,7 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
         g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         g[Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Conditioning), Negative = LTXVConditioning.NegativeOut(Conditioning), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = LTXVScheduler.Out(Scheduler), LatentImage = LTXVImgToVideo.LatentOut(ImgToVideo) };
         g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

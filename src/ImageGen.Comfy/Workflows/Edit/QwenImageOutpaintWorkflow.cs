@@ -99,10 +99,10 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
         g[StretchScale] = new ImageScale
         {
             Image = LoadImage.ImageOut(Nodes.Source),
-            UpscaleMethod = "lanczos",
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
             Width = canvas.W,
             Height = canvas.H,
-            Crop = "disabled",
+            Crop = ComfyWidgets.Crop.Disabled,
         };
         // sigma 10.0 is ImageBlur's node maximum.
         g[PrefillBlur] = new ImageBlur { Image = ImageScale.Out(StretchScale), BlurRadius = 31, Sigma = 10.0 };

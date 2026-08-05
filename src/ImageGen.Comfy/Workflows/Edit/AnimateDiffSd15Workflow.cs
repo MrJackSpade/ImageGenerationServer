@@ -37,7 +37,7 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
         double budgetMp = 0.26;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
         g[MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
@@ -50,7 +50,7 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
         g[ControlNetApply] = new ControlNetApplyAdvanced { Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(SparseCtrlLoader), Image = ACN_SparseCtrlRGBPreprocessor.Out(SparseCtrlPreprocess), Strength = 1.0, StartPercent = 0.0, EndPercent = 1.0, Vae = vae0 };
         g[Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = 1.0, Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply), Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply), LatentImage = EmptyLatentImageSized.Out(Latent) };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

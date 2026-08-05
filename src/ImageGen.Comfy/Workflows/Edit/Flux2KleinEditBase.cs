@@ -33,7 +33,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 64 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 64 };
         g[Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
@@ -49,7 +49,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         {
             string load = $"{40 + i}", scale = $"{50 + i}", enc = $"{60 + i}", rl = $"{70 + i}";
             g[load] = new LoadImage { Image = refNames[i] };
-            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 64 };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 64 };
             g[enc] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(scale), Vae = vae0 };
             g[rl] = new ReferenceLatent { Conditioning = cond, Latent = VAEEncode.Out(enc) };
             cond = ReferenceLatent.Out(rl);
@@ -61,7 +61,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = BasicGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = Flux2Scheduler.Out(Scheduler), LatentImage = EmptyFlux2LatentImage.Out(EmptyLatent) };
         g[Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

@@ -139,7 +139,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
 
         g[SoftenMaskImage] = new MaskToImage { Mask = m };
         g[SoftenBlur] = new ImageBlur { Image = MaskToImage.Out(SoftenMaskImage), BlurRadius = blur, Sigma = MaskBlurSigma };
-        g[SoftenMaskBack] = new ImageToMask { Image = ImageBlur.Out(SoftenBlur), Channel = "red" };
+        g[SoftenMaskBack] = new ImageToMask { Image = ImageBlur.Out(SoftenBlur), Channel = ComfyWidgets.MaskChannel.Red };
 
         // "add" + the node's final 0..1 clamp = max() against the raw fill mask: the ramp survives only where the
         // raw mask is 0 (over the original), and every fill pixel is restored to a hard 1. Any mask deficit over
@@ -154,7 +154,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
             Source = rawMask,
             X = 0,
             Y = 0,
-            Operation = "add",
+            Operation = ComfyWidgets.MaskOperation.Add,
         };
         return MaskComposite.Out(SoftenComposite);
     }
@@ -177,10 +177,10 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         g[CeilingImageScale] = new ImageScale
         {
             Image = image,
-            UpscaleMethod = "lanczos",
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
             Width = w,
             Height = h,
-            Crop = "disabled",
+            Crop = ComfyWidgets.Crop.Disabled,
         };
         // The mask has to make the same trip; MASK has no scale node, so round-trip it through IMAGE.
         g[CeilingMaskImage] = new MaskToImage { Mask = rawMask };
@@ -190,12 +190,12 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         g[CeilingMaskScale] = new ImageScale
         {
             Image = MaskToImage.Out(CeilingMaskImage),
-            UpscaleMethod = "nearest-exact",
+            UpscaleMethod = ComfyWidgets.Upscale.NearestExact,
             Width = w,
             Height = h,
-            Crop = "disabled",
+            Crop = ComfyWidgets.Crop.Disabled,
         };
-        g[CeilingMaskBack] = new ImageToMask { Image = ImageScale.Out(CeilingMaskScale), Channel = "red" };
+        g[CeilingMaskBack] = new ImageToMask { Image = ImageScale.Out(CeilingMaskScale), Channel = ComfyWidgets.MaskChannel.Red };
 
         image = ImageScale.Out(CeilingImageScale);
         rawMask = ImageToMask.Out(CeilingMaskBack);
@@ -311,7 +311,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
             ResizeSource = false,
             Mask = softMask,
         };
-        g[Save] = new SaveImage { Images = ImageCompositeMasked.Out(Composite), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = ImageCompositeMasked.Out(Composite), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

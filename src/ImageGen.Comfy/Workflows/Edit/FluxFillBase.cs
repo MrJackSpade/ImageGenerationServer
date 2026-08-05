@@ -137,14 +137,14 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 
         g[MaskAsImage] = new MaskToImage { Mask = m };
         g[BlurredMaskImage] = new ImageBlur { Image = MaskToImage.Out(MaskAsImage), BlurRadius = blur, Sigma = MaskBlurSigma };
-        g[BlurredMask] = new ImageToMask { Image = ImageBlur.Out(BlurredMaskImage), Channel = "red" };
+        g[BlurredMask] = new ImageToMask { Image = ImageBlur.Out(BlurredMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
         g[SoftMask] = new MaskComposite
         {
             Destination = ImageToMask.Out(BlurredMask),
             Source = rawMask,
             X = 0,
             Y = 0,
-            Operation = "add",
+            Operation = ComfyWidgets.MaskOperation.Add,
         };
         return MaskComposite.Out(SoftMask);
     }
@@ -162,11 +162,11 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
         int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
 
-        g[CeilingImage] = new ImageScale { Image = image, UpscaleMethod = "lanczos", Width = w, Height = h, Crop = "disabled" };
+        g[CeilingImage] = new ImageScale { Image = image, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
         g[CeilingMaskAsImage] = new MaskToImage { Mask = rawMask };
         // nearest-exact keeps the mask binary; bilinear would ramp its edge and stack with SoftenMask.
-        g[CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(CeilingMaskAsImage), UpscaleMethod = "nearest-exact", Width = w, Height = h, Crop = "disabled" };
-        g[CeilingMask] = new ImageToMask { Image = ImageScale.Out(CeilingMaskImage), Channel = "red" };
+        g[CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(CeilingMaskAsImage), UpscaleMethod = ComfyWidgets.Upscale.NearestExact, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
+        g[CeilingMask] = new ImageToMask { Image = ImageScale.Out(CeilingMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
 
         image = ImageScale.Out(CeilingImage);
         rawMask = ImageToMask.Out(CeilingMask);
@@ -238,7 +238,7 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
             Mask = softMask,
             CorrectionMethod = p.ColorCorrect ? "Linear2" : "None",
         };
-        g[Save] = new SaveImage { Images = ImageCompositeMaskedColorCorrected.Out(Composite), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = ImageCompositeMaskedColorCorrected.Out(Composite), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

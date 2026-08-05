@@ -53,7 +53,7 @@ public sealed class BiRefNetMatteWorkflow : Workflow<MatteParams>
             [Nodes.Save] = new SaveImage
             {
                 Images = BiRefNetMatte.Out(Nodes.Matte),
-                FilenamePrefix = "forgemcp_edit",
+                FilenamePrefix = OutputPrefixes.Edit,
             },
         };
     }

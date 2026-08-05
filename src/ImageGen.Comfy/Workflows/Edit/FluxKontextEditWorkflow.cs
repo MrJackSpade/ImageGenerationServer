@@ -48,7 +48,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
             {
                 string load = $"{40 + i}", stitch = $"{50 + i}";
                 g[load] = new LoadImage { Image = refNames[i] };
-                g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = "right", MatchImageSize = true, SpacingWidth = 0, SpacingColor = "white" };
+                g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = ComfyWidgets.Stitch.Right, MatchImageSize = true, SpacingWidth = 0, SpacingColor = ComfyWidgets.Spacing.White };
                 stitched = ImageStitch.Out(stitch);
             }
             g[StitchScale] = new FluxKontextImageScale { Image = stitched };
@@ -73,7 +73,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
             LatentImage = VAEEncode.Out(SourceEncode),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

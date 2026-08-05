@@ -29,7 +29,7 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
         image = LoadImage.ImageOut(Nodes.Source);
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            g[Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = "red" };
+            g[Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
             rawMask = LoadImageMask.Out(Mask);
         }
         else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha

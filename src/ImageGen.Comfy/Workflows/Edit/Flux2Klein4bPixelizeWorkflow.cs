@@ -49,7 +49,7 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);   // override the megapixels bucket with the clean k×VRES size when on
         g[ScaledImage] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = "lanczos", Megapixels = p.Megapixels, ResolutionSteps = 64 };
+            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 64 };
         g[Encode] = new VAEEncode { Pixels = ImageScale.Out(ScaledImage), Vae = vae0 };
         g[ImageSize] = new GetImageSize { Image = ImageScale.Out(ScaledImage) };
         g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
@@ -75,7 +75,7 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
         g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = BasicGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = sigmas, LatentImage = initLatent };
         g[Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = vae0 };
         g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

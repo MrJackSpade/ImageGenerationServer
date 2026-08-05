@@ -37,7 +37,7 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
         int frames = p.Length;
         double fps = p.Fps;
         double budgetMp = 0.4;   // LTX-2's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[Scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[Scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
         g[Size] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Scale) };
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
@@ -47,7 +47,7 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
         g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         g[Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Conditioning), Negative = LTXVConditioning.NegativeOut(Conditioning), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = LTXVScheduler.Out(Scheduler), LatentImage = LTXVImgToVideo.LatentOut(ImgToVideo) };
         g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

@@ -80,7 +80,7 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflow<HiDreamParams>
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }
@@ -126,7 +126,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflow<Txt2ImgParams>
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }
@@ -154,8 +154,8 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
         (Output<Slot.Model> model0, Output<Slot.Vae> vae0) = HighVram.LoadDiffusion(g, p, req);
         string clipName = req.TextEncoder(0);
         g[Nodes.Clip] = ComfyGraph.IsGguf(clipName)
-            ? new CLIPLoaderGGUF { ClipName = clipName, Type = "chroma" }
-            : new CLIPLoader { ClipName = clipName, Type = "chroma", Device = "default" };
+            ? new CLIPLoaderGGUF { ClipName = clipName, Type = ComfyWidgets.ClipType.Chroma }
+            : new CLIPLoader { ClipName = clipName, Type = ComfyWidgets.ClipType.Chroma, Device = ComfyWidgets.Device.Default };
         // Chroma needs T5 min-padding disabled (the official graph inserts T5TokenizerOptions before the encodes).
         g[T5Options] = new T5TokenizerOptions { Clip = new Output<Slot.Clip>(Nodes.Clip, 0), MinPadding = 0, MinLength = 0 };
         Output<Slot.Clip> clipSrc = T5TokenizerOptions.Out(T5Options);
@@ -180,7 +180,7 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

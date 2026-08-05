@@ -82,7 +82,7 @@ file static class H3
         // and audio (the native stereo track); the audio VAE is the audio_vae model-ref slot.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
         Output<Slot.Model> model = UNETLoader.ModelOut(Nodes.Model);
-        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "minimax", Device = "default" };
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Minimax, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.VideoVae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> videoVae = VAELoader.VaeOut(Nodes.VideoVae);
@@ -97,7 +97,7 @@ file static class H3
                 // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
                 // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
                 g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
-                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
                 g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
                 Output<Slot.Image>? lastFrame = null;
                 if (!string.IsNullOrEmpty(inputs.EndImageName))
@@ -109,7 +109,7 @@ file static class H3
                     // framing. A same-image loop (#110) then stretches instead of holding still. Pre-scaling the end
                     // frame identically makes the node's last-frame resize a no-op too → a clean static loop.
                     g[Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
-                    g[Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.EndFrame), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                    g[Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
                     lastFrame = ImageScaleToTotalPixels.Out(Nodes.ScaledEndFrame);
                 }
                 g[Nodes.Encode] = new MiniMaxH3ImageToVideoI2V
@@ -132,7 +132,7 @@ file static class H3
                 // ref_image_1…N. They condition the subject/identity — NOT a first frame — so they enter the ref node's
                 // autogrow ref_images input, which resizes each internally (down only). The audio VAE is a direct input.
                 g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
-                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
                 g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
 
                 IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
@@ -154,7 +154,7 @@ file static class H3
                     Length = length,
                     Width = GetImageSize.WidthOut(Nodes.SourceSize),
                     Height = GetImageSize.HeightOut(Nodes.SourceSize),
-                    RefImageSize = "match",
+                    RefImageSize = ComfyWidgets.RefImageSize.Match,
                     RefImages = MiniMaxH3ReferenceToVideo.Refs(refs),
                 };
                 break;
@@ -181,7 +181,7 @@ file static class H3
         g[Nodes.VideoDecode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = videoVae };
         g[Nodes.AudioDecode] = new VAEDecodeAudio { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = audioVaeRef };
         g[Nodes.CreateVideo] = new CreateVideo { Images = VAEDecode.Out(Nodes.VideoDecode), Fps = fps, Audio = VAEDecodeAudio.Out(Nodes.AudioDecode) };
-        g[Nodes.Save] = new SaveVideo { Video = CreateVideo.Out(Nodes.CreateVideo), FilenamePrefix = mode == H3Mode.T2V ? "forgemcp" : "forgemcp_edit", Format = "auto", Codec = "auto" };
+        g[Nodes.Save] = new SaveVideo { Video = CreateVideo.Out(Nodes.CreateVideo), FilenamePrefix = mode == H3Mode.T2V ? OutputPrefixes.Generate : OutputPrefixes.Edit, Format = ComfyWidgets.SaveFormat.Auto, Codec = ComfyWidgets.VideoCodec.Auto };
         return g;
     }
 }

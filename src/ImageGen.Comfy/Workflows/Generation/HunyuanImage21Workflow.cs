@@ -39,7 +39,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
         Output<Slot.Model> model = ComfyGraph.ApplyLora(g, ModelSamplingSD3.Out(ModelSampling), p.Lora, p.LoraStrength);
-        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = "hunyuan_image", Device = "default" };
+        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanImage, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
@@ -61,7 +61,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
             LatentImage = EmptyLatent.Out(Nodes.Latent),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

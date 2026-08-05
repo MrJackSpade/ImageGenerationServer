@@ -35,7 +35,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training
         // distribution instead of asking the model to render at, e.g., 3000px.
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 16 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         Dictionary<string, object> refs = new Dictionary<string, object>();
@@ -50,7 +50,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
             g[load] = new LoadImage { Image = refNames[i] };
-            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 16 };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
             refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
         }
 
@@ -80,7 +80,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
             LatentImage = TextEncodeMageFlowEdit.LatentOut(Encode),
         };
         g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
-        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp" };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
 }

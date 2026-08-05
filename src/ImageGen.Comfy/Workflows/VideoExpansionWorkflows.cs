@@ -39,7 +39,7 @@ file static class Vid
     {
         g[Nodes.HighSampler] = new KSamplerAdvanced
         {
-            AddNoise = "enable",
+            AddNoise = ComfyWidgets.Toggle.Enable,
             NoiseSeed = seed,
             Steps = steps,
             Cfg = cfgHigh,
@@ -47,7 +47,7 @@ file static class Vid
             Scheduler = scheduler,
             StartAtStep = 0,
             EndAtStep = boundary,
-            ReturnWithLeftoverNoise = "enable",
+            ReturnWithLeftoverNoise = ComfyWidgets.Toggle.Enable,
             Model = modelHigh,
             Positive = positive,
             Negative = negative,
@@ -69,7 +69,7 @@ file static class Vid
         }
         g[Nodes.LowSampler] = new KSamplerAdvanced
         {
-            AddNoise = "disable",
+            AddNoise = ComfyWidgets.Toggle.Disable,
             NoiseSeed = seed,
             Steps = steps2,
             Cfg = cfgLow,
@@ -77,7 +77,7 @@ file static class Vid
             Scheduler = scheduler,
             StartAtStep = start2,
             EndAtStep = 10000,
-            ReturnWithLeftoverNoise = "disable",
+            ReturnWithLeftoverNoise = ComfyWidgets.Toggle.Disable,
             Model = modelLow,
             Positive = positive,
             Negative = negative,
@@ -174,7 +174,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);
-        g[Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "wan", Device = "default" };
+        g[Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Wan, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(Clip);
         g[Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Vae);
@@ -202,7 +202,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
             g[PadComposite] = new ImageCompositeMasked { Destination = EmptyImageLiteralSize.Out(PadCanvas), Source = LoadImage.ImageOut(Nodes.Source), X = px, Y = py, ResizeSource = false, Mask = InvertMask.Out(PadMask) };
             scaleSource = ImageCompositeMasked.Out(PadComposite);
         }
-        g[ScaledSource] = new ImageScaleToTotalPixels { Image = scaleSource, UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 16 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = scaleSource, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
         g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };
         g[Negative] = new CLIPTextEncode { Text = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative), Clip = clip };
@@ -228,7 +228,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
                         inputs.SourceWidth, inputs.SourceHeight) is (int ecw, int ech, int epx, int epy))
             {
                 int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-                g[EndScale] = new ImageScale { Image = LoadImage.ImageOut(EndFrame), UpscaleMethod = "lanczos", Width = sw, Height = sh, Crop = "disabled" };
+                g[EndScale] = new ImageScale { Image = LoadImage.ImageOut(EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = sw, Height = sh, Crop = ComfyWidgets.Crop.Disabled };
                 g[EndPadCanvas] = new EmptyImageLiteralSize { Width = ecw, Height = ech, BatchSize = 1, Color = 0xFFFFFF };
                 g[EndPadComposite] = new ImageCompositeMaskedNoMask { Destination = EmptyImageLiteralSize.Out(EndPadCanvas), Source = ImageScale.Out(EndScale), X = epx, Y = epy, ResizeSource = false };
                 endImage = ImageCompositeMaskedNoMask.Out(EndPadComposite);
@@ -238,7 +238,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
                 // No padding: scale the end frame through the same ImageScaleToTotalPixels as the start frame (:205),
                 // to the same pixel budget/rounding, so both frames reach WanFirstLastFrameToVideo at identical dims —
                 // a loop (end == start) then produces a clean static loop instead of the node cropping a raw end frame.
-                g[EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EndFrame), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 16 };
+                g[EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
                 endImage = ImageScaleToTotalPixels.Out(EndScale);
             }
             g[Cond] = new WanFirstLastFrameToVideo
@@ -277,7 +277,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         }
         Output<Slot.Latent> outLat = Vid.MoESample(g, mh, ml, pos, neg, lat, p.Steps, p.Boundary, p.CfgHigh, p.CfgLow, sampler, scheduler, p.RefinerSteps, ComfyGraph.Seed(p.Seed));
         g[Decode] = new VAEDecode { Samples = outLat, Vae = vae };
-        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }
@@ -346,7 +346,7 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);
-        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "wan", Device = "default" };
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Wan, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
@@ -359,7 +359,7 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
         g[VideoLatent] = new EmptyHunyuanLatentVideo { Width = w, Height = h, Length = len, BatchSize = 1 };
         Output<Slot.Latent> outLat = Vid.MoESample(g, mh, ml, CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), EmptyHunyuanLatentVideo.Out(VideoLatent), p.Steps, p.Boundary, p.CfgHigh, p.CfgLow, sampler, scheduler, p.RefinerSteps, ComfyGraph.Seed(p.Seed));
         g[Nodes.Decode] = new VAEDecode { Samples = outLat, Vae = vae };
-        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }
@@ -406,7 +406,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
         Output<Slot.Model> model = ModelSamplingSD3.Out(ModelSampling);
-        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = "hunyuan_video_15", Device = "default" };
+        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanVideo15, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
@@ -427,7 +427,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         g[Nodes.Decode] = HunyuanSr.Enabled(p)
             ? new VAEDecodeTiled { Samples = outLatent, Vae = vae, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
             : new VAEDecode { Samples = outLatent, Vae = vae };
-        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Nodes.Decode, 0), FilenamePrefix = "forgemcp", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Nodes.Decode, 0), FilenamePrefix = OutputPrefixes.Generate, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }
@@ -481,7 +481,7 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflow<HunyuanVideoT2VPar
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
         Output<Slot.Model> model = ModelSamplingSD3.Out(ModelSampling);
-        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = "hunyuan_video", Device = "default" };
+        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanVideo, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
@@ -498,7 +498,7 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflow<HunyuanVideoT2VPar
         g[Guider] = new BasicGuider { Model = model, Conditioning = FluxGuidance.Out(Nodes.Guidance) };
         g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = BasicGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = BasicScheduler.Out(Scheduler), LatentImage = EmptyHunyuanLatentVideo.Out(VideoLatent) };
         g[Nodes.Decode] = new VAEDecodeTiled { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = vae, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 };
-        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecodeTiled.Out(Nodes.Decode), FilenamePrefix = "forgemcp", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecodeTiled.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
         return g;
     }
 }

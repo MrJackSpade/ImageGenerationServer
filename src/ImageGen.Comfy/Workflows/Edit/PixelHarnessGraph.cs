@@ -18,7 +18,7 @@ internal static class PixelHarnessGraph
     /// <c>ImageScale</c> to exactly (w,h). Used when <c>pixel_snap</c> is active so the sampler runs at a
     /// clean k×VRES multiple instead of the megapixels/source-bucket size.</summary>
     public static ImageScale FixedScale(Output<Slot.Image> image, int w, int h) =>
-        new ImageScale { Image = image, UpscaleMethod = "lanczos", Width = w, Height = h, Crop = "disabled" };
+        new ImageScale { Image = image, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
 
     /// <summary>Flatten the source <c>LoadImage</c> (node "10") onto a WHITE background using its alpha — mirroring
     /// the harness's RGBA→RGB-on-white — so a transparent sky/background lands on white instead of black (which

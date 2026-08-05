@@ -80,7 +80,7 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
             Strength = PixelSnap.Denoise(p.Reference, 0),
         };
         g[FinalQuantize] = PixelizeSchema.FinalQuantize(RunningHubDreamOmni2PixelizeEditor.Out(Editor), gw, gh, palette, vres, p.FinalMethod);
-        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = "forgemcp_edit" };
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }
