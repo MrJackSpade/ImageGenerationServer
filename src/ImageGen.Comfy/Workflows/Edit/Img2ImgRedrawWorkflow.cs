@@ -41,7 +41,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
     private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
-        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
+        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
@@ -183,7 +183,7 @@ public sealed record Img2ImgRedrawParams
     [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.2, 1.0)]                                    public required double Denoise { get; init; }
+    [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }

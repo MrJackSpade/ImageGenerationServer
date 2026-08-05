@@ -19,7 +19,7 @@ public sealed record Krea2RedrawParams
     [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.1, 0.9)]                                       public required double Denoise { get; init; }
+    [Range(0.0, 0.9)]                                       public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)]
     [Range(1.0, 8.0)]                                       public required double Multiplier { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)]    public required string PerLayerWeights { get; init; }
@@ -63,11 +63,12 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;
 
     /// <summary>Drop the shared <c>denoise</c> (its "source ↔ motion" label and 0 default are wrong here) and re-add it
-    /// as the polish strength, plus Krea 2's rebalance knobs. Step 0.01 so the 0.35 default is reachable.</summary>
+    /// as the polish strength, plus Krea 2's rebalance knobs. Step 0.01 so the 0.35 default is reachable. Floor 0 (a
+    /// single-pass KSampler at denoise 0 passes the source latent through) = "don't polish".</summary>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
     private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
-        new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
+        new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.0, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the source image. ~0.25–0.40 polishes texture and aesthetic while keeping "
                      + "the source's composition; higher redraws more of the image (and drifts toward the prompt rather "

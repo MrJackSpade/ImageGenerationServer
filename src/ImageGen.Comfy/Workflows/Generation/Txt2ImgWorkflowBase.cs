@@ -37,7 +37,7 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.NegativeSupported,  Type = ParamType.Bool },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
-        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.GenLoraStrengthMin, Max = ParamBounds.GenLoraStrengthMax, Label = "LoRA strength" },
+        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.GenLoraStrengthMin, Max = ParamBounds.GenLoraStrengthMax, Step = 0.01, Label = "LoRA strength" },
     };
 
     /// <summary>The <c>latent</c> param's kind values — which empty-latent node the topology emits. Written once so

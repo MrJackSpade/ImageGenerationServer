@@ -76,6 +76,40 @@ public sealed class WorkflowGraphTests
         return JsonSerializer.Serialize(graph);
     }
 
+    /// <summary>Like <see cref="BuildJson"/> but lets a test override merged param values (e.g. drive a strength knob
+    /// to 0) before the graph is built — the path an API/MCP submission takes past the UI slider.</summary>
+    private static string BuildJson(string configId, WorkflowInputs inputs, IReadOnlyDictionary<string, object?> overrides)
+    {
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig(configId);
+        Assert.NotNull(cfg);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
+        Dictionary<string, object?> merged = new Dictionary<string, object?>(Merge(catalog, wf, cfg), StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, object?> o in overrides) merged[o.Key] = o.Value;
+        ComfyWorkflowGraph graph = wf.Build(merged, catalog.Resolve(cfg), inputs);
+        Assert.NotEmpty(graph.Raw);
+        return JsonSerializer.Serialize(graph);
+    }
+
+    /// <summary>Krea 2 refine's polish pass (<c>polish_denoise</c>) has a floor of 0, and at 0 the whole Turbo stage is
+    /// OMITTED — not emitted at strength 0 — the neutral-skip pattern (#104). At its normal strength both the refiner
+    /// model (node 40) and the second sampler (node 30) are present and the decode reads the polished latent; at 0
+    /// neither node is emitted and the decode reads the base sampler (node 3) directly.</summary>
+    [Fact]
+    public void Krea2Refine_omits_the_turbo_polish_pass_at_polish_denoise_zero()
+    {
+        string polished = BuildJson("krea2-refine", Gen, new Dictionary<string, object?> { [WorkflowParamKeys.PolishDenoise] = 0.35 });
+        Assert.Contains("\"30\":{\"class_type\":\"KSampler\"", polished);   // the Turbo polish sampler
+        Assert.Contains("\"40\":", polished);                                // the Turbo refiner model loader
+        Assert.Contains("\"8\":{\"class_type\":\"VAEDecode\",\"inputs\":{\"samples\":[\"30\",0]", polished);
+
+        string skipped = BuildJson("krea2-refine", Gen, new Dictionary<string, object?> { [WorkflowParamKeys.PolishDenoise] = 0.0 });
+        Assert.DoesNotContain("\"30\":", skipped);   // no polish sampler
+        Assert.DoesNotContain("\"40\":", skipped);   // refiner model never loaded
+        Assert.Contains("\"8\":{\"class_type\":\"VAEDecode\",\"inputs\":{\"samples\":[\"3\",0]", skipped);   // decodes the base render
+    }
+
     private static WorkflowInputs Gen => new() { Positive = "a cat", Negative = "blurry", Aspect = "square" };
     private static WorkflowInputs Edit => new() { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
     private static WorkflowInputs EditMasked => new() { Positive = "make it red", SourceImageName = "src.png", MaskImageName = "mask.png", SourceWidth = 1216, SourceHeight = 832 };

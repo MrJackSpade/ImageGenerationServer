@@ -28,10 +28,10 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         new() { Key = WorkflowParamKeys.LcmLora, Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
         // sparsectrl_name is inherited from SharedSchema now (IsModelRef, no Default — a default there would be a
         // filename sitting where a slot id belongs). Only the strength/end knobs are AnimateDiff-i2v-specific.
-        new() { Key = WorkflowParamKeys.SparsectrlStrength, Type = ParamType.Double },
+        new() { Key = WorkflowParamKeys.SparsectrlStrength, Type = ParamType.Double, Step = 0.01 },
         new() { Key = WorkflowParamKeys.SparsectrlEnd, Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.IpadapterPreset, Type = ParamType.String },
-        new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "Identity strength" },
+        new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Step = 0.01, Label = "Identity strength" },
     }).ToArray();
 
     /// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflow.Nodes; here node "4" is the

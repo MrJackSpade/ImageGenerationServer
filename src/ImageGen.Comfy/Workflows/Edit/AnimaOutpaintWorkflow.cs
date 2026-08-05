@@ -35,14 +35,14 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
-        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.5, Max = 1.0, Label = "Fill strength" },
+        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Fill strength" },
         new() { Key = WorkflowParamKeys.PadLeft,        Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
         new() { Key = WorkflowParamKeys.PadTop,         Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
         new() { Key = WorkflowParamKeys.PadRight,       Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
         new() { Key = WorkflowParamKeys.PadBottom,      Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
         new() { Key = WorkflowParamKeys.Feather,         Type = ParamType.Int, Min = 0, Max = 256, Label = "Seam feather (px)" },
         new() { Key = WorkflowParamKeys.MaskGrow,       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-        new() { Key = WorkflowParamKeys.LlliteStrength, Type = ParamType.Double, Min = 0.0, Max = 2.0, Label = "Inpaint control strength" },
+        new() { Key = WorkflowParamKeys.LlliteStrength, Type = ParamType.Double, Min = 0.0, Max = 2.0, Step = 0.01, Label = "Inpaint control strength" },
         new() { Key = WorkflowParamKeys.LlliteStart,    Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Control start %" },
         new() { Key = WorkflowParamKeys.LlliteEnd,      Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Control end %" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
@@ -160,7 +160,7 @@ public sealed record AnimaOutpaintParams
     [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.5, 1.0)]                                    public required double Denoise { get; init; }
+    [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
     [Range(0, 4096)]                                     public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]

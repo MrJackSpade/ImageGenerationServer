@@ -4,12 +4,13 @@ using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
-/// <summary>Outpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0.5 (the border has nothing
-/// under it to preserve, so a lower floor only smears the pre-fill scaffold back).</summary>
+/// <summary>Outpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0. The default stays a full
+/// regenerate (a low denoise smears the pre-fill scaffold back — see the workflow's <c>DefaultDenoise</c>), but that is
+/// a reason not to PICK a low value, not a reason to reject one: 0 passes the padded latent through unchanged.</summary>
 public sealed record QwenImageOutpaintParams : QwenInpaintParams
 {
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.5, 1.0)] public override required double Denoise { get; init; }
+    [Range(0.0, 1.0)] public override required double Denoise { get; init; }
 }
 
 /// <summary>
@@ -42,7 +43,7 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
     {
-        new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = 0.5, Max = 1.0, Step = 0.01, Label = "Fill strength" },
+        new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Fill strength" },
         new() { Key = WorkflowParamKeys.PadLeft,   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
         new() { Key = WorkflowParamKeys.PadTop,    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
         new() { Key = WorkflowParamKeys.PadRight,  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },

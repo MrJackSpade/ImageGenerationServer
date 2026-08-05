@@ -22,9 +22,10 @@ internal static class ParamBounds
     public const double CfgMin = 1;
     public const double CfgMax = 30;
 
-    /// <summary>Denoise / source↔motion strength on the edit path (0.1 keeps a trace of the source; 1.0 is a full
-    /// redraw).</summary>
-    public const double DenoiseMin = 0.1;
+    /// <summary>Denoise / source↔motion strength on the edit path. The floor is 0: a KSampler at denoise 0 passes the
+    /// latent through unchanged (a no-op), so 0 is a valid "don't redraw / don't refine" input, never an arbitrary
+    /// taste floor to clamp up from. 1.0 is a full redraw.</summary>
+    public const double DenoiseMin = 0.0;
     public const double DenoiseMax = 1.0;
 
     /// <summary>Optional base-model LoRA strength — the generate path allows up to 2.0, the edit path up to 1.5

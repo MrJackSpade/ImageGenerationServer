@@ -91,6 +91,36 @@ public sealed class ParamBoundsValidationTests
     };
 
 
+    /// <summary>The strength/denoise floor is 0 (#104): a denoise of 0 is a valid "don't change" input, no longer
+    /// clamped up to an arbitrary positive minimum. The submit guard accepts it where it used to reject it.</summary>
+    [Fact]
+    public void A_denoise_of_zero_is_accepted_not_rejected_as_below_an_arbitrary_floor()
+    {
+        AnimaInpaintParams p = ParamsCodec.Deserialize<AnimaInpaintParams>(InpaintBag(denoise: 0.0));
+        Assert.Equal(0.0, p.Denoise);
+    }
+
+    [Theory]
+    [InlineData(-0.1)]   // still below 0 — genuinely out of range
+    [InlineData(1.5)]    // still above the full-redraw ceiling
+    public void A_denoise_outside_zero_to_one_is_still_refused(double bad) =>
+        Assert.Throws<RenderValidationException>(() =>
+            ParamsCodec.Deserialize<AnimaInpaintParams>(InpaintBag(denoise: bad)));
+
+    /// <summary>A minimally valid anima-inpaint bag: every <c>required</c> member present so STJ is satisfied and the
+    /// range validator is what runs on <c>denoise</c>.</summary>
+    private static Dictionary<string, object?> InpaintBag(double denoise) => new()
+    {
+        [WorkflowParamKeys.Loader] = "checkpoint",
+        [WorkflowParamKeys.Steps] = 20,
+        [WorkflowParamKeys.Cfg] = 6.0,
+        [WorkflowParamKeys.Sampler] = "euler",
+        [WorkflowParamKeys.Scheduler] = "normal",
+        [WorkflowParamKeys.Denoise] = denoise,
+        [WorkflowParamKeys.MaskGrow] = 0,
+    };
+
+
     private static readonly ModelResolution Env = new() { MinW = 512, MinH = 512, MaxW = 1536, MaxH = 1536, Step = 16 };
 
     [Fact]

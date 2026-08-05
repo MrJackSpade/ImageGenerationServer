@@ -75,7 +75,7 @@ internal static class HunyuanSr
         new() { Key = WorkflowParamKeys.SrWidth,     Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.SrHeight,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.SrSteps,     Type = ParamType.Int,    Min = 1, Max = 50 },
-        new() { Key = WorkflowParamKeys.SrDenoise,   Type = ParamType.Double, Min = 0.1, Max = 1.0 },
+        new() { Key = WorkflowParamKeys.SrDenoise,   Type = ParamType.Double, Min = ParamBounds.DenoiseMin, Max = ParamBounds.DenoiseMax, Step = 0.01 },
         new() { Key = WorkflowParamKeys.SrNoiseAug, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.SrCfg,       Type = ParamType.Double, Min = 1.0, Max = 12.0 },
         new() { Key = WorkflowParamKeys.SrShift,     Type = ParamType.Double, Min = 1.0, Max = 12.0 },

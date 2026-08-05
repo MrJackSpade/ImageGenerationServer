@@ -34,7 +34,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
     {
         // Step 0.01, not the UI's 0.1 default for doubles: how far the masked region drifts is the knob you tune most
         // finely here, and 0.1 is too coarse to land between (e.g.) 0.55 and 0.65.
-        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
+        new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Change amount" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
@@ -129,7 +129,7 @@ public sealed record AnimaInpaintParams
     [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.2, 1.0)]                                    public required double Denoise { get; init; }
+    [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }

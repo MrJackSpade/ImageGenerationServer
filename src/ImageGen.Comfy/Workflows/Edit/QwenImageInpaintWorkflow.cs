@@ -3,12 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
-/// <summary>Inpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0.2 (a trace of the masked
-/// region may be preserved).</summary>
+/// <summary>Inpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0 (a KSampler at denoise 0 passes
+/// the masked latent through unchanged — "don't change the region"; no arbitrary positive minimum).</summary>
 public sealed record QwenImageInpaintParams : QwenInpaintParams
 {
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.2, 1.0)] public override required double Denoise { get; init; }
+    [Range(0.0, 1.0)] public override required double Denoise { get; init; }
 }
 
 /// <summary>
@@ -27,7 +27,7 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> InpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
     {
-        new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Change amount" },
+        new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Change amount" },
         // 16 = 2σ, same shape as outpaint: with the clamp holding the painted region at a hard 1, grow only places
         // the one-sided ramp's midpoint 16px OUTSIDE the painted region. The painted pixels are always fully
         // replaced; the ramp is the crossfade band over the surrounding original.
