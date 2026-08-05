@@ -549,6 +549,9 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .edit-src-pane{min-width:0}
 .edit-src{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--elev);line-height:0;min-height:120px}
 .edit-src img{display:block;width:100%;height:auto;cursor:pointer}
+/* A clip source plays as a <video>; contain it to the pane like the image so a genuinely-wide clip can't overflow
+   (defensive — the primary fix is that a still webp is no longer classified as a clip and rendered here at all). */
+.edit-src video{display:block;max-width:100%;height:auto;object-fit:contain}
 /* Empty-state file picker shown in the image area when the editor opens with no source. */
 .edit-pick-src{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;min-height:220px;padding:36px 16px;border:1px dashed var(--line-2);border-radius:12px;background:transparent;color:var(--ink-soft);font:inherit;font-size:14px;font-weight:600;line-height:1.4;cursor:pointer;transition:color .12s,border-color .12s,background .12s}
 .edit-pick-src:hover{color:var(--ink);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}

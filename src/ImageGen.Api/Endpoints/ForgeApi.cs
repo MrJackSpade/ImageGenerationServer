@@ -1200,7 +1200,7 @@ public static class ForgeApi
             return Results.File(ms, ContentTypes.ApplicationZip);
         });
 
-        app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct) =>
+        app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, IMediaProcessor media, CancellationToken ct) =>
         {
             // ids arrive in the request BODY, not the query string (see MediaTypesRequest): the caller asks about
             // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
@@ -1217,13 +1217,6 @@ public static class ForgeApi
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
             if (list.Count == 0) return Results.Ok(new Dictionary<string, string>());
-            // In-memory uploads answer for themselves; only the rest are worth a database round trip.
-            Dictionary<string, string> resident = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (string? id in list)
-                if (uploads.Get(id) is { } up)
-                    resident[id] = up.ContentType;
-            IReadOnlyDictionary<string, string> stored = await blobs.GetContentTypesAsync(list.Where(id => !resident.ContainsKey(id)).ToList(), ct);
-            Dictionary<string, string> types = resident.Concat(stored).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
             // The media KIND per id, not just is-it-a-clip: the client renders an mp4 clip differently from a webp
             // clip. An mp4 (e.g. MiniMax-H3) has NO server-side still poster — ImageSharp can't decode an mp4 — so the
             // browser paints its own first frame; a webp keeps the cheap /image/{id}?still=true poster. "image" = still.
@@ -1232,7 +1225,25 @@ public static class ForgeApi
                 : c.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase) ? "mp4"
                 : string.Equals(c, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) ? "webp"
                 : "image";
-            Dictionary<string, string> map = list.ToDictionary(id => id, id => Kind(types.TryGetValue(id, out string? c) ? c : null), StringComparer.Ordinal);
+            // A still webp and a video clip share the content-type image/webp, so content-type alone can't tell them
+            // apart. But a STILL webp only ever exists as an in-memory upload (an edit source the user dropped): a
+            // GENERATED webp is always an animated clip — a video workflow that comes back single-frame is rejected at
+            // write (RenderOrchestrator), and a still generation is stored as image/png. So the only id that can be a
+            // still webp is a resident upload, whose bytes are already in hand — sniff those (no load), and leave
+            // stored webp as the clip it must be. This keeps the batched gallery lookup (hundreds of ids) load-free.
+            Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.Ordinal);
+            List<string> needStored = new List<string>();
+            foreach (string id in list)
+                if (uploads.Get(id) is { } up)
+                    map[id] = string.Equals(up.ContentType, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) && !media.IsAnimatedWebp(up.Bytes)
+                        ? "image"
+                        : Kind(up.ContentType);
+                else
+                    needStored.Add(id);
+            // Every id asked about is answered for; an id the store doesn't know falls through Kind(null) => "image".
+            IReadOnlyDictionary<string, string> stored = await blobs.GetContentTypesAsync(needStored, ct);
+            foreach (string id in needStored)
+                map[id] = Kind(stored.TryGetValue(id, out string? c) ? c : null);
             return Results.Ok(map);
         });
     }
