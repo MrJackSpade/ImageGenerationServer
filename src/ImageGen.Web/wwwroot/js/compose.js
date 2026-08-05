@@ -828,7 +828,7 @@ function showResult(r) {
     const ed = document.createElement("a"); ed.className = "link-btn"; ed.textContent = "✎ Edit this"; ed.href = "/edit/" + encodeURIComponent(imageId(r)); ed.style.marginRight = "auto"; actions.appendChild(ed);
   }
   const dl = document.createElement("a"); dl.className = "download"; dl.href = "#"; dl.textContent = "↓ Save image";
-  dl.onclick = e => { e.preventDefault(); downloadImage(r); };
+  dl.onclick = e => { e.preventDefault(); saveMedia(r, isVid); };
   actions.appendChild(dl); card.appendChild(img); card.appendChild(actions); $result.appendChild(card);
 }
 // `aspect` is the shape this image was actually SUBMITTED with (rolled per slot when several shapes are picked) —
@@ -837,14 +837,6 @@ function recordResult(result, prompt, modelFriendly, modelId, aspect) {
   const r = { ts: Date.now(), prompt: (result && result.effectivePrompt) || prompt || "", marks: (result && result.marks) || null, model: modelFriendly || "", modelId: modelId || "", aspect: aspect || primaryAspect(), id: result.id };
   showResult(r); emitGenerated(r);
 }
-async function downloadImage(r) {
-  const id = String(imageId(r));
-  // cache:"no-store" avoids the <img> no-CORS cache entry (no Access-Control-Allow-Origin), which a plain
-  // cors fetch would reuse and get blocked on — force a fresh request that carries Origin. See detail.js.
-  try { const res = await fetch(viewUrl(r), { cache: "no-store" }); const blob = await res.blob(); const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = /\.\w+$/.test(id) ? id : (id || "picture") + ".png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); }
-  catch (e) { console.error("download failed, opening in a tab:", e); window.open(viewUrl(r), "_blank"); }
-}
-
 // uploadToInput (device photo → upload → /edit/{id}) is shared from core.js.
 // --- prefs (per-user account setting, follows the user across devices) ---------------------------
 // The composer's draft state lives on the account, not in this browser, so a second machine restores the

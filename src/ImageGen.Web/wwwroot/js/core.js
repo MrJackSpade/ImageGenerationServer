@@ -300,6 +300,36 @@ async function copyText(t) {
   } catch (e) { console.debug("copy failed:", e); return false; }
 }
 
+// --- saving an output to disk -------------------------------------------------------------------
+// Video outputs (MiniMax-H3's mp4, animated-webp clips) save the canonical mp4 clip (/image/{id}/mp4) as {id}.mp4 —
+// audio intact for H3 — while stills save their own bytes under a real extension. `isVideo` is passed when the caller
+// already knows (it just rendered the model's <video>); otherwise the clip kind is resolved through /media, the same
+// lookup media.js uses to decide whether a library <img> is really a clip. A cross-origin gateway needs a blob save
+// (a bare <a download> can't name a cross-origin file), and cache:"no-store" dodges the <img>'s ACAO-less cache
+// entry a plain cors fetch would reuse and be blocked on. On any failure the raw view URL opens in a new tab.
+const MIME_EXT = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "video/mp4": ".mp4" };
+async function mediaIsClip(id) {
+  const r = await fetch(`${GATEWAY}/media`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) });
+  if (!r.ok) throw new Error(`POST ${GATEWAY}/media -> ${r.status}`);
+  const kind = (await r.json())[id];
+  return kind === "webp" || kind === "mp4";
+}
+async function saveMedia(idOrRec, isVideo) {
+  const id = String(imageId(idOrRec));
+  try {
+    const vid = (isVideo != null) ? isVideo : await mediaIsClip(id);
+    const url = vid ? `${GATEWAY}/image/${encodeURIComponent(id)}/mp4` : viewUrl(id);
+    const res = await fetch(url, { cache: "no-store" });
+    const blob = await res.blob();
+    // A clip always saves as {id}.mp4; a still keeps the id's own extension, else takes one from the served type.
+    const name = vid ? id + ".mp4"
+      : /\.\w+$/.test(id) ? id : (id || "picture") + (MIME_EXT[(blob.type || "").split(";")[0].trim().toLowerCase()] || ".png");
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = u; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000);
+  } catch (e) { console.error("download failed, opening in a tab:", e); window.open(viewUrl(id), "_blank"); }
+}
+
 // Gateway error helpers.
 function friendlyError(e) {
   if (e instanceof TypeError) return "Can't reach the image server — is it running?";

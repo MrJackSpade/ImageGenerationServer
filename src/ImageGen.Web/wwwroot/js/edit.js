@@ -547,7 +547,8 @@ function buildResultCard(id, model, instruction, notice) {
   media.addEventListener("click", () => openImage(imageId(id)));
   const actions = document.createElement("div"); actions.className = "result-actions";
   const ed = document.createElement("a"); ed.className = "link-btn"; ed.textContent = "✎ Edit this"; ed.href = "/edit/" + encodeURIComponent(imageId(id)); ed.style.marginRight = "auto"; actions.appendChild(ed);
-  const dl = document.createElement("a"); dl.className = "download"; dl.href = viewUrl(id); dl.textContent = "↓ Save"; dl.setAttribute("download", ""); actions.appendChild(dl);
+  const dl = document.createElement("a"); dl.className = "download"; dl.href = "#"; dl.textContent = "↓ Save";
+  dl.onclick = e => { e.preventDefault(); saveMedia(id, isVid); }; actions.appendChild(dl);
   card.appendChild(media); card.appendChild(actions);
   const n = noticeEl(notice); if (n) card.appendChild(n);
   return card;

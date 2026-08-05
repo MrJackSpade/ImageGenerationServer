@@ -154,20 +154,10 @@ function initDetail(root, opts) {
     } catch (e) { console.error("delete failed:", e); toast("Delete failed"); }
   });
 
-  // Force a real download even though the image is cross-origin (the gateway): fetch -> blob -> anchor.
-  // cache:"no-store" is essential: the <img> preview already loaded this URL as a no-CORS request (no
-  // Origin -> no Access-Control-Allow-Origin on the cached response, and the gateway sends no Vary:Origin),
-  // so a plain cors fetch would reuse that ACAO-less cache entry and be blocked. no-store forces a fresh
-  // request that carries Origin and gets ACAO:* back.
-  root.querySelector("#detailDownload").addEventListener("click", async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(viewUrl(id), { cache: "no-store" }); const blob = await res.blob();
-      const u = URL.createObjectURL(blob); const a = document.createElement("a");
-      a.href = u; a.download = /\.\w+$/.test(id) ? id : (id || "picture") + ".png";
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000);
-    } catch (e) { console.error("download failed, opening in a tab:", e); window.open(viewUrl(id), "_blank"); }
-  });
+  // Save: video-aware (an H3/webp clip downloads its mp4, a still its own bytes). saveMedia (core.js) resolves the
+  // clip kind through /media — the detail card has no model in hand — and force-downloads via a blob, since a bare
+  // <a download> can't name a cross-origin gateway file.
+  root.querySelector("#detailDownload").addEventListener("click", (e) => { e.preventDefault(); saveMedia(id); });
 
   // The LoRAs this image was generated with, shown as their own chips BEFORE the tag chips (distinct cyan). Display
   // only — assigning one as its cover is done through the unified portrait button, alongside artists and tags.
