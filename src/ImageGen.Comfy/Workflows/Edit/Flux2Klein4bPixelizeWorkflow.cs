@@ -12,7 +12,7 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
 {
     public override string Name => "pixelize-klein4b";
     public override bool PreservesComposition => true;
-    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KleinLike(PixelizeSchema.DefaultPixelPrompt);
+    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KleinLike();
 
     /// <summary>This subclass's own node ids.</summary>
     private const string Positive = "60";

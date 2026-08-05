@@ -25,10 +25,7 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     };
 
-    /// <summary>The default pixel-art style prompt the per-model pixelizers seed their instruction with.</summary>
-    public const string DefaultPixelPrompt = "Convert to pixel art, flat colors, clean crisp pixels, limited palette";
-
-    public static IReadOnlyList<ParamSpec> KontextLike(string defPrompt) => new ParamSpec[]
+    public static IReadOnlyList<ParamSpec> KontextLike() => new ParamSpec[]
     {
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
@@ -45,7 +42,7 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
     }.Concat(Common).ToArray();
 
-    public static IReadOnlyList<ParamSpec> KleinLike(string defPrompt) => new ParamSpec[]
+    public static IReadOnlyList<ParamSpec> KleinLike() => new ParamSpec[]
     {
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
@@ -60,7 +57,7 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
     }.Concat(Common).ToArray();
 
-    public static IReadOnlyList<ParamSpec> DreamOmniLike(string defPrompt) => new ParamSpec[]
+    public static IReadOnlyList<ParamSpec> DreamOmniLike() => new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Steps, Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
         new() { Key = WorkflowParamKeys.Cfg,   Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "Guidance scale" },

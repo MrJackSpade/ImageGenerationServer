@@ -14,7 +14,7 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
 {
     public override string Name => "pixelize-kontext";
     public override bool PreservesComposition => true;
-    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KontextLike(PixelizeSchema.DefaultPixelPrompt);
+    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KontextLike();
 
     /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes; FlattenOnWhite owns 11-14
     /// internally).</summary>

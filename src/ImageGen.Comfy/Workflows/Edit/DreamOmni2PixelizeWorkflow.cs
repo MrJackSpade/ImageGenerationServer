@@ -20,7 +20,7 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
     /// <summary>The editor loads its own int8 weights (no linked checkpoint → no resolved resolution), so the render
     /// snap uses the FLUX.1-Kontext-class envelope (256–1440, /16) it's built on.</summary>
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
-    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.DreamOmniLike(PixelizeSchema.DefaultPixelPrompt);
+    public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.DreamOmniLike();
 
     /// <summary>This subclass's own node ids (the source LoadImage reuses <c>Nodes.Source</c>).</summary>
     private const string Reference = "11";
