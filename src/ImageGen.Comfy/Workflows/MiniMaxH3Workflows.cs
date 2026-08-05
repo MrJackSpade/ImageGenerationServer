@@ -50,6 +50,7 @@ file static class H3
         public const string ScaledSource = "11";
         public const string SourceSize = "15";
         public const string EndFrame = "12";
+        public const string ScaledEndFrame = "13";
         public const string Encode = "14";
         /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v (the source is ref_image_0, in-place
         /// at <see cref="Source"/>); each picker reference gets <c>RefImageBase + i</c>. Kept clear of every id above.</summary>
@@ -101,8 +102,15 @@ file static class H3
                 Output<Slot.Image>? lastFrame = null;
                 if (!string.IsNullOrEmpty(inputs.EndImageName))
                 {
+                    // Scale the end frame through the SAME node as the first frame (:99), so both reach
+                    // MiniMaxH3ImageToVideo at identical dims. The node resizes first_frame to width/height with
+                    // crop="disabled" and last_frame with crop="center"; the first frame arrives already at those
+                    // exact dims (a no-op), so a raw end frame gets a lone cover/center-crop and lands at a different
+                    // framing. A same-image loop (#110) then stretches instead of holding still. Pre-scaling the end
+                    // frame identically makes the node's last-frame resize a no-op too → a clean static loop.
                     g[Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
-                    lastFrame = LoadImage.ImageOut(Nodes.EndFrame);
+                    g[Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.EndFrame), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 32 };
+                    lastFrame = ImageScaleToTotalPixels.Out(Nodes.ScaledEndFrame);
                 }
                 g[Nodes.Encode] = new MiniMaxH3ImageToVideoI2V
                 {

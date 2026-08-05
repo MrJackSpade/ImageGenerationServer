@@ -239,6 +239,29 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
+    [Fact]
+    public void MiniMaxH3_i2v_scales_the_end_frame_like_the_first_frame()
+    {
+        // An END frame must pass through the SAME ImageScaleToTotalPixels as the first frame, so both reach
+        // MiniMaxH3ImageToVideo at identical dims — a same-image loop (#110) then holds still instead of stretching.
+        WorkflowInputs inputs = new() { Positive = "make it red", SourceImageName = "src.png", EndImageName = "end.png", SourceWidth = 1216, SourceHeight = 832 };
+        string json = BuildJson("minimax-h3-i2v", inputs);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        // last_frame is wired to the scaled end-frame node (13), not the raw LoadImage (12).
+        JsonElement last = doc.RootElement.GetProperty("14").GetProperty("inputs").GetProperty("last_frame");
+        Assert.Equal("13", last[0].GetString());
+        // Node 13 is an ImageScaleToTotalPixels that consumes the end-frame LoadImage (12), with the SAME settings as
+        // the first-frame scale (node 11).
+        JsonElement scaled = doc.RootElement.GetProperty("13");
+        Assert.Equal("ImageScaleToTotalPixels", scaled.GetProperty("class_type").GetString());
+        Assert.Equal("12", scaled.GetProperty("inputs").GetProperty("image")[0].GetString());
+        JsonElement first = doc.RootElement.GetProperty("11").GetProperty("inputs");
+        JsonElement end = scaled.GetProperty("inputs");
+        Assert.Equal(first.GetProperty("megapixels").GetDouble(), end.GetProperty("megapixels").GetDouble());
+        Assert.Equal(first.GetProperty("resolution_steps").GetInt32(), end.GetProperty("resolution_steps").GetInt32());
+        Assert.Equal(first.GetProperty("upscale_method").GetString(), end.GetProperty("upscale_method").GetString());
+    }
+
     /// <summary>H3 reference→video (ref2va) conditions on the SUBJECT via reference images — the open image is
     /// ref_image_0 and picker references follow — through the <c>MiniMaxH3ReferenceToVideo</c> node, NOT as a first
     /// frame. The references ride the node's autogrow input as the flat dotted wire keys <c>ref_images.ref_image_{i}</c>
@@ -1646,6 +1669,19 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("\"WanImageToVideo\"", json);
         Assert.Contains("forgemcp_edit_last.png", json);
         Assert.Contains("\"end_image\"", json);
+
+        // The end frame (no padding) passes through the SAME ImageScaleToTotalPixels as the start frame (node 11),
+        // to the same pixel budget/rounding — so a loop (end == start) reaches the node at identical dims and holds
+        // still instead of the node cropping a raw end frame. end_image is wired to that scale node (76), not raw.
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement end = doc.RootElement.GetProperty("14").GetProperty("inputs").GetProperty("end_image");
+        Assert.Equal("76", end[0].GetString());
+        JsonElement endScale = doc.RootElement.GetProperty("76");
+        Assert.Equal("ImageScaleToTotalPixels", endScale.GetProperty("class_type").GetString());
+        Assert.Equal("12", endScale.GetProperty("inputs").GetProperty("image")[0].GetString());
+        JsonElement startScale = doc.RootElement.GetProperty("11").GetProperty("inputs");
+        Assert.Equal(startScale.GetProperty("megapixels").GetDouble(), endScale.GetProperty("inputs").GetProperty("megapixels").GetDouble());
+        Assert.Equal(startScale.GetProperty("resolution_steps").GetInt32(), endScale.GetProperty("inputs").GetProperty("resolution_steps").GetInt32());
     }
 
     [Theory]

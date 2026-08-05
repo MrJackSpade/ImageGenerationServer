@@ -210,18 +210,20 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         Output<Slot.Conditioning> neg;
         Output<Slot.Latent> lat;
         // First/last-frame conditioning when the caller supplied an END frame (the source is the first frame): swap the
-        // plain WanImageToVideo for WanFirstLastFrameToVideo, pinning both ends. The node resizes end_image to
-        // width/height itself, so the raw LoadImage is fine. Without an end frame the plain WanImageToVideo path runs.
-        // Both nodes re-emit the same 3 outputs (positive, negative, latent), so the downstream sampler wiring is shared.
+        // plain WanImageToVideo for WanFirstLastFrameToVideo, pinning both ends. The node cover/center-crops BOTH frames
+        // to width/height internally; the start frame arrives already at those exact dims (via ScaledSource), so a raw
+        // end frame gets a lone crop and lands at a different framing (a same-image loop then stretches instead of
+        // holding still). Scale the end frame through the SAME node as the start frame so both reach the node at
+        // identical dims. Without an end frame the plain WanImageToVideo path runs. Both nodes re-emit the same 3
+        // outputs (positive, negative, latent), so the downstream sampler wiring is shared.
         if (!string.IsNullOrEmpty(inputs.EndImageName))
         {
             g[EndFrame] = new LoadImage { Image = inputs.EndImageName };
-            Output<Slot.Image> endImage = LoadImage.ImageOut(EndFrame);
+            Output<Slot.Image> endImage;
             // Pad the END frame the SAME way as the first frame when asked (end_pad_*_pct), so both share one padded
-            // canvas. Otherwise WanFirstLastFrameToVideo just stretches the raw end frame to the (padded) start size and
-            // the pose lands in the wrong place — the clip never reaches it. Scale the end image to the source frame
-            // size, then composite it into the same white canvas (PadGeom) at the offset. The save gate in the caller
-            // guarantees the two frames share an aspect, so the scale here is proportional (no distortion).
+            // canvas. Scale the end image to the source frame size, then composite it into the same white canvas
+            // (PadGeom) at the offset. The save gate in the caller guarantees the two frames share an aspect, so the
+            // scale here is proportional (no distortion).
             if (PadGeom(p.EndPadLeftPct ?? 0, p.EndPadRightPct ?? 0, p.EndPadTopPct ?? 0, p.EndPadBottomPct ?? 0,
                         inputs.SourceWidth, inputs.SourceHeight) is (int ecw, int ech, int epx, int epy))
             {
@@ -230,6 +232,14 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
                 g[EndPadCanvas] = new EmptyImageLiteralSize { Width = ecw, Height = ech, BatchSize = 1, Color = 0xFFFFFF };
                 g[EndPadComposite] = new ImageCompositeMaskedNoMask { Destination = EmptyImageLiteralSize.Out(EndPadCanvas), Source = ImageScale.Out(EndScale), X = epx, Y = epy, ResizeSource = false };
                 endImage = ImageCompositeMaskedNoMask.Out(EndPadComposite);
+            }
+            else
+            {
+                // No padding: scale the end frame through the same ImageScaleToTotalPixels as the start frame (:205),
+                // to the same pixel budget/rounding, so both frames reach WanFirstLastFrameToVideo at identical dims —
+                // a loop (end == start) then produces a clean static loop instead of the node cropping a raw end frame.
+                g[EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EndFrame), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 16 };
+                endImage = ImageScaleToTotalPixels.Out(EndScale);
             }
             g[Cond] = new WanFirstLastFrameToVideo
             {
