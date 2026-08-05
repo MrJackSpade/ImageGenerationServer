@@ -1345,10 +1345,10 @@ public static class ForgeApi
 /// <summary>Body of PUT /forge/catalog/binding.</summary>
 /// <param name="SlotId">The model slot.</param>
 /// <param name="FileName">The file to bind, or blank/null to clear it.</param>
-public sealed record BindingRequest(string SlotId, string? FileName);
+public sealed record BindingRequest(string SlotId, string? FileName = null);
 
 /// <summary>Body of PUT /forge/catalog/override.</summary>
 /// <param name="ConfigId">The workflow configuration.</param>
 /// <param name="Key">Namespaced setting key.</param>
 /// <param name="Value">The value, or blank/null to remove the override.</param>
-public sealed record OverrideRequest(string ConfigId, string Key, string? Value);
+public sealed record OverrideRequest(string ConfigId, string Key, string? Value = null);

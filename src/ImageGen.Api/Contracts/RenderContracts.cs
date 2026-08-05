@@ -15,7 +15,7 @@ namespace ImageGen.Api.Contracts;
 /// with the image and never rendered from. Omit it when the caller does no such resolution — nothing is inferred.
 /// </param>
 public sealed record GenerateRequest(
-    string Workflow, string? Prompt, string? NegativePrompt, string? Aspect,
+    string Workflow, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     bool? RandomArtist = null, bool? RandomPrompt = null,
     double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
@@ -23,18 +23,23 @@ public sealed record GenerateRequest(
     string? OriginalPrompt = null,
     List<LoraSelection>? Loras = null);
 
-/// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.</summary>
+/// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.
+/// Both are non-nullable and non-optional, so the serializer rejects a payload that omits or nulls either. Required
+/// members lead so the optional (defaulted) ones can follow; binding is by name, so declaration order is cosmetic.</summary>
 public sealed record EditRequest(
-    string Workflow, string? Instruction, string ImageId, string? NegativePrompt = null,
+    string Workflow, string ImageId, string? Instruction = null, string? NegativePrompt = null,
     List<string>? ReferenceImageIds = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
     string? LastFrameImageId = null);
 
-/// <summary>One item of a batch enqueue (Edit=true marks an edit item).</summary>
+/// <summary>One item of a batch enqueue (Edit=true marks an edit item). <c>Workflow</c> is non-nullable and required for
+/// both item kinds; <c>ImageId</c> stays nullable because a generate item legitimately omits it — its presence is the
+/// discriminated-union concern validated by the <c>Edit == true</c> branch, not a missing-member check.</summary>
 public sealed record EnqueueItem(
-    bool? Edit, string? Workflow, string? Prompt, string? NegativePrompt, string? Aspect, string? Instruction,
-    string? ImageId, List<string>? ReferenceImageIds = null, bool? RandomArtist = null, bool? RandomPrompt = null,
+    string Workflow, bool? Edit = null, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
+    string? Instruction = null, string? ImageId = null, List<string>? ReferenceImageIds = null,
+    bool? RandomArtist = null, bool? RandomPrompt = null,
     double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? LastFrameImageId = null,
@@ -43,7 +48,7 @@ public sealed record EnqueueItem(
     List<LoraSelection>? Loras = null);
 
 /// <summary>Batch enqueue payload: a mixed list of generate and edit items.</summary>
-public sealed record EnqueueRequest(List<EnqueueItem>? Jobs);
+public sealed record EnqueueRequest(List<EnqueueItem>? Jobs = null);
 
 /// <summary>Maps the render wire contracts to the Application render specs (hand-written; no AutoMapper).</summary>
 public static class RenderContractMapping

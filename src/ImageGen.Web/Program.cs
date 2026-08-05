@@ -225,6 +225,16 @@ using (HttpClient artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTim
 builder.Services.AddTagModel();
 builder.Services.AddMemoryCache();   // backs the /forge/image?w=N thumbnail + mp4 caches
 
+// The minimal-API endpoints that bind their body directly (e.g. /generate, /edit, /enqueue) deserialize through these
+// options, NOT Json.Options. Match the two Respect* flags so both paths enforce the wire DTOs' required/non-nullable
+// annotations identically — a missing/null required member is a clean 400 at the boundary on either route. (Controllers
+// use their own MvcJsonOptions and are unaffected.)
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.RespectRequiredConstructorParameters = true;
+    o.SerializerOptions.RespectNullableAnnotations = true;
+});
+
 builder.Services.AddControllersWithViews();
 
 // Run the render orchestrator's background loop (the core orchestrator is a plain singleton; this adapts it to a

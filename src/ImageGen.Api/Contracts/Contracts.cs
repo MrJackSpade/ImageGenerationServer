@@ -171,7 +171,7 @@ public sealed record EditPrefsRequest
 /// <param name="Kind">"artist" for '@' completion; anything else means tags.</param>
 /// <param name="Limit">How many suggestions to return (clamped server-side).</param>
 /// <param name="Ctx">The rest of the prompt's '#' tags, for model ranking. Null when there is no context.</param>
-public sealed record TagQueryRequest(string? Q, string? Kind, int? Limit, string? Ctx);
+public sealed record TagQueryRequest(string? Q = null, string? Kind = null, int? Limit = null, string? Ctx = null);
 
 /// <summary>
 /// A history page query. In a BODY for the same reason as <see cref="TagQueryRequest"/>: <see cref="Search"/> is
@@ -183,7 +183,8 @@ public sealed record TagQueryRequest(string? Q, string? Kind, int? Limit, string
 /// total describe the filtered set — a client that filtered a returned page instead would report the wrong count and
 /// stall its scroll on any page that happened to be entirely viewed.</param>
 public sealed record HistoryQueryRequest(
-    int? Page, int? PageSize, string? Artist, string? Tag, string? Workflow, string? Search, bool? UnviewedOnly);
+    int? Page = null, int? PageSize = null, string? Artist = null, string? Tag = null, string? Workflow = null,
+    string? Search = null, bool? UnviewedOnly = null);
 
 /// <summary>The ids the media-type lookup should answer about. In a BODY, not the query string: the caller asks about
 /// every gateway image currently on the page at once — hundreds of 32-char ids — and that URL runs well past the ~8 KB
