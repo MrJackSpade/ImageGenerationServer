@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 
@@ -21,8 +22,8 @@ namespace ImageGen.Api.Contracts;
 /// </param>
 public sealed record GenerateRequest(
     string Workflow, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
-    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomArtist = null,
-    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomPrompt = null,
+    TriState RandomArtist = TriState.Unspecified,
+    TriState RandomPrompt = TriState.Unspecified,
     [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
@@ -47,8 +48,8 @@ public sealed record EditRequest(
 public sealed record EnqueueItem(
     string Workflow, bool Edit = false, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     string? Instruction = null, string? ImageId = null, List<string>? ReferenceImageIds = null,
-    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomArtist = null,
-    [property: AllowNullable("null = the caller omitted it, distinct from an explicit false; passed through to the orchestrator's tri-state spec")] bool? RandomPrompt = null,
+    TriState RandomArtist = TriState.Unspecified,
+    TriState RandomPrompt = TriState.Unspecified,
     [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? LastFrameImageId = null,

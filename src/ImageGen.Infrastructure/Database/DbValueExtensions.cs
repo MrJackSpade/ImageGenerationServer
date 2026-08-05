@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using System.Data.Common;
 using System.Globalization;
 
@@ -55,6 +56,22 @@ internal static class DbValueExtensions
     /// <summary><see cref="AsDouble"/>, or null when the column is NULL.</summary>
     internal static double? AsNullableDouble(this DbDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.AsDouble(ordinal);
+
+    /// <summary>A nullable <c>BIT</c> / SQLite <c>INTEGER</c> column read as a <see cref="TriState"/>: NULL is
+    /// <see cref="TriState.Unspecified"/>, 1 is <see cref="TriState.True"/>, 0 is <see cref="TriState.False"/>. The DB
+    /// column stays a nullable bit — the enum is the in-memory shape, mapped here at the boundary.</summary>
+    internal static TriState AsTriState(this DbDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? TriState.Unspecified : reader.AsBool(ordinal) ? TriState.True : TriState.False;
+
+    /// <summary>A <see cref="TriState"/> as the value to bind to a nullable-bit parameter: <see cref="TriState.True"/>
+    /// and <see cref="TriState.False"/> become the boolean; <see cref="TriState.Unspecified"/> becomes
+    /// <see cref="DBNull"/>, so "not provided" persists as NULL exactly as the old <c>bool? = null</c> did.</summary>
+    internal static object ToNullableBitParam(this TriState value) => value switch
+    {
+        TriState.True => true,
+        TriState.False => false,
+        _ => DBNull.Value,
+    };
 
     /// <summary>
     /// A single-value query as an <see cref="int"/> — a <c>COUNT(*)</c>, an <c>EXISTS</c> flag. Treats no-row and

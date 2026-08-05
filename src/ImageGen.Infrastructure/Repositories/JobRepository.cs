@@ -96,8 +96,8 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
             cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
             cmd.AddParam("@aspect", (object?)slot.Aspect ?? DBNull.Value);
-            cmd.AddParam("@randomArtist", (object?)slot.RandomArtist ?? DBNull.Value);
-            cmd.AddParam("@randomPrompt", (object?)slot.RandomPrompt ?? DBNull.Value);
+            cmd.AddParam("@randomArtist", slot.RandomArtist.ToNullableBitParam());
+            cmd.AddParam("@randomPrompt", slot.RandomPrompt.ToNullableBitParam());
             cmd.AddParam("@temperature", (object?)slot.Temperature ?? DBNull.Value);
             cmd.AddParam("@tagTypes", (object?)slot.TagTypesJson ?? DBNull.Value);
             cmd.AddParam("@overrides", (object?)slot.OverridesJson ?? DBNull.Value);
@@ -548,8 +548,8 @@ WHERE JobId = @jobId
         Prompt = r.IsDBNull(17) ? null : r.GetString(17),
         NegativePrompt = r.IsDBNull(18) ? null : r.GetString(18),
         Aspect = r.IsDBNull(19) ? null : r.GetString(19),
-        RandomArtist = r.AsNullableBool(20),
-        RandomPrompt = r.AsNullableBool(21),
+        RandomArtist = r.AsTriState(20),
+        RandomPrompt = r.AsTriState(21),
         Temperature = r.AsNullableDouble(22),
         TagTypesJson = r.IsDBNull(23) ? null : r.GetString(23),
         OverridesJson = r.IsDBNull(24) ? null : r.GetString(24),

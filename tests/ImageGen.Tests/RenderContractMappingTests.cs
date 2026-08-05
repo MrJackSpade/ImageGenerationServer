@@ -1,5 +1,6 @@
 using ImageGen.Api.Contracts;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 
 namespace ImageGen.Tests;
 
@@ -13,7 +14,7 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void A_generate_request_carries_its_mask_into_the_spec()
     {
-        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square", RandomPrompt: true,
+        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square", RandomPrompt: TriState.True,
             TagTypes: ["general", "character"]).ToSpec();
 
         Assert.Equal(["general", "character"], spec.TagTypes);
@@ -27,7 +28,7 @@ public sealed class RenderContractMappingTests
     public void A_batch_item_carries_its_mask_into_the_spec()
     {
         EnqueueItem item = new EnqueueItem(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
-            Aspect: "square", Instruction: null, ImageId: null, RandomPrompt: true, TagTypes: ["meta"]);
+            Aspect: "square", Instruction: null, ImageId: null, RandomPrompt: TriState.True, TagTypes: ["meta"]);
 
         RenderItem? ri = item.ToRenderItem();
         Assert.NotNull(ri);

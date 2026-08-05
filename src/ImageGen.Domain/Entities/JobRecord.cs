@@ -111,12 +111,12 @@ public sealed class JobSlotRecord
     public string? NegativePrompt { get; set; }
     /// <summary>"square" | "landscape" | "portrait" (generates only).</summary>
     public string? Aspect { get; set; }
-    /// <summary>Whether the worker should sample an artist for this slot. Null = the caller specified none.</summary>
-    [AllowNullable("null = not specified / not applicable to an edit slot (set null for edits); mirrors the nullable dbo.JobSlot column, distinct from an explicit false")]
-    public bool? RandomArtist { get; set; }
-    /// <summary>Whether the worker should generate the prompt from the tag model. Null = the caller specified none.</summary>
-    [AllowNullable("null = not specified / not applicable to an edit slot (set null for edits); mirrors the nullable dbo.JobSlot column, distinct from an explicit false")]
-    public bool? RandomPrompt { get; set; }
+    /// <summary>Whether the worker should sample an artist for this slot. <see cref="TriState.Unspecified"/> = the caller
+    /// specified none / not applicable to an edit slot; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
+    public TriState RandomArtist { get; set; }
+    /// <summary>Whether the worker should generate the prompt from the tag model. <see cref="TriState.Unspecified"/> = the
+    /// caller specified none / not applicable to an edit slot; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
+    public TriState RandomPrompt { get; set; }
     /// <summary>The random-prompt sampling temperature. Null = the caller specified none.</summary>
     [AllowNullable("null = use the tag model's default sampling; mirrors the nullable dbo.JobSlot column. 0.0 is a real (greedy) temperature")]
     public double? Temperature { get; set; }

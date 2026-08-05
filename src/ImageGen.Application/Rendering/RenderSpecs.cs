@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 
@@ -40,8 +41,8 @@ public sealed record GenerateSpec(
     string Prompt,
     string? NegativePrompt,
     string? Aspect,
-    [property: AllowNullable("null = the caller sent none (API-key client, or a pre-field slot); distinct from an explicit false")] bool? RandomArtist = null,
-    [property: AllowNullable("null = the caller sent none (API-key client, or a pre-field slot); distinct from an explicit false")] bool? RandomPrompt = null,
+    TriState RandomArtist = TriState.Unspecified,
+    TriState RandomPrompt = TriState.Unspecified,
     [property: AllowNullable("null = the caller sent none, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,

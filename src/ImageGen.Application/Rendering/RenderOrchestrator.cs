@@ -782,7 +782,7 @@ public sealed class RenderOrchestrator
                 // server-side fact, so it is never taken from the request: a caller that omits it (an API-key client, a
                 // browser holding a stale ban cache, a job resumed from before the ban) must not be able to generate its
                 // way around one. Only fetched when a random sampler is actually going to run — bans bind auto-gen only.
-                (HashSet<string> Tags, HashSet<string> Artists) bans = slot.Gen.RandomPrompt == true || slot.Gen.RandomArtist == true
+                (HashSet<string> Tags, HashSet<string> Artists) bans = slot.Gen.RandomPrompt == TriState.True || slot.Gen.RandomArtist == TriState.True
                     ? await BannedKeysAsync(slot.Job.Owner, slot.Model, ct)
                     : (Tags: new HashSet<string>(StringComparer.Ordinal), Artists: new HashSet<string>(StringComparer.Ordinal));
                 // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed tags,
@@ -790,7 +790,7 @@ public sealed class RenderOrchestrator
                 // throws out of GenerateAsync and fails the slot (see the catch at the bottom of RunSlotAsync). This is
                 // deliberate: silently rendering the typed seed instead of the generated prompt would produce an image
                 // the user did not ask for and give no hint why.
-                if (slot.Gen.RandomPrompt == true && info?.Tagging is { Tags: true })
+                if (slot.Gen.RandomPrompt == TriState.True && info?.Tagging is { Tags: true })
                 {
                     (string? seed, HashSet<string>? suppressKeys) = TagSeed(raw, info.Tagging);
                     HashSet<string> bannedTags = bans.Tags;
@@ -832,7 +832,7 @@ public sealed class RenderOrchestrator
                     }
                 }
                 // Random-artist: pick a fresh artist PER SLOT (so a batch gets a different one per image), model permitting.
-                if (slot.Gen.RandomArtist == true && info?.Tagging is { Artists: true })
+                if (slot.Gen.RandomArtist == TriState.True && info?.Tagging is { Artists: true })
                 {
                     HashSet<string> bannedArtists = bans.Artists;
                     bannedArtists.UnionWith(negKeys.Artists);
@@ -1336,8 +1336,8 @@ public sealed class RenderOrchestrator
                 Prompt = s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
                 NegativePrompt = s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
                 Aspect = s.IsEdit ? null : s.RequireGen().Aspect,
-                RandomArtist = s.IsEdit ? null : s.RequireGen().RandomArtist,
-                RandomPrompt = s.IsEdit ? null : s.RequireGen().RandomPrompt,
+                RandomArtist = s.IsEdit ? TriState.Unspecified : s.RequireGen().RandomArtist,
+                RandomPrompt = s.IsEdit ? TriState.Unspecified : s.RequireGen().RandomPrompt,
                 Temperature = s.IsEdit ? null : s.RequireGen().Temperature,
                 TagTypesJson = s.IsEdit || s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
                 OverridesJson = OverridesJsonOf(s),

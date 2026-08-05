@@ -33,8 +33,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             Prompt = "1girl, #long_hair, @monet",
             NegativePrompt = "worst quality",
             Aspect = "portrait",
-            RandomArtist = true,
-            RandomPrompt = false,
+            RandomArtist = TriState.True,
+            RandomPrompt = TriState.False,
             Temperature = 0.85,
             TagTypesJson = """["character","meta"]""",
             OverridesJson = """{"seed":1234,"steps":28}""",
@@ -50,8 +50,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal("1girl, #long_hair, @monet", back.Prompt);
         Assert.Equal("worst quality", back.NegativePrompt);
         Assert.Equal("portrait", back.Aspect);
-        Assert.True(back.RandomArtist);
-        Assert.False(back.RandomPrompt);
+        Assert.Equal(TriState.True, back.RandomArtist);
+        Assert.Equal(TriState.False, back.RandomPrompt);
         Assert.Equal(0.85, back.Temperature);
         Assert.Equal("""["character","meta"]""", back.TagTypesJson);
         Assert.Equal("""{"seed":1234,"steps":28}""", back.OverridesJson);
@@ -91,6 +91,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal("mask-1", back.MaskImageId);
         Assert.Equal("last-1", back.LastFrameImageId);
         Assert.Equal(["ref-a", "ref-b", "ref-c"], back.ReferenceImageIds);
+        // An unset tri-state persists as a NULL bit and reads back as Unspecified — the "not provided" state, not False.
+        Assert.Equal(TriState.Unspecified, back.RandomArtist);
+        Assert.Equal(TriState.Unspecified, back.RandomPrompt);
     }
 
     /// <summary>
