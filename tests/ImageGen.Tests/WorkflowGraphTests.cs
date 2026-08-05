@@ -561,7 +561,7 @@ public sealed class WorkflowGraphTests
         ParamValues P(int scale) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = scale,
-            ["max_resolution"] = 0, ["fallback_short_edge"] = 1080, ["batch_size"] = 1,
+            ["max_resolution"] = 0, ["batch_size"] = 1,
             ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
             ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
         });
@@ -575,9 +575,9 @@ public sealed class WorkflowGraphTests
         var odd = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 1000, SourceHeight = 833 };
         Assert.Contains("\"resolution\":834", Json(P(1), odd));
 
-        // No source dims -> nothing to multiply; fall back to the node's own default rather than emit a bogus size.
+        // No source dims is a broken image source, not a real state — REFUSED, not upscaled to a fabricated size.
         var noDims = new WorkflowInputs { SourceImageName = "s.png" };
-        Assert.Contains("\"resolution\":1080", Json(P(4), noDims));
+        Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(4), new ResolvedRequirements(), noDims));
 
         // The node caps resolution at 16384 and rejects the WHOLE prompt above it — clamp instead of emitting a 400.
         var huge = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 9000, SourceHeight = 5000 };
@@ -597,7 +597,7 @@ public sealed class WorkflowGraphTests
         ParamValues P(long seed) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = 2,
-            ["max_resolution"] = 0, ["fallback_short_edge"] = 1080, ["batch_size"] = 1, ["seed"] = seed,
+            ["max_resolution"] = 0, ["batch_size"] = 1, ["seed"] = seed,
             ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
             ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
         });

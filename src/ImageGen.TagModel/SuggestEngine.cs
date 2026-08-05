@@ -127,11 +127,13 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         var results = new List<Suggestion>(ordered.Count);
         foreach (var id in ordered)
         {
+            // Marginal is eps-floored positive by construction (TagVocab clamps it to [eps, 1-eps]), so the base rate
+            // is never zero here — no divide guard, which would only paper over a corrupt bundle.
             var baseRate = vocab.Marginal[id];
             results.Add(new Suggestion(
                 vocab.Tags[id],
                 display[id],
-                baseRate > 0 ? conditional[id] / baseRate : null));
+                conditional[id] / baseRate));
         }
 
         return new SuggestResult(results, total, unknown);

@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+﻿using ImageGen.Domain;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Qwen-Image-Edit (<c>TextEncodeQwenImageEditPlus</c>). Two models run this topology — the standard split model
@@ -155,10 +157,13 @@ public abstract class QwenEditBase : EditWorkflowBase
         // crouch at native scale. The conditioning is untouched — node 13 still encodes the FULL source and node 30's
         // reference latent is still the full-frame latent — so identity and the character's true scale are preserved.
         int Pct(string k) => p.Has(k) ? p.IntReq(k) : 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
-        var rect = inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-            ? MaskGeom(Pct(WorkflowParamKeys.MaskLeftPct), Pct(WorkflowParamKeys.MaskRightPct), Pct(WorkflowParamKeys.MaskTopPct), Pct(WorkflowParamKeys.MaskBottomPct),
-                       inputs.SourceWidth, inputs.SourceHeight)
-            : null;
+        // A Qwen edit's source is a still, so its dimensions are ALWAYS measured — a zero is a broken source, not a
+        // valid state. Refuse it rather than silently drop a requested canvas mask. (MaskGeom returns null when no
+        // mask side is set, so an unmasked edit still no-ops.)
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
+        var rect = MaskGeom(Pct(WorkflowParamKeys.MaskLeftPct), Pct(WorkflowParamKeys.MaskRightPct), Pct(WorkflowParamKeys.MaskTopPct), Pct(WorkflowParamKeys.MaskBottomPct),
+                            inputs.SourceWidth, inputs.SourceHeight);
 
         object sampleLatent = ComfyGraph.Ref(SourceEncode, 0);
         if (rect is (int rx, int ry, int rw, int rh))

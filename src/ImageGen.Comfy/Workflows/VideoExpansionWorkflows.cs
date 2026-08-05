@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -171,10 +172,13 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
         // (alpha-respecting, onto white — same nodes FlattenOnWhite uses) at the offset for the whitespace. Source dims
         // come from the uploaded frame (inputs.SourceWidth/Height). When every pad_*_pct is 0 PadGeom returns null and
         // the graph is the original.
+        // i2v: the source is a still, so its dimensions are ALWAYS measured. A zero here is a broken source, not the
+        // valid "dims unknown" of the video-source path (a different workflow) — refuse it rather than skip the pad.
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
         object scaleSource = ComfyGraph.Ref(Nodes.Source, 0);
-        if (inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-            && PadGeom(Pct(WorkflowParamKeys.PadLeftPct), Pct(WorkflowParamKeys.PadRightPct), Pct(WorkflowParamKeys.PadTopPct), Pct(WorkflowParamKeys.PadBottomPct),
-                       inputs.SourceWidth, inputs.SourceHeight) is (int cw, int ch, int px, int py))
+        if (PadGeom(Pct(WorkflowParamKeys.PadLeftPct), Pct(WorkflowParamKeys.PadRightPct), Pct(WorkflowParamKeys.PadTopPct), Pct(WorkflowParamKeys.PadBottomPct),
+                    inputs.SourceWidth, inputs.SourceHeight) is (int cw, int ch, int px, int py))
         {
             wf[PadCanvas] = ComfyGraph.Node(ComfyNodeTypes.EmptyImage, new { width = cw, height = ch, batch_size = 1, color = 0xFFFFFF });
             wf[PadMask] = ComfyGraph.Node(ComfyNodeTypes.InvertMask, new { mask = ComfyGraph.Ref(Nodes.Source, 1) });
@@ -198,9 +202,8 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
             // the pose lands in the wrong place — the clip never reaches it. Scale the end image to the source frame
             // size, then composite it into the same white canvas (PadGeom) at the offset. The save gate in the caller
             // guarantees the two frames share an aspect, so the scale here is proportional (no distortion).
-            if (inputs.SourceWidth > 0 && inputs.SourceHeight > 0
-                && PadGeom(Pct(WorkflowParamKeys.EndPadLeftPct), Pct(WorkflowParamKeys.EndPadRightPct), Pct(WorkflowParamKeys.EndPadTopPct), Pct(WorkflowParamKeys.EndPadBottomPct),
-                           inputs.SourceWidth, inputs.SourceHeight) is (int ecw, int ech, int epx, int epy))
+            if (PadGeom(Pct(WorkflowParamKeys.EndPadLeftPct), Pct(WorkflowParamKeys.EndPadRightPct), Pct(WorkflowParamKeys.EndPadTopPct), Pct(WorkflowParamKeys.EndPadBottomPct),
+                        inputs.SourceWidth, inputs.SourceHeight) is (int ecw, int ech, int epx, int epy))
             {
                 int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
                 wf[EndScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image = ComfyGraph.Ref(EndFrame, 0), upscale_method = "lanczos", width = sw, height = sh, crop = "disabled" });

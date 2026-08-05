@@ -23,7 +23,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     /// past the model's comfortable range, so measuring the unpadded source would let the real canvas sail past it.</summary>
     protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
     {
-        if (inputs.SourceWidth <= 0 || inputs.SourceHeight <= 0) return (0, 0);
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
                 inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
     }
@@ -79,24 +80,21 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         // all cross-fade into scene tone, and the latent cells straddling the boundary encode scene colors instead
         // of a grey|content step. (Denoise stays 1.0 — see DefaultDenoise for why partial denoise over the scaffold
         // does not work here.)
+        // CanvasSize refuses a source with unknown dimensions, so the padded canvas is always real here.
         var canvas = CanvasSize(p, inputs);
-        if (canvas.W > 0 && canvas.H > 0)
+        wf[StretchScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
         {
-            wf[StretchScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
-            {
-                image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos",
-                width = canvas.W, height = canvas.H, crop = "disabled",
-            });
-            // sigma 10.0 is ImageBlur's node maximum.
-            wf[PrefillBlur] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(StretchScale, 0), blur_radius = 31, sigma = 10.0 });
-            wf[PrefillComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new
-            {
-                destination = ComfyGraph.Ref(PrefillBlur, 0),
-                source = ComfyGraph.Ref(Nodes.Source, 0),
-                x = pl, y = pt, resize_source = false,
-            });
-            image = ComfyGraph.Ref(PrefillComposite, 0);
-        }
-        else image = ComfyGraph.Ref(Pad, 0);   // source dims unknown: no stretch target, grey canvas as a last resort
+            image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos",
+            width = canvas.W, height = canvas.H, crop = "disabled",
+        });
+        // sigma 10.0 is ImageBlur's node maximum.
+        wf[PrefillBlur] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(StretchScale, 0), blur_radius = 31, sigma = 10.0 });
+        wf[PrefillComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new
+        {
+            destination = ComfyGraph.Ref(PrefillBlur, 0),
+            source = ComfyGraph.Ref(Nodes.Source, 0),
+            x = pl, y = pt, resize_source = false,
+        });
+        image = ComfyGraph.Ref(PrefillComposite, 0);
     }
 }

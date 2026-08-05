@@ -35,17 +35,19 @@ internal static class PixelSnap
         if (!p.Bool(WorkflowParamKeys.SnapResolution)) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
         // From here snapping was REQUESTED, so any inability to compute is a HARD FAILURE, not a silent fall-back to
         // the model's default size (which would still render but look like the toggle did nothing).
-        int w = p.Int(WorkflowParamKeys.Width, 0); if (w <= 0) w = srcW;
-        int h = p.Int(WorkflowParamKeys.Height, 0); if (h <= 0) h = srcH;
+        // 0 = "use the source dimensions" (the sentinel); a negative override is out of range, not another way to say it.
+        int w = p.Int(WorkflowParamKeys.Width, 0); Ensure.NotNegative(w); if (w == 0) w = srcW;
+        int h = p.Int(WorkflowParamKeys.Height, 0); Ensure.NotNegative(h); if (h == 0) h = srcH;
         if (vres <= 0)
             throw new RenderValidationException("snap_resolution is on but virtual_resolution is 0 — set a virtual resolution or turn snapping off.");
-        if (w <= 0 || h <= 0)
+        if (w == 0 || h == 0)
             throw new RenderValidationException("snap_resolution is on but no aspect is available (no source image dimensions and no width/height override) — cannot compute the snapped render size.");
         if (r is null || Math.Max(r.MaxW, r.MaxH) <= 0)
             throw new RenderValidationException("snap_resolution is on but this model has no resolution-range data — cannot snap. Turn snapping off, or add a resolution block to the model.");
         int minSide = Math.Min(r.MinW, r.MinH);
         int maxSide = Math.Max(r.MaxW, r.MaxH);
-        return Compute(vres, w, h, minSide, maxSide, r.Step <= 0 ? 16 : r.Step);
+        Ensure.GreaterThanZero(r.Step);   // a non-positive latent step is a broken model resolution, not a 16 to invent
+        return Compute(vres, w, h, minSide, maxSide, r.Step);
     }
 
     /// <summary>Compute the render-resolution snap and CACHE it on the param bag (<c>_snap_w</c>/<c>_snap_h</c>) so a

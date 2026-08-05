@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -111,14 +113,18 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         // what makes it pad the frame with repeated/decorative junk. So downscale the source to the model's native pixel
         // budget (aspect preserved, snapped to /16) before the img2img — the same "render at a native bucket" the
         // generate path does. The result is left at that native resolution (a redraw is already a destructive
-        // re-render; no point up-scaling it back). Only downscales; needs the source dims the edit path supplies (falls
-        // back to the raw source if unavailable, or if the config declares no budget).
+        // re-render; no point up-scaling it back). Only downscales. No budget declared → the source is sampled at its
+        // own resolution; a budget with a broken (zero-dimension) source is refused, not silently sampled at raw scale.
         static int Snap16(int v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
         long budget = p.Has(WorkflowParamKeys.NativePixels) ? p.IntReq(WorkflowParamKeys.NativePixels) : 0;   // no budget declared → sample the source at its own resolution
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
         object encPixels = ComfyGraph.Ref(Nodes.Source, 0);
-        if (budget > 0 && sw > 0 && sh > 0)
+        if (budget > 0)
         {
+            // A budget is declared, so downscale to it. The source is a still with measured dims — refuse a zero
+            // rather than silently sampling the raw source at the wrong scale.
+            Ensure.GreaterThanZero(sw);
+            Ensure.GreaterThanZero(sh);
             double f = Math.Sqrt(budget / ((double)sw * sh));
             if (f < 0.98)   // meaningfully over budget → downscale to native
             {

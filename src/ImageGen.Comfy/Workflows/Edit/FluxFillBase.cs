@@ -74,10 +74,14 @@ public abstract class FluxFillBase : EditWorkflowBase
     protected abstract void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
         out object image, out object rawMask);
 
-    /// <summary>Pixel size of the canvas <see cref="ResolveCanvas"/> produces; (0,0) when unknown (then no scaling
-    /// is emitted — we never guess at a resolution change).</summary>
+    /// <summary>Pixel size of the canvas <see cref="ResolveCanvas"/> produces. The source is a still, so its
+    /// dimensions are always measured — a zero is a broken source, refused rather than silently skipping the ceiling.</summary>
     protected virtual (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
-        => (inputs.SourceWidth, inputs.SourceHeight);
+    {
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
+        return (inputs.SourceWidth, inputs.SourceHeight);
+    }
 
     /// <summary>Gaussian sigma of the mask edge — the width of the crossfade band the composite blends over (and of
     /// the soft mask the model is conditioned on), so it wants to be several latent cells wide.</summary>
@@ -145,8 +149,9 @@ public abstract class FluxFillBase : EditWorkflowBase
         ref object image, ref object rawMask)
     {
         int cap = p.IntReq(WorkflowParamKeys.MaxDimension);
+        Ensure.NotNegative(cap);   // 0 = off (no ceiling); a negative is out of range, not a second spelling of "off"
         int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap <= 0 || canvas.W <= 0 || canvas.H <= 0 || longEdge <= cap) return;
+        if (cap == 0 || longEdge <= cap) return;   // ceiling off, or already under it (CanvasSize guarantees real dims)
 
         double f = (double)cap / longEdge;
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);

@@ -44,7 +44,6 @@ internal static class WorkflowParamKeys
     public const string EndPercent = "end_percent";
     public const string Engine = "engine";
     public const string Epsilon = "epsilon";
-    public const string FallbackShortEdge = "fallback_short_edge";
     public const string Feather = "feather";
     public const string FinalMethod = "final_method";
     public const string FpFrequencies = "fp_frequencies";

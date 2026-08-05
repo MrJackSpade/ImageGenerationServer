@@ -53,8 +53,6 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
                 Label = "Scale (×)", Help = "Output size relative to the source. The aspect ratio is preserved." },
         // The node's "no limit" sentinel. Locked: an upscaler must never silently shrink what it was asked for.
         new() { Key = WorkflowParamKeys.MaxResolution, Type = ParamType.Int },
-        // Fallback short edge for the rare case the edit path supplies no source dimensions (the node's own default).
-        new() { Key = WorkflowParamKeys.FallbackShortEdge, Type = ParamType.Int },
         // How the output's colour is re-matched to the source. Diffusion restorers drift; 'lab' is the pack's default.
         new() { Key = WorkflowParamKeys.ColorCorrection, Type = ParamType.Enum,
                 Choices = new[] { "lab", "wavelet", "wavelet_adaptive", "hsv", "adain", "none" }, Label = "Colour match" },
@@ -126,18 +124,17 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         long seed = (long)(unchecked((ulong)ComfyGraph.Seed(p)) % (SeedVr2SeedMax + 1UL));
 
         // The node sizes by TARGET SHORT EDGE, not by a multiplier, so turn the scale the UI offers into one:
-        // short_edge(source) * scale, aspect preserved by the node. Snapped to even (the node's step). When the edit
-        // path gives no source dimensions there is nothing to multiply, so fall back to the node's own default.
+        // short_edge(source) * scale, aspect preserved by the node. Snapped to even (the node's step).
         // The node's own declared bounds for `resolution` (16..16384, even). Exceeding them is not a soft failure --
         // ComfyUI rejects the entire prompt at validation -- so clamp to the ceiling rather than emit a certain 400.
         // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
         const int NodeResMin = 16, NodeResMax = 16384;
-        int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
         int scale = p.IntReq(WorkflowParamKeys.Scale);
         Ensure.GreaterThanZero(scale);
-        int resolution = (sw > 0 && sh > 0)
-            ? Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax)
-            : p.IntReq(WorkflowParamKeys.FallbackShortEdge);
+        // The source is a still, so its dimensions are ALWAYS measured — a zero is a broken source to refuse, not a
+        // state to substitute a fixed short edge for.
+        int sw = Ensure.GreaterThanZero(inputs.SourceWidth), sh = Ensure.GreaterThanZero(inputs.SourceHeight);
+        int resolution = Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
         wf[Upscale] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2VideoUpscaler, new

@@ -31,10 +31,6 @@
       "value": 0,
       "exposed": false
     },
-    "fallback_short_edge": {
-      "value": 1080,
-      "exposed": false
-    },
     "color_correction": {
       "value": "lab",
       "exposed": true

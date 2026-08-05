@@ -21,7 +21,8 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     /// <summary>The ceiling applies to the PADDED canvas — outpainting is what actually grows the frame.</summary>
     protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
     {
-        if (inputs.SourceWidth <= 0 || inputs.SourceHeight <= 0) return (0, 0);
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
                 inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
     }

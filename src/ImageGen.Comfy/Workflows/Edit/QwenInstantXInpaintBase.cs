@@ -104,10 +104,14 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
     private const double MaskBlurSigma = 8.0;
 
     /// <summary>Pixel size of the canvas <see cref="ResolveCanvas"/> produces, used to decide whether the
-    /// <c>max_dimension</c> ceiling is exceeded. (0,0) when the source dims are unknown, in which case no scaling is
-    /// emitted — we never guess at a resolution change.</summary>
+    /// <c>max_dimension</c> ceiling is exceeded. The source is a still, so its dimensions are always measured — a
+    /// zero is refused rather than silently skipping the ceiling.</summary>
     protected virtual (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
-        => (inputs.SourceWidth, inputs.SourceHeight);
+    {
+        Ensure.GreaterThanZero(inputs.SourceWidth);
+        Ensure.GreaterThanZero(inputs.SourceHeight);
+        return (inputs.SourceWidth, inputs.SourceHeight);
+    }
 
     /// <summary>
     /// The reference template's "Grow and Blur Mask" subgraph, node for node:
@@ -156,8 +160,9 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         (int W, int H) canvas, ref object image, ref object rawMask)
     {
         int cap = p.IntReq(WorkflowParamKeys.MaxDimension);
+        Ensure.NotNegative(cap);   // 0 = off (no ceiling); a negative is out of range, not a second spelling of "off"
         int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap <= 0 || canvas.W <= 0 || canvas.H <= 0 || longEdge <= cap) return;   // native: under the ceiling, or unknown
+        if (cap == 0 || longEdge <= cap) return;   // native: ceiling off, or under it (CanvasSize guarantees real dims)
 
         // Preserve aspect, then snap DOWN to a multiple of 16 (Qwen: VAE /8 + patch /2) so the latent grid is exact.
         double f = (double)cap / longEdge;
