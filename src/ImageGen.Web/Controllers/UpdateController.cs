@@ -21,7 +21,7 @@ public sealed class UpdateController(UpdateCheck updates) : Controller
     [HttpGet("")]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
-        var status = await _updates.GetAsync(ct);
+        UpdateStatus status = await _updates.GetAsync(ct);
         return Json(new { current = status.Current, latest = status.Latest, url = status.Url });
     }
 }

@@ -21,11 +21,11 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_batch_bigger_than_the_minimum_is_shown_whole()
     {
-        var user = await fixture.NewUserAsync("recents-big-batch");
+        User user = await fixture.NewUserAsync("recents-big-batch");
         await SeedHistoryAsync(user.Id, 14);
         await SeedLatestBatchAsync(user.Id, produced: 10);
 
-        var items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
+        IReadOnlyList<HistoryEntry> items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
 
         Assert.Equal(10, items.Count);
         Assert.Equal("img-13", items[0].GatewayImageId);   // newest first
@@ -35,11 +35,11 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_small_batch_leaves_the_minimum_standing()
     {
-        var user = await fixture.NewUserAsync("recents-small-batch");
+        User user = await fixture.NewUserAsync("recents-small-batch");
         await SeedHistoryAsync(user.Id, 14);
         await SeedLatestBatchAsync(user.Id, produced: 2);
 
-        var items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
+        IReadOnlyList<HistoryEntry> items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
 
         Assert.Equal(6, items.Count);
     }
@@ -48,10 +48,10 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task No_batch_at_all_falls_back_to_the_minimum()
     {
-        var user = await fixture.NewUserAsync("recents-no-batch");
+        User user = await fixture.NewUserAsync("recents-no-batch");
         await SeedHistoryAsync(user.Id, 3);
 
-        var items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
+        IReadOnlyList<HistoryEntry> items = await Service.GetRecentsAsync(user.Id, minimum: 6, ct: Ct);
 
         Assert.Equal(3, items.Count);   // history ran out — the window is a ceiling, not a promise
     }
@@ -63,18 +63,18 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_half_done_batch_sizes_to_what_it_has_made()
     {
-        var user = await fixture.NewUserAsync("recents-half-done");
+        User user = await fixture.NewUserAsync("recents-half-done");
         await SeedHistoryAsync(user.Id, 20);
         await SeedLatestBatchAsync(user.Id, produced: 3, queued: 7);
 
-        var items = await Service.GetRecentsAsync(user.Id, minimum: 4, ct: Ct);
+        IReadOnlyList<HistoryEntry> items = await Service.GetRecentsAsync(user.Id, minimum: 4, ct: Ct);
 
         Assert.Equal(4, items.Count);   // max(min 4, produced 3) — not 10
     }
 
     private async Task SeedHistoryAsync(long userId, int count)
     {
-        for (var i = 0; i < count; i++)
+        for (int i = 0; i < count; i++)
             await fixture.History.AddAsync(new HistoryEntry
             {
                 UserId = userId,
@@ -90,9 +90,9 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
 
     private async Task SeedLatestBatchAsync(long userId, int produced, int queued = 0)
     {
-        var jobId = Guid.NewGuid().ToString("N");
-        var slots = new List<JobSlotRecord>();
-        for (var i = 0; i < produced + queued; i++)
+        string jobId = Guid.NewGuid().ToString("N");
+        List<JobSlotRecord> slots = new List<JobSlotRecord>();
+        for (int i = 0; i < produced + queued; i++)
             slots.Add(new JobSlotRecord
             {
                 JobId = jobId,

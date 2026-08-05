@@ -1,6 +1,7 @@
 using ImageGen.Infrastructure;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace ImageGen.Tests;
 
@@ -24,11 +25,11 @@ public sealed class SqliteSchemaMigrationTests
 
     private static async Task<HashSet<string>> ColumnsAsync(SqliteConnectionFactory factory, string table)
     {
-        await using var connection = await factory.OpenAsync(CancellationToken.None);
-        await using var command = connection.CreateCommand();
+        await using DbConnection connection = await factory.OpenAsync(CancellationToken.None);
+        await using DbCommand command = connection.CreateCommand();
         command.CommandText = $"PRAGMA dbo.table_info({table});";
-        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        await using var reader = await command.ExecuteReaderAsync();
+        HashSet<string> columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using DbDataReader reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
             columns.Add(reader.GetString(1));
         return columns;
@@ -36,8 +37,8 @@ public sealed class SqliteSchemaMigrationTests
 
     private static async Task ExecAsync(SqliteConnectionFactory factory, string sql)
     {
-        await using var connection = await factory.OpenAsync(CancellationToken.None);
-        await using var command = connection.CreateCommand();
+        await using DbConnection connection = await factory.OpenAsync(CancellationToken.None);
+        await using DbCommand command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync();
     }
@@ -46,7 +47,7 @@ public sealed class SqliteSchemaMigrationTests
     {
         // Release the native file handles before deleting, or the WAL/SHM siblings stay locked on Windows.
         SqliteConnection.ClearAllPools();
-        foreach (var file in new[] { path, path + "-wal", path + "-shm" })
+        foreach (string? file in new[] { path, path + "-wal", path + "-shm" })
             // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
             try { if (File.Exists(file)) File.Delete(file); } catch (IOException) { }
     }
@@ -54,8 +55,8 @@ public sealed class SqliteSchemaMigrationTests
     [Fact]
     public async Task Replaying_the_whole_script_is_idempotent()
     {
-        var path = TempDbPath();
-        var factory = new SqliteConnectionFactory($"Data Source={path}");
+        string path = TempDbPath();
+        SqliteConnectionFactory factory = new SqliteConnectionFactory($"Data Source={path}");
         try
         {
             await InitAsync(factory);
@@ -69,8 +70,8 @@ public sealed class SqliteSchemaMigrationTests
     [Fact]
     public async Task A_column_added_after_0_9_0_reaches_a_preexisting_database()
     {
-        var path = TempDbPath();
-        var factory = new SqliteConnectionFactory($"Data Source={path}");
+        string path = TempDbPath();
+        SqliteConnectionFactory factory = new SqliteConnectionFactory($"Data Source={path}");
         try
         {
             // JobSlot as a 0.9.0 database has it: present, and WITHOUT LorasJson (added in 0.9.1). The UNIQUE mirrors

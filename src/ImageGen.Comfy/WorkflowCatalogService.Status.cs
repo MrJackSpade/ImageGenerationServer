@@ -1,5 +1,6 @@
 ﻿using ImageGen.Application.Workflows;
 using ImageGen.Domain.Repositories;
+using System.Text.Json;
 
 namespace ImageGen.Comfy;
 
@@ -15,19 +16,19 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task<CatalogStatus> GetStatusAsync(CancellationToken ct)
     {
-        var machine = Environment.MachineName;
-        var byKind = await _comfy.GetPresentFilesByKindAsync(ct);
+        string machine = Environment.MachineName;
+        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = await _comfy.GetPresentFilesByKindAsync(ct);
 
         // Recognise what we can before reporting, so a fresh install has already bound the obvious things.
-        var slots = _catalog.AllRequirements();
-        var bindings = await _overrides.BindingsAsync(machine, ct);
-        var matches = ModelMatcher.Match(
+        IReadOnlyList<Requirement> slots = _catalog.AllRequirements();
+        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(machine, ct);
+        IReadOnlyList<SlotMatch> matches = ModelMatcher.Match(
             slots.Where(s => !bindings.ContainsKey(s.Id))
                  .Select(s => new MatchableSlot(s.Id, s.Kind, s.Match)),
             byKind);
 
-        var auto = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var m in matches)
+        Dictionary<string, string> auto = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (SlotMatch m in matches)
             if (m.AutoBind is { } bind)
                 auto[m.SlotId] = bind;
         if (auto.Count > 0)
@@ -39,24 +40,24 @@ public sealed partial class WorkflowCatalogService
 
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
 
-        var candidatesBySlot = matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
-        var slotStatus = slots
+        Dictionary<string, IReadOnlyList<string>> candidatesBySlot = matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
+        List<ModelSlotStatus> slotStatus = slots
             .OrderBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
             .Select(s => new ModelSlotStatus(
                 s.Id,
                 s.Label,
                 s.Kind.ToString(),
-                bindings.TryGetValue(s.Id, out var b) ? b.FileName : null,
+                bindings.TryGetValue(s.Id, out ModelBinding? b) ? b.FileName : null,
                 b?.IsAuto ?? false,
-                candidatesBySlot.TryGetValue(s.Id, out var c) ? c : [],
-                byKind.TryGetValue(s.Kind, out var files) ? files : []))
+                candidatesBySlot.TryGetValue(s.Id, out IReadOnlyList<string>? c) ? c : [],
+                byKind.TryGetValue(s.Kind, out IReadOnlyList<string>? files) ? files : []))
             .ToList();
 
         // A requirement that names a node is a custom-node PACK, not a file: there is nothing to bind, and it is
         // met exactly when ComfyUI has that node registered. Asked separately because the file lists cannot answer
         // it — a node that loads nothing contributes no filenames to disappear when the pack does.
-        var nodeRequirements = slots.Where(s => !string.IsNullOrWhiteSpace(s.Node)).ToList();
-        var presentNodes = nodeRequirements.Count == 0
+        List<Requirement> nodeRequirements = slots.Where(s => !string.IsNullOrWhiteSpace(s.Node)).ToList();
+        IReadOnlySet<string> presentNodes = nodeRequirements.Count == 0
             ? (IReadOnlySet<string>)new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node).OfType<string>(), ct);
 
@@ -67,19 +68,19 @@ public sealed partial class WorkflowCatalogService
             if (_catalog.FindRequirement(slotId) is not { } r) return false;
             if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
 
-            return bindings.TryGetValue(slotId, out var bound)
-                && byKind.TryGetValue(r.Kind, out var files)
+            return bindings.TryGetValue(slotId, out ModelBinding? bound)
+                && byKind.TryGetValue(r.Kind, out IReadOnlyList<string>? files)
                 && files.Contains(bound.FileName, StringComparer.OrdinalIgnoreCase);
         }
 
-        var workflows = new List<WorkflowStatus>();
-        foreach (var cfg in _catalog.AllConfigs())
+        List<WorkflowStatus> workflows = new List<WorkflowStatus>();
+        foreach (WorkflowConfiguration cfg in _catalog.AllConfigs())
         {
-            var wf = _registry.Find(cfg.WorkflowName);
+            IWorkflow? wf = _registry.Find(cfg.WorkflowName);
             if (wf is null) continue;
 
-            var required = cfg.Requirements.All().ToList();
-            var missing = required.Where(id => !Satisfied(id)).ToList();
+            List<string> required = cfg.Requirements.All().ToList();
+            List<string> missing = required.Where(id => !Satisfied(id)).ToList();
 
             workflows.Add(new WorkflowStatus(
                 cfg.Id,
@@ -97,10 +98,10 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct)
     {
-        var machine = Environment.MachineName;
+        string machine = Environment.MachineName;
         // isAuto: false — a person chose this, so auto-matching must never overwrite it later.
         await _overrides.SetBindingAsync(machine, slotId, fileName, isAuto: false, ct);
-        var bindings = await _overrides.BindingsAsync(machine, ct);
+        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(machine, ct);
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
     }
 
@@ -110,12 +111,12 @@ public sealed partial class WorkflowCatalogService
     /// </summary>
     private void GuardAspectAgainstEnvelope(string configId, string json)
     {
-        var cfg = _catalog.FindConfig(configId);
+        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
         if (cfg?.Resolution is not { } env) return;
-        var name = cfg.FriendlyName ?? cfg.Id;
+        string name = cfg.FriendlyName ?? cfg.Id;
 
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        foreach (var aspect in doc.RootElement.EnumerateObject())
+        using JsonDocument doc = System.Text.Json.JsonDocument.Parse(json);
+        foreach (JsonProperty aspect in doc.RootElement.EnumerateObject())
         {
             if (aspect.Value.ValueKind != System.Text.Json.JsonValueKind.Array || aspect.Value.GetArrayLength() < 2) continue;
             int w = aspect.Value[0].GetInt32(), h = aspect.Value[1].GetInt32();

@@ -41,23 +41,23 @@ public sealed partial class NoPlaintextLogTests
 
     private static void AssertNoPromptBearingSink(Regex sink, string what)
     {
-        var root = RepoRoot();
-        var offenders = new List<string>();
+        string root = RepoRoot();
+        List<string> offenders = new List<string>();
 
-        foreach (var dir in new[] { "src", "tools" })
+        foreach (string? dir in new[] { "src", "tools" })
         {
-            var path = Path.Combine(root, dir);
+            string path = Path.Combine(root, dir);
             if (!Directory.Exists(path))
                 continue;
 
-            foreach (var file in Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
+            foreach (string file in Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
             {
                 if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
                     file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
                     continue;
 
-                var lines = File.ReadAllLines(file);
-                for (var i = 0; i < lines.Length; i++)
+                string[] lines = File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
                 {
                     // Matched against CODE ONLY. A comment can mention a logger call and the reason it must not carry
                     // a prompt — this file's own subject matter — and a comment emits nothing, so matching one is a
@@ -65,7 +65,7 @@ public sealed partial class NoPlaintextLogTests
                     if (!sink.IsMatch(CodeOnly(lines[i])))
                         continue;
 
-                    var code = CodeParts(lines[i]);
+                    string code = CodeParts(lines[i]);
                     if (PromptBearing.Any(p => code.Contains(p, StringComparison.OrdinalIgnoreCase)))
                         offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
                 }
@@ -84,10 +84,10 @@ public sealed partial class NoPlaintextLogTests
     /// </summary>
     private static string CodeParts(string line)
     {
-        var holes = string.Join(" ", Hole().Matches(line).Select(m => m.Groups[1].Value));
-        var code = holes + " " + CodeOnly(line);
+        string holes = string.Join(" ", Hole().Matches(line).Select(m => m.Groups[1].Value));
+        string code = holes + " " + CodeOnly(line);
         // Strip the known-safe fragments BEFORE searching for the dangerous ones, or "promptId" reads as "prompt".
-        foreach (var safe in NotPromptBearing)
+        foreach (string safe in NotPromptBearing)
             code = code.Replace(safe, "", StringComparison.OrdinalIgnoreCase);
         return code;
     }
@@ -96,15 +96,15 @@ public sealed partial class NoPlaintextLogTests
     /// for a comment), then everything from the first remaining "//" dropped.</summary>
     private static string CodeOnly(string line)
     {
-        var withoutLiterals = Literal().Replace(line, "");
-        var comment = withoutLiterals.IndexOf("//", StringComparison.Ordinal);
+        string withoutLiterals = Literal().Replace(line, "");
+        int comment = withoutLiterals.IndexOf("//", StringComparison.Ordinal);
         return comment < 0 ? withoutLiterals : withoutLiterals[..comment];
     }
 
     /// <summary>Walk up from the test binary to the directory holding the solution.</summary>
     private static string RepoRoot()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "ImageGen.slnx")))
             dir = dir.Parent;
         Assert.NotNull(dir);

@@ -33,16 +33,16 @@ public sealed class HistoryService(
     /// </summary>
     public async Task<IReadOnlyList<HistoryEntry>> GetRecentsAsync(long userId, int minimum, CancellationToken ct)
     {
-        var produced = await _jobs.CountLatestBatchImagesAsync(userId, ct);
-        var window = Math.Max(minimum, produced);
+        int produced = await _jobs.CountLatestBatchImagesAsync(userId, ct);
+        int window = Math.Max(minimum, produced);
 
         // Collected a page at a time because the repository caps a page (a batch may be larger than one). Stops early
         // when history runs out — a fresh account has fewer images than the batch it just started.
-        var items = new List<HistoryEntry>(window);
-        for (var page = 1; items.Count < window; page++)
+        List<HistoryEntry> items = new List<HistoryEntry>(window);
+        for (int page = 1; items.Count < window; page++)
         {
-            var size = Math.Min(RecentsPageSize, window);
-            var result = await _history.GetPageAsync(new HistoryQuery(userId, page, size), ct);
+            int size = Math.Min(RecentsPageSize, window);
+            PagedResult<HistoryEntry> result = await _history.GetPageAsync(new HistoryQuery(userId, page, size), ct);
             items.AddRange(result.Items);
             if (result.Items.Count < size) break;
         }

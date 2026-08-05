@@ -36,8 +36,8 @@ public static class PromptSearch
             return true;
 
         // '\n' between the two forms so a term can't span the join.
-        var haystack = Fold(prompt + "\n" + rawPrompt);
-        foreach (var term in terms)
+        string haystack = Fold(prompt + "\n" + rawPrompt);
+        foreach (string term in terms)
             if (!haystack.Contains(term, StringComparison.OrdinalIgnoreCase))
                 return false;
         return true;

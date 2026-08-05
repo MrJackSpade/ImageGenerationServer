@@ -55,8 +55,8 @@ public sealed class EnsureTests
     [Fact]
     public void Failure_names_the_captured_expression()
     {
-        var scale = 0;
-        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => Ensure.GreaterThanZero(scale));
+        int scale = 0;
+        ArgumentOutOfRangeException ex = Assert.Throws<ArgumentOutOfRangeException>(() => Ensure.GreaterThanZero(scale));
         Assert.Equal("scale", ex.ParamName);
         Assert.StartsWith("scale must be greater than zero.", ex.Message);
     }

@@ -1,5 +1,5 @@
-using System.Net;
 using ImageGen.Web.Hosting;
+using System.Net;
 
 namespace ImageGen.Tests;
 
@@ -15,7 +15,7 @@ public sealed class ListenAddressTests
     [Fact]
     public void A_free_port_is_left_exactly_as_configured()
     {
-        var resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken());
+        string? resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken());
 
         Assert.Equal("http://0.0.0.0:8080", resolved);
     }
@@ -24,7 +24,7 @@ public sealed class ListenAddressTests
     public void A_taken_port_moves_to_the_next_one_up()
     {
         // Upward, not OS-assigned: 8081 after 8080 is a guess a person will make.
-        var resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken(8080));
+        string? resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken(8080));
 
         Assert.Equal("http://0.0.0.0:8081", resolved);
     }
@@ -32,7 +32,7 @@ public sealed class ListenAddressTests
     [Fact]
     public void It_keeps_walking_past_a_run_of_taken_ports()
     {
-        var resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken(8080, 8081, 8082));
+        string? resolved = ListenAddress.Resolve("http://0.0.0.0:8080", isPortFree: Taken(8080, 8081, 8082));
 
         Assert.Equal("http://0.0.0.0:8083", resolved);
     }
@@ -51,7 +51,7 @@ public sealed class ListenAddressTests
     [Fact]
     public void Nothing_is_reported_when_nothing_moved()
     {
-        var moved = false;
+        bool moved = false;
 
         ListenAddress.Resolve("http://0.0.0.0:8080", onMoved: (_, _, _) => moved = true, isPortFree: Taken());
 
@@ -61,7 +61,7 @@ public sealed class ListenAddressTests
     [Fact]
     public void Each_url_in_a_list_is_resolved_independently()
     {
-        var resolved = ListenAddress.Resolve(
+        string? resolved = ListenAddress.Resolve(
             "http://0.0.0.0:8080;https://0.0.0.0:8443", isPortFree: Taken(8443));
 
         Assert.Equal("http://0.0.0.0:8080;https://0.0.0.0:8443".Replace("8443", "8444"), resolved);
@@ -92,7 +92,7 @@ public sealed class ListenAddressTests
     public void The_original_is_kept_when_nothing_above_the_port_is_free()
     {
         // Then Kestrel throws its own bind error, which is the accurate one — better than an invented failure here.
-        var resolved = ListenAddress.Resolve("http://0.0.0.0:65535", isPortFree: (_, _) => false);
+        string? resolved = ListenAddress.Resolve("http://0.0.0.0:65535", isPortFree: (_, _) => false);
 
         Assert.Equal("http://0.0.0.0:65535", resolved);
     }
@@ -100,7 +100,7 @@ public sealed class ListenAddressTests
     [Fact]
     public void A_wildcard_host_is_preserved_when_the_port_moves()
     {
-        var resolved = ListenAddress.Resolve("http://*:8080", isPortFree: Taken(8080));
+        string? resolved = ListenAddress.Resolve("http://*:8080", isPortFree: Taken(8080));
 
         Assert.Equal("http://*:8081", resolved);
     }

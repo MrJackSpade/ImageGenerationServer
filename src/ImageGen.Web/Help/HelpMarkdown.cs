@@ -1,5 +1,5 @@
-using System.Text;
 using Markdig;
+using System.Text;
 
 namespace ImageGen.Web.Help;
 
@@ -42,16 +42,16 @@ public static class HelpMarkdown
 
     public static HelpPageViewModel Parse(string markdown)
     {
-        var lines = markdown.Replace(CrLf, Lf).Replace('\r', '\n').Split('\n');
-        var intro = new StringBuilder();
-        var sections = new List<(string Title, StringBuilder Body)>();
+        string[] lines = markdown.Replace(CrLf, Lf).Replace('\r', '\n').Split('\n');
+        StringBuilder intro = new StringBuilder();
+        List<(string Title, StringBuilder Body)> sections = new List<(string Title, StringBuilder Body)>();
         (string Title, StringBuilder Body)? cur = null;
-        var inFence = false;
+        bool inFence = false;
 
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
-            var trimmed = line.TrimStart();
-            var isFence = trimmed.StartsWith(BacktickFence, StringComparison.Ordinal)
+            string trimmed = line.TrimStart();
+            bool isFence = trimmed.StartsWith(BacktickFence, StringComparison.Ordinal)
                        || trimmed.StartsWith(TildeFence, StringComparison.Ordinal);
 
             // A ## at column 0, outside a code fence, opens a new section. Fence lines never split (a shell comment

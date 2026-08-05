@@ -1,8 +1,8 @@
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
-using ImageGen.Web.Auth;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -36,31 +36,33 @@ public sealed class BookmarksController(
         if (string.IsNullOrWhiteSpace(tag))
             return RedirectToAction(nameof(Index));
 
-        var userId = User.GetRequiredUserId();
-        var page = await _history.GetPageAsync(new HistoryQuery(userId, 1, 200, Tag: tag), ct);
-        var viewed = await _views.ViewedAsync(userId, page.Items, ct);
+        long userId = User.GetRequiredUserId();
+        PagedResult<HistoryEntry> page = await _history.GetPageAsync(new HistoryQuery(userId, 1, 200, Tag: tag), ct);
+        IReadOnlySet<string> viewed = await _views.ViewedAsync(userId, page.Items, ct);
         return View(Views.Filter, new BookmarkFilterViewModel
         {
-            Token = tag, Kind = "tag", Items = page.Items.Select(e => e.ToItemView(viewed)).ToList(),
+            Token = tag,
+            Kind = "tag",
+            Items = page.Items.Select(e => e.ToItemView(viewed)).ToList(),
         });
     }
 
     [HttpGet("/bookmarks")]
     public async Task<IActionResult> Index(string? artist, CancellationToken ct)
     {
-        var userId = User.GetRequiredUserId();
+        long userId = User.GetRequiredUserId();
 
         // Artists now have their own page (display image + all their gens + set-display).
         if (!string.IsNullOrEmpty(artist))
             return Redirect("/artist/" + Uri.EscapeDataString(artist));
 
-        var tokens = await _bookmarks.GetTokensAsync(userId, ct);
-        var images = await _bookmarks.GetImagesAsync(userId, ct);
+        IReadOnlyList<TokenBookmark> tokens = await _bookmarks.GetTokensAsync(userId, ct);
+        IReadOnlyList<ImageBookmark> images = await _bookmarks.GetImagesAsync(userId, ct);
 
-        var artists = tokens.Where(t => t.Kind == TokenKind.Artist).ToList();
-        var tags = tokens.Where(t => t.Kind == TokenKind.Tag).ToList();
-        var displays = await _artists.ResolveManyAsync(userId, artists.Select(a => a.Name).ToList(), ct);
-        var tagDisplays = await _tags.ResolveManyAsync(userId, tags.Select(t => t.Name).ToList(), ct);
+        List<TokenBookmark> artists = tokens.Where(t => t.Kind == TokenKind.Artist).ToList();
+        List<TokenBookmark> tags = tokens.Where(t => t.Kind == TokenKind.Tag).ToList();
+        IReadOnlyDictionary<string, string> displays = await _artists.ResolveManyAsync(userId, artists.Select(a => a.Name).ToList(), ct);
+        IReadOnlyDictionary<string, string> tagDisplays = await _tags.ResolveManyAsync(userId, tags.Select(t => t.Name).ToList(), ct);
         ArtistCard Card(Domain.Entities.TokenBookmark t) =>
             new() { Name = t.Name, DisplayImageId = displays.GetValueOrDefault(t.Name), Pinned = t.PinnedAtUtc is not null };
         TagCard TagCardOf(Domain.Entities.TokenBookmark t) =>
@@ -75,7 +77,7 @@ public sealed class BookmarksController(
 
         BookmarkGroup Build(string title, bool isGlobal, Func<IReadOnlyList<string>, bool> pred)
         {
-            var groupArtists = artists.Where(a => pred(a.Categories))
+            List<ArtistCard> groupArtists = artists.Where(a => pred(a.Categories))
                 .OrderByDescending(t => t.PinnedAtUtc is not null)
                 .ThenByDescending(t => t.PinnedAtUtc)
                 .Select(Card)
@@ -92,17 +94,17 @@ public sealed class BookmarksController(
 
         static bool HasContent(BookmarkGroup g) => g.Artists.Count > 0 || g.Tags.Count > 0 || g.Images.Count > 0;
 
-        var categoryNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var c in tokens.SelectMany(t => t.Categories).Concat(images.SelectMany(i => i.Categories)))
+        SortedSet<string> categoryNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string? c in tokens.SelectMany(t => t.Categories).Concat(images.SelectMany(i => i.Categories)))
             categoryNames.Add(c);
 
-        var groups = new List<BookmarkGroup>();
-        var global = Build(GroupTitles.Global, true, InGlobal);
+        List<BookmarkGroup> groups = new List<BookmarkGroup>();
+        BookmarkGroup global = Build(GroupTitles.Global, true, InGlobal);
         if (HasContent(global))
             groups.Add(global);
-        foreach (var name in categoryNames)
+        foreach (string name in categoryNames)
         {
-            var g = Build(name, false, cats => InCategory(cats, name));
+            BookmarkGroup g = Build(name, false, cats => InCategory(cats, name));
             if (HasContent(g))
                 groups.Add(g);
         }

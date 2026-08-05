@@ -1,5 +1,5 @@
-using System.Data.Common;
 using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Database;
 
@@ -43,14 +43,14 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
     /// </summary>
     public SqliteConnectionFactory(string connectionString)
     {
-        var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        string dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
         if (string.IsNullOrWhiteSpace(dataSource))
             throw new InvalidOperationException(
                 "The SQLite connection string has no 'Data Source'. Expected something like "
                 + "\"Data Source=/data/imagegen.db\".");
 
         _dataSource = Path.GetFullPath(dataSource);
-        var directory = Path.GetDirectoryName(_dataSource);
+        string? directory = Path.GetDirectoryName(_dataSource);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
     }
@@ -61,11 +61,11 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
     /// <inheritdoc />
     public async Task<DbConnection> OpenAsync(CancellationToken ct)
     {
-        var connection = new SqliteConnection(InMemoryConnectionString);
+        SqliteConnection connection = new SqliteConnection(InMemoryConnectionString);
         await connection.OpenAsync(ct);
         try
         {
-            await using var setup = connection.CreateCommand();
+            await using SqliteCommand setup = connection.CreateCommand();
             // The path is interpolated because ATTACH will not take a parameter for it. Single quotes are doubled,
             // which is the whole of SQLite string-literal escaping.
             setup.CommandText =

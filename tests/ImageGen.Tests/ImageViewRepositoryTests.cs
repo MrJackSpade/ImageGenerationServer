@@ -1,4 +1,5 @@
 using ImageGen.Domain.Entities;
+using System.Data.Common;
 
 namespace ImageGen.Tests;
 
@@ -17,9 +18,9 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task An_image_with_no_record_is_unviewed()
     {
-        var user = await fixture.NewUserAsync("view-absent");
+        User user = await fixture.NewUserAsync("view-absent");
 
-        var viewed = await fixture.ImageViews.ViewedAsync(user.Id, ["never-opened"], Ct);
+        IReadOnlySet<string> viewed = await fixture.ImageViews.ViewedAsync(user.Id, ["never-opened"], Ct);
 
         Assert.Empty(viewed);
     }
@@ -27,10 +28,10 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Marking_viewed_is_remembered_and_scoped_to_the_asked_ids()
     {
-        var user = await fixture.NewUserAsync("view-mark");
+        User user = await fixture.NewUserAsync("view-mark");
         await fixture.ImageViews.MarkViewedAsync(user.Id, "opened", Now, Ct);
 
-        var viewed = await fixture.ImageViews.ViewedAsync(user.Id, ["opened", "not-opened"], Ct);
+        IReadOnlySet<string> viewed = await fixture.ImageViews.ViewedAsync(user.Id, ["opened", "not-opened"], Ct);
 
         Assert.Contains("opened", viewed);
         Assert.DoesNotContain("not-opened", viewed);
@@ -41,8 +42,8 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Marking_viewed_twice_is_idempotent_and_keeps_the_first_time()
     {
-        var user = await fixture.NewUserAsync("view-twice");
-        var later = Now.AddHours(3);
+        User user = await fixture.NewUserAsync("view-twice");
+        DateTime later = Now.AddHours(3);
 
         await fixture.ImageViews.MarkViewedAsync(user.Id, "twice", Now, Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "twice", later, Ct);
@@ -55,8 +56,8 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Views_are_isolated_per_user()
     {
-        var alice = await fixture.NewUserAsync("view-alice");
-        var bob = await fixture.NewUserAsync("view-bob");
+        User alice = await fixture.NewUserAsync("view-alice");
+        User bob = await fixture.NewUserAsync("view-bob");
         await fixture.ImageViews.MarkViewedAsync(alice.Id, "shared-image", Now, Ct);
 
         Assert.Contains("shared-image", await fixture.ImageViews.ViewedAsync(alice.Id, ["shared-image"], Ct));
@@ -71,14 +72,14 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Mark_all_covers_this_users_history_and_only_theirs()
     {
-        var alice = await fixture.NewUserAsync("view-all-alice");
-        var bob = await fixture.NewUserAsync("view-all-bob");
+        User alice = await fixture.NewUserAsync("view-all-alice");
+        User bob = await fixture.NewUserAsync("view-all-bob");
         await fixture.History.AddAsync(Entry(alice.Id, "a1"), Ct);
         await fixture.History.AddAsync(Entry(alice.Id, "a2"), Ct);
         await fixture.History.AddAsync(Entry(bob.Id, "b1"), Ct);
         await fixture.ImageViews.MarkViewedAsync(alice.Id, "a1", Now, Ct);   // already seen
 
-        var marked = await fixture.ImageViews.MarkAllViewedAsync(alice.Id, Now.AddDays(1), Ct);
+        int marked = await fixture.ImageViews.MarkAllViewedAsync(alice.Id, Now.AddDays(1), Ct);
 
         Assert.Equal(1, marked);   // a2 only — a1 was already viewed
         Assert.Equal(Now, await ViewedAtAsync(alice.Id, "a1"));   // the first view's time survives
@@ -93,7 +94,7 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Deleting_an_image_removes_its_view_record()
     {
-        var user = await fixture.NewUserAsync("view-delete");
+        User user = await fixture.NewUserAsync("view-delete");
         await fixture.History.AddAsync(Entry(user.Id, "doomed"), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "doomed", Now, Ct);
 
@@ -104,8 +105,8 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
 
     private async Task<DateTime> ViewedAtAsync(long userId, string imageId)
     {
-        await using var conn = await fixture.ConnectionFactory.OpenAsync(Ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
+        await using DbCommand cmd = conn.Command(
             "SELECT ViewedAtUtc FROM dbo.ImageView WHERE UserId = @u AND GatewayImageId = @i;");
         cmd.AddParam("@u", userId);
         cmd.AddParam("@i", imageId);

@@ -29,19 +29,19 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4/5/6 + LoadImage 10
-        var src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4/5/6 + LoadImage 10
+        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
 
-        var instruction = p.Str(WorkflowParamKeys.StylePrompt);
+        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
         int gw = p.IntReq(WorkflowParamKeys.GridW);
         int gh = p.IntReq(WorkflowParamKeys.GridH);
-        var palette = p.StrReq(WorkflowParamKeys.Palette);
+        string palette = p.StrReq(WorkflowParamKeys.Palette);
         int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
 
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = instruction, clip = clip0 });
-        var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
+        (int w, int h)? snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
         wf[Scale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
             : ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = src });

@@ -58,8 +58,8 @@ internal static class PixelSnap
     /// resolved checkpoint's, or an explicit one for self-contained pipelines).</summary>
     public static void WriteRenderSize(IDictionary<string, object?> p, ModelResolution? res, int srcW, int srcH)
     {
-        var pv = new ParamValues(p as IReadOnlyDictionary<string, object?> ?? new Dictionary<string, object?>(p));
-        var snap = Target(pv, res, pv.Int(WorkflowParamKeys.VirtualResolution, 0), srcW, srcH);   // _snap_* not set yet → computes fresh
+        ParamValues pv = new ParamValues(p as IReadOnlyDictionary<string, object?> ?? new Dictionary<string, object?>(p));
+        (int w, int h)? snap = Target(pv, res, pv.Int(WorkflowParamKeys.VirtualResolution, 0), srcW, srcH);   // _snap_* not set yet → computes fresh
         if (snap is { } s) { p[SnapWKey] = s.w; p[SnapHKey] = s.h; }
     }
 

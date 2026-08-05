@@ -42,9 +42,9 @@ public sealed class Krea2RefineWorkflow : Krea2Workflow
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
 
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
 
         // Base diffusion model (req.Checkpoint) + Turbo refiner (req.MotionModel slot). Shared Qwen3-VL encoder + VAE.
         wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());

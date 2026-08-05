@@ -33,17 +33,17 @@ public sealed class ChronoEditWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
         model0 = ComfyGraph.ApplyLora(wf, model0, p);                                  // distilled LoRA (fast 20-step path)
-        var seed = ComfyGraph.Seed(p);
+        long seed = ComfyGraph.Seed(p);
         int len = p.IntReq(WorkflowParamKeys.Length);                                  // ChronoEdit's short trajectory
         double budgetMp = 0.52;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
 
         // Sampling fix-ups the template applies to the Wan model for ChronoEdit.
         wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = 5.0 });
         wf[ScaleRope] = ComfyGraph.Node(ComfyNodeTypes.ScaleROPE, new { model = ComfyGraph.Ref(ModelSampling, 0), scale_x = 1.0, shift_x = 0.0, scale_y = 1.0, shift_y = 0.0, scale_t = 1.0, shift_t = 0.0 });
-        var ksModel = ComfyGraph.Ref(ScaleRope, 0);
+        object ksModel = ComfyGraph.Ref(ScaleRope, 0);
 
         // Source image, scaled to a ~0.5MP budget (preserves aspect; 720² ≈ 0.52MP), reused as both the i2v start
         // frame and the clip-vision input.

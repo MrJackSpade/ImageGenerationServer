@@ -1,6 +1,4 @@
-﻿using ImageGen.Application.Rendering;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>The named palettes the PixelQuantize / PixelManifoldProjection nodes (ComfyUI-PixelHarness) accept, in
 /// dropdown order. <c>adaptive</c> derives a ≤256-colour palette from the image itself (median cut); the rest are

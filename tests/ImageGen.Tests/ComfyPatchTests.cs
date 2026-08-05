@@ -1,6 +1,7 @@
-using System.Text;
 using ImageGen.Comfy;
 using ImageGen.Comfy.Patches;
+using ImageGen.Web.Comfy;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -25,7 +26,7 @@ public sealed class ComfyPatchTests : IDisposable
 
     private string Write(string relative, string content)
     {
-        var full = Path.Combine(_root, relative.Replace('/', Path.DirectorySeparatorChar));
+        string full = Path.Combine(_root, relative.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
         File.WriteAllText(full, content);
         return full;
@@ -50,8 +51,8 @@ public sealed class ComfyPatchTests : IDisposable
     public void Apply_then_reverse_leaves_the_file_byte_identical()
     {
         Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
-        var before = Snapshot();
-        var files = UnifiedDiff.Parse(Diff);
+        Dictionary<string, string> before = Snapshot();
+        IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
         PatchApplier.Apply(_root, files, reverse: false);
         Assert.Contains("name.strip()", File.ReadAllText(Path.Combine(_root, "greet.py")));
@@ -64,7 +65,7 @@ public sealed class ComfyPatchTests : IDisposable
     public void A_patch_is_applied_exactly_when_it_reverse_applies()
     {
         Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
-        var files = UnifiedDiff.Parse(Diff);
+        IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
         Assert.True(PatchApplier.Probe(_root, files, reverse: false).Ok);
         Assert.False(PatchApplier.Probe(_root, files, reverse: true).Ok);
@@ -86,7 +87,7 @@ public sealed class ComfyPatchTests : IDisposable
 
         PatchApplier.Apply(_root, UnifiedDiff.Parse(Diff), reverse: false);
 
-        var text = File.ReadAllText(Path.Combine(_root, "greet.py"));
+        string text = File.ReadAllText(Path.Combine(_root, "greet.py"));
         Assert.Contains("name.strip()", text);
         Assert.StartsWith("# added upstream", text);
     }
@@ -95,10 +96,10 @@ public sealed class ComfyPatchTests : IDisposable
     public void A_hunk_whose_context_has_changed_is_a_conflict_and_writes_nothing()
     {
         Write("greet.py", "def greet(name):\n    return \"hello \" + name\n\n");   // the returned line differs
-        var before = Snapshot();
-        var files = UnifiedDiff.Parse(Diff);
+        Dictionary<string, string> before = Snapshot();
+        IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
-        var probe = PatchApplier.Probe(_root, files, reverse: false);
+        PatchProbe probe = PatchApplier.Probe(_root, files, reverse: false);
         Assert.False(probe.Ok);
         Assert.Contains("greet.py", probe.Reason);
 
@@ -115,9 +116,9 @@ public sealed class ComfyPatchTests : IDisposable
     {
         Write("one.py", "a\nb\nc\n");
         Write("two.py", "SOMETHING ELSE\n");
-        var before = Snapshot();
+        Dictionary<string, string> before = Snapshot();
 
-        var files = UnifiedDiff.Parse("""
+        IReadOnlyList<FileDiff> files = UnifiedDiff.Parse("""
             --- a/one.py
             +++ b/one.py
             @@ -1,3 +1,4 @@
@@ -139,8 +140,8 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_created_file_is_removed_again_and_takes_its_bytecode_with_it()
     {
-        var pack = UnifiedDiff.Added("nodes.py", "NODE_CLASS_MAPPINGS = {}\n");
-        var target = Path.Combine(_root, "pack");
+        FileDiff pack = UnifiedDiff.Added("nodes.py", "NODE_CLASS_MAPPINGS = {}\n");
+        string target = Path.Combine(_root, "pack");
 
         PatchApplier.Apply(target, [pack], reverse: false);
         Assert.True(File.Exists(Path.Combine(target, "nodes.py")));
@@ -162,12 +163,12 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void Creating_over_a_different_file_needs_overwrite_and_names_what_it_would_lose()
     {
-        var pack = UnifiedDiff.Added("nodes.py", "NEW\n");
+        FileDiff pack = UnifiedDiff.Added("nodes.py", "NEW\n");
         Write("nodes.py", "SOMEONE ELSE'S\n");
 
         Assert.Equal(["nodes.py"], PatchApplier.Occupied(_root, [pack]));
 
-        var conflict = Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, [pack], reverse: false));
+        PatchConflictException conflict = Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, [pack], reverse: false));
         Assert.Contains("nodes.py", conflict.Message);
         Assert.Equal("SOMEONE ELSE'S\n", File.ReadAllText(Path.Combine(_root, "nodes.py")));
 
@@ -182,7 +183,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void Creating_over_an_identical_file_is_not_a_conflict()
     {
-        var pack = UnifiedDiff.Added("nodes.py", "SAME\n");
+        FileDiff pack = UnifiedDiff.Added("nodes.py", "SAME\n");
         Write("nodes.py", "SAME\n");
 
         Assert.Empty(PatchApplier.Occupied(_root, [pack]));
@@ -201,7 +202,7 @@ public sealed class ComfyPatchTests : IDisposable
 
         PatchApplier.Apply(_root, UnifiedDiff.Parse(Diff), reverse: false);
 
-        var text = File.ReadAllText(Path.Combine(_root, "greet.py"));
+        string text = File.ReadAllText(Path.Combine(_root, "greet.py"));
         Assert.Contains("name.strip()", text);
         Assert.DoesNotContain(text.Replace("\r\n", ""), "\n");   // nothing left as a bare LF
     }
@@ -215,13 +216,13 @@ public sealed class ComfyPatchTests : IDisposable
     public void A_carried_binary_file_installs_and_uninstalls_byte_for_byte()
     {
         // Deliberately full of things that break text handling: NULs, a lone CR, a lone LF, high bytes.
-        var bytes = new byte[512];
-        for (var i = 0; i < bytes.Length; i++) bytes[i] = (byte)(i % 256);
+        byte[] bytes = new byte[512];
+        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)(i % 256);
         bytes[10] = 0x00; bytes[11] = 0x0D; bytes[12] = 0x0A; bytes[13] = 0x00;
 
-        var pack = UnifiedDiff.AddedBinary("weights/model.pth", bytes);
+        FileDiff pack = UnifiedDiff.AddedBinary("weights/model.pth", bytes);
         Assert.True(pack.IsBinary);
-        var target = Path.Combine(_root, "pack");
+        string target = Path.Combine(_root, "pack");
 
         PatchApplier.Apply(target, [pack], reverse: false);
         Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(target, "weights", "model.pth")));
@@ -238,7 +239,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_carried_binary_file_that_differs_is_not_overwritten_silently()
     {
-        var pack = UnifiedDiff.AddedBinary("model.pth", [1, 2, 3, 0, 4]);
+        FileDiff pack = UnifiedDiff.AddedBinary("model.pth", [1, 2, 3, 0, 4]);
         Write("model.pth", "");
         File.WriteAllBytes(Path.Combine(_root, "model.pth"), [9, 9, 0, 9]);
 
@@ -253,7 +254,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_path_that_leaves_the_target_directory_is_refused()
     {
-        var ex = Assert.Throws<UnifiedDiff.FormatException>(() => UnifiedDiff.Parse("""
+        UnifiedDiff.FormatException ex = Assert.Throws<UnifiedDiff.FormatException>(() => UnifiedDiff.Parse("""
             --- a/../../escape.py
             +++ b/../../escape.py
             @@ -1,1 +1,2 @@
@@ -266,7 +267,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_binary_patch_is_refused_rather_than_guessed_at()
     {
-        var ex = Assert.Throws<UnifiedDiff.FormatException>(() =>
+        UnifiedDiff.FormatException ex = Assert.Throws<UnifiedDiff.FormatException>(() =>
             UnifiedDiff.Parse("diff --git a/x.bin b/x.bin\nGIT binary patch\nliteral 0\n"));
         Assert.Contains("binary", ex.Message);
     }
@@ -289,11 +290,11 @@ public sealed class ComfyPatchTests : IDisposable
     [SkippableFact]
     public void The_shipped_patch_set_loads()
     {
-        var payload = Payload();
+        string? payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
         Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
+        IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
         Assert.NotEmpty(patches);
         Assert.Equal(patches.Select(p => p.Id).Distinct().Count(), patches.Count);
@@ -312,7 +313,7 @@ public sealed class ComfyPatchTests : IDisposable
         });
 
         // The gate changes a guarantee rather than a feature, so removing it has to warn.
-        var gate = patches.Single(p => p.Id == "node-imagegen-gate");
+        ComfyPatch gate = patches.Single(p => p.Id == "node-imagegen-gate");
         Assert.False(string.IsNullOrWhiteSpace(gate.Warn));
     }
 
@@ -323,16 +324,16 @@ public sealed class ComfyPatchTests : IDisposable
     [SkippableFact]
     public void Every_shipped_node_pack_installs_and_uninstalls_cleanly()
     {
-        var payload = Payload();
+        string? payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
         Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(null, Path.Combine(payload, "comfy-nodes"));
+        IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(null, Path.Combine(payload, "comfy-nodes"));
         Assert.NotEmpty(patches);
 
-        foreach (var patch in patches)
+        foreach (ComfyPatch patch in patches)
         {
-            var target = Path.Combine(_root, patch.Target.Replace('/', Path.DirectorySeparatorChar));
+            string target = Path.Combine(_root, patch.Target.Replace('/', Path.DirectorySeparatorChar));
 
             PatchApplier.Apply(target, patch.Files, reverse: false);
             Assert.True(PatchApplier.Probe(target, patch.Files, reverse: true).Ok, $"{patch.Id} did not read back as applied");
@@ -352,20 +353,20 @@ public sealed class ComfyPatchTests : IDisposable
     [SkippableFact]
     public void Every_third_party_pack_is_installable_from_a_pinned_revision()
     {
-        var payload = Payload();
+        string? payload = Payload();
         Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
         Assert.NotNull(payload);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
+        IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
         // Anything targeting custom_nodes/ must either BE the pack (this repo ships it) or say where to get it.
-        var packs = patches.Where(p => p.Target.StartsWith("custom_nodes/", StringComparison.Ordinal)).ToList();
+        List<ComfyPatch> packs = patches.Where(p => p.Target.StartsWith("custom_nodes/", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(packs);
         Assert.All(packs, p => Assert.True(p.CreatesItsTarget || p.SourceUrl is not null,
             $"{p.Id} targets {p.Target} but neither ships it nor says where to fetch it"));
 
         // An install-only patch is exactly that: a pinned source and no diff of ours.
-        foreach (var p in packs.Where(p => p.IsInstallOnly))
+        foreach (ComfyPatch? p in packs.Where(p => p.IsInstallOnly))
         {
             Assert.Empty(p.Files);
             Assert.Matches("^[0-9a-f]{40}$", p.Rev ?? throw new InvalidOperationException("patch has no rev"));   // a commit, never a branch
@@ -385,20 +386,20 @@ public sealed class ComfyPatchTests : IDisposable
     [SkippableFact]
     public void Every_provides_names_a_real_catalogue_requirement()
     {
-        var repo = RepositoryRoot();
+        string? repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
         Assert.NotNull(repo);
 
-        var patches = ComfyPatchCatalog.Load(Path.Combine(repo, "comfy-patches"), Path.Combine(repo, "comfy-nodes"));
+        IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(repo, "comfy-patches"), Path.Combine(repo, "comfy-nodes"));
 
-        var slots = Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json")
+        Dictionary<string, string?> slots = Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json")
             .Select(f => System.Text.Json.JsonDocument.Parse(File.ReadAllText(f)).RootElement)
             .Where(e => e.TryGetProperty("id", out _))
-            .ToDictionary(e => e.GetProperty("id").RequireString(), e => e.TryGetProperty("kind", out var k) ? k.GetString() : null);
+            .ToDictionary(e => e.GetProperty("id").RequireString(), e => e.TryGetProperty("kind", out JsonElement k) ? k.GetString() : null);
 
-        foreach (var patch in patches)
+        foreach (ComfyPatch patch in patches)
         {
-            foreach (var provided in patch.Provides)
+            foreach (string provided in patch.Provides)
             {
                 Assert.True(slots.ContainsKey(provided),
                     $"{patch.Id} says it provides '{provided}', which is not a catalogue requirement.");
@@ -411,8 +412,8 @@ public sealed class ComfyPatchTests : IDisposable
 
         // Every custom_node requirement the catalogue has should be installable, or a workflow needing it is a
         // dead end on a fresh box.
-        var installable = patches.SelectMany(p => p.Provides).ToHashSet(StringComparer.Ordinal);
-        var orphans = slots.Where(s => s.Value == "custom_node" && !installable.Contains(s.Key)).Select(s => s.Key).ToList();
+        HashSet<string> installable = patches.SelectMany(p => p.Provides).ToHashSet(StringComparer.Ordinal);
+        List<string> orphans = slots.Where(s => s.Value == "custom_node" && !installable.Contains(s.Key)).Select(s => s.Key).ToList();
         Assert.True(orphans.Count == 0, $"no patch installs these custom_node requirements: {string.Join(", ", orphans)}");
     }
 
@@ -425,16 +426,16 @@ public sealed class ComfyPatchTests : IDisposable
     [SkippableFact]
     public async Task Live_renderer_reports_a_folder_this_machine_can_verify()
     {
-        var baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
+        string? baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
         Assert.NotNull(baseUrl);
 
-        var install = new ImageGen.Web.Comfy.ComfyInstall(
+        ComfyInstall install = new ImageGen.Web.Comfy.ComfyInstall(
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
             new SingleClientFactory(),
             new FixedEndpoint(baseUrl));
 
-        var root = await install.DetectRootAsync(CancellationToken.None);
+        string? root = await install.DetectRootAsync(CancellationToken.None);
 
         Assert.NotNull(root);
         Assert.True(File.Exists(Path.Combine(root, "main.py")), $"{root} has no main.py");
@@ -455,7 +456,7 @@ public sealed class ComfyPatchTests : IDisposable
     /// <summary>The source checkout this test is running out of, found by walking up from the test binary.</summary>
     private static string? RepositoryRoot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
             if (Directory.Exists(Path.Combine(directory.FullName, "comfy-patches")) &&

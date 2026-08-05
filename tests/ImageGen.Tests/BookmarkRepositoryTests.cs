@@ -11,13 +11,13 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Token_add_is_deduped_and_split_by_kind()
     {
-        var user = await fixture.NewUserAsync("bm-tokens");
+        User user = await fixture.NewUserAsync("bm-tokens");
 
         Assert.True(await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "monet", TokenKind.Artist), Ct));
         Assert.False(await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "monet", TokenKind.Artist), Ct));
         Assert.True(await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "monet", TokenKind.Tag), Ct)); // same name, other kind
 
-        var tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
+        IReadOnlyList<TokenBookmark> tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
         Assert.Equal(2, tokens.Count);
         Assert.Single(tokens, t => t.Kind == TokenKind.Artist);
         Assert.Single(tokens, t => t.Kind == TokenKind.Tag);
@@ -26,7 +26,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Token_remove_reports_whether_it_existed()
     {
-        var user = await fixture.NewUserAsync("bm-token-remove");
+        User user = await fixture.NewUserAsync("bm-token-remove");
         await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "cats", TokenKind.Tag), Ct);
 
         Assert.True(await fixture.Bookmarks.RemoveTokenAsync(user.Id, "cats", TokenKind.Tag, Ct));
@@ -36,13 +36,13 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Image_bookmark_roundtrips_with_marks_and_dedupes()
     {
-        var user = await fixture.NewUserAsync("bm-image");
-        var bookmark = Image(user.Id, "img-9", marks: [new Mark("rembrandt", TokenKind.Artist)]);
+        User user = await fixture.NewUserAsync("bm-image");
+        ImageBookmark bookmark = Image(user.Id, "img-9", marks: [new Mark("rembrandt", TokenKind.Artist)]);
 
         Assert.True(await fixture.Bookmarks.AddImageAsync(bookmark, Ct));
         Assert.False(await fixture.Bookmarks.AddImageAsync(bookmark, Ct));
 
-        var images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
+        IReadOnlyList<ImageBookmark> images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
         Assert.Single(images);
         Assert.Equal("img-9", images[0].GatewayImageId);
         Assert.Contains(images[0].Marks, m => m is { Token: "rembrandt", Kind: TokenKind.Artist });
@@ -51,8 +51,8 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Bookmarks_are_isolated_per_user()
     {
-        var alice = await fixture.NewUserAsync("bm-alice");
-        var bob = await fixture.NewUserAsync("bm-bob");
+        User alice = await fixture.NewUserAsync("bm-alice");
+        User bob = await fixture.NewUserAsync("bm-bob");
         await fixture.Bookmarks.AddTokenAsync(Token(alice.Id, "secret", TokenKind.Tag), Ct);
         await fixture.Bookmarks.AddImageAsync(Image(alice.Id, "secret-img"), Ct);
 
@@ -63,13 +63,13 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Setting_token_categories_creates_the_bookmark_and_replaces_the_set()
     {
-        var user = await fixture.NewUserAsync("bm-token-cats");
+        User user = await fixture.NewUserAsync("bm-token-cats");
 
         // Long-pressing an un-starred chip and filing it should create the bookmark itself.
         await fixture.Bookmarks.SetTokenCategoriesAsync(
             Token(user.Id, "vangogh", TokenKind.Artist), ["Post-Impressionism", "Favorites"], Ct);
 
-        var tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
+        IReadOnlyList<TokenBookmark> tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
         Assert.Single(tokens);
         Assert.Equal(
             new[] { "Favorites", "Post-Impressionism" },
@@ -78,7 +78,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
         // A second set replaces (not merges) the whole set.
         await fixture.Bookmarks.SetTokenCategoriesAsync(
             Token(user.Id, "vangogh", TokenKind.Artist), ["Favorites"], Ct);
-        var after = await fixture.Bookmarks.GetTokenCategoriesAsync(user.Id, "vangogh", TokenKind.Artist, Ct);
+        IReadOnlyList<string> after = await fixture.Bookmarks.GetTokenCategoriesAsync(user.Id, "vangogh", TokenKind.Artist, Ct);
         Assert.Equal(["Favorites"], after);
         Assert.Single(await fixture.Bookmarks.GetTokensAsync(user.Id, Ct)); // still one bookmark
     }
@@ -86,25 +86,25 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Setting_image_categories_creates_the_bookmark_and_lists_distinct_names()
     {
-        var user = await fixture.NewUserAsync("bm-image-cats");
+        User user = await fixture.NewUserAsync("bm-image-cats");
 
         await fixture.Bookmarks.SetImageCategoriesAsync(Image(user.Id, "img-cat"), ["Landscapes", "Refs"], Ct);
         await fixture.Bookmarks.SetTokenCategoriesAsync(
             Token(user.Id, "field", TokenKind.Tag), ["Refs"], Ct); // shared category across kinds
 
-        var images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
+        IReadOnlyList<ImageBookmark> images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
         Assert.Single(images);
         Assert.Equal(new[] { "Landscapes", "Refs" }, images[0].Categories.OrderBy(c => c).ToArray());
 
         // The distinct list spans both bookmark kinds, deduped and name-sorted.
-        var all = await fixture.Bookmarks.GetAllCategoriesAsync(user.Id, Ct);
+        IReadOnlyList<string> all = await fixture.Bookmarks.GetAllCategoriesAsync(user.Id, Ct);
         Assert.Equal(new[] { "Landscapes", "Refs" }, all);
     }
 
     [Fact]
     public async Task Removing_a_bookmark_clears_its_categories_from_the_distinct_list()
     {
-        var user = await fixture.NewUserAsync("bm-cat-cascade");
+        User user = await fixture.NewUserAsync("bm-cat-cascade");
         await fixture.Bookmarks.SetTokenCategoriesAsync(Token(user.Id, "temp", TokenKind.Tag), ["Scratch"], Ct);
 
         Assert.Equal(["Scratch"], await fixture.Bookmarks.GetAllCategoriesAsync(user.Id, Ct));

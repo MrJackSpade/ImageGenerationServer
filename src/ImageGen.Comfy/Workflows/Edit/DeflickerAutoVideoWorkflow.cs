@@ -45,7 +45,7 @@ public sealed class DeflickerAutoVideoWorkflow : IWorkflow
 
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.") }),
             [Nodes.Components] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),

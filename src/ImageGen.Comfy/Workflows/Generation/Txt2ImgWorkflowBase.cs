@@ -94,11 +94,11 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
 
     public virtual Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var file = req.RequiredCheckpoint();
-        var loader = p.Loader();
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        string file = req.RequiredCheckpoint();
+        LoaderKind loader = p.Loader();
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
 
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
         object modelSrc, clipSrc, vaeSrc;
 
         if (loader == LoaderKind.Checkpoint)
@@ -110,7 +110,7 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         {
             wf[Nodes.Model] = ComfyGraph.DiffusionLoader(file);
             modelSrc = ComfyGraph.Ref(Nodes.Model, 0);
-            var clipType = p.StrReq(WorkflowParamKeys.ClipType);
+            string clipType = p.StrReq(WorkflowParamKeys.ClipType);
             wf[Nodes.Clip] = p.Bool(WorkflowParamKeys.Dual)
                 ? ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = clipType, device = "default" })
                 : ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = clipType, device = "default" });
@@ -148,8 +148,8 @@ public abstract class Txt2ImgWorkflowBase : IWorkflow
         }
         posSrc = PostEncodePositive(wf, posSrc, p);   // model-specific positive-conditioning transform (default: identity)
 
-        var latent = p.StrReq(WorkflowParamKeys.Latent);
-        var latentClass = latent == LatentKind.Sd3 ? "EmptySD3LatentImage"
+        string latent = p.StrReq(WorkflowParamKeys.Latent);
+        string latentClass = latent == LatentKind.Sd3 ? "EmptySD3LatentImage"
                         : latent == LatentKind.Flux2 ? "EmptyFlux2LatentImage"
                         : latent == LatentKind.Pixel ? "EmptyChromaRadianceLatentImage" : "EmptyLatentImage";
         wf[Nodes.Latent] = ComfyGraph.Node(latentClass, new { width = w, height = h, batch_size = 1 });

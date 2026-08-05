@@ -58,16 +58,25 @@ public static class ComfyGraph
     [AllowMagicStrings("Forge/A1111 sampler names mapped to their ComfyUI equivalents")]
     private static Dictionary<string, string> BuildSamplerMap() => new(StringComparer.OrdinalIgnoreCase)
     {
-        ["DPM++ 2M"] = "dpmpp_2m", ["DPM++ 2M Karras"] = "dpmpp_2m", ["DPM++ 2M SDE"] = "dpmpp_2m_sde",
-        ["DPM++ SDE"] = "dpmpp_sde", ["DPM++ 3M SDE"] = "dpmpp_3m_sde", ["Euler a"] = "euler_ancestral",
-        ["Euler"] = "euler", ["Heun"] = "heun", ["LMS"] = "lms", ["DDIM"] = "ddim", ["UniPC"] = "uni_pc", ["DPM2"] = "dpm_2"
+        ["DPM++ 2M"] = "dpmpp_2m",
+        ["DPM++ 2M Karras"] = "dpmpp_2m",
+        ["DPM++ 2M SDE"] = "dpmpp_2m_sde",
+        ["DPM++ SDE"] = "dpmpp_sde",
+        ["DPM++ 3M SDE"] = "dpmpp_3m_sde",
+        ["Euler a"] = "euler_ancestral",
+        ["Euler"] = "euler",
+        ["Heun"] = "heun",
+        ["LMS"] = "lms",
+        ["DDIM"] = "ddim",
+        ["UniPC"] = "uni_pc",
+        ["DPM2"] = "dpm_2"
     };
 
     [AllowMagicStrings("exception message naming the missing sampler setting")]
     public static string MapSampler(string? s) =>
         string.IsNullOrWhiteSpace(s)
             ? throw new RenderValidationException("This configuration has no sampler set; a sampler is required.")
-            : (SamplerMap.TryGetValue(s, out var v) ? v : s);
+            : (SamplerMap.TryGetValue(s, out string? v) ? v : s);
 
     [AllowMagicStrings("exception message naming the missing scheduler setting")]
     public static string MapScheduler(string? s) =>
@@ -83,7 +92,7 @@ public static class ComfyGraph
     /// override. Defensive random fallback only if a param set somehow lacks it.</summary>
     public static long Seed(ParamValues p)
     {
-        var s = p.Long(WorkflowParamKeys.Seed);
+        long s = p.Long(WorkflowParamKeys.Seed);
         return s != 0 ? s : Random.Shared.NextInt64(1, long.MaxValue);
     }
 
@@ -92,7 +101,7 @@ public static class ComfyGraph
     /// a "base model + LoRA" variant just by a configuration setting the <c>lora</c> param (a Civit LoRA filename).</summary>
     public static object ApplyLora(Dictionary<string, object> wf, object model, ParamValues p, string nodeId = "90")
     {
-        var lora = p.Str(WorkflowParamKeys.Lora);
+        string? lora = p.Str(WorkflowParamKeys.Lora);
         if (string.IsNullOrWhiteSpace(lora)) return model;
         wf[nodeId] = Node(ComfyNodeTypes.LoraLoaderModelOnly, new { model, lora_name = lora, strength_model = p.DblReq(WorkflowParamKeys.LoraStrength) });
         return Ref(nodeId, 0);
@@ -107,10 +116,10 @@ public static class ComfyGraph
         Dictionary<string, object> wf, object model, object clip, IReadOnlyList<LoraSelection>? loras, int startNodeId = 91)
     {
         if (loras is not { Count: > 0 }) return (model, clip);
-        var nodeId = startNodeId;
-        foreach (var lora in loras)
+        int nodeId = startNodeId;
+        foreach (LoraSelection lora in loras)
         {
-            var id = nodeId++.ToString();
+            string id = nodeId++.ToString();
             wf[id] = Node(ComfyNodeTypes.LoraLoader, new
             {
                 model,
@@ -132,8 +141,8 @@ public static class ComfyGraph
     /// verbatim (no dedup). Single-sourced here so the generate path and every edit workflow resolve it identically.</summary>
     public static string ComposeNegative(string? modelNegative, string? userNegative)
     {
-        var model = (modelNegative ?? "").Trim().TrimEnd(',').TrimEnd();
-        var user = (userNegative ?? "").Trim().TrimEnd(',').TrimEnd();
+        string model = (modelNegative ?? "").Trim().TrimEnd(',').TrimEnd();
+        string user = (userNegative ?? "").Trim().TrimEnd(',').TrimEnd();
         if (user.Length == 0) return model;
         if (model.Length == 0) return user;
         return user + ", " + model;
@@ -145,7 +154,7 @@ public static class ComfyGraph
     [AllowMagicStrings("exception message listing the accepted aspect names")]
     public static string NormalizeAspect(string? a)
     {
-        var norm = a?.Trim().ToLowerInvariant();
+        string? norm = a?.Trim().ToLowerInvariant();
         return norm is Aspects.Square or Aspects.Landscape or Aspects.Portrait
             ? norm
             : throw new RenderValidationException($"Unrecognized aspect '{a}'. Expected one of: square, landscape, portrait.");

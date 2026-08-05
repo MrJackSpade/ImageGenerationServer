@@ -111,68 +111,68 @@ public static class Program
             return args.Length == 0 ? 1 : 0;
         }
 
-        var command = args[0];
-        var options = ParseOptions(args[1..]);
+        string command = args[0];
+        Dictionary<string, List<string>> options = ParseOptions(args[1..]);
 
-        var root = Single(options, RootOption) ?? throw new ArgumentException("--root is required.");
+        string root = Single(options, RootOption) ?? throw new ArgumentException("--root is required.");
         if (!Directory.Exists(Path.Combine(root, ComfyDirMarker)) || !File.Exists(Path.Combine(root, MainPyMarker)))
             throw new ArgumentException($"{root} is not a ComfyUI installation (no main.py and comfy/).");
 
-        var patchDirectory = Single(options, PatchesOption) ?? Locate(PatchesDirName);
-        var nodesDirectory = Single(options, NodesOption) ?? Locate(NodesDirName);
-        var python = Single(options, PythonOption);
+        string? patchDirectory = Single(options, PatchesOption) ?? Locate(PatchesDirName);
+        string? nodesDirectory = Single(options, NodesOption) ?? Locate(NodesDirName);
+        string? python = Single(options, PythonOption);
 
-        var catalog = ComfyPatchCatalog.Load(patchDirectory, nodesDirectory);
+        IReadOnlyList<ComfyPatch> catalog = ComfyPatchCatalog.Load(patchDirectory, nodesDirectory);
         if (catalog.Count == 0)
             throw new InvalidOperationException(
                 $"No patches found. Looked in '{patchDirectory ?? "(nowhere)"}' and '{nodesDirectory ?? "(nowhere)"}'.");
 
-        using var services = new ServiceCollection()
+        using ServiceProvider services = new ServiceCollection()
             .AddHttpClient()
             .AddLogging(b => b.AddSimpleConsole(o => o.SingleLine = true).SetMinimumLevel(LogLevel.Information))
             .AddSingleton<PackSource>()
             .AddSingleton<PatchInstaller>()
             .BuildServiceProvider();
 
-        var installer = services.GetRequiredService<PatchInstaller>();
+        PatchInstaller installer = services.GetRequiredService<PatchInstaller>();
 
         switch (command)
         {
             case ListCommand:
-                foreach (var patch in catalog)
+                foreach (ComfyPatch patch in catalog)
                 {
-                    var (state, detail) = ComfyPatchCatalog.Inspect(patch, root);
+                    (PatchState state, string? detail) = ComfyPatchCatalog.Inspect(patch, root);
                     Console.WriteLine($"{state,-14} {patch.Id,-32} {patch.Title}{(detail is null ? "" : "  — " + detail)}");
                 }
                 return catalog.Any(p => ComfyPatchCatalog.Inspect(p, root).State == PatchState.Conflicted) ? 2 : 0;
 
             case ApplyCommand:
-            {
-                foreach (var patch in Selected(catalog, options))
                 {
-                    var (state, _) = ComfyPatchCatalog.Inspect(patch, root);
-                    if (state == PatchState.Applied)
+                    foreach (ComfyPatch patch in Selected(catalog, options))
                     {
-                        Console.WriteLine($"already applied  {patch.Id}");
-                        continue;
-                    }
+                        (PatchState state, string _) = ComfyPatchCatalog.Inspect(patch, root);
+                        if (state == PatchState.Applied)
+                        {
+                            Console.WriteLine($"already applied  {patch.Id}");
+                            continue;
+                        }
 
-                    var note = await installer.ApplyAsync(patch, root, python, options.ContainsKey(OverwriteOption), CancellationToken.None);
-                    Console.WriteLine($"applied          {patch.Id}");
-                    if (note is not null) Console.WriteLine($"                 NOTE: {note}");
+                        string? note = await installer.ApplyAsync(patch, root, python, options.ContainsKey(OverwriteOption), CancellationToken.None);
+                        Console.WriteLine($"applied          {patch.Id}");
+                        if (note is not null) Console.WriteLine($"                 NOTE: {note}");
+                    }
+                    return 0;
                 }
-                return 0;
-            }
 
             case RemoveCommand:
-            {
-                foreach (var patch in Selected(catalog, options))
                 {
-                    installer.Remove(patch, root);
-                    Console.WriteLine($"removed          {patch.Id}");
+                    foreach (ComfyPatch patch in Selected(catalog, options))
+                    {
+                        installer.Remove(patch, root);
+                        Console.WriteLine($"removed          {patch.Id}");
+                    }
+                    return 0;
                 }
-                return 0;
-            }
 
             default:
                 throw new ArgumentException($"'{command}' is not a command. Try --help.");
@@ -184,10 +184,10 @@ public static class Program
     {
         if (options.ContainsKey(AllOption)) return catalog;
 
-        if (!options.TryGetValue(IdOption, out var ids) || ids.Count == 0)
+        if (!options.TryGetValue(IdOption, out List<string>? ids) || ids.Count == 0)
             throw new ArgumentException("Name what to act on: --all, or --id <id>.");
 
-        var unknown = ids.Where(id => catalog.All(p => p.Id != id)).ToList();
+        List<string> unknown = ids.Where(id => catalog.All(p => p.Id != id)).ToList();
         if (unknown.Count > 0)
             throw new ArgumentException($"No such patch: {string.Join(IdSeparator, unknown)}. Run 'list' to see the ids.");
 
@@ -197,23 +197,23 @@ public static class Program
     /// <summary><c>--key value</c> pairs and bare <c>--flag</c>s; a key may repeat.</summary>
     private static Dictionary<string, List<string>> ParseOptions(string[] args)
     {
-        var options = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        for (var i = 0; i < args.Length; i++)
+        Dictionary<string, List<string>> options = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        for (int i = 0; i < args.Length; i++)
         {
             if (!args[i].StartsWith(OptionPrefix, StringComparison.Ordinal))
                 throw new ArgumentException($"'{args[i]}' is not an option. Try --help.");
 
-            var key = args[i][2..];
-            var value = i + 1 < args.Length && !args[i + 1].StartsWith(OptionPrefix, StringComparison.Ordinal) ? args[++i] : null;
+            string key = args[i][2..];
+            string? value = i + 1 < args.Length && !args[i + 1].StartsWith(OptionPrefix, StringComparison.Ordinal) ? args[++i] : null;
 
-            if (!options.TryGetValue(key, out var values)) options[key] = values = [];
+            if (!options.TryGetValue(key, out List<string>? values)) options[key] = values = [];
             if (value is not null) values.Add(value);
         }
         return options;
     }
 
     private static string? Single(Dictionary<string, List<string>> options, string key) =>
-        options.TryGetValue(key, out var values) && values.Count > 0 ? values[^1] : null;
+        options.TryGetValue(key, out List<string>? values) && values.Count > 0 ? values[^1] : null;
 
     /// <summary>
     /// Where a payload directory is when nobody said: beside the executable — which is how it is laid out in the
@@ -221,7 +221,7 @@ public static class Program
     /// </summary>
     private static string? Locate(string name)
     {
-        foreach (var candidate in new[]
+        foreach (string? candidate in new[]
                  {
                      Path.Combine(AppContext.BaseDirectory, name),
                      Path.Combine(Directory.GetCurrentDirectory(), name),

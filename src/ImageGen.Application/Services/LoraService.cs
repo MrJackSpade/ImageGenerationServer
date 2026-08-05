@@ -1,5 +1,5 @@
-using ImageGen.Domain.Repositories;
 using ImageGen.Domain.Entities;
+using ImageGen.Domain.Repositories;
 
 namespace ImageGen.Application.Services;
 
@@ -22,7 +22,7 @@ public sealed class LoraService(ILoraDisplayRepository displays, IHistoryReposit
     /// <summary>Set the user's cover image for a LoRA. Returns false if the image isn't in the user's history.</summary>
     public async Task<bool> SetAsync(long userId, string loraName, string gatewayImageId, DateTime nowUtc, CancellationToken ct)
     {
-        var entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
+        HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
             return false;
 

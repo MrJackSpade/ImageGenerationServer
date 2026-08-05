@@ -86,7 +86,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         int tile = p.IntReq(WorkflowParamKeys.VaeTileSize);
         int overlap = p.IntReq(WorkflowParamKeys.VaeTileOverlap);
 
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.") }),
 

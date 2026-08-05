@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Explicit DI registration of every workflow (one per model) + the <see cref="WorkflowRegistry"/>. Adding a model

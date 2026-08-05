@@ -1,6 +1,6 @@
 ﻿using ImageGen.Application.Workflows;
 using ImageGen.Domain.Repositories;
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace ImageGen.Comfy;
 
@@ -25,12 +25,12 @@ public sealed partial class WorkflowCatalogService(
     /// <inheritdoc/>
     public WorkflowInfo? ResolveInfo(string? configId)
     {
-        var cfg = _catalog.FindConfig(configId);
+        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
         if (cfg is null) return null;
-        var card = cfg.Card;
-        var friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
-        var wf = _registry.Find(cfg.WorkflowName);
-        var preserves = wf?.PreservesComposition ?? false;
+        ModelCard card = cfg.Card;
+        string friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
+        IWorkflow? wf = _registry.Find(cfg.WorkflowName);
+        bool preserves = wf?.PreservesComposition ?? false;
         return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video);
     }
 
@@ -38,11 +38,11 @@ public sealed partial class WorkflowCatalogService(
     public async Task<IReadOnlyList<WorkflowDescriptor>> ListEligibleAsync(CancellationToken ct)
     {
         // Throws (HttpRequestException/etc.) when ComfyUI is unreachable — the caller maps that to a 502.
-        var present = await _comfy.GetPresentFilesAsync(ct);
+        IReadOnlySet<string> present = await _comfy.GetPresentFilesAsync(ct);
 
         // Bindings say which file on THIS machine fills each slot. Pushed into the catalog as well as read here,
         // so the sync Resolve() used on every submit sees the same snapshot without a query on the render path.
-        var bindings = await _overrides.BindingsAsync(Environment.MachineName, ct);
+        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(Environment.MachineName, ct);
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
         // And this machine's per-configuration settings. The settings page only stores rows; the merge reads them
         // from the in-memory catalog, so without pushing them here every override would silently do nothing. Pushed
@@ -51,20 +51,20 @@ public sealed partial class WorkflowCatalogService(
 
         // Which custom nodes this ComfyUI has, asked once: the file lists cannot answer it, because a pack that
         // loads no weights contributes no filenames to look for.
-        var declaredNodes = _catalog.AllRequirements()
+        List<string> declaredNodes = _catalog.AllRequirements()
             .Where(r => !string.IsNullOrWhiteSpace(r.Node))
             .Select(r => r.Node)
             .OfType<string>()
             .Distinct()
             .ToList();
-        var presentNodes = declaredNodes.Count == 0
+        IReadOnlySet<string> presentNodes = declaredNodes.Count == 0
             ? (IReadOnlySet<string>)new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(declaredNodes, ct);
 
-        var eligible = new List<(WorkflowConfiguration cfg, IWorkflow wf)>();
-        foreach (var cfg in _catalog.AllConfigs())
+        List<(WorkflowConfiguration cfg, IWorkflow wf)> eligible = new List<(WorkflowConfiguration cfg, IWorkflow wf)>();
+        foreach (WorkflowConfiguration cfg in _catalog.AllConfigs())
         {
-            var wf = _registry.Find(cfg.WorkflowName);
+            IWorkflow? wf = _registry.Find(cfg.WorkflowName);
             if (wf is null) continue;
 
             // A model workflow with no checkpoint is misconfigured; a model-free one (quantizer) is fine.
@@ -79,13 +79,13 @@ public sealed partial class WorkflowCatalogService(
             // does not set is absent by choice and asks for nothing.
             bool ok = cfg.Requirements.All().Concat(_catalog.ModelRefSlots(wf, cfg)).All(id =>
             {
-                var r = _catalog.FindRequirement(id);
+                Requirement? r = _catalog.FindRequirement(id);
                 if (r is null) return false;
                 // A node requirement is met by ComfyUI having the node registered. It has no file, so it can never
                 // have a binding — demanding one would exclude EVERY configuration that declares a node pack from the
                 // picker, however well installed the pack is, while /forge/catalog/status reports it ready.
                 if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
-                return bindings.TryGetValue(id, out var bound) && present.Contains(bound.FileName);
+                return bindings.TryGetValue(id, out ModelBinding? bound) && present.Contains(bound.FileName);
             });
             if (!ok) continue;
 
@@ -111,28 +111,28 @@ public sealed partial class WorkflowCatalogService(
             .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
-                avgs.TryGetValue(e.cfg.Id, out var ms) ? (int?)Math.Round(ms / 1000.0) : null))
+                avgs.TryGetValue(e.cfg.Id, out double ms) ? (int?)Math.Round(ms / 1000.0) : null))
             .ToList();
     }
 
     /// <inheritdoc/>
     public WorkflowSettings? GetSettings(string? configId)
     {
-        var cfg = _catalog.FindConfig(configId);
+        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
         if (cfg is null) return null;
-        var wf = _registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = _registry.Find(cfg.WorkflowName);
         if (wf is null) return null;
 
-        var overrides = _catalog.ParamOverridesFor(cfg.Id);
+        IReadOnlyDictionary<string, JsonElement> overrides = _catalog.ParamOverridesFor(cfg.Id);
 
         // Every parameter the CONFIGURATION sets, not just the ones exposed per generation. The exposed ones are
         // what a caller may vary on a single render; these are what this machine renders with by default, which is
         // a different question and the one this page answers.
-        var settings = cfg.Params
+        List<ConfigSetting> settings = cfg.Params
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .Select(kv =>
             {
-                var spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
                 return new ConfigSetting(
                     kv.Key,
                     spec?.Label ?? kv.Key,
@@ -147,7 +147,7 @@ public sealed partial class WorkflowCatalogService(
                     kv.Value.Step ?? spec?.Step,
                     spec?.Choices,
                     kv.Value.Value,
-                    overrides.TryGetValue(kv.Key, out var o) ? o : null);
+                    overrides.TryGetValue(kv.Key, out JsonElement o) ? o : null);
             })
             .ToList();
 
@@ -160,11 +160,11 @@ public sealed partial class WorkflowCatalogService(
                 "The composer's LoRA picker opens to this subfolder for this workflow. Blank = a folder matching the workflow, else all LoRAs.",
                 StringType, null, null, null, null,
                 Shipped: null,
-                Override: overrides.TryGetValue(TargetLoraFolderKey, out var lf) ? (object?)lf : null));
+                Override: overrides.TryGetValue(TargetLoraFolderKey, out JsonElement lf) ? (object?)lf : null));
 
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
-        var r = cfg.Resolution;
+        ModelResolution? r = cfg.Resolution;
         return new WorkflowSettings(
             cfg.Id, cfg.FriendlyName ?? cfg.Id, settings,
             r is null ? null : new ResolutionEnvelope(r.MinW, r.MinH, r.MaxW, r.MaxH, r.Step));
@@ -173,7 +173,7 @@ public sealed partial class WorkflowCatalogService(
     /// <inheritdoc/>
     public PromptingGuide? GetGuide(string? configId)
     {
-        var card = _catalog.ResolveCard(configId);
+        ModelCard? card = _catalog.ResolveCard(configId);
         return card is null ? null : ToGuide(card);
     }
 
@@ -186,19 +186,19 @@ public sealed partial class WorkflowCatalogService(
     private WorkflowDescriptor ToDescriptor(
         WorkflowConfiguration cfg, IWorkflow wf, int? avgSeconds)
     {
-        var c = cfg.Card;
+        ModelCard c = cfg.Card;
         // This machine's overrides win here too. Reporting the SHIPPED value while rendering the overridden one
         // would put the composer and the graph into disagreement — the control would read 40 steps and produce 12.
-        var machine = _catalog.ParamOverridesFor(cfg.Id);
-        var exposed = cfg.Params
+        IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
+        List<WorkflowExposedParam> exposed = cfg.Params
             .Where(kv => kv.Value.Exposed)
             .Select(kv =>
             {
-                var spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
                 return new WorkflowExposedParam(
                     kv.Key,
                     (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
-                    machine.TryGetValue(kv.Key, out var o) ? o : kv.Value.Value,
+                    machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value,
                     kv.Value.Min ?? spec?.Min,
                     kv.Value.Max ?? spec?.Max,
                     kv.Value.Step ?? spec?.Step,
@@ -267,8 +267,8 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
     private static string? OverrideString(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)
     {
-        if (!machine.TryGetValue(key, out var v)) return null;
-        var s = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
+        if (!machine.TryGetValue(key, out JsonElement v)) return null;
+        string? s = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
         return string.IsNullOrWhiteSpace(s) ? null : s;
     }
 

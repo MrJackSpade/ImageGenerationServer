@@ -59,38 +59,38 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         int typeMask = TypeMask.NoArtist,
         double minP = DefaultMinP)
     {
-        var vocab = _bundle.Vocab;
-        var rng = new Random(seed);
+        TagVocab vocab = _bundle.Vocab;
+        Random rng = new Random(seed);
 
-        var current = new List<int>();
-        var seen = new HashSet<int>();
-        foreach (var raw in seedTags)
+        List<int> current = new List<int>();
+        HashSet<int> seen = new HashSet<int>();
+        foreach (string raw in seedTags)
             if (vocab.IdOf(raw.Trim()) is int id && seen.Add(id)) current.Add(id);
-        var seedIds = new HashSet<int>(current);
+        HashSet<int> seedIds = new HashSet<int>(current);
 
-        var banned = new HashSet<int>();
+        HashSet<int> banned = new HashSet<int>();
         if (bannedTags is not null)
-            foreach (var raw in bannedTags)
+            foreach (string raw in bannedTags)
                 if (vocab.IdOf(raw.Trim()) is int id) banned.Add(id);
 
         // Categories the caller switched off are zeroed every step. The mask ALSO conditions the model (above), and
         // both are needed: conditioning makes the stop head judge completeness by the right standard, zeroing enforces
         // the exclusion exactly. With only the zeroing, the set comes back one tag short instead of completing to a
         // real alternative.
-        var suppressed = new List<int>();
-        for (var id = 0; id < vocab.Count; id++)
+        List<int> suppressed = new List<int>();
+        for (int id = 0; id < vocab.Count; id++)
             if (!TypeMask.Allows(typeMask, vocab.Types[id]))
                 suppressed.Add(id);
 
-        var reason = StopReason.MaxSteps;
+        StopReason reason = StopReason.MaxSteps;
 
-        for (var step = 0; step < MaxSteps; step++)
+        for (int step = 0; step < MaxSteps; step++)
         {
             float[] probabilities;
             if (current.Count > 0)
             {
-                var (logits, completenessLogit) = _bundle.Session.Forward(current, typeMask);
-                var stopP = 1.0 / (1.0 + Math.Exp(-completenessLogit));
+                (float[]? logits, float completenessLogit) = _bundle.Session.Forward(current, typeMask);
+                double stopP = 1.0 / (1.0 + Math.Exp(-completenessLogit));
                 if (stopP > StopThreshold)
                 {
                     reason = StopReason.Complete;
@@ -104,16 +104,16 @@ public sealed class GenerateEngine(TagModelBundle bundle)
                 probabilities = (float[])vocab.Marginal.Clone();
             }
 
-            var p = probabilities;
-            foreach (var id in current) p[id] = 0f;
-            foreach (var id in _bundle.JunkIds) p[id] = 0f;
-            foreach (var id in suppressed) p[id] = 0f;
-            foreach (var id in banned) p[id] = 0f;
+            float[] p = probabilities;
+            foreach (int id in current) p[id] = 0f;
+            foreach (int id in _bundle.JunkIds) p[id] = 0f;
+            foreach (int id in suppressed) p[id] = 0f;
+            foreach (int id in banned) p[id] = 0f;
 
             if (temperature <= 0)
             {
                 // Greedy. Also avoids the 1/temperature division, and is what temperature 0 means on the UI slider.
-                var (bestId, bestP) = ArgMax(p);
+                (int bestId, float bestP) = ArgMax(p);
                 if (bestP <= 0)
                 {
                     reason = StopReason.Exhausted;
@@ -130,20 +130,20 @@ public sealed class GenerateEngine(TagModelBundle bundle)
             // redistributes preference among tags the model already finds plausible.
             if (minP > 0)
             {
-                var (_, peak) = ArgMax(p);
-                var floor = (float)(minP * peak);
-                for (var i = 0; i < p.Length; i++)
+                (int _, float peak) = ArgMax(p);
+                float floor = (float)(minP * peak);
+                for (int i = 0; i < p.Length; i++)
                     if (p[i] < floor) p[i] = 0f;
             }
 
             if (Math.Abs(temperature - 1.0) > double.Epsilon)
             {
-                var exponent = 1.0 / temperature;
-                for (var i = 0; i < p.Length; i++)
+                double exponent = 1.0 / temperature;
+                for (int i = 0; i < p.Length; i++)
                     if (p[i] > 0) p[i] = (float)Math.Pow(p[i], exponent);
             }
 
-            var sampled = SampleIndex(p, rng);
+            int sampled = SampleIndex(p, rng);
             if (sampled < 0)
             {
                 reason = StopReason.Exhausted;
@@ -153,15 +153,15 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         }
 
         // Only what was generated: the caller keeps its own prompt verbatim and appends to it.
-        var tags = current.Where(id => !seedIds.Contains(id)).Select(id => vocab.Tags[id]).ToList();
+        List<string> tags = current.Where(id => !seedIds.Contains(id)).Select(id => vocab.Tags[id]).ToList();
         return new Result(tags, reason);
     }
 
     private static (int Index, float Value) ArgMax(float[] values)
     {
-        var index = -1;
-        var best = 0f;
-        for (var i = 0; i < values.Length; i++)
+        int index = -1;
+        float best = 0f;
+        for (int i = 0; i < values.Length; i++)
             if (values[i] > best) { best = values[i]; index = i; }
         return (index, best);
     }
@@ -176,14 +176,14 @@ public sealed class GenerateEngine(TagModelBundle bundle)
     private static int SampleIndex(float[] weights, Random rng)
     {
         double total = 0;
-        foreach (var w in weights)
+        foreach (float w in weights)
             if (w > 0) total += w;
         if (total <= 0) return -1;
 
-        var target = rng.NextDouble() * total;
+        double target = rng.NextDouble() * total;
         double running = 0;
-        var lastPositive = -1;
-        for (var i = 0; i < weights.Length; i++)
+        int lastPositive = -1;
+        for (int i = 0; i < weights.Length; i++)
         {
             if (weights[i] <= 0) continue;
             lastPositive = i;

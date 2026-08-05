@@ -40,8 +40,8 @@ public sealed class SetupRequiredMiddleware(RequestDelegate next, MachineConfigS
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var path = context.Request.Path;
-        var exempt =
+        PathString path = context.Request.Path;
+        bool exempt =
             path.StartsWithSegments(SetupPath) ||
             path.StartsWithSegments(DrainStatusPath) ||
             path.StartsWithSegments(CssPath) ||

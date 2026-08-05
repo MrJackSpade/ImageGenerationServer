@@ -58,12 +58,12 @@ public sealed class S2SRec2Session : IDisposable
                 $"{outIdsPath} maps decoder rows onto vocab ids up to {_outIds[^1]}, outside a vocab of {vocabSize}. "
                 + "The artifacts are from different builds and every emitted tag would be the wrong one.");
 
-        var options = new SessionOptions { GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL };
+        SessionOptions options = new SessionOptions { GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL };
         _session = new InferenceSession(onnxPath, options);
 
         // Bound by name from the graph rather than assumed positionally, so a re-export that reorders inputs fails
         // here with a clear message instead of silently feeding the type mask in as tag ids.
-        var inputs = _session.InputMetadata.Keys.ToArray();
+        string[] inputs = _session.InputMetadata.Keys.ToArray();
         _idsName = Require(inputs, IdsInput);
         _padMaskName = Require(inputs, PadMaskInput);
         _typeMaskName = Require(inputs, TypeMaskInput);
@@ -83,22 +83,22 @@ public sealed class S2SRec2Session : IDisposable
     /// </returns>
     public (float[] Logits, float CompletenessLogit) Forward(IReadOnlyList<int> ids, int typeMask)
     {
-        var n = Math.Max(ids.Count, 1);
-        var idBuffer = new long[n];
-        for (var i = 0; i < ids.Count; i++)
+        int n = Math.Max(ids.Count, 1);
+        long[] idBuffer = new long[n];
+        for (int i = 0; i < ids.Count; i++)
             idBuffer[i] = ids[i];
 
-        var inputs = new List<NamedOnnxValue>
+        List<NamedOnnxValue> inputs = new List<NamedOnnxValue>
         {
             NamedOnnxValue.CreateFromTensor(_idsName, new DenseTensor<long>(idBuffer, [1, n])),
             NamedOnnxValue.CreateFromTensor(_padMaskName, new DenseTensor<bool>(new bool[n], [1, n])),
             NamedOnnxValue.CreateFromTensor(_typeMaskName, new DenseTensor<long>(new[] { (long)typeMask }, [1])),
         };
 
-        using var results = _session.Run(inputs);
-        var ordered = results.ToArray();
-        var rowLogits = ordered[0].AsEnumerable<float>().ToArray();
-        var completeness = ordered[1].AsEnumerable<float>().First();
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(inputs);
+        DisposableNamedOnnxValue[] ordered = results.ToArray();
+        float[] rowLogits = ordered[0].AsEnumerable<float>().ToArray();
+        float completeness = ordered[1].AsEnumerable<float>().First();
 
         return (ScatterToVocab(rowLogits), completeness);
     }
@@ -115,9 +115,9 @@ public sealed class S2SRec2Session : IDisposable
                 $"the graph returned {rowLogits.Length} logits but out_ids.bin describes {_outIds.Length} decoder "
                 + "rows. The .onnx and out_ids.bin are from different exports.");
 
-        var vocabLogits = new float[_vocabSize];
+        float[] vocabLogits = new float[_vocabSize];
         Array.Fill(vocabLogits, NotEmittable);
-        for (var row = 0; row < _outIds.Length; row++)
+        for (int row = 0; row < _outIds.Length; row++)
             vocabLogits[_outIds[row]] = rowLogits[row];
         return vocabLogits;
     }
@@ -131,10 +131,10 @@ public sealed class S2SRec2Session : IDisposable
     /// <summary>Little-endian int32, no header: the count is the file length. Written by the export tool.</summary>
     private static int[] ReadInt32Array(string path)
     {
-        var bytes = File.ReadAllBytes(path);
+        byte[] bytes = File.ReadAllBytes(path);
         if (bytes.Length % sizeof(int) != 0)
             throw new InvalidDataException($"{path} is {bytes.Length} bytes, not a whole number of int32 values.");
-        var values = new int[bytes.Length / sizeof(int)];
+        int[] values = new int[bytes.Length / sizeof(int)];
         Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
         return values;
     }

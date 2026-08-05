@@ -25,7 +25,7 @@ public sealed class ConfiguredComfyEndpoint(IConfiguration configuration) : ICom
     {
         get
         {
-            var configured = _configuration[MachineSettingSpecs.ComfyGateToken];
+            string? configured = _configuration[MachineSettingSpecs.ComfyGateToken];
             return string.IsNullOrWhiteSpace(configured) ? ComfyOptions.DefaultGateToken : configured.Trim();
         }
     }

@@ -52,8 +52,8 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet 5=clip(boogu) 6=vae 10=LoadImage(source)
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4=unet 5=clip(boogu) 6=vae 10=LoadImage(source)
 
         // Lift of the official Comfy-Org image_boogu_image_0_1_edit template. Resize the source to ~1 MP (lanczos) —
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
@@ -71,7 +71,7 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
         // reference is the node's "images" Autogrow (COMFY_AUTOGROW_V3) input, keyed by its finalized dotted path
         // "images.image_1" (id "." template-name), which the v3 executor rebuilds into images={"image_1": <IMAGE>}. A
         // bare "image_1" is rejected; the dotted key needs a Dictionary (a C# anonymous type can't express the dot).
-        var neg = inputs.Negative ?? p.Str(WorkflowParamKeys.Negative) ?? "";
+        string neg = inputs.Negative ?? p.Str(WorkflowParamKeys.Negative) ?? "";
         wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeBooguEdit, new Dictionary<string, object>
         {
             [Inputs.Clip] = clip0,

@@ -107,7 +107,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     private static void GuardConnectionStringMatchesProvider(string connectionString, DatabaseProvider provider)
     {
-        var looksLikeSqlServer =
+        bool looksLikeSqlServer =
             connectionString.Contains(ServerKey, StringComparison.OrdinalIgnoreCase) ||
             connectionString.Contains(InitialCatalogKey, StringComparison.OrdinalIgnoreCase) ||
             connectionString.Contains(IntegratedSecurityKey, StringComparison.OrdinalIgnoreCase) ||

@@ -2,7 +2,6 @@ using ImageGen.Application.Security;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Logging;
 using ImageGen.Domain.Repositories;
-using Microsoft.Extensions.Logging;
 
 namespace ImageGen.Application.Logging;
 
@@ -31,7 +30,7 @@ public sealed class UserLogService(IUserCipher cipher, IUserLogRepository reposi
             return;
         try
         {
-            var payload = await _cipher.EncryptAsync(userId, text, ct);
+            string payload = await _cipher.EncryptAsync(userId, text, ct);
             await _repository.AddAsync(userId, category, payload, DateTime.UtcNow, ct);
         }
         catch (Exception ex)

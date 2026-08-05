@@ -14,8 +14,8 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Fail_finalizes_the_job_and_its_unfinished_slots()
     {
-        var user = await fixture.NewUserAsync("job-fail");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("job-fail");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
         [
             Slot(jobId, 0, JobSlotState.Done, imageId: "produced-image"),
@@ -25,7 +25,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         await fixture.Jobs.FailAsync(jobId, "could not be resumed after restart", Ct);
 
-        var after = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(JobStatus.Error, after.Status);
         Assert.NotNull(after.FinishedAtUtc);
@@ -46,8 +46,8 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Cancel_resolves_the_unfinished_slots_as_cancelled_not_failed()
     {
-        var user = await fixture.NewUserAsync("job-cancel");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("job-cancel");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
         [
             Slot(jobId, 0, JobSlotState.Done, imageId: "produced-image"),
@@ -56,7 +56,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         await fixture.Jobs.CancelAsync(jobId, Ct);
 
-        var after = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(JobStatus.Cancelled, after.Status);
         Assert.NotNull(after.FinishedAtUtc);
@@ -70,16 +70,16 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Fail_leaves_an_already_finalized_job_alone()
     {
-        var user = await fixture.NewUserAsync("job-fail-done");
-        var jobId = Guid.NewGuid().ToString("N");
-        var job = Job(user.Id, jobId, slots: [Slot(jobId, 0, JobSlotState.Done, imageId: "img")]);
+        User user = await fixture.NewUserAsync("job-fail-done");
+        string jobId = Guid.NewGuid().ToString("N");
+        JobRecord job = Job(user.Id, jobId, slots: [Slot(jobId, 0, JobSlotState.Done, imageId: "img")]);
         job.Status = JobStatus.Done;
         job.FinishedAtUtc = DateTime.UtcNow;
         await fixture.Jobs.UpsertAsync(job, Ct);
 
         await fixture.Jobs.FailAsync(jobId, "could not be resumed after restart", Ct);
 
-        var after = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(JobStatus.Done, after.Status);
         Assert.Equal(JobSlotState.Done, after.Slots.Single().State);
@@ -90,13 +90,13 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Active_jobs_are_listed_only_for_the_owning_machine()
     {
-        var user = await fixture.NewUserAsync("job-owner");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("job-owner");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(
             Job(user.Id, jobId, machine: "BOX-A", slots: [Slot(jobId, 0, JobSlotState.Queued)]), Ct);
 
-        var mine = await fixture.Jobs.ListActiveForMachineAsync("BOX-A", Ct);
-        var theirs = await fixture.Jobs.ListActiveForMachineAsync("BOX-B", Ct);
+        IReadOnlyList<JobRecord> mine = await fixture.Jobs.ListActiveForMachineAsync("BOX-A", Ct);
+        IReadOnlyList<JobRecord> theirs = await fixture.Jobs.ListActiveForMachineAsync("BOX-B", Ct);
 
         Assert.Contains(mine, j => j.JobId == jobId);
         Assert.DoesNotContain(theirs, j => j.JobId == jobId);
@@ -109,15 +109,15 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task The_latest_batch_counts_the_images_it_actually_produced()
     {
-        var user = await fixture.NewUserAsync("job-latest-batch");
-        var older = Guid.NewGuid().ToString("N");
-        var newest = Guid.NewGuid().ToString("N");
-        var noon = new DateTime(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);
+        User user = await fixture.NewUserAsync("job-latest-batch");
+        string older = Guid.NewGuid().ToString("N");
+        string newest = Guid.NewGuid().ToString("N");
+        DateTime noon = new DateTime(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);
 
-        var olderJob = Job(user.Id, older, slots:
+        JobRecord olderJob = Job(user.Id, older, slots:
             [Slot(older, 0, JobSlotState.Done, imageId: "old-1"), Slot(older, 1, JobSlotState.Done, imageId: "old-2")]);
         olderJob.CreatedAtUtc = noon;
-        var newestJob = Job(user.Id, newest, slots:
+        JobRecord newestJob = Job(user.Id, newest, slots:
         [
             Slot(newest, 0, JobSlotState.Done, imageId: "new-1"),
             Slot(newest, 1, JobSlotState.Done, imageId: "new-2"),
@@ -137,9 +137,9 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task The_latest_batch_is_scoped_to_the_user()
     {
-        var alice = await fixture.NewUserAsync("job-latest-alice");
-        var bob = await fixture.NewUserAsync("job-latest-bob");
-        var jobId = Guid.NewGuid().ToString("N");
+        User alice = await fixture.NewUserAsync("job-latest-alice");
+        User bob = await fixture.NewUserAsync("job-latest-bob");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(
             Job(alice.Id, jobId, slots: [Slot(jobId, 0, JobSlotState.Done, imageId: "a-1")]), Ct);
 
@@ -155,9 +155,9 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Sweep_drops_only_slots_whose_image_is_gone()
     {
-        var user = await fixture.NewUserAsync("job-sweep");
-        var jobId = Guid.NewGuid().ToString("N");
-        var liveImage = await fixture.Blobs.AddAsync(
+        User user = await fixture.NewUserAsync("job-sweep");
+        string jobId = Guid.NewGuid().ToString("N");
+        string liveImage = await fixture.Blobs.AddAsync(
             new NewImageBlob([1, 2, 3, 4], "image/png", 64, 64, ImageBlobKind.Generated), Ct);
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
@@ -169,7 +169,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         await fixture.Jobs.SweepDeletedImageSlotsAsync(jobId, Ct);
 
-        var after = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal([0, 2], after.Slots.Select(s => s.SlotIndex).OrderBy(i => i).ToArray());
     }
@@ -178,8 +178,8 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Sweep_takes_the_job_row_once_its_last_slot_is_gone()
     {
-        var user = await fixture.NewUserAsync("job-sweep-empty");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("job-sweep-empty");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
         [
             Slot(jobId, 0, JobSlotState.Done, imageId: "deleted-a"),
@@ -196,10 +196,10 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Sweep_leaves_an_intact_job_untouched()
     {
-        var user = await fixture.NewUserAsync("job-sweep-intact");
-        var jobId = Guid.NewGuid().ToString("N");
-        var a = await fixture.Blobs.AddAsync(new NewImageBlob([1], "image/png", 8, 8, ImageBlobKind.Generated), Ct);
-        var b = await fixture.Blobs.AddAsync(new NewImageBlob([2], "image/png", 8, 8, ImageBlobKind.Generated), Ct);
+        User user = await fixture.NewUserAsync("job-sweep-intact");
+        string jobId = Guid.NewGuid().ToString("N");
+        string a = await fixture.Blobs.AddAsync(new NewImageBlob([1], "image/png", 8, 8, ImageBlobKind.Generated), Ct);
+        string b = await fixture.Blobs.AddAsync(new NewImageBlob([2], "image/png", 8, 8, ImageBlobKind.Generated), Ct);
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
         [
@@ -209,7 +209,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         await fixture.Jobs.SweepDeletedImageSlotsAsync(jobId, Ct);
 
-        var after = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(2, after.Slots.Count);
     }

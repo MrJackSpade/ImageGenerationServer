@@ -10,21 +10,21 @@ public sealed class PixelSnapTests
     [Theory]
     // vres,  reqW, reqH,  min,  max, step,  expW, expH   (Flux: 256/1440/16)
     [InlineData(384, 1024, 1024, 256, 1440, 16, 1152, 1152)]
-    [InlineData(384, 1344,  768, 256, 1440, 16, 1152,  672)]  // 16:9, k capped to 3 by max 1440
-    [InlineData(384,  832, 1216, 256, 1440, 16,  768, 1152)]  // portrait 2:3
-    [InlineData(256, 1344,  768, 256, 1440, 16, 1280,  720)]  // vres256 -> k5, lands 16:9 exactly
-    [InlineData(512, 1344,  768, 256, 1440, 16, 1024,  592)]  // vres512 -> k2 (1536 would exceed max)
+    [InlineData(384, 1344, 768, 256, 1440, 16, 1152, 672)]  // 16:9, k capped to 3 by max 1440
+    [InlineData(384, 832, 1216, 256, 1440, 16, 768, 1152)]  // portrait 2:3
+    [InlineData(256, 1344, 768, 256, 1440, 16, 1280, 720)]  // vres256 -> k5, lands 16:9 exactly
+    [InlineData(512, 1344, 768, 256, 1440, 16, 1024, 592)]  // vres512 -> k2 (1536 would exceed max)
     // Qwen-Edit: 928/1664/16
     [InlineData(256, 1024, 1024, 928, 1664, 16, 1024, 1024)]
-    [InlineData(384, 1216,  832, 928, 1664, 16, 1536, 1056)]
+    [InlineData(384, 1216, 832, 928, 1664, 16, 1536, 1056)]
     // FLUX.2-klein: 64/2048/16 (higher max lets k=3 at vres512/16:9)
-    [InlineData(512, 1344,  768,  64, 2048, 16, 1536,  864)]
+    [InlineData(512, 1344, 768, 64, 2048, 16, 1536, 864)]
     // SD1.5 tight: 512/768/16  (k=1 -> gen==grid, no supersample; advisory below-min still proceeds)
-    [InlineData(512, 1024, 1024, 512,  768, 16,  512,  512)]
-    [InlineData(256, 1344,  768, 512,  768, 16,  768,  432)]
+    [InlineData(512, 1024, 1024, 512, 768, 16, 512, 512)]
+    [InlineData(256, 1344, 768, 512, 768, 16, 768, 432)]
     public void Snaps_to_verified_resolution(int vres, int w, int h, int min, int max, int step, int expW, int expH)
     {
-        var (gw, gh) = PixelSnap.Compute(vres, w, h, min, max, step);
+        (int gw, int gh) = PixelSnap.Compute(vres, w, h, min, max, step);
         Assert.Equal((expW, expH), (gw, gh));
         Assert.True(gw % step == 0 && gh % step == 0, $"{gw}x{gh} not /{step}");
     }
@@ -33,7 +33,7 @@ public sealed class PixelSnapTests
     public void Long_edge_is_an_integer_multiple_of_vres_giving_square_cells()
     {
         // gen long edge must be k * round_to_step(vres); each axis divides into whole k×k cells.
-        var (w, h) = PixelSnap.Compute(vres: 384, reqW: 1344, reqH: 768, minSide: 256, maxSide: 1440, step: 16);
+        (int w, int h) = PixelSnap.Compute(vres: 384, reqW: 1344, reqH: 768, minSide: 256, maxSide: 1440, step: 16);
         int gw = 384; // vres already /16
         int lng = System.Math.Max(w, h);
         Assert.Equal(0, lng % gw);                 // long edge is an exact multiple of the grid long edge
@@ -46,8 +46,8 @@ public sealed class PixelSnapTests
     private static readonly ModelResolution Flux = new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
     private static ParamValues PV(params (string, object?)[] kv)
     {
-        var d = new System.Collections.Generic.Dictionary<string, object?>();
-        foreach (var (k, v) in kv) d[k] = v;
+        Dictionary<string, object?> d = new System.Collections.Generic.Dictionary<string, object?>();
+        foreach ((string? k, object? v) in kv) d[k] = v;
         return new ParamValues(d);
     }
 
@@ -73,7 +73,7 @@ public sealed class PixelSnapTests
     [Fact]
     public void Snap_on_with_source_dims_snaps_from_the_source_aspect()
     {
-        var r = PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 1216, 832);   // no override -> uses the source dims
+        (int w, int h)? r = PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 1216, 832);   // no override -> uses the source dims
         Assert.Equal(((int, int)?)(1152, 768), r);
     }
 

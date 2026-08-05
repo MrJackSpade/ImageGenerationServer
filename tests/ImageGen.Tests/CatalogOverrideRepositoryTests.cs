@@ -23,8 +23,8 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         const string machine = "bind-roundtrip";
         await Repo.SetBindingAsync(machine, "pony-v6", "myPony_v6.safetensors", isAuto: false, Ct);
 
-        var all = await Repo.BindingsAsync(machine, Ct);
-        Assert.True(all.TryGetValue("pony-v6", out var b));
+        IReadOnlyDictionary<string, ModelBinding> all = await Repo.BindingsAsync(machine, Ct);
+        Assert.True(all.TryGetValue("pony-v6", out ModelBinding? b));
         Assert.NotNull(b);
         Assert.Equal("myPony_v6.safetensors", b.FileName);
         Assert.False(b.IsAuto);
@@ -51,7 +51,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetBindingAsync(machine, "slot", "first.safetensors", false, Ct);
         await Repo.SetBindingAsync(machine, "slot", "second.safetensors", false, Ct);
 
-        var all = await Repo.BindingsAsync(machine, Ct);
+        IReadOnlyDictionary<string, ModelBinding> all = await Repo.BindingsAsync(machine, Ct);
         Assert.Single(all);
         Assert.Equal("second.safetensors", all["slot"].FileName);
     }
@@ -83,7 +83,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
             ["free"] = "guessed.safetensors",
         }, Ct);
 
-        var all = await Repo.BindingsAsync(machine, Ct);
+        IReadOnlyDictionary<string, ModelBinding> all = await Repo.BindingsAsync(machine, Ct);
         Assert.Equal("the-one-I-picked.safetensors", all["taken"].FileName);
         Assert.False(all["taken"].IsAuto);
 
@@ -110,7 +110,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetOverrideAsync(machine, "flux2-dev", "param.steps", "28", Ct);
         await Repo.SetOverrideAsync(machine, "anima", "visible.ui", "false", Ct);
 
-        var all = await Repo.OverridesAsync(machine, Ct);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> all = await Repo.OverridesAsync(machine, Ct);
         Assert.Equal("12000", all["flux2-dev"]["vram.min"]);
         Assert.Equal("28", all["flux2-dev"]["param.steps"]);
         Assert.Equal("false", all["anima"]["visible.ui"]);
@@ -123,7 +123,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetOverrideAsync(machine, "cfg", "vram.min", "8000", Ct);
         await Repo.SetOverrideAsync(machine, "cfg", "vram.min", "4000", Ct);
 
-        var all = await Repo.OverridesAsync(machine, Ct);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> all = await Repo.OverridesAsync(machine, Ct);
         Assert.Single(all["cfg"]);
         Assert.Equal("4000", all["cfg"]["vram.min"]);
     }
@@ -139,8 +139,8 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetOverrideAsync(machine, "cfg", "vram.min", "8000", Ct);
         await Repo.SetOverrideAsync(machine, "cfg", "vram.min", null, Ct);
 
-        var all = await Repo.OverridesAsync(machine, Ct);
-        Assert.False(all.TryGetValue("cfg", out var settings) && settings.ContainsKey("vram.min"));
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> all = await Repo.OverridesAsync(machine, Ct);
+        Assert.False(all.TryGetValue("cfg", out IReadOnlyDictionary<string, string>? settings) && settings.ContainsKey("vram.min"));
     }
 
     [Fact]

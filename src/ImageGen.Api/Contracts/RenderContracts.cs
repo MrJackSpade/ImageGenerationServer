@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.Application.Rendering;
+using System.Text.Json;
 
 namespace ImageGen.Api.Contracts;
 

@@ -25,7 +25,7 @@ internal static class WebpTranscoder
         if (b.Length < 16) return false;
         if (b[0] != 'R' || b[1] != 'I' || b[2] != 'F' || b[3] != 'F') return false;
         if (b[8] != 'W' || b[9] != 'E' || b[10] != 'B' || b[11] != 'P') return false;
-        var i = 12;
+        int i = 12;
         while (i + 8 <= b.Length)
         {
             if (b[i] == 'A' && b[i + 1] == 'N' && b[i + 2] == 'M' && b[i + 3] == 'F') return true;
@@ -43,11 +43,11 @@ internal static class WebpTranscoder
     [AllowMagicStrings("exception messages")]
     private static int ReadFrameDelayMs(ReadOnlySpan<byte> b)
     {
-        var i = 12;
+        int i = 12;
         while (i + 8 <= b.Length)
         {
             uint size = (uint)(b[i + 4] | (b[i + 5] << 8) | (b[i + 6] << 16) | (b[i + 7] << 24));
-            var payload = i + 8;
+            int payload = i + 8;
             if (b[i] == 'A' && b[i + 1] == 'N' && b[i + 2] == 'M' && b[i + 3] == 'F' && payload + 15 <= b.Length)
             {
                 int dur = b[payload + 12] | (b[payload + 13] << 8) | (b[payload + 14] << 16);
@@ -70,7 +70,7 @@ internal static class WebpTranscoder
     /// </summary>
     public static byte[] WebpToMp4(byte[] webp, MediaOptions options, int? maxEdge, CancellationToken ct)
     {
-        using var image = Image.Load<Rgba32>(webp);
+        using Image<Rgba32> image = Image.Load<Rgba32>(webp);
         // Only ever reached after IsAnimatedWebp, so a webp that is not a genuine multi-frame animation here means that
         // gate was bypassed or the source is malformed. There is no still-image-to-mp4 conversion to fall back to — a
         // single frame has no timing to preserve — so this is a broken state to surface, not a shape to handle.
@@ -88,8 +88,8 @@ internal static class WebpTranscoder
         // than assumed.
         double fps = Math.Max(1000.0 / ReadFrameDelayMs(webp), 1.0);
 
-        var output = new MemoryStream();
-        using (var encoder = new VideoFrameEncoder(output, new FrameEncodeOptions
+        MemoryStream output = new MemoryStream();
+        using (VideoFrameEncoder encoder = new VideoFrameEncoder(output, new FrameEncodeOptions
         {
             Width = w,
             Height = h,
@@ -103,11 +103,11 @@ internal static class WebpTranscoder
             Fragmented = true,
         }))
         {
-            var frameBytes = new byte[w * h * 4];
-            for (var f = 0; f < image.Frames.Count; f++)
+            byte[] frameBytes = new byte[w * h * 4];
+            for (int f = 0; f < image.Frames.Count; f++)
             {
                 ct.ThrowIfCancellationRequested();
-                using var frame = image.Frames.CloneFrame(f);
+                using Image<Rgba32> frame = image.Frames.CloneFrame(f);
                 frame.CopyPixelDataTo(frameBytes);
                 encoder.WriteFrame(frameBytes);
             }

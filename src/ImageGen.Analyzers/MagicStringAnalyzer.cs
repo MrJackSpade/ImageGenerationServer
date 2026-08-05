@@ -1,9 +1,9 @@
-using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using System.Collections.Immutable;
+using System.Linq;
 
 namespace ImageGen.Analyzers;
 
@@ -106,7 +106,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// <summary>Flags <c>x == "a"</c> and <c>x != "a"</c> (a literal on either side).</summary>
     private static void AnalyzeBinary(SyntaxNodeAnalysisContext context)
     {
-        var binary = (BinaryExpressionSyntax)context.Node;
+        BinaryExpressionSyntax binary = (BinaryExpressionSyntax)context.Node;
         ReportIfLiteral(context, binary.Left);
         ReportIfLiteral(context, binary.Right);
     }
@@ -118,8 +118,8 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
-        var invocation = (InvocationExpressionSyntax)context.Node;
-        var method = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
+        InvocationExpressionSyntax invocation = (InvocationExpressionSyntax)context.Node;
+        IMethodSymbol? method = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
         AnalyzeArguments(context, method, invocation.ArgumentList.Arguments);
 
         if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Equals" } member)
@@ -132,10 +132,10 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context)
     {
-        var creation = (BaseObjectCreationExpressionSyntax)context.Node;
+        BaseObjectCreationExpressionSyntax creation = (BaseObjectCreationExpressionSyntax)context.Node;
         if (creation.ArgumentList is null)
             return;
-        var constructor = context.SemanticModel.GetSymbolInfo(creation, context.CancellationToken).Symbol as IMethodSymbol;
+        IMethodSymbol? constructor = context.SemanticModel.GetSymbolInfo(creation, context.CancellationToken).Symbol as IMethodSymbol;
         AnalyzeArguments(context, constructor, creation.ArgumentList.Arguments);
     }
 
@@ -150,9 +150,9 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         IMethodSymbol? method,
         SeparatedSyntaxList<ArgumentSyntax> arguments)
     {
-        for (var i = 0; i < arguments.Count; i++)
+        for (int i = 0; i < arguments.Count; i++)
         {
-            var argument = arguments[i];
+            ArgumentSyntax argument = arguments[i];
             if (method is not null
                 && ResolveParameter(method, argument, i) is { } parameter
                 && (HasAllowAttribute(parameter) || IsExemptWellKnownParameter(method, parameter)))
@@ -171,7 +171,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
             return method.Parameters.FirstOrDefault(p => p.Name == name);
         if (index < method.Parameters.Length)
             return method.Parameters[index];
-        var last = method.Parameters.LastOrDefault();
+        IParameterSymbol? last = method.Parameters.LastOrDefault();
         return last is { IsParams: true } ? last : null;
     }
 
@@ -203,7 +203,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// <summary>True when <paramref name="type"/> is <see cref="System.Exception"/> or derives from it.</summary>
     private static bool DerivesFromException(ITypeSymbol? type)
     {
-        for (var current = type; current is not null; current = current.BaseType)
+        for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
             if (current.ToDisplayString() == "System.Exception")
                 return true;
         return false;
@@ -215,28 +215,28 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static void AnalyzeElementAccess(SyntaxNodeAnalysisContext context)
     {
-        var arguments = context.Node switch
+        SeparatedSyntaxList<ArgumentSyntax> arguments = context.Node switch
         {
             ElementAccessExpressionSyntax element => element.ArgumentList.Arguments,
             ImplicitElementAccessSyntax implicitElement => implicitElement.ArgumentList.Arguments,
             ElementBindingExpressionSyntax binding => binding.ArgumentList.Arguments,
             _ => default,
         };
-        foreach (var argument in arguments)
+        foreach (ArgumentSyntax argument in arguments)
             ReportIfLiteral(context, argument.Expression);
     }
 
     /// <summary>Flags a string literal in a constant pattern — <c>is "a"</c>, <c>"a" =&gt; …</c>, <c>case "a" when …</c>.</summary>
     private static void AnalyzeConstantPattern(SyntaxNodeAnalysisContext context)
     {
-        var pattern = (ConstantPatternSyntax)context.Node;
+        ConstantPatternSyntax pattern = (ConstantPatternSyntax)context.Node;
         ReportIfLiteral(context, pattern.Expression);
     }
 
     /// <summary>Flags a string literal in a classic switch label — <c>case "a":</c>.</summary>
     private static void AnalyzeCaseLabel(SyntaxNodeAnalysisContext context)
     {
-        var label = (CaseSwitchLabelSyntax)context.Node;
+        CaseSwitchLabelSyntax label = (CaseSwitchLabelSyntax)context.Node;
         ReportIfLiteral(context, label.Value);
     }
 
@@ -261,7 +261,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static void AnalyzeAllowAttribute(SyntaxNodeAnalysisContext context)
     {
-        var attribute = (AttributeSyntax)context.Node;
+        AttributeSyntax attribute = (AttributeSyntax)context.Node;
         if (context.SemanticModel.GetSymbolInfo(attribute, context.CancellationToken).Symbol is not IMethodSymbol ctor)
             return;
         if (ctor.ContainingType?.Name != AllowAttributeName)
@@ -269,7 +269,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         if (attribute.ArgumentList?.Arguments.FirstOrDefault() is not { } argument)
             return;
 
-        var justification = context.SemanticModel.GetConstantValue(argument.Expression, context.CancellationToken);
+        Optional<object?> justification = context.SemanticModel.GetConstantValue(argument.Expression, context.CancellationToken);
         if (justification is { HasValue: true, Value: string text } && string.IsNullOrWhiteSpace(text))
             context.ReportDiagnostic(Diagnostic.Create(JustificationRule, argument.GetLocation()));
     }
@@ -285,7 +285,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static bool IsExempt(ISymbol? symbol)
     {
-        for (var current = symbol; current is not null; current = current.ContainingSymbol)
+        for (ISymbol? current = symbol; current is not null; current = current.ContainingSymbol)
             if (HasAllowAttribute(current))
                 return true;
         return false;

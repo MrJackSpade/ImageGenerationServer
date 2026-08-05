@@ -59,17 +59,17 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
         // core ImageBatch nodes (image1 accumulates, image2 is the next frame). The batch order is the order the caller
         // uploaded them (source, ref0, ref1, …), which the caller keeps == frame order, so the emitted lossless_frames
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
         object batch = ComfyGraph.Ref(Nodes.Source, 0);
         int node = 100;
-        foreach (var refName in inputs.ReferenceImageNames)
+        foreach (string refName in inputs.ReferenceImageNames)
         {
-            var loadId = (node++).ToString();
+            string loadId = (node++).ToString();
             wf[loadId] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refName });
-            var batchId = (node++).ToString();
+            string batchId = (node++).ToString();
             wf[batchId] = ComfyGraph.Node(ComfyNodeTypes.ImageBatch, new { image1 = batch, image2 = ComfyGraph.Ref(loadId, 0) });
             batch = ComfyGraph.Ref(batchId, 0);
         }

@@ -52,8 +52,8 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
 
         // clip-skip applies only to a checkpoint's baked CLIP (Anima loads split → no-op there; kept for parity).
         if (p.Loader() == LoaderKind.Checkpoint && p.Has(WorkflowParamKeys.ClipSkip) && p.IntReq(WorkflowParamKeys.ClipSkip) is int clipSkip && clipSkip > 0)
@@ -64,9 +64,9 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
 
         // Positive = quality prefix + the user's full prompt; negative = the config default with the UI negative
         // (inputs.Negative) appended — never replaced (see ComfyGraph.ComposeNegative).
-        var rp = p.Str(WorkflowParamKeys.RequiredPrefix);
-        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
-        var neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
+        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
+        string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
+        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prefix + inputs.Positive, clip = clip0 });
         wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
 

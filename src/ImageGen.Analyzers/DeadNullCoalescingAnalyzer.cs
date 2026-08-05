@@ -1,8 +1,8 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using System.Collections.Immutable;
 
 namespace ImageGen.Analyzers;
 
@@ -49,14 +49,14 @@ public sealed class DeadNullCoalescingAnalyzer : DiagnosticAnalyzer
     /// <summary>Flags <c>left ?? right</c> when <c>left</c> is flow-non-null.</summary>
     private static void AnalyzeCoalesce(SyntaxNodeAnalysisContext context)
     {
-        var coalesce = (BinaryExpressionSyntax)context.Node;
+        BinaryExpressionSyntax coalesce = (BinaryExpressionSyntax)context.Node;
         Report(context, coalesce.Left, coalesce.OperatorToken);
     }
 
     /// <summary>Flags <c>left ??= right</c> when <c>left</c> is flow-non-null.</summary>
     private static void AnalyzeCoalesceAssignment(SyntaxNodeAnalysisContext context)
     {
-        var coalesce = (AssignmentExpressionSyntax)context.Node;
+        AssignmentExpressionSyntax coalesce = (AssignmentExpressionSyntax)context.Node;
         Report(context, coalesce.Left, coalesce.OperatorToken);
     }
 

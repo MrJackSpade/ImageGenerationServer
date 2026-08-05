@@ -1,5 +1,6 @@
 using ImageGen.Domain;
 using ImageGen.Domain.Entities;
+using System.Data.Common;
 
 namespace ImageGen.Tests;
 
@@ -21,9 +22,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_generate_spec_round_trips_through_typed_columns()
     {
-        var user = await fixture.NewUserAsync("slot-gen-spec");
-        var jobId = Guid.NewGuid().ToString("N");
-        var slot = new JobSlotRecord
+        User user = await fixture.NewUserAsync("slot-gen-spec");
+        string jobId = Guid.NewGuid().ToString("N");
+        JobSlotRecord slot = new JobSlotRecord
         {
             JobId = jobId,
             SlotIndex = 0,
@@ -41,9 +42,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
-        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(job);
-        var back = job.Slots.Single();
+        JobSlotRecord back = job.Slots.Single();
 
         Assert.Equal("anima", back.Workflow);
         Assert.Equal("1girl, #long_hair, @monet", back.Prompt);
@@ -65,9 +66,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task An_edits_image_ids_round_trip_and_references_keep_their_order()
     {
-        var user = await fixture.NewUserAsync("slot-edit-spec");
-        var jobId = Guid.NewGuid().ToString("N");
-        var slot = new JobSlotRecord
+        User user = await fixture.NewUserAsync("slot-edit-spec");
+        string jobId = Guid.NewGuid().ToString("N");
+        JobSlotRecord slot = new JobSlotRecord
         {
             JobId = jobId,
             SlotIndex = 0,
@@ -82,9 +83,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
-        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(job);
-        var back = job.Slots.Single();
+        JobSlotRecord back = job.Slots.Single();
 
         Assert.Equal("src-1", back.SourceImageId);
         Assert.Equal("mask-1", back.MaskImageId);
@@ -99,8 +100,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task An_images_uses_can_be_found_by_query()
     {
-        var user = await fixture.NewUserAsync("slot-joinable");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("slot-joinable");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId,
         [
             new JobSlotRecord
@@ -110,8 +111,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             },
         ]), Ct);
 
-        await using var conn = await fixture.ConnectionFactory.OpenAsync(Ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
+        await using DbCommand cmd = conn.Command(
             "SELECT (SELECT COUNT(*) FROM dbo.JobSlot WHERE SourceImageId = @img)" +
             "     + (SELECT COUNT(*) FROM dbo.JobSlotReference WHERE ImageId = @img);");
         cmd.AddParam("@img", "shared-input");
@@ -124,8 +125,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task The_prompt_is_encrypted_at_rest_and_the_workflow_is_not()
     {
-        var user = await fixture.NewUserAsync("slot-field-crypto");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("slot-field-crypto");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId,
         [
             new JobSlotRecord
@@ -135,11 +136,11 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             },
         ]), Ct);
 
-        await using var conn = await fixture.ConnectionFactory.OpenAsync(Ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
+        await using DbCommand cmd = conn.Command(
             "SELECT Prompt, Workflow FROM dbo.JobSlot WHERE JobId = @jobId;");
         cmd.AddParam("@jobId", jobId);
-        await using var reader = await cmd.ExecuteReaderAsync(Ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(Ct);
         Assert.True(await reader.ReadAsync(Ct));
 
         Assert.NotEqual("a very distinctive prompt", reader.GetString(0));   // ciphertext at rest
@@ -153,8 +154,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Slot_marks_round_trip_as_rows()
     {
-        var user = await fixture.NewUserAsync("slot-marks");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("slot-marks");
+        string jobId = Guid.NewGuid().ToString("N");
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId,
         [
             new JobSlotRecord
@@ -164,9 +165,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             },
         ]), Ct);
 
-        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(job);
-        var back = job.Slots.Single();
+        JobSlotRecord back = job.Slots.Single();
 
         Assert.Equal(2, back.Marks.Count);
         Assert.Contains(back.Marks, m => m is { Token: "long_hair", Kind: TokenKind.Tag });
@@ -181,8 +182,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Re_upserting_a_slot_replaces_its_children_rather_than_accumulating_them()
     {
-        var user = await fixture.NewUserAsync("slot-children-replace");
-        var jobId = Guid.NewGuid().ToString("N");
+        User user = await fixture.NewUserAsync("slot-children-replace");
+        string jobId = Guid.NewGuid().ToString("N");
 
         JobRecord WithReferences(params string[] refs) => Job(user.Id, jobId,
         [
@@ -197,9 +198,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         await fixture.Jobs.UpsertAsync(WithReferences("a", "b", "c"), Ct);
         await fixture.Jobs.UpsertAsync(WithReferences("a"), Ct);
 
-        var job = await fixture.Jobs.GetAsync(jobId, Ct);
+        JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(job);
-        var back = job.Slots.Single();
+        JobSlotRecord back = job.Slots.Single();
         Assert.Equal(["a"], back.ReferenceImageIds);
         Assert.Single(back.Marks);
     }

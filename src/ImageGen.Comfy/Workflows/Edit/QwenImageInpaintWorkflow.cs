@@ -52,7 +52,9 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase
         {
             destination = ComfyGraph.Ref(Nodes.Source, 0),
             source = ComfyGraph.Ref(PrefillBlur2, 0),
-            x = 0, y = 0, resize_source = false,
+            x = 0,
+            y = 0,
+            resize_source = false,
             mask = rawMask,
         });
         image = ComfyGraph.Ref(PrefillComposite, 0);

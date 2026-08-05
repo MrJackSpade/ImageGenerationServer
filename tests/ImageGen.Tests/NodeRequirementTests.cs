@@ -28,19 +28,19 @@ public sealed class NodeRequirementTests
     [Fact]
     public void Every_workflow_emitting_a_pack_node_declares_that_pack()
     {
-        var root = RepoRoot();
-        var needsByWorkflow = EmittedPacksByWorkflowName(Path.Combine(root, "src", "ImageGen.Comfy", "Workflows"));
+        string root = RepoRoot();
+        Dictionary<string, HashSet<string>> needsByWorkflow = EmittedPacksByWorkflowName(Path.Combine(root, "src", "ImageGen.Comfy", "Workflows"));
 
-        var missing = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(root, "configurations", "workflows"), "*.json"))
+        List<string> missing = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(root, "configurations", "workflows"), "*.json"))
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(file));
-            var cfg = doc.RootElement;
-            var workflow = cfg.GetProperty("workflow").RequireString();
-            if (!needsByWorkflow.TryGetValue(workflow, out var needed)) continue;
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+            JsonElement cfg = doc.RootElement;
+            string workflow = cfg.GetProperty("workflow").RequireString();
+            if (!needsByWorkflow.TryGetValue(workflow, out HashSet<string>? needed)) continue;
 
-            var declared = DeclaredRequirements(cfg);
-            foreach (var slot in needed.Where(n => !declared.Contains(n)))
+            HashSet<string> declared = DeclaredRequirements(cfg);
+            foreach (string? slot in needed.Where(n => !declared.Contains(n)))
                 missing.Add($"{cfg.GetProperty("id").GetString()} (workflow {workflow}) does not declare {slot}");
         }
 
@@ -57,40 +57,40 @@ public sealed class NodeRequirementTests
     /// </summary>
     private static Dictionary<string, HashSet<string>> EmittedPacksByWorkflowName(string workflowsDir)
     {
-        var classRe = new Regex(@"public\s+(?:sealed|abstract)\s+class\s+(\w+)(?:\s*:\s*(\w+))?");
-        var nameRe = new Regex(@"public\s+override\s+string\s+Name\s*=>\s*""([^""]+)""");
+        Regex classRe = new Regex(@"public\s+(?:sealed|abstract)\s+class\s+(\w+)(?:\s*:\s*(\w+))?");
+        Regex nameRe = new Regex(@"public\s+override\s+string\s+Name\s*=>\s*""([^""]+)""");
 
-        var packsByClass = new Dictionary<string, HashSet<string>>();
-        var baseOfClass = new Dictionary<string, string>();
-        var nameOfClass = new Dictionary<string, string>();
+        Dictionary<string, HashSet<string>> packsByClass = new Dictionary<string, HashSet<string>>();
+        Dictionary<string, string> baseOfClass = new Dictionary<string, string>();
+        Dictionary<string, string> nameOfClass = new Dictionary<string, string>();
 
-        foreach (var file in Directory.EnumerateFiles(workflowsDir, "*.cs", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(workflowsDir, "*.cs", SearchOption.AllDirectories))
         {
-            var src = File.ReadAllText(file);
-            var starts = classRe.Matches(src).Select(m => m).ToList();
+            string src = File.ReadAllText(file);
+            List<Match> starts = classRe.Matches(src).Select(m => m).ToList();
             for (int i = 0; i < starts.Count; i++)
             {
-                var from = starts[i].Index;
-                var to = i + 1 < starts.Count ? starts[i + 1].Index : src.Length;
-                var body = src[from..to];
-                var cls = starts[i].Groups[1].Value;
+                int from = starts[i].Index;
+                int to = i + 1 < starts.Count ? starts[i + 1].Index : src.Length;
+                string body = src[from..to];
+                string cls = starts[i].Groups[1].Value;
 
                 if (starts[i].Groups[2].Success) baseOfClass[cls] = starts[i].Groups[2].Value;
-                var nm = nameRe.Match(body);
+                Match nm = nameRe.Match(body);
                 if (nm.Success) nameOfClass[cls] = nm.Groups[1].Value;
 
-                var packs = PackNodes.Where(p => Regex.IsMatch(body, p.Pattern)).Select(p => p.Slot).ToHashSet();
+                HashSet<string> packs = PackNodes.Where(p => Regex.IsMatch(body, p.Pattern)).Select(p => p.Slot).ToHashSet();
                 if (packs.Count > 0) packsByClass[cls] = packs;
             }
         }
 
         // Roll base-class emissions down to the concrete workflows.
-        var result = new Dictionary<string, HashSet<string>>();
-        foreach (var (cls, name) in nameOfClass)
+        Dictionary<string, HashSet<string>> result = new Dictionary<string, HashSet<string>>();
+        foreach ((string? cls, string? name) in nameOfClass)
         {
-            var packs = new HashSet<string>();
-            for (var c = cls; c is not null; c = baseOfClass.TryGetValue(c, out var b) ? b : null)
-                if (packsByClass.TryGetValue(c, out var p)) packs.UnionWith(p);
+            HashSet<string> packs = new HashSet<string>();
+            for (string? c = cls; c is not null; c = baseOfClass.TryGetValue(c, out string? b) ? b : null)
+                if (packsByClass.TryGetValue(c, out HashSet<string>? p)) packs.UnionWith(p);
             if (packs.Count > 0) result[name] = packs;
         }
         return result;
@@ -98,20 +98,20 @@ public sealed class NodeRequirementTests
 
     private static HashSet<string> DeclaredRequirements(JsonElement cfg)
     {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!cfg.TryGetProperty("requirements", out var req)) return set;
-        foreach (var prop in req.EnumerateObject())
+        HashSet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!cfg.TryGetProperty("requirements", out JsonElement req)) return set;
+        foreach (JsonProperty prop in req.EnumerateObject())
         {
             if (prop.Value.ValueKind == JsonValueKind.String) set.Add(prop.Value.RequireString());
             else if (prop.Value.ValueKind == JsonValueKind.Array)
-                foreach (var e in prop.Value.EnumerateArray()) set.Add(e.RequireString());
+                foreach (JsonElement e in prop.Value.EnumerateArray()) set.Add(e.RequireString());
         }
         return set;
     }
 
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null)
         {
             if (Directory.Exists(Path.Combine(dir, "configurations", "workflows"))) return dir;

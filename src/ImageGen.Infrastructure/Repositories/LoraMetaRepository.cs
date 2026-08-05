@@ -1,8 +1,9 @@
-using System.Text.Json;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
+using System.Data.Common;
+using System.Text.Json;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -16,22 +17,22 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
 
     public async Task<IReadOnlyDictionary<string, LoraMeta>> GetManyAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
-        var result = new Dictionary<string, LoraMeta>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, LoraMeta> result = new Dictionary<string, LoraMeta>(StringComparer.OrdinalIgnoreCase);
         if (loraNames.Count == 0) return result;
 
-        var names = loraNames.ToList();
-        var ps = new string[names.Count];
-        for (var i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        List<string> names = loraNames.ToList();
+        string[] ps = new string[names.Count];
+        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command($"SELECT {Columns} FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
-        for (var i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
+        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var name = reader.GetString(0);
-            var words = reader.IsDBNull(2)
+            string name = reader.GetString(0);
+            List<string> words = reader.IsDBNull(2)
                 ? []
                 : JsonSerializer.Deserialize<List<string>>(reader.GetString(2))
                     ?? throw new InvalidOperationException(
@@ -49,11 +50,11 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
 
     public async Task UpsertAsync(LoraMeta meta, CancellationToken ct)
     {
-        var words = JsonSerializer.Serialize(meta.TrainedWords);
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        string words = JsonSerializer.Serialize(meta.TrainedWords);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
         int updated;
-        await using (var cmd = conn.Command(
+        await using (DbCommand cmd = conn.Command(
             "UPDATE dbo.LoraMeta SET Sha256 = @sha, TrainedWords = @words, ModelName = @model, PreviewUrl = @preview, FetchedAtUtc = @at WHERE LoraName = @name;"))
         {
             AddAll(cmd, meta, words);
@@ -61,7 +62,7 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
         }
         if (updated == 0)
         {
-            await using var cmd = conn.Command(
+            await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.LoraMeta (LoraName, Sha256, TrainedWords, ModelName, PreviewUrl, FetchedAtUtc) VALUES (@name, @sha, @words, @model, @preview, @at);");
             AddAll(cmd, meta, words);
             await cmd.ExecuteNonQueryAsync(ct);
@@ -71,13 +72,13 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
     public async Task DeleteAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
         if (loraNames.Count == 0) return;
-        var names = loraNames.ToList();
-        var ps = new string[names.Count];
-        for (var i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        List<string> names = loraNames.ToList();
+        string[] ps = new string[names.Count];
+        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command($"DELETE FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
-        for (var i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command($"DELETE FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
+        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

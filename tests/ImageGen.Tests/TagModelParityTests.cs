@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.TagModel;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -43,23 +43,23 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        var engine = new SuggestEngine(_bundle);
-        var snapshot = LoadSnapshot();
+        SuggestEngine engine = new SuggestEngine(_bundle);
+        JsonElement snapshot = LoadSnapshot();
 
-        var compared = 0;
-        foreach (var recorded in snapshot.GetProperty("suggest").EnumerateArray())
+        int compared = 0;
+        foreach (JsonElement recorded in snapshot.GetProperty("suggest").EnumerateArray())
         {
-            var context = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
-            var fragment = recorded.GetProperty("q").RequireString();
-            var limit = recorded.GetProperty("k").GetInt32();
+            string[] context = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string fragment = recorded.GetProperty("q").RequireString();
+            int limit = recorded.GetProperty("k").GetInt32();
 
-            var actual = engine.Query(context, fragment, limit);
-            var expected = recorded.GetProperty("results").EnumerateArray().ToArray();
+            SuggestEngine.SuggestResult actual = engine.Query(context, fragment, limit);
+            JsonElement[] expected = recorded.GetProperty("results").EnumerateArray().ToArray();
 
             Assert.Equal(expected.Length, actual.Results.Count);
-            for (var i = 0; i < expected.Length; i++)
+            for (int i = 0; i < expected.Length; i++)
             {
-                var label = $"case tags=[{string.Join(',', context)}] q='{fragment}' rank {i}";
+                string label = $"case tags=[{string.Join(',', context)}] q='{fragment}' rank {i}";
                 Assert.Equal(expected[i].GetProperty("tag").GetString(), actual.Results[i].Tag);
                 Assert.True(
                     Math.Abs(expected[i].GetProperty("p").GetDouble() - actual.Results[i].P) < ProbabilityTolerance,
@@ -81,17 +81,17 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        var engine = new GenerateEngine(_bundle);
-        var snapshot = LoadSnapshot();
+        GenerateEngine engine = new GenerateEngine(_bundle);
+        JsonElement snapshot = LoadSnapshot();
 
-        var compared = 0;
-        foreach (var recorded in snapshot.GetProperty("greedy").EnumerateArray())
+        int compared = 0;
+        foreach (JsonElement recorded in snapshot.GetProperty("greedy").EnumerateArray())
         {
-            var seed = recorded.GetProperty("seed").EnumerateArray().Select(e => e.RequireString()).ToArray();
-            var types = recorded.GetProperty("types").EnumerateArray().Select(e => e.RequireString()).ToArray();
-            var expected = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string[] seed = recorded.GetProperty("seed").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string[] types = recorded.GetProperty("types").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string[] expected = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
 
-            var actual = engine.Generate(
+            GenerateEngine.Result actual = engine.Generate(
                 seed, seed: 0, temperature: 0, bannedTags: null, typeMask: TypeMask.FromAllowedNames(types));
 
             Assert.Equal(expected, actual.Tags);
@@ -112,24 +112,24 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        var engine = new GenerateEngine(_bundle);
-        var vocab = _bundle.Vocab;
-        var seed = new[] { "1girl", "solo" };
-        var banned = new[] { "long_hair", "smile" };
+        GenerateEngine engine = new GenerateEngine(_bundle);
+        TagVocab vocab = _bundle.Vocab;
+        string[] seed = new[] { "1girl", "solo" };
+        string[] banned = new[] { "long_hair", "smile" };
 
-        for (var draw = 0; draw < 8; draw++)
+        for (int draw = 0; draw < 8; draw++)
         {
-            var result = engine.Generate(seed, seed: 1000 + draw, temperature: 1.0, bannedTags: banned,
+            GenerateEngine.Result result = engine.Generate(seed, seed: 1000 + draw, temperature: 1.0, bannedTags: banned,
                 typeMask: TypeMask.NoArtist);
 
             Assert.Equal(GenerateEngine.StopReason.Complete, result.Reason);
             Assert.NotEmpty(result.Tags);
 
-            foreach (var tag in result.Tags)
+            foreach (string tag in result.Tags)
             {
                 Assert.DoesNotContain(tag, seed);       // the seed is conditioning, never echoed back
                 Assert.DoesNotContain(tag, banned);
-                var id = vocab.IdOf(tag);
+                int? id = vocab.IdOf(tag);
                 Assert.True(id.HasValue, $"generated '{tag}' is not in the vocabulary");
                 Assert.False(vocab.IsArtist(id.Value), $"generated artist '{tag}' under a no-artist mask");
             }
@@ -146,17 +146,17 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        var engine = new GenerateEngine(_bundle);
-        var vocab = _bundle.Vocab;
+        GenerateEngine engine = new GenerateEngine(_bundle);
+        TagVocab vocab = _bundle.Vocab;
 
-        var result = engine.Generate(["1girl"], seed: 7, temperature: 1.0, bannedTags: null,
+        GenerateEngine.Result result = engine.Generate(["1girl"], seed: 7, temperature: 1.0, bannedTags: null,
             typeMask: TypeMask.FromAllowedNames(["character", "copyright"]));
 
-        foreach (var tag in result.Tags)
+        foreach (string tag in result.Tags)
         {
-            var id = vocab.IdOf(tag);
+            int? id = vocab.IdOf(tag);
             Assert.True(id.HasValue, $"generated '{tag}' is not in the vocabulary");
-            var category = vocab.Types[id.Value];
+            byte category = vocab.Types[id.Value];
             Assert.True(
                 category is TypeMask.CategoryCharacter or TypeMask.CategoryCopyright,
                 $"'{tag}' is category {category}, which a character+copyright mask forbids");
@@ -176,7 +176,7 @@ public sealed class TagModelParityTests : IDisposable
     /// <summary>Walk up from the test binary to the repo root, then resolve a repo-relative path.</summary>
     private static string FindRepoPath(string relative)
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !File.Exists(Path.Combine(dir, "ImageGen.slnx")))
             dir = Path.GetDirectoryName(dir);
         return dir is null ? relative : Path.Combine(dir, relative);

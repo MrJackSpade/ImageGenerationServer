@@ -1,11 +1,10 @@
-using System.Data.Common;
 using ImageGen.Application.Security;
 using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -19,8 +18,8 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
 
     public async Task<IReadOnlyList<BannedToken>> GetAllAsync(long userId, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {Columns} FROM dbo.BannedToken WHERE UserId = @userId "
             + "ORDER BY ModelId, SavedAtUtc DESC, Id DESC;");
         cmd.AddParam("@userId", userId);
@@ -29,8 +28,8 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
 
     public async Task<IReadOnlyList<BannedToken>> GetForModelAsync(long userId, string modelId, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {Columns} FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId "
             + "ORDER BY SavedAtUtc DESC, Id DESC;");
         cmd.AddParam("@userId", userId);
@@ -45,8 +44,8 @@ INSERT INTO dbo.BannedToken (UserId, ModelId, Name, Kind, SavedAtUtc)
 SELECT @userId, @modelId, @name, @kind, @saved
 WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
                   WHERE UserId = @userId AND ModelId = @modelId AND Name = @name AND Kind = @kind);";
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(sql);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(sql);
         cmd.AddParam("@userId", ban.UserId);
         cmd.AddParam("@modelId", ban.ModelId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(ban.UserId, ban.Name, ct));
@@ -57,8 +56,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
 
     public async Task<bool> RemoveAsync(BannedTokenKey key, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId AND Name = @name AND Kind = @kind;");
         cmd.AddParam("@userId", key.UserId);
         cmd.AddParam("@modelId", key.ModelId);
@@ -69,14 +68,14 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
 
     private async Task<IReadOnlyList<BannedToken>> ReadAllAsync(DbCommand cmd, CancellationToken ct)
     {
-        var raw = new List<BannedTokenRow>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        List<BannedTokenRow> raw = new List<BannedTokenRow>();
+        await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
                 raw.Add(new BannedTokenRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     (TokenKind)reader.AsByte(4), DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)));
 
-        var list = new List<BannedToken>(raw.Count);
-        foreach (var r in raw)
+        List<BannedToken> list = new List<BannedToken>(raw.Count);
+        foreach (BannedTokenRow r in raw)
             list.Add(new BannedToken
             {
                 Id = r.Id,

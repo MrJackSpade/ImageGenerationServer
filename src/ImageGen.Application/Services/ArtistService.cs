@@ -24,11 +24,11 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     /// <summary>The artist's display image and whether it's a manual override (vs. the latest-generation fallback).</summary>
     public async Task<ArtistDisplayResult> GetDisplayAsync(long userId, string artistName, CancellationToken ct)
     {
-        var chosen = await _displays.GetAsync(userId, artistName, ct);
+        ArtistDisplay? chosen = await _displays.GetAsync(userId, artistName, ct);
         if (chosen is not null)
             return new ArtistDisplayResult(chosen.GatewayImageId, true);
 
-        var latest = await _history.GetLatestImageIdsForArtistsAsync(userId, [artistName], ct);
+        IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForArtistsAsync(userId, [artistName], ct);
         return new ArtistDisplayResult(latest.GetValueOrDefault(artistName), false);
     }
 
@@ -36,17 +36,17 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     public async Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
         long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (artistNames.Count == 0)
             return result;
 
-        var overrides = await _displays.GetManyAsync(userId, artistNames, ct);
-        var latest = await _history.GetLatestImageIdsForArtistsAsync(userId, artistNames, ct);
-        foreach (var name in artistNames)
+        IReadOnlyDictionary<string, string> overrides = await _displays.GetManyAsync(userId, artistNames, ct);
+        IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForArtistsAsync(userId, artistNames, ct);
+        foreach (string name in artistNames)
         {
-            if (overrides.TryGetValue(name, out var ov))
+            if (overrides.TryGetValue(name, out string? ov))
                 result[name] = ov;
-            else if (latest.TryGetValue(name, out var l))
+            else if (latest.TryGetValue(name, out string? l))
                 result[name] = l;
         }
         return result;
@@ -55,7 +55,7 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     /// <summary>Set the user's display image for an artist. Returns false if the image isn't in the user's history.</summary>
     public async Task<bool> SetAsync(long userId, string artistName, string gatewayImageId, DateTime nowUtc, CancellationToken ct)
     {
-        var entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
+        HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
             return false;
 

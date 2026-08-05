@@ -1,5 +1,6 @@
 using ImageGen.Application.Services;
-using ImageGen.Web.Auth;
+using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,10 +21,10 @@ public sealed class ArtistController(ArtistService artists, ImageViewService vie
     [HttpGet("/artist/{name}")]
     public async Task<IActionResult> Index(string name, CancellationToken ct)
     {
-        var userId = User.GetRequiredUserId();
-        var (displayId, isOverride) = await _artists.GetDisplayAsync(userId, name, ct);
-        var gens = await _artists.GetGensAsync(userId, name, 1, PageSize, ct);
-        var viewed = await _views.ViewedAsync(userId, gens.Items, ct);
+        long userId = User.GetRequiredUserId();
+        (string? displayId, bool isOverride) = await _artists.GetDisplayAsync(userId, name, ct);
+        PagedResult<HistoryEntry> gens = await _artists.GetGensAsync(userId, name, 1, PageSize, ct);
+        IReadOnlySet<string> viewed = await _views.ViewedAsync(userId, gens.Items, ct);
         return View(new ArtistViewModel
         {
             Name = name,

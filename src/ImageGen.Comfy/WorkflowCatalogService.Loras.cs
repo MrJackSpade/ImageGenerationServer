@@ -17,28 +17,28 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task<IReadOnlyList<LoraCatalogEntry>> ListLorasAsync(string? workflowId, CancellationToken ct)
     {
-        var byKind = await _comfy.GetPresentFilesByKindAsync(ct);
-        var loras = byKind.TryGetValue(RequirementKind.Lora, out var files) ? files : [];
-        var names = loras.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = await _comfy.GetPresentFilesByKindAsync(ct);
+        IReadOnlyList<string> loras = byKind.TryGetValue(RequirementKind.Lora, out IReadOnlyList<string>? files) ? files : [];
+        List<string> names = loras.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
         // Without a workflow to check against, compatibility isn't evaluated — the picker shows the full list.
-        var cfg = workflowId is null ? null : _catalog.FindConfig(workflowId);
+        WorkflowConfiguration? cfg = workflowId is null ? null : _catalog.FindConfig(workflowId);
         if (cfg is null)
             return names.Select(n => new LoraCatalogEntry(n, Compatible: true, ClipCapable: true)).ToList();
 
         // Resolve the workflow's bound checkpoint and ComfyUI's on-disk roots, read the checkpoint's layer dimensions
         // once, then compare each LoRA's feature dimensions against them (file headers only, cached per file).
-        var checkpointFile = _catalog.Resolve(cfg).Checkpoint;
-        var folders = await _comfy.GetFolderPathsAsync(ct);
-        var checkpointDims = ResolveCheckpointDims(checkpointFile, folders);
-        var loraRoots = folders.TryGetValue(LorasFolderKey, out var lr) ? lr : [];
+        string checkpointFile = _catalog.Resolve(cfg).Checkpoint;
+        IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await _comfy.GetFolderPathsAsync(ct);
+        IReadOnlySet<long>? checkpointDims = ResolveCheckpointDims(checkpointFile, folders);
+        IReadOnlyList<string> loraRoots = folders.TryGetValue(LorasFolderKey, out IReadOnlyList<string>? lr) ? lr : [];
 
         return names.Select(n =>
         {
-            var path = ResolveInRoots(loraRoots, n);
+            string? path = ResolveInRoots(loraRoots, n);
             if (path is null)
                 return new LoraCatalogEntry(n, Compatible: true, ClipCapable: true);   // can't locate the file → show it
-            var r = LoraCompatibility.Evaluate(path, checkpointDims);
+            LoraCompatibility.Result r = LoraCompatibility.Evaluate(path, checkpointDims);
             return new LoraCatalogEntry(n, r.Compatible, r.ClipCapable);
         }).ToList();
     }
@@ -50,19 +50,19 @@ public sealed partial class WorkflowCatalogService
         string? checkpointFile, IReadOnlyDictionary<string, IReadOnlyList<string>> folders)
     {
         if (string.IsNullOrWhiteSpace(checkpointFile)) return null;
-        var roots = new List<string>();
-        foreach (var key in new[] { "checkpoints", "diffusion_models", "unet" })
-            if (folders.TryGetValue(key, out var r)) roots.AddRange(r);
-        var path = ResolveInRoots(roots, checkpointFile);
+        List<string> roots = new List<string>();
+        foreach (string? key in new[] { "checkpoints", "diffusion_models", "unet" })
+            if (folders.TryGetValue(key, out IReadOnlyList<string>? r)) roots.AddRange(r);
+        string? path = ResolveInRoots(roots, checkpointFile);
         return path is null ? null : LoraCompatibility.CheckpointDims(path);
     }
 
     /// <summary>The first root under which the subfolder-qualified <paramref name="name"/> exists on disk, or null.</summary>
     private static string? ResolveInRoots(IReadOnlyList<string> roots, string name)
     {
-        foreach (var root in roots)
+        foreach (string root in roots)
         {
-            var candidate = Path.Combine(root, name);
+            string candidate = Path.Combine(root, name);
             if (File.Exists(candidate)) return candidate;
         }
         return null;

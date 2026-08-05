@@ -25,14 +25,14 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     /// <inheritdoc/>
     public ImageDimensions Identify(byte[] bytes)
     {
-        var info = Image.Identify(bytes);
+        ImageInfo info = Image.Identify(bytes);
         return new ImageDimensions(info.Width, info.Height);
     }
 
     /// <inheritdoc/>
     public ImageDimensions IdentifyVideo(byte[] bytes)
     {
-        var (w, h) = Mp4Probe.GetDimensions(bytes);
+        (int w, int h) = Mp4Probe.GetDimensions(bytes);
         return new ImageDimensions(w, h);
     }
 
@@ -53,10 +53,10 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     /// <inheritdoc/>
     public MediaPayload Thumbnail(byte[] source, int maxEdge)
     {
-        using var image = Image.Load(source);
+        using Image image = Image.Load(source);
         if (Math.Max(image.Width, image.Height) > maxEdge)
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
-        using var ms = new MemoryStream();
+        using MemoryStream ms = new MemoryStream();
         if (image.Frames.Count > 1)
         {
             image.Save(ms, new WebpEncoder { Quality = 80 });
@@ -69,12 +69,12 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     /// <inheritdoc/>
     public MediaPayload StillThumbnail(byte[] source, int maxEdge)
     {
-        using var image = Image.Load(source);
+        using Image image = Image.Load(source);
         while (image.Frames.Count > 1)
             image.Frames.RemoveFrame(image.Frames.Count - 1);
         if (Math.Max(image.Width, image.Height) > maxEdge)
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
-        using var ms = new MemoryStream();
+        using MemoryStream ms = new MemoryStream();
         image.Save(ms, new JpegEncoder { Quality = 80 });
         return new MediaPayload(ms.ToArray(), JpegMimeType);
     }

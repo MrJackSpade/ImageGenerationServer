@@ -29,7 +29,7 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
         // real find or just the usual guess. A pre-filled field that looks authoritative and is not is worse than
         // an empty one: it invites a click-through and the failure surfaces at the first render instead.
         ViewData[ViewDataKeys.Address] = ComfyProbe.LikelyLocal;
-        var found = await _probe.TryAsync(ComfyProbe.LikelyLocal, ct);
+        ProbeResult found = await _probe.TryAsync(ComfyProbe.LikelyLocal, ct);
         ViewData[ViewDataKeys.Detected] = found.Ok;
         ViewData[ViewDataKeys.ProbeError] = found.Error;
         return View();
@@ -52,7 +52,7 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
         // is running is a legitimate thing to do, so this warns once and then believes them.
         if (!useAnyway)
         {
-            var reachable = await _probe.TryAsync(baseUrl, ct);
+            ProbeResult reachable = await _probe.TryAsync(baseUrl, ct);
             if (!reachable.Ok)
             {
                 ViewData[ViewDataKeys.Error] = $"Nothing answered at that address — {reachable.Error}.";

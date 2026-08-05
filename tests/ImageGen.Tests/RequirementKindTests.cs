@@ -1,6 +1,6 @@
+using ImageGen.Comfy;
 using System.Reflection;
 using System.Text.Json;
-using ImageGen.Comfy;
 
 
 namespace ImageGen.Tests;
@@ -19,7 +19,7 @@ public sealed class RequirementKindTests
     /// <summary>The loader table, read off ComfyClient so the tests cannot drift from what ships.</summary>
     private static (RequirementKind Kind, string Node, string Input)[] LoaderInputs()
     {
-        var field = typeof(ComfyClient).GetField("LoaderInputs", BindingFlags.NonPublic | BindingFlags.Static)
+        FieldInfo field = typeof(ComfyClient).GetField("LoaderInputs", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("ComfyClient.LoaderInputs not found — was it renamed?");
         return ((RequirementKind, string, string)[])(field.GetValue(null) ?? throw new InvalidOperationException("static field value was null"));
     }
@@ -58,10 +58,10 @@ public sealed class RequirementKindTests
     public void Every_kind_a_slot_declares_is_served_by_a_loader()
     {
         // CustomNode is met by a registered node rather than a file, so it draws from no loader by design.
-        var served = LoaderInputs().Select(l => l.Kind).Distinct().Append(RequirementKind.CustomNode).ToHashSet();
-        var declared = SlotKinds().Values.Distinct().ToList();
+        HashSet<RequirementKind> served = LoaderInputs().Select(l => l.Kind).Distinct().Append(RequirementKind.CustomNode).ToHashSet();
+        List<RequirementKind> declared = SlotKinds().Values.Distinct().ToList();
 
-        var unserved = declared.Where(k => !served.Contains(k)).ToList();
+        List<RequirementKind> unserved = declared.Where(k => !served.Contains(k)).ToList();
         Assert.True(unserved.Count == 0,
             "Slots declare kinds that no loader serves, so nothing can ever fill them: "
             + string.Join(", ", unserved));
@@ -71,7 +71,7 @@ public sealed class RequirementKindTests
     public void No_kind_is_a_catch_all()
     {
         // The literal defect: a value whose name admits it holds unrelated things.
-        var names = Enum.GetNames<RequirementKind>();
+        string[] names = Enum.GetNames<RequirementKind>();
         Assert.DoesNotContain("Other", names);
         Assert.DoesNotContain("Misc", names);
         Assert.DoesNotContain("Unknown", names);
@@ -82,10 +82,10 @@ public sealed class RequirementKindTests
     {
         // A catch-all `_ => Other` would let a typo silently produce a slot that shares a pool with six unrelated
         // model types. It must throw instead.
-        var parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static)
+        MethodInfo parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("WorkflowCatalog.ParseKind not found — was it renamed?");
 
-        var ex = Assert.Throws<TargetInvocationException>(() => parse.Invoke(null, ["not_a_real_kind"]));
+        TargetInvocationException ex = Assert.Throws<TargetInvocationException>(() => parse.Invoke(null, ["not_a_real_kind"]));
         Assert.IsType<ArgumentException>(ex.InnerException);
     }
 
@@ -95,12 +95,12 @@ public sealed class RequirementKindTests
         // Both seedvr2 files live in the pack's own folder and are read by its own loaders, so they must share one
         // kind. Declaring seedvr2-vae as `vae` instead would drag a SeedVR2-private file into the candidate list of
         // every unrelated VAE slot.
-        var kinds = SlotKinds();
-        foreach (var family in new[] { new[] { "seedvr2-3b", "seedvr2-vae" } })
+        Dictionary<string, RequirementKind> kinds = SlotKinds();
+        foreach (string[]? family in new[] { new[] { "seedvr2-3b", "seedvr2-vae" } })
         {
-            var present = family.Where(kinds.ContainsKey).ToList();
+            List<string> present = family.Where(kinds.ContainsKey).ToList();
             if (present.Count < 2) continue;
-            var distinct = present.Select(id => kinds[id]).Distinct().ToList();
+            List<RequirementKind> distinct = present.Select(id => kinds[id]).Distinct().ToList();
             Assert.True(distinct.Count == 1,
                 $"{string.Join(" and ", present)} belong to one model but declare "
                 + string.Join(" / ", distinct) + "; a slot's kind decides which pool it is offered.");
@@ -110,15 +110,15 @@ public sealed class RequirementKindTests
     /// <summary>Every shipped slot id to the kind it declares, read from the catalogue on disk.</summary>
     private static Dictionary<string, RequirementKind> SlotKinds()
     {
-        var dir = CatalogDir();
-        var parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static);
+        string dir = CatalogDir();
+        MethodInfo? parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(parse);
-        var map = new Dictionary<string, RequirementKind>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
+        Dictionary<string, RequirementKind> map = new Dictionary<string, RequirementKind>(StringComparer.OrdinalIgnoreCase);
+        foreach (string file in Directory.EnumerateFiles(dir, "*.json"))
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(file));
-            var root = doc.RootElement;
-            var id = root.GetProperty("id").RequireString();
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+            JsonElement root = doc.RootElement;
+            string id = root.GetProperty("id").RequireString();
             map[id] = (RequirementKind)(parse.Invoke(null, [root.GetProperty("kind").GetString()]) ?? throw new InvalidOperationException("ParseKind returned null"));
         }
         return map;
@@ -126,10 +126,10 @@ public sealed class RequirementKindTests
 
     private static string CatalogDir()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir, "configurations", "models");
+            string candidate = Path.Combine(dir, "configurations", "models");
             if (Directory.Exists(candidate)) return candidate;
             dir = Path.GetDirectoryName(dir);
         }

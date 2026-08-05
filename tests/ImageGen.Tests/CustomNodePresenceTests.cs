@@ -1,5 +1,4 @@
 using System.Text.Json;
-using ImageGen.Comfy;
 
 namespace ImageGen.Tests;
 
@@ -21,20 +20,20 @@ public sealed class CustomNodePresenceTests
     [SkippableFact]
     public void Anima_outpaint_requires_the_pack_that_provides_its_node()
     {
-        var repo = RepositoryRoot();
+        string? repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
         Assert.NotNull(repo);
 
-        var models = Path.Combine(repo, "configurations", "models");
-        var slot = JsonDocument.Parse(File.ReadAllText(Path.Combine(models, "comfyui-anima-lllite.json"))).RootElement;
+        string models = Path.Combine(repo, "configurations", "models");
+        JsonElement slot = JsonDocument.Parse(File.ReadAllText(Path.Combine(models, "comfyui-anima-lllite.json"))).RootElement;
 
         Assert.Equal("custom_node", slot.GetProperty("kind").GetString());
         Assert.Equal("AnimaLLLiteApply", slot.GetProperty("node").GetString());
 
         // The workflow has to actually ask for it, or the requirement exists and gates nothing.
-        var config = JsonDocument.Parse(
+        JsonElement config = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(repo, "configurations", "workflows", "anima-outpaint.json"))).RootElement;
-        var extra = config.GetProperty("requirements").GetProperty("extra").EnumerateArray()
+        List<string?> extra = config.GetProperty("requirements").GetProperty("extra").EnumerateArray()
             .Select(e => e.GetString()).ToList();
         Assert.Contains("comfyui-anima-lllite", extra);
     }
@@ -46,16 +45,16 @@ public sealed class CustomNodePresenceTests
     [SkippableFact]
     public void Every_custom_node_requirement_names_the_node_that_proves_it()
     {
-        var repo = RepositoryRoot();
+        string? repo = RepositoryRoot();
         Skip.If(repo is null, "not running from a source checkout");
         Assert.NotNull(repo);
 
-        var missing = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json"))
+        List<string> missing = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json"))
         {
-            var root = JsonDocument.Parse(File.ReadAllText(file)).RootElement;
-            if (root.TryGetProperty("kind", out var kind) && kind.GetString() == "custom_node"
-                && !(root.TryGetProperty("node", out var node) && !string.IsNullOrWhiteSpace(node.GetString())))
+            JsonElement root = JsonDocument.Parse(File.ReadAllText(file)).RootElement;
+            if (root.TryGetProperty("kind", out JsonElement kind) && kind.GetString() == "custom_node"
+                && !(root.TryGetProperty("node", out JsonElement node) && !string.IsNullOrWhiteSpace(node.GetString())))
                 missing.Add(Path.GetFileName(file));
         }
 
@@ -71,18 +70,18 @@ public sealed class CustomNodePresenceTests
     [SkippableFact]
     public async Task Live_object_info_distinguishes_a_known_node_from_an_unknown_one()
     {
-        var baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
+        string? baseUrl = Environment.GetEnvironmentVariable("COMFY_URL");
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
         Assert.NotNull(baseUrl);
 
-        using var http = new HttpClient { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/") };
+        using HttpClient http = new HttpClient { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/") };
 
-        using var known = await http.GetAsync("object_info/AnimaLLLiteApply");
+        using HttpResponseMessage known = await http.GetAsync("object_info/AnimaLLLiteApply");
         known.EnsureSuccessStatusCode();
         Assert.True(JsonDocument.Parse(await known.Content.ReadAsStringAsync())
             .RootElement.TryGetProperty("AnimaLLLiteApply", out _), "the installed node was not reported");
 
-        using var unknown = await http.GetAsync("object_info/NoSuchNodeXYZ");
+        using HttpResponseMessage unknown = await http.GetAsync("object_info/NoSuchNodeXYZ");
         Assert.True(unknown.IsSuccessStatusCode,
             "ComfyUI used to answer 200 for an unknown node; if this is now an error status the presence check " +
             "still works, but the comment explaining why the body is checked is stale.");
@@ -92,7 +91,7 @@ public sealed class CustomNodePresenceTests
 
     private static string? RepositoryRoot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
             if (Directory.Exists(Path.Combine(directory.FullName, "configurations", "models"))) return directory.FullName;

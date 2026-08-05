@@ -22,7 +22,7 @@ public sealed class PromptFinalizerTests
     {
         // Autocomplete inserts '#tag'/'@artist' with underscores; finalize strips '#', keeps '@' (Anima wants it),
         // and spaces underscores — so no marker junk reaches CLIP.
-        var r = PromptFinalizer.Finalize("#bad_anatomy, @some_artist", Anima).Rendered;
+        string r = PromptFinalizer.Finalize("#bad_anatomy, @some_artist", Anima).Rendered;
         Assert.Equal("bad anatomy, @some artist", r);
         Assert.DoesNotContain("#", r);
     }
@@ -44,7 +44,7 @@ public sealed class PromptFinalizerTests
         // The pipeline never drops or dedups the second tag — any "only the first negative applies" effect the user
         // sees in the output is the diffusion model's, not this code's.
         const string dflt = "worst quality, low quality, score_1, score_2, score_3, artist name";
-        var finalized = PromptFinalizer.Finalize("#shirt, #bra", Anima).Rendered;   // -> "shirt, bra"
+        string finalized = PromptFinalizer.Finalize("#shirt, #bra", Anima).Rendered;   // -> "shirt, bra"
         Assert.Equal("shirt, bra, " + dflt, ComfyGraph.ComposeNegative(dflt, finalized));
     }
 
@@ -54,7 +54,7 @@ public sealed class PromptFinalizerTests
         // A tag the user negated must never be sampled back in as a random positive. Every comma-segment of the negative
         // yields an exclusion key: '@' declares an artist, '#'-marked and plain-typed alike are tags. Keys are canonical
         // (lowercased, spaces->underscores) so they match the ban sets the tag model and RandomArtist already honour.
-        var (tags, artists) = PromptFinalizer.NegativeKeys("#from_side, Bad Anatomy, @some_artist");
+        (HashSet<string>? tags, HashSet<string>? artists) = PromptFinalizer.NegativeKeys("#from_side, Bad Anatomy, @some_artist");
         Assert.True(tags.SetEquals(["from_side", "bad_anatomy"]));
         Assert.True(artists.SetEquals(["some_artist"]));
     }
@@ -62,10 +62,10 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Negative_keys_are_empty_when_nothing_was_negated()
     {
-        var (tags, artists) = PromptFinalizer.NegativeKeys(null);
+        (HashSet<string>? tags, HashSet<string>? artists) = PromptFinalizer.NegativeKeys(null);
         Assert.Empty(tags);
         Assert.Empty(artists);
-        var (tags2, artists2) = PromptFinalizer.NegativeKeys("  , # , ");
+        (HashSet<string>? tags2, HashSet<string>? artists2) = PromptFinalizer.NegativeKeys("  , # , ");
         Assert.Empty(tags2);
         Assert.Empty(artists2);
     }
@@ -79,11 +79,11 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_entity_in_a_tag_keeps_its_hash_and_the_segment_still_matches_its_mark()
     {
-        var f = PromptFinalizer.Finalize("#holding_another&#039;s_foot", Anima);
+        FinalizedPrompt f = PromptFinalizer.Finalize("#holding_another&#039;s_foot", Anima);
 
         Assert.Equal("holding another&#039;s foot", f.Rendered);
         // The rendered segment must key back onto the mark the same call recorded — that lookup is the chip.
-        var key = Assert.Single(f.Marks).Key;
+        string key = Assert.Single(f.Marks).Key;
         Assert.Equal("holding_another&#039;s_foot", key);
         Assert.Equal(key, PromptMarkers.Key(f.Rendered));
     }
@@ -101,7 +101,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_interior_at_survives_even_when_the_artist_marker_is_stripped()
     {
-        var booru = new WorkflowTagging(Tags: true, Artists: true, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging booru = new WorkflowTagging(Tags: true, Artists: true, KeepArtistMarker: false, UnderscoresToSpaces: false);
         Assert.Equal("@_@, j@ck", PromptFinalizer.Finalize("#@_@, #j@ck", booru).Rendered);
         Assert.Equal("some_artist", PromptFinalizer.Finalize("@some_artist", booru).Rendered);
     }
@@ -111,7 +111,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_inert_tag_renders_and_marks_exactly_like_a_hash_tag()
     {
-        var f = PromptFinalizer.Finalize("!pig, #castle, @greg_rutkowski", Anima);
+        FinalizedPrompt f = PromptFinalizer.Finalize("!pig, #castle, @greg_rutkowski", Anima);
         Assert.Equal("pig, castle, @greg rutkowski", f.Rendered);
         Assert.Equal(TokenKinds.Tag, f.Marks["pig"]);
         Assert.Equal(TokenKinds.Tag, f.Marks["castle"]);
@@ -133,7 +133,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Inert_keys_are_read_off_the_raw_prompt_and_only_the_bang_segments_count()
     {
-        var keys = PromptMarkers.InertKeys("#castle, !pig, @greg_rutkowski, !Cow Bell, plain phrase");
+        HashSet<string> keys = PromptMarkers.InertKeys("#castle, !pig, @greg_rutkowski, !Cow Bell, plain phrase");
         Assert.Equal(["cow_bell", "pig"], keys.Order());   // '!Cow Bell' canonicalizes like any other tag
         Assert.Empty(PromptMarkers.InertKeys("#castle, @greg_rutkowski"));
         Assert.Empty(PromptMarkers.InertKeys(null));
@@ -144,7 +144,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_inert_tag_is_hidden_from_the_predictor_seed_but_stays_in_the_prompt()
     {
-        var (seed, inert) = RenderOrchestrator.TagSeed("!pig, #castle, #dragon, @greg_rutkowski", Anima);
+        (string? seed, HashSet<string>? inert) = RenderOrchestrator.TagSeed("!pig, #castle, #dragon, @greg_rutkowski", Anima);
         Assert.Equal("castle, dragon", seed);
         Assert.Equal(["pig"], inert.Order());
         // ...and the pig is still rendered for the image model, marker gone.
@@ -157,7 +157,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_all_inert_prompt_seeds_the_predictor_with_nothing()
     {
-        var (seed, inert) = RenderOrchestrator.TagSeed("!pig, !cow", Anima);
+        (string? seed, HashSet<string>? inert) = RenderOrchestrator.TagSeed("!pig, !cow", Anima);
         Assert.Equal("", seed);
         Assert.Equal(["cow", "pig"], inert.Order());
     }
@@ -166,7 +166,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_prompt_with_no_inert_tags_seeds_exactly_as_before()
     {
-        var (seed, inert) = RenderOrchestrator.TagSeed("#castle, @greg_rutkowski, plain phrase", Anima);
+        (string? seed, HashSet<string>? inert) = RenderOrchestrator.TagSeed("#castle, @greg_rutkowski, plain phrase", Anima);
         Assert.Equal("castle, plain phrase", seed);
         Assert.Empty(inert);
     }
@@ -179,7 +179,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_guide_tag_renders_as_nothing_and_does_not_mark()
     {
-        var f = PromptFinalizer.Finalize("!1girl, ~1boy, #castle", Anima);
+        FinalizedPrompt f = PromptFinalizer.Finalize("!1girl, ~1boy, #castle", Anima);
 
         Assert.Equal("1girl, castle", f.Rendered);
         Assert.False(f.Marks.ContainsKey("1boy"));
@@ -205,7 +205,7 @@ public sealed class PromptFinalizerTests
     public void A_guide_tag_seeds_the_predictor_and_the_other_subject_is_what_renders()
     {
         const string raw = "!1girl, ~1boy, #castle";
-        var (seed, suppress) = RenderOrchestrator.TagSeed(raw, Anima);
+        (string? seed, HashSet<string>? suppress) = RenderOrchestrator.TagSeed(raw, Anima);
 
         Assert.Equal("1boy, castle", seed);                       // 1girl hidden ('!'), 1boy present ('~')
         Assert.Equal("1girl, castle", PromptFinalizer.Finalize(raw, Anima).Rendered);   // ...and 1boy is not rendered
@@ -219,7 +219,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_guide_tag_holds_its_place_and_form_in_the_seed()
     {
-        var (seed, _) = RenderOrchestrator.TagSeed("#castle, ~long_hair, #dragon", Anima);
+        (string? seed, HashSet<string> _) = RenderOrchestrator.TagSeed("#castle, ~long_hair, #dragon", Anima);
 
         Assert.Equal("castle, long hair, dragon", seed);
     }
@@ -228,7 +228,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Guide_keys_are_read_off_the_raw_prompt_and_only_the_tilde_segments_count()
     {
-        var keys = PromptMarkers.GuideKeys("#castle, ~1boy, !pig, ~Cow Bell, @greg_rutkowski, plain phrase");
+        HashSet<string> keys = PromptMarkers.GuideKeys("#castle, ~1boy, !pig, ~Cow Bell, @greg_rutkowski, plain phrase");
 
         Assert.Equal(["1boy", "cow_bell"], keys.Order());
         Assert.Empty(PromptMarkers.GuideKeys("#castle, !pig"));
@@ -240,7 +240,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_all_guide_prompt_renders_nothing_and_still_seeds()
     {
-        var (seed, suppress) = RenderOrchestrator.TagSeed("~1boy, ~castle", Anima);
+        (string? seed, HashSet<string>? suppress) = RenderOrchestrator.TagSeed("~1boy, ~castle", Anima);
 
         Assert.Equal("1boy, castle", seed);
         Assert.Equal(["1boy", "castle"], suppress.Order());
@@ -251,7 +251,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_prompt_with_no_guide_tags_is_unaffected()
     {
-        var (seed, suppress) = RenderOrchestrator.TagSeed("#castle, @greg_rutkowski, plain phrase", Anima);
+        (string? seed, HashSet<string>? suppress) = RenderOrchestrator.TagSeed("#castle, @greg_rutkowski, plain phrase", Anima);
 
         Assert.Equal("castle, plain phrase", seed);
         Assert.Empty(suppress);
@@ -269,7 +269,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Negative_keys_strip_the_inert_marker_too()
     {
-        var (tags, _) = PromptFinalizer.NegativeKeys("!pig, #castle, ~cow");
+        (HashSet<string>? tags, HashSet<string> _) = PromptFinalizer.NegativeKeys("!pig, #castle, ~cow");
         Assert.Equal(["castle", "cow", "pig"], tags.Order());
     }
 
@@ -282,14 +282,14 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_sampled_artist_is_marked_an_artist_and_a_sampled_tag_a_tag()
     {
-        var artists = new HashSet<string>(["kazaana", "greg_rutkowski"]);
-        var tokens = PromptFinalizer.MarkSampled(
+        HashSet<string> artists = new HashSet<string>(["kazaana", "greg_rutkowski"]);
+        List<string> tokens = PromptFinalizer.MarkSampled(
             ["long_hair", "kazaana", "castle", "greg_rutkowski"], NoBans, artists.Contains);
 
         Assert.Equal(["#long_hair", "@kazaana", "#castle", "@greg_rutkowski"], tokens);
 
         // ...and the marks the finalizer then derives carry that kind through: artist, not tag.
-        var marks = PromptFinalizer.Finalize(string.Join(", ", tokens), Anima).Marks;
+        Dictionary<string, string> marks = PromptFinalizer.Finalize(string.Join(", ", tokens), Anima).Marks;
         Assert.Equal(TokenKinds.Artist, marks["kazaana"]);
         Assert.Equal(TokenKinds.Tag, marks["long_hair"]);
     }
@@ -306,7 +306,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Sampled_names_are_canonicalized_and_the_banned_are_dropped()
     {
-        var banned = new HashSet<string>(["castle"]);
+        HashSet<string> banned = new HashSet<string>(["castle"]);
         Assert.Equal(["#long_hair", "#pig"],
             PromptFinalizer.MarkSampled(["Long Hair", "castle", "  ", "pig"], banned, _ => false));
         // An artist ban binds the tag model's output too — the same set suppresses it whichever kind it is.

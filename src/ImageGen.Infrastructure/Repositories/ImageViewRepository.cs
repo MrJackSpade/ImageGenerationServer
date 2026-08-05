@@ -1,8 +1,7 @@
-using System.Data.Common;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -27,8 +26,8 @@ INSERT INTO dbo.ImageView (UserId, GatewayImageId, ViewedAtUtc)
 SELECT @userId, @img, @now
 WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageView WHERE UserId = @userId AND GatewayImageId = @img);";
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(sql);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(sql);
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@img", gatewayImageId);
         cmd.AddParam("@now", nowUtc);
@@ -38,23 +37,23 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageView WHERE UserId = @userId AND Gateway
     public async Task<IReadOnlySet<string>> ViewedAsync(
         long userId, IReadOnlyCollection<string> gatewayImageIds, CancellationToken ct)
     {
-        var viewed = new HashSet<string>(StringComparer.Ordinal);
-        var ids = gatewayImageIds.Distinct(StringComparer.Ordinal).ToList();
+        HashSet<string> viewed = new HashSet<string>(StringComparer.Ordinal);
+        List<string> ids = gatewayImageIds.Distinct(StringComparer.Ordinal).ToList();
         if (ids.Count == 0)
             return viewed;
 
-        var ps = new string[ids.Count];
-        for (var i = 0; i < ids.Count; i++)
+        string[] ps = new string[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
             ps[i] = "@i" + i;
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT GatewayImageId FROM dbo.ImageView WHERE UserId = @userId AND GatewayImageId IN ({string.Join(',', ps)});");
         cmd.AddParam("@userId", userId);
-        for (var i = 0; i < ids.Count; i++)
+        for (int i = 0; i < ids.Count; i++)
             cmd.AddParam(ps[i], ids[i]);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
             viewed.Add(reader.GetString(0));
         return viewed;
@@ -71,8 +70,8 @@ FROM dbo.HistoryEntry h
 WHERE h.UserId = @userId
   AND NOT EXISTS (SELECT 1 FROM dbo.ImageView v WHERE v.UserId = h.UserId AND v.GatewayImageId = h.GatewayImageId);";
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(sql);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(sql);
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@now", nowUtc);
         return await cmd.ExecuteNonQueryAsync(ct);

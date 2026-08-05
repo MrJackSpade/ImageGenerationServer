@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace ImageGen.Web.Comfy;
@@ -38,7 +39,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     {
         get
         {
-            var dir = _config[DirectoryKey];
+            string? dir = _config[DirectoryKey];
             return string.IsNullOrWhiteSpace(dir) ? null : dir.Trim();
         }
     }
@@ -62,13 +63,13 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     /// </summary>
     public void Restart()
     {
-        var directory = Directory ?? throw new InvalidOperationException(
+        string directory = Directory ?? throw new InvalidOperationException(
             "This installation does not manage ComfyUI, so it cannot restart it. Restart it yourself for the patches to take effect.");
 
-        var pid = ReadPid() ?? throw new InvalidOperationException(
+        int pid = ReadPid() ?? throw new InvalidOperationException(
             "ComfyUI does not appear to be running — there is no process to restart.");
 
-        var marker = Path.Combine(directory, RestartMarker);
+        string marker = Path.Combine(directory, RestartMarker);
         File.WriteAllText(marker, pid.ToString());
 
         if (!OperatingSystem.IsLinux())
@@ -82,7 +83,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
             // The marker must not outlive a failed signal: left behind, the NEXT genuine crash would be read as a
             // requested restart and the container would quietly come back instead of reporting that it fell over.
             File.Delete(marker);
-            var error = Marshal.GetLastPInvokeError();
+            int error = Marshal.GetLastPInvokeError();
             throw new InvalidOperationException($"Could not signal ComfyUI (pid {pid}): errno {error}.");
         }
 
@@ -92,17 +93,17 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     /// <summary>ComfyUI's process id, if the supervisor has written one and that process is still alive.</summary>
     private int? ReadPid()
     {
-        var directory = Directory;
+        string? directory = Directory;
         if (directory is null) return null;
 
-        var path = Path.Combine(directory, PidFile);
+        string path = Path.Combine(directory, PidFile);
         if (!File.Exists(path)) return null;
-        if (!int.TryParse(File.ReadAllText(path).Trim(), out var pid) || pid <= 1) return null;
+        if (!int.TryParse(File.ReadAllText(path).Trim(), out int pid) || pid <= 1) return null;
 
         // A pid file outlives the process it names. Ask whether it is still there rather than believing the file.
         try
         {
-            using var _ = System.Diagnostics.Process.GetProcessById(pid);
+            using Process _ = System.Diagnostics.Process.GetProcessById(pid);
             return pid;
         }
         catch (ArgumentException)

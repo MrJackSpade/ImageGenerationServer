@@ -47,7 +47,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// <summary>Create anything the configured provider's schema says is missing.</summary>
     public async Task EnsureSchemaAsync(CancellationToken ct)
     {
-        await using var connection = await _connectionFactory.OpenAsync(ct);
+        await using DbConnection connection = await _connectionFactory.OpenAsync(ct);
         if (_provider == DatabaseProvider.Sqlite)
             await ApplySqliteAsync(connection, ReadEmbeddedSchema(SqliteSchemaResource), ct);
         else
@@ -60,9 +60,9 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// </summary>
     private static async Task ApplySqlServerAsync(DbConnection connection, string script, CancellationToken ct)
     {
-        foreach (var batch in SplitBatches(script))
+        foreach (string batch in SplitBatches(script))
         {
-            await using var command = connection.Command(batch);
+            await using DbCommand command = connection.Command(batch);
             await command.ExecuteNonQueryAsync(ct);
         }
     }
@@ -74,24 +74,24 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// </summary>
     private static async Task ApplySqliteAsync(DbConnection connection, string script, CancellationToken ct)
     {
-        foreach (var statement in SqliteStatements(script))
+        foreach (string statement in SqliteStatements(script))
         {
-            var add = AddColumn.Match(statement);
+            Match add = AddColumn.Match(statement);
             if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups[TableGroup].Value, add.Groups[ColumnGroup].Value, ct))
                 continue;   // already applied by an earlier run or an earlier version — replaying it is a no-op, not an error
 
-            await using var command = connection.Command(statement);
+            await using DbCommand command = connection.Command(statement);
             await command.ExecuteNonQueryAsync(ct);
         }
     }
 
     private static async Task<bool> SqliteColumnExistsAsync(DbConnection connection, string table, string column, CancellationToken ct)
     {
-        await using var command = connection.CreateCommand();
+        await using DbCommand command = connection.CreateCommand();
         // The real tables live in the attached `dbo` schema (SqliteConnectionFactory), so table_info is asked of dbo.
         // `table` is a bare identifier parsed out of our own schema file, never anything a user supplied.
         command.CommandText = $"PRAGMA dbo.table_info({table});";
-        await using var reader = await command.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
             if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))   // (cid, name, …) — name is ordinal 1
                 return true;
@@ -100,13 +100,13 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
 
     private static string ReadEmbeddedSchema(string fileName)
     {
-        var assembly = Assembly.GetExecutingAssembly();
+        Assembly assembly = Assembly.GetExecutingAssembly();
         // EndsWith with the '.' guard, so "schema.sql" cannot also match "schema.sqlite.sql".
-        var name = assembly.GetManifestResourceNames()
+        string name = assembly.GetManifestResourceNames()
             .Single(n => n.EndsWith("." + fileName, StringComparison.OrdinalIgnoreCase));
-        using var stream = assembly.GetManifestResourceStream(name)
+        using Stream stream = assembly.GetManifestResourceStream(name)
             ?? throw new InvalidOperationException($"Embedded schema resource '{name}' was not found.");
-        using var reader = new StreamReader(stream);
+        using StreamReader reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
 
@@ -119,16 +119,16 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// </summary>
     private static IEnumerable<string> SqliteStatements(string script)
     {
-        var code = new StringBuilder(script.Length);
-        foreach (var line in script.Split('\n'))
+        StringBuilder code = new StringBuilder(script.Length);
+        foreach (string line in script.Split('\n'))
         {
-            var comment = line.IndexOf(LineCommentPrefix, StringComparison.Ordinal);
+            int comment = line.IndexOf(LineCommentPrefix, StringComparison.Ordinal);
             code.Append(comment >= 0 ? line[..comment] : line).Append('\n');
         }
 
-        foreach (var raw in code.ToString().Split(';'))
+        foreach (string raw in code.ToString().Split(';'))
         {
-            var statement = raw.Trim();
+            string statement = raw.Trim();
             if (statement.Length > 0)
                 yield return statement;
         }
@@ -142,9 +142,9 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// </summary>
     private static IEnumerable<string> SplitBatches(string script)
     {
-        foreach (var batch in script.Split(["\nGO\n", "\nGO\r\n", "\r\nGO\r\n"], StringSplitOptions.None))
+        foreach (string batch in script.Split(["\nGO\n", "\nGO\r\n", "\r\nGO\r\n"], StringSplitOptions.None))
         {
-            var trimmed = batch.Trim();
+            string trimmed = batch.Trim();
             if (trimmed.Length > 0)
                 yield return trimmed;
         }

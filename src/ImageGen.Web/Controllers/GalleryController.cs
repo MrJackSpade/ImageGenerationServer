@@ -1,6 +1,7 @@
 using ImageGen.Application.Services;
+using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
-using ImageGen.Web.Auth;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,15 +25,15 @@ public sealed class GalleryController(HistoryService history, ImageViewService v
     [HttpGet("/gallery")]
     public async Task<IActionResult> Index(string? q, string? workflow, bool? unviewed, CancellationToken ct)
     {
-        var userId = User.GetRequiredUserId();
-        var unviewedOnly = unviewed ?? false;
-        var result = await _history.GetPageAsync(
+        long userId = User.GetRequiredUserId();
+        bool unviewedOnly = unviewed ?? false;
+        PagedResult<HistoryEntry> result = await _history.GetPageAsync(
             new HistoryQuery(userId, 1, PageSize, Model: workflow, Search: q, UnviewedOnly: unviewedOnly), ct);
         // The options are the workflows the user has actually used — unfiltered, so the dropdown doesn't shrink to
         // whatever the current filter left standing.
-        var workflows = await _history.GetUsedWorkflowsAsync(userId, ct);
+        IReadOnlyList<HistoryWorkflowUse> workflows = await _history.GetUsedWorkflowsAsync(userId, ct);
         // The grid outlines what this user hasn't opened; one lookup covers the whole page.
-        var viewed = await _views.ViewedAsync(userId, result.Items, ct);
+        IReadOnlySet<string> viewed = await _views.ViewedAsync(userId, result.Items, ct);
         return View(new GalleryViewModel
         {
             Items = result.Items.Select(e => e.ToItemView(viewed)).ToList(),

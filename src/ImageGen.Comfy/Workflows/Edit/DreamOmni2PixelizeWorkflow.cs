@@ -29,26 +29,26 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };
         object refImg;
-        var refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
         if (refNames.Count > 0) { wf[Reference] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[0] }); refImg = ComfyGraph.Ref(Reference, 0); }
         else refImg = ComfyGraph.Ref(Nodes.Source, 0);   // Editor requires a reference; the source doubles as its own.
 
-        var instruction = p.Str(WorkflowParamKeys.StylePrompt);
+        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
         int gw = p.IntReq(WorkflowParamKeys.GridW);
         int gh = p.IntReq(WorkflowParamKeys.GridH);
-        var palette = p.StrReq(WorkflowParamKeys.Palette);
+        string palette = p.StrReq(WorkflowParamKeys.Palette);
         int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
 
         // The config links no checkpoint (the editor loads its own int8 weights), so there's no resolved Resolution.
         // DreamOmni2 is a FLUX.1-Kontext-class pipeline, so snap against the Kontext envelope (256-1440, /16). The
         // render size is fed to the editor as render_width/height, overriding its internal aspect-bucket resize.
-        var snap = PixelSnap.Target(p, new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, inputs.SourceWidth, inputs.SourceHeight);
+        (int w, int h)? snap = PixelSnap.Target(p, new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, inputs.SourceWidth, inputs.SourceHeight);
 
         wf[Pipeline] = ComfyGraph.Node(ComfyNodeTypes.RunningHubDreamOmni2EditPipeline, new { });
         wf[Editor] = ComfyGraph.Node(ComfyNodeTypes.RunningHubDreamOmni2Editor, new

@@ -1,6 +1,4 @@
-﻿using ImageGen.Application.Rendering;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Diffusion pixelizer on Qwen-Image-Edit — generate pixel art DIRECTLY from a reference image. QIE's instruction
@@ -73,23 +71,23 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // model/clip/vae + LoadImage "10"
-        var src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // model/clip/vae + LoadImage "10"
+        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
 
-        var instruction = p.Str(WorkflowParamKeys.StylePrompt);
+        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
         if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
 
         int gw = p.IntReq(WorkflowParamKeys.GridW);
         int gh = p.IntReq(WorkflowParamKeys.GridH);
-        var palette = p.StrReq(WorkflowParamKeys.Palette);
+        string palette = p.StrReq(WorkflowParamKeys.Palette);
         int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
 
         // The source enters as a SEMANTIC guide through Qwen's vision encoder (image1). The `reference` % knob sets
         // how much the output references the source pixels: 0 = no reference (empty init latent, no ReferenceLatent →
         // QIE GENERATES a new design each seed); >0 = inject the source latent + ReferenceLatent and img2img it at
         // denoise = 1 - reference/100 (100 ≈ copy). When snapping is on, the sprite renders at the clean k×VRES size.
-        var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
+        (int w, int h)? snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
         bool useRef = p.IntReq(WorkflowParamKeys.Reference) > 0;
         wf[KontextScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = src });
         wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeQwenImageEditPlus, new { clip = clip0, image1 = ComfyGraph.Ref(KontextScale, 0), prompt = instruction });

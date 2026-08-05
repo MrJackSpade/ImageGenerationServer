@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 
@@ -20,15 +21,15 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_full_page_of_unviewed_comes_back_even_when_the_newest_are_all_viewed()
     {
-        var user = await fixture.NewUserAsync("unviewed-page");
+        User user = await fixture.NewUserAsync("unviewed-page");
         // 12 images, newest first by CreatedAtUtc. The newest 5 get opened.
-        for (var i = 0; i < 12; i++)
+        for (int i = 0; i < 12; i++)
             await fixture.History.AddAsync(Entry(user.Id, $"uv-{i:00}", created: Now.AddMinutes(i)), Ct);
-        for (var i = 7; i < 12; i++)
+        for (int i = 7; i < 12; i++)
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"uv-{i:00}", Now, Ct);
 
         // Page size 5: post-filtering would take the newest five (all viewed), drop them all, and hand back nothing.
-        var page = await fixture.History.GetPageAsync(
+        PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(
             new HistoryQuery(user.Id, 1, 5, UnviewedOnly: true), Ct);
 
         Assert.Equal(5, page.Items.Count);
@@ -38,14 +39,14 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task The_total_counts_only_unviewed()
     {
-        var user = await fixture.NewUserAsync("unviewed-total");
-        for (var i = 0; i < 9; i++)
+        User user = await fixture.NewUserAsync("unviewed-total");
+        for (int i = 0; i < 9; i++)
             await fixture.History.AddAsync(Entry(user.Id, $"ut-{i:00}", created: Now.AddMinutes(i)), Ct);
-        for (var i = 0; i < 4; i++)
+        for (int i = 0; i < 4; i++)
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"ut-{i:00}", Now, Ct);
 
-        var filtered = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, UnviewedOnly: true), Ct);
-        var all = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
+        PagedResult<HistoryEntry> filtered = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, UnviewedOnly: true), Ct);
+        PagedResult<HistoryEntry> all = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
 
         Assert.Equal(5, filtered.Total);
         Assert.Equal(9, all.Total);
@@ -56,16 +57,16 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     {
         // The second page has to be the second page OF THE FILTERED SET. Offsetting into the unfiltered set instead
         // is the other way this goes wrong, and it looks fine on page one.
-        var user = await fixture.NewUserAsync("unviewed-paging");
-        for (var i = 0; i < 10; i++)
+        User user = await fixture.NewUserAsync("unviewed-paging");
+        for (int i = 0; i < 10; i++)
             await fixture.History.AddAsync(Entry(user.Id, $"up-{i:00}", created: Now.AddMinutes(i)), Ct);
-        foreach (var i in new[] { 1, 3, 5, 7, 9 })
+        foreach (int i in new[] { 1, 3, 5, 7, 9 })
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"up-{i:00}", Now, Ct);
 
-        var p1 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 3, UnviewedOnly: true), Ct);
-        var p2 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 2, 3, UnviewedOnly: true), Ct);
+        PagedResult<HistoryEntry> p1 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 3, UnviewedOnly: true), Ct);
+        PagedResult<HistoryEntry> p2 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 2, 3, UnviewedOnly: true), Ct);
 
-        var ids = p1.Items.Concat(p2.Items).Select(e => e.GatewayImageId).ToList();
+        List<string> ids = p1.Items.Concat(p2.Items).Select(e => e.GatewayImageId).ToList();
         Assert.Equal(5, ids.Count);
         Assert.Equal(5, ids.Distinct().Count());
         Assert.All(ids, id => Assert.Contains(id, new[] { "up-00", "up-02", "up-04", "up-06", "up-08" }));
@@ -74,13 +75,13 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task It_combines_with_the_workflow_filter()
     {
-        var user = await fixture.NewUserAsync("unviewed-combined");
+        User user = await fixture.NewUserAsync("unviewed-combined");
         await fixture.History.AddAsync(Entry(user.Id, "uc-a", created: Now.AddMinutes(1), modelId: "alpha"), Ct);
         await fixture.History.AddAsync(Entry(user.Id, "uc-b", created: Now.AddMinutes(2), modelId: "alpha"), Ct);
         await fixture.History.AddAsync(Entry(user.Id, "uc-c", created: Now.AddMinutes(3), modelId: "beta"), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "uc-b", Now, Ct);
 
-        var page = await fixture.History.GetPageAsync(
+        PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(
             new HistoryQuery(user.Id, 1, 40, Model: "alpha", UnviewedOnly: true), Ct);
 
         Assert.Single(page.Items);
@@ -90,11 +91,11 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Off_by_default_it_changes_nothing()
     {
-        var user = await fixture.NewUserAsync("unviewed-default");
+        User user = await fixture.NewUserAsync("unviewed-default");
         await fixture.History.AddAsync(Entry(user.Id, "ud-a", created: Now), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "ud-a", Now, Ct);
 
-        var page = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
+        PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
 
         Assert.Single(page.Items);
     }

@@ -1,6 +1,6 @@
-using System.Text.Json;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -27,8 +27,8 @@ public sealed class CatalogueLinkageTests
     [Fact]
     public void No_slot_is_required_by_nothing()
     {
-        var (slots, required) = Load();
-        var orphans = slots.Keys.Where(id => !required.ContainsKey(id)).OrderBy(x => x).ToList();
+        (Dictionary<string, string>? slots, Dictionary<string, List<string>>? required) = Load();
+        List<string> orphans = slots.Keys.Where(id => !required.ContainsKey(id)).OrderBy(x => x).ToList();
 
         Assert.True(orphans.Count == 0,
             "These slots are required by no configuration, so binding them cannot affect anything and they are "
@@ -39,8 +39,8 @@ public sealed class CatalogueLinkageTests
     [Fact]
     public void No_configuration_requires_a_slot_that_does_not_exist()
     {
-        var (slots, required) = Load();
-        var dangling = required
+        (Dictionary<string, string>? slots, Dictionary<string, List<string>>? required) = Load();
+        List<string> dangling = required
             .Where(kv => !slots.ContainsKey(kv.Key))
             .Select(kv => $"{kv.Key} <- {string.Join(", ", kv.Value.Order())}")
             .OrderBy(x => x)
@@ -59,11 +59,11 @@ public sealed class CatalogueLinkageTests
     [Fact]
     public void Every_configuration_names_a_workflow_that_exists()
     {
-        var registry = Registry();
-        var unknown = new List<string>();
-        foreach (var (id, root) in Configurations())
+        WorkflowRegistry registry = Registry();
+        List<string> unknown = new List<string>();
+        foreach ((string? id, JsonElement root) in Configurations())
         {
-            var name = root.TryGetProperty("workflow", out var w) ? w.GetString() : null;
+            string? name = root.TryGetProperty("workflow", out JsonElement w) ? w.GetString() : null;
             if (registry.Find(name) is null) unknown.Add($"{id} -> {name ?? "(none)"}");
         }
 
@@ -77,53 +77,53 @@ public sealed class CatalogueLinkageTests
 
     private static IEnumerable<(string Id, JsonElement Root)> Configurations()
     {
-        foreach (var f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json"))
+        foreach (string f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json"))
         {
-            var doc = JsonDocument.Parse(File.ReadAllText(f));
+            JsonDocument doc = JsonDocument.Parse(File.ReadAllText(f));
             yield return (doc.RootElement.GetProperty("id").RequireString(), doc.RootElement.Clone());
         }
     }
 
     private static (Dictionary<string, string> Slots, Dictionary<string, List<string>> Required) Load()
     {
-        var slots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
+        Dictionary<string, string> slots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(f));
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(f));
             slots[doc.RootElement.GetProperty("id").RequireString()] = f;
         }
 
-        var registry = Registry();
-        var required = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        WorkflowRegistry registry = Registry();
+        Dictionary<string, List<string>> required = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         void Note(string slot, string by)
         {
-            if (!required.TryGetValue(slot, out var list)) required[slot] = list = [];
+            if (!required.TryGetValue(slot, out List<string>? list)) required[slot] = list = [];
             list.Add(by);
         }
 
-        foreach (var (id, root) in Configurations())
+        foreach ((string? id, JsonElement root) in Configurations())
         {
-            if (root.TryGetProperty("requirements", out var req))
+            if (root.TryGetProperty("requirements", out JsonElement req))
             {
-                foreach (var prop in req.EnumerateObject())
+                foreach (JsonProperty prop in req.EnumerateObject())
                 {
-                    var names = prop.Value.ValueKind switch
+                    IEnumerable<string> names = prop.Value.ValueKind switch
                     {
-                        JsonValueKind.Array  => prop.Value.EnumerateArray().Select(e => e.RequireString()),
+                        JsonValueKind.Array => prop.Value.EnumerateArray().Select(e => e.RequireString()),
                         JsonValueKind.String => [prop.Value.RequireString()],
-                        _                    => Array.Empty<string>(),
+                        _ => Array.Empty<string>(),
                     };
-                    foreach (var n in names) Note(n, id);
+                    foreach (string n in names) Note(n, id);
                 }
             }
 
             // The second place a slot id lives. The workflow's own schema says which keys those are.
-            var wf = registry.Find(root.TryGetProperty("workflow", out var w) ? w.GetString() : null);
-            if (wf is null || !root.TryGetProperty("params", out var ps)) continue;
+            IWorkflow? wf = registry.Find(root.TryGetProperty("workflow", out JsonElement w) ? w.GetString() : null);
+            if (wf is null || !root.TryGetProperty("params", out JsonElement ps)) continue;
 
-            foreach (var spec in wf.Schema.Where(s => s.IsModelRef))
+            foreach (ParamSpec? spec in wf.Schema.Where(s => s.IsModelRef))
             {
-                if (!ps.TryGetProperty(spec.Key, out var p)) continue;
+                if (!ps.TryGetProperty(spec.Key, out JsonElement p)) continue;
                 // A param is either the bare value or the {value, exposed, min, ...} envelope form.
                 if (p.ValueKind == JsonValueKind.Object && !p.TryGetProperty("value", out p)) continue;
                 if (p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()))
@@ -135,7 +135,7 @@ public sealed class CatalogueLinkageTests
 
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new DirectoryNotFoundException("repo root not found.");

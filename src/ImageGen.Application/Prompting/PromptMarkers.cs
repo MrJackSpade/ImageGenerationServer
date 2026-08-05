@@ -63,7 +63,7 @@ public static partial class PromptMarkers
     /// whitespace, the only place a marker means anything.</summary>
     public static bool IsMarkedWith(string? segment, char marker)
     {
-        var s = (segment ?? string.Empty).AsSpan().TrimStart();
+        ReadOnlySpan<char> s = (segment ?? string.Empty).AsSpan().TrimStart();
         return s.Length > 0 && s[0] == marker;
     }
 
@@ -74,7 +74,7 @@ public static partial class PromptMarkers
     /// </summary>
     public static string Key(string? segment)
     {
-        var s = (segment ?? string.Empty).Trim();
+        string s = (segment ?? string.Empty).Trim();
         if (s.Length > 0 && IsMarker(s[0]))
             s = s[1..];
         return Whitespace().Replace(s.Trim(), Underscore).ToLowerInvariant();
@@ -100,11 +100,11 @@ public static partial class PromptMarkers
 
     private static HashSet<string> KeysMarkedWith(string? rawPrompt, char marker)
     {
-        var keys = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var seg in Segments(rawPrompt))
+        HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string seg in Segments(rawPrompt))
         {
             if (seg[0] != marker) continue;
-            var key = Key(seg);
+            string key = Key(seg);
             if (key.Length > 0) keys.Add(key);
         }
         return keys;
@@ -119,11 +119,11 @@ public static partial class PromptMarkers
     /// </summary>
     public static string GuidesAsTags(string? rawPrompt)
     {
-        var raw = rawPrompt ?? string.Empty;
+        string raw = rawPrompt ?? string.Empty;
         if (!raw.Contains(GuideTagMarker)) return raw;
         return string.Join(',', raw.Split(',').Select(seg =>
         {
-            var i = 0;
+            int i = 0;
             while (i < seg.Length && char.IsWhiteSpace(seg[i])) i++;
             return i < seg.Length && seg[i] == GuideTagMarker
                 ? string.Concat(seg.AsSpan(0, i), TagMarker.ToString(), seg.AsSpan(i + 1))
@@ -134,7 +134,7 @@ public static partial class PromptMarkers
     /// <summary>The prompt with every '~' guide segment REMOVED — what the image model is allowed to see.</summary>
     public static string WithoutGuides(string? rawPrompt)
     {
-        var raw = rawPrompt ?? string.Empty;
+        string raw = rawPrompt ?? string.Empty;
         if (!raw.Contains(GuideTagMarker)) return raw;
         return string.Join(',', raw.Split(',').Where(seg => !IsMarkedWith(seg, GuideTagMarker)));
     }

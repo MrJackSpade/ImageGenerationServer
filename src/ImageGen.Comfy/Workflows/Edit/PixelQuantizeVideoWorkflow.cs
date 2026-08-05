@@ -76,7 +76,7 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
     public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Source clip → frames (+ its frame rate). No model head: the quantizer is pure CPU.
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") }),
             [Nodes.Frames] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),

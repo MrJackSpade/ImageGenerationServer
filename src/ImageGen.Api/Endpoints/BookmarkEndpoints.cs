@@ -1,7 +1,8 @@
-using ImageGen.Application.Services;
-using ImageGen.Domain;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Services;
+using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 
 namespace ImageGen.Api.Endpoints;
 
@@ -11,9 +12,9 @@ public static class BookmarkEndpoints
     {
         api.MapGet(Routes.Bookmarks, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var tokens = await bookmarks.GetTokensAsync(userId, context.RequestAborted);
-            var images = await bookmarks.GetImagesAsync(userId, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            IReadOnlyList<TokenBookmark> tokens = await bookmarks.GetTokensAsync(userId, context.RequestAborted);
+            IReadOnlyList<ImageBookmark> images = await bookmarks.GetImagesAsync(userId, context.RequestAborted);
             return Results.Ok(new BookmarksResponse
             {
                 Artists = tokens.Where(t => t.Kind == TokenKind.Artist).Select(t => t.Name).ToList(),
@@ -24,49 +25,49 @@ public static class BookmarkEndpoints
 
         api.MapPost(Routes.Tokens, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var request = await Json.ReadAsync<TokenBookmarkRequest>(context);
+            TokenBookmarkRequest? request = await Json.ReadAsync<TokenBookmarkRequest>(context);
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
-            var added = await bookmarks.AddTokenAsync(userId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            bool added = await bookmarks.AddTokenAsync(userId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         api.MapDelete(Routes.Tokens, async (HttpContext context, BookmarkService bookmarks, string name, string kind) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var removed = await bookmarks.RemoveTokenAsync(userId, name, WireMapping.ParseKind(kind), context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            bool removed = await bookmarks.RemoveTokenAsync(userId, name, WireMapping.ParseKind(kind), context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
 
         api.MapPost(Routes.TokensPin, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var request = await Json.ReadAsync<PinTokenRequest>(context);
+            PinTokenRequest? request = await Json.ReadAsync<PinTokenRequest>(context);
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
-            var updated = await bookmarks.SetTokenPinnedAsync(
+            long userId = context.User.GetRequiredUserId();
+            bool updated = await bookmarks.SetTokenPinnedAsync(
                 userId, request.Name, WireMapping.ParseKind(request.Kind), request.Pinned, context.RequestAborted);
             return updated ? Results.NoContent() : Results.NotFound();
         });
 
         api.MapPost(Routes.Images, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var record = await Json.ReadAsync<ImageBookmarkContract>(context);
+            ImageBookmarkContract? record = await Json.ReadAsync<ImageBookmarkContract>(context);
             if (record is null || string.IsNullOrEmpty(record.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
-            var added = await bookmarks.AddImageAsync(record.ToAddImageCommand(userId), context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            bool added = await bookmarks.AddImageAsync(record.ToAddImageCommand(userId), context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         api.MapDelete(Routes.Images, async (HttpContext context, BookmarkService bookmarks, string id) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var removed = await bookmarks.RemoveImageAsync(userId, id, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            bool removed = await bookmarks.RemoveImageAsync(userId, id, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
 
@@ -75,8 +76,8 @@ public static class BookmarkEndpoints
         api.MapGet(Routes.Categories, async (
             HttpContext context, BookmarkService bookmarks, string? scope, string? name, string? kind, string? id) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var all = await bookmarks.GetAllCategoriesAsync(userId, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            IReadOnlyList<string> all = await bookmarks.GetAllCategoriesAsync(userId, context.RequestAborted);
             IReadOnlyList<string> selected = [];
             if (string.Equals(scope, Scopes.Token, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(name))
                 selected = await bookmarks.GetTokenCategoriesAsync(
@@ -88,11 +89,11 @@ public static class BookmarkEndpoints
 
         api.MapPost(Routes.TokenCategories, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var request = await Json.ReadAsync<SetTokenCategoriesRequest>(context);
+            SetTokenCategoriesRequest? request = await Json.ReadAsync<SetTokenCategoriesRequest>(context);
             if (request is null || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await bookmarks.SetTokenCategoriesAsync(
                 userId, request.Name, WireMapping.ParseKind(request.Kind), request.Categories, context.RequestAborted);
             return Results.NoContent();
@@ -100,11 +101,11 @@ public static class BookmarkEndpoints
 
         api.MapPost(Routes.ImageCategories, async (HttpContext context, BookmarkService bookmarks) =>
         {
-            var request = await Json.ReadAsync<SetImageCategoriesRequest>(context);
+            SetImageCategoriesRequest? request = await Json.ReadAsync<SetImageCategoriesRequest>(context);
             if (request is null || request.Image is null || string.IsNullOrEmpty(request.Image.Id))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await bookmarks.SetImageCategoriesAsync(
                 request.Image.ToAddImageCommand(userId), request.Categories, context.RequestAborted);
             return Results.NoContent();

@@ -72,7 +72,7 @@ public sealed class ComfyPatchService(
     {
         if (_install.Root is null)
         {
-            var detected = await _install.DetectRootAsync(ct);
+            string? detected = await _install.DetectRootAsync(ct);
             if (detected is not null)
             {
                 _log.LogInformation("Renderer folder was unset; the renderer reports {Root}, which is a ComfyUI on this machine", detected);
@@ -80,17 +80,17 @@ public sealed class ComfyPatchService(
             }
         }
 
-        var info = _install.Describe();
-        var patches = new List<PatchView>();
+        ComfyInstallInfo info = _install.Describe();
+        List<PatchView> patches = new List<PatchView>();
 
         if (info.Ok)
         {
-            var root = info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.");
-            foreach (var patch in Load())
+            string root = info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.");
+            foreach (ComfyPatch patch in Load())
             {
-                var (state, detail) = ComfyPatchCatalog.Inspect(patch, root);
-                var target = patch.ResolveTarget(root);
-                var occupied = state == PatchState.Conflicted && Directory.Exists(target)
+                (PatchState state, string? detail) = ComfyPatchCatalog.Inspect(patch, root);
+                string target = patch.ResolveTarget(root);
+                IReadOnlyList<string> occupied = state == PatchState.Conflicted && Directory.Exists(target)
                     ? PatchApplier.Occupied(target, patch.Files)
                     : [];
 
@@ -112,8 +112,8 @@ public sealed class ComfyPatchService(
     /// <summary>Apply one patch. Returns a note when something is left for the operator to do.</summary>
     public async Task<string?> ApplyAsync(string id, bool overwrite, CancellationToken ct)
     {
-        var root = _install.RequireRoot();
-        var patch = Find(id);
+        string root = _install.RequireRoot();
+        ComfyPatch patch = Find(id);
         _log.LogInformation("Applying ComfyUI patch {Id} to {Root} (overwrite: {Overwrite})", id, root, overwrite);
         return await _installer.ApplyAsync(patch, root, _install.Python, overwrite, ct);
     }
@@ -122,13 +122,13 @@ public sealed class ComfyPatchService(
     /// carrying on past it: a patch that will not apply is a fact about this installation, not an item to skip.</summary>
     public async Task<IReadOnlyList<string>> ApplyAllAsync(CancellationToken ct)
     {
-        var root = _install.RequireRoot();
-        var notes = new List<string>();
+        string root = _install.RequireRoot();
+        List<string> notes = new List<string>();
 
-        foreach (var patch in Load())
+        foreach (ComfyPatch patch in Load())
         {
             if (ComfyPatchCatalog.Inspect(patch, root).State == PatchState.Applied) continue;
-            var note = await _installer.ApplyAsync(patch, root, _install.Python, overwrite: false, ct);
+            string? note = await _installer.ApplyAsync(patch, root, _install.Python, overwrite: false, ct);
             if (note is not null) notes.Add(note);
         }
         return notes;
@@ -137,8 +137,8 @@ public sealed class ComfyPatchService(
     /// <summary>Take one patch back out.</summary>
     public void Remove(string id)
     {
-        var root = _install.RequireRoot();
-        var patch = Find(id);
+        string root = _install.RequireRoot();
+        ComfyPatch patch = Find(id);
         _log.LogInformation("Removing ComfyUI patch {Id} from {Root}", id, root);
         _installer.Remove(patch, root);
     }
@@ -152,8 +152,8 @@ public sealed class ComfyPatchService(
 
     private IReadOnlyList<ComfyPatch> Load()
     {
-        var patchDirectory = Payload(PatchesPayload);
-        var nodesDirectory = Payload(NodesPayload);
+        string? patchDirectory = Payload(PatchesPayload);
+        string? nodesDirectory = Payload(NodesPayload);
 
         // Neither present is a broken build, not an empty patch set. Rendering "no patches" would read as
         // "nothing to do" on an install that is in fact missing every fix it ships with.
@@ -171,9 +171,9 @@ public sealed class ComfyPatchService(
     /// </summary>
     private string? Payload(string name)
     {
-        foreach (var root in new[] { _environment.ContentRootPath, AppContext.BaseDirectory })
+        foreach (string? root in new[] { _environment.ContentRootPath, AppContext.BaseDirectory })
         {
-            var candidate = Path.Combine(root, name);
+            string candidate = Path.Combine(root, name);
             if (Directory.Exists(candidate)) return candidate;
         }
         return null;

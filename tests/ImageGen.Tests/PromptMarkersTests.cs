@@ -38,10 +38,10 @@ public sealed class PromptMarkersTests
     [InlineData(true, "1girl, long hair")]
     public void A_randomly_injected_tag_renders_exactly_as_the_hand_rolled_injection_did(bool anima, string expected)
     {
-        var tagging = anima ? Anima : Booru;
-        var raw = PromptFinalizer.Append("#1girl", PromptMarkers.TagMarker + "long_hair");
+        WorkflowTagging tagging = anima ? Anima : Booru;
+        string raw = PromptFinalizer.Append("#1girl", PromptMarkers.TagMarker + "long_hair");
 
-        var final = PromptFinalizer.Finalize(raw, tagging);
+        FinalizedPrompt final = PromptFinalizer.Finalize(raw, tagging);
 
         Assert.Equal(expected, final.Rendered);
         Assert.Equal(TokenKinds.Tag, final.Marks["long_hair"]);
@@ -56,10 +56,10 @@ public sealed class PromptMarkersTests
     [InlineData(true, "1girl, @greg rutkowski")]   // marker kept, underscores folded
     public void A_randomly_injected_artist_renders_exactly_as_AppendArtist_did(bool anima, string expected)
     {
-        var tagging = anima ? Anima : Booru;
-        var raw = PromptFinalizer.Append("#1girl", PromptMarkers.ArtistMarker + "greg_rutkowski");
+        WorkflowTagging tagging = anima ? Anima : Booru;
+        string raw = PromptFinalizer.Append("#1girl", PromptMarkers.ArtistMarker + "greg_rutkowski");
 
-        var final = PromptFinalizer.Finalize(raw, tagging);
+        FinalizedPrompt final = PromptFinalizer.Finalize(raw, tagging);
 
         Assert.Equal(expected, final.Rendered);
         Assert.Equal(TokenKinds.Artist, final.Marks["greg_rutkowski"]);
@@ -75,12 +75,12 @@ public sealed class PromptMarkersTests
     [InlineData(true)]
     public void Finalizing_the_stored_raw_prompt_reproduces_the_stored_prompt_and_marks(bool anima)
     {
-        var tagging = anima ? Anima : Booru;
+        WorkflowTagging tagging = anima ? Anima : Booru;
         // Exactly how the worker builds it: what the user typed, then the random injections in the same dialect.
-        var raw = PromptFinalizer.Append("#1girl, a plain phrase", "#long_hair, @greg_rutkowski");
+        string raw = PromptFinalizer.Append("#1girl, a plain phrase", "#long_hair, @greg_rutkowski");
 
-        var stored = PromptFinalizer.Finalize(raw, tagging);
-        var reloaded = PromptFinalizer.Finalize(raw, tagging);   // the Reload button resubmits the raw prompt as-is
+        FinalizedPrompt stored = PromptFinalizer.Finalize(raw, tagging);
+        FinalizedPrompt reloaded = PromptFinalizer.Finalize(raw, tagging);   // the Reload button resubmits the raw prompt as-is
 
         Assert.Equal(stored.Rendered, reloaded.Rendered);
         Assert.Equal(stored.Marks, reloaded.Marks);

@@ -16,8 +16,8 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
-        var wf = new Dictionary<string, object>();
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        Dictionary<string, object> wf = new Dictionary<string, object>();
 
         wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)
         wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "mage", device = "default" });

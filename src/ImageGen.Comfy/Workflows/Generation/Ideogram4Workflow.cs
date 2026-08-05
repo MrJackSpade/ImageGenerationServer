@@ -39,8 +39,8 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
-        var wf = new Dictionary<string, object>();
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        Dictionary<string, object> wf = new Dictionary<string, object>();
 
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());

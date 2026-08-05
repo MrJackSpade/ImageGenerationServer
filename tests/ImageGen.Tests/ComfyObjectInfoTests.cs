@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.Comfy;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -42,7 +42,7 @@ public sealed class ComfyObjectInfoTests
     [Fact]
     public void Unknown_combo_shapes_yield_nothing_rather_than_throwing()
     {
-        foreach (var json in new[]
+        foreach (string? json in new[]
         {
             """{"N":{"input":{"required":{"k":[]}}}}""",                        // empty spec
             """{"N":{"input":{"required":{"k":["COMBO"]}}}}""",                 // V3 shape with no options object

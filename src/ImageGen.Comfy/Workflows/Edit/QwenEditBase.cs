@@ -56,7 +56,7 @@ public abstract class QwenEditBase : EditWorkflowBase
     private static (int X, int Y, int W, int H)? MaskGeom(int pctL, int pctR, int pctT, int pctB, int sw, int sh)
     {
         if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no mask
-        foreach (var (name, pct) in new[] { (WorkflowParamKeys.MaskLeftPct, pctL), (WorkflowParamKeys.MaskRightPct, pctR), (WorkflowParamKeys.MaskTopPct, pctT), (WorkflowParamKeys.MaskBottomPct, pctB) })
+        foreach ((string? name, int pct) in new[] { (WorkflowParamKeys.MaskLeftPct, pctL), (WorkflowParamKeys.MaskRightPct, pctR), (WorkflowParamKeys.MaskTopPct, pctT), (WorkflowParamKeys.MaskBottomPct, pctB) })
             if (pct < CanvasMaskConstants.MinSidePct || pct > CanvasMaskConstants.MaxSidePct)
                 throw new ArgumentOutOfRangeException(name, pct,
                     $"must be {CanvasMaskConstants.MinSidePct}–{CanvasMaskConstants.MaxSidePct}");
@@ -107,19 +107,19 @@ public abstract class QwenEditBase : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);
-        var seed = ComfyGraph.Seed(p);
-        var instruction = inputs.Positive;
-        var refNames = inputs.ReferenceImageNames;
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
+        long seed = ComfyGraph.Seed(p);
+        string instruction = inputs.Positive;
+        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
         // Default resolution normalisation (FluxKontextImageScale snaps to a Qwen-trained bucket) + the danamir blur
         // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent
         // ourselves (VAE off the text-encode so it can't force-rescale) -> ref latent matches sample latent, no
         // per-turn resample -> no compounding blur over a multi-turn conversation.
         wf[KontextScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(Nodes.Source, 0) });
-        var enc = new Dictionary<string, object> { [Inputs.Clip] = clip0, [Inputs.Image1] = ComfyGraph.Ref(KontextScale, 0), [Inputs.Prompt] = instruction };
-        var qInputs = p.StrArray(WorkflowParamKeys.ReferenceInputs);
+        Dictionary<string, object> enc = new Dictionary<string, object> { [Inputs.Clip] = clip0, [Inputs.Image1] = ComfyGraph.Ref(KontextScale, 0), [Inputs.Prompt] = instruction };
+        string[] qInputs = p.StrArray(WorkflowParamKeys.ReferenceInputs);
         int qn = Math.Min(refNames.Count, Math.Min(p.Has(WorkflowParamKeys.ReferenceMax) ? p.IntReq(WorkflowParamKeys.ReferenceMax) : 0, qInputs.Length));
         for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
         {
@@ -162,7 +162,7 @@ public abstract class QwenEditBase : EditWorkflowBase
         // mask side is set, so an unmasked edit still no-ops.)
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
-        var rect = MaskGeom(Pct(WorkflowParamKeys.MaskLeftPct), Pct(WorkflowParamKeys.MaskRightPct), Pct(WorkflowParamKeys.MaskTopPct), Pct(WorkflowParamKeys.MaskBottomPct),
+        (int X, int Y, int W, int H)? rect = MaskGeom(Pct(WorkflowParamKeys.MaskLeftPct), Pct(WorkflowParamKeys.MaskRightPct), Pct(WorkflowParamKeys.MaskTopPct), Pct(WorkflowParamKeys.MaskBottomPct),
                             inputs.SourceWidth, inputs.SourceHeight);
 
         object sampleLatent = ComfyGraph.Ref(SourceEncode, 0);

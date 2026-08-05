@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using ImageGen.Application.Security;
+using System.Security.Cryptography;
 
 namespace ImageGen.Tests;
 
@@ -12,11 +12,11 @@ public sealed class UserCryptoTests
     [Fact]
     public void Randomized_RoundTrips_AndIsNonDeterministic()
     {
-        var keys = NewKeys();
+        UserCrypto.UserKeys keys = NewKeys();
         const string plain = "1girl, solo, embarrassing tag, by some_artist";
 
-        var a = UserCrypto.EncryptRandomized(keys, plain);
-        var b = UserCrypto.EncryptRandomized(keys, plain);
+        string a = UserCrypto.EncryptRandomized(keys, plain);
+        string b = UserCrypto.EncryptRandomized(keys, plain);
 
         Assert.StartsWith(UserCrypto.RandomizedPrefix, a);
         Assert.NotEqual(a, b);                                  // fresh nonce each call
@@ -27,10 +27,10 @@ public sealed class UserCryptoTests
     [Fact]
     public void Deterministic_IsStable_ForSamePlaintextAndKey()
     {
-        var keys = NewKeys();
+        UserCrypto.UserKeys keys = NewKeys();
 
-        var a = UserCrypto.EncryptDeterministic(keys, "long_hair");
-        var b = UserCrypto.EncryptDeterministic(keys, "long_hair");
+        string a = UserCrypto.EncryptDeterministic(keys, "long_hair");
+        string b = UserCrypto.EncryptDeterministic(keys, "long_hair");
 
         Assert.StartsWith(UserCrypto.DeterministicPrefix, a);
         Assert.Equal(a, b);                                     // equality preserved → searchable / UNIQUE-safe
@@ -41,8 +41,8 @@ public sealed class UserCryptoTests
     [Fact]
     public void DifferentUsers_ProduceDifferentCiphertext_ForSameToken()
     {
-        var alice = NewKeys();
-        var bob = NewKeys();
+        UserCrypto.UserKeys alice = NewKeys();
+        UserCrypto.UserKeys bob = NewKeys();
 
         Assert.NotEqual(
             UserCrypto.EncryptDeterministic(alice, "long_hair"),
@@ -52,14 +52,14 @@ public sealed class UserCryptoTests
     [Fact]
     public void DecryptTolerant_PassesThroughLegacyPlaintext()
     {
-        var keys = NewKeys();
+        UserCrypto.UserKeys keys = NewKeys();
         Assert.Equal("not yet encrypted", UserCrypto.DecryptTolerant(keys, "not yet encrypted"));
     }
 
     [Fact]
     public void Decrypt_WithWrongKey_Throws()
     {
-        var cipher = UserCrypto.EncryptRandomized(NewKeys(), "secret");
+        string cipher = UserCrypto.EncryptRandomized(NewKeys(), "secret");
         Assert.Throws<AuthenticationTagMismatchException>(() => UserCrypto.DecryptTolerant(NewKeys(), cipher));
     }
 }

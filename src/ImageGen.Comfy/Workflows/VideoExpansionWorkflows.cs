@@ -37,13 +37,23 @@ file static class Vid
         int boundary = p.IntReq(WorkflowParamKeys.Boundary);
         double cfgHigh = p.DblReq(WorkflowParamKeys.CfgHigh);
         double cfgLow = p.DblReq(WorkflowParamKeys.CfgLow);
-        var sampler = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler));
-        var scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler));
+        string sampler = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler));
+        string scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler));
         wf[Nodes.HighSampler] = ComfyGraph.Node(ComfyNodeTypes.KSamplerAdvanced, new
         {
-            add_noise = "enable", noise_seed = seed, steps, cfg = cfgHigh, sampler_name = sampler, scheduler,
-            start_at_step = 0, end_at_step = boundary, return_with_leftover_noise = "enable",
-            model = modelHigh, positive, negative, latent_image = latent,
+            add_noise = "enable",
+            noise_seed = seed,
+            steps,
+            cfg = cfgHigh,
+            sampler_name = sampler,
+            scheduler,
+            start_at_step = 0,
+            end_at_step = boundary,
+            return_with_leftover_noise = "enable",
+            model = modelHigh,
+            positive,
+            negative,
+            latent_image = latent,
         });
         // refiner_steps: run the low-noise stage on its OWN schedule with exactly this many steps, leaving the
         // high-noise structure phase untouched — a draft (small N) then commits (large N) with byte-identical
@@ -63,9 +73,19 @@ file static class Vid
         }
         wf[Nodes.LowSampler] = ComfyGraph.Node(ComfyNodeTypes.KSamplerAdvanced, new
         {
-            add_noise = "disable", noise_seed = seed, steps = steps2, cfg = cfgLow, sampler_name = sampler, scheduler,
-            start_at_step = start2, end_at_step = 10000, return_with_leftover_noise = "disable",
-            model = modelLow, positive, negative, latent_image = ComfyGraph.Ref(Nodes.HighSampler, 0),
+            add_noise = "disable",
+            noise_seed = seed,
+            steps = steps2,
+            cfg = cfgLow,
+            sampler_name = sampler,
+            scheduler,
+            start_at_step = start2,
+            end_at_step = 10000,
+            return_with_leftover_noise = "disable",
+            model = modelLow,
+            positive,
+            negative,
+            latent_image = ComfyGraph.Ref(Nodes.HighSampler, 0),
         });
         return ComfyGraph.Ref(Nodes.LowSampler, 0);
     }
@@ -154,9 +174,9 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
         int Pct(string k) => p.Has(k) ? p.IntReq(k) : 0;   // per-side pad %, absent = 0 (no pad on that side)
-        var (mh, ml) = Vid.LoadExperts(wf, p, req);
+        (object? mh, object? ml) = Vid.LoadExperts(wf, p, req);
         wf[Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
         object clip = ComfyGraph.Ref(Clip, 0);
         wf[Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
@@ -213,9 +233,15 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
             }
             wf[Cond] = ComfyGraph.Node(ComfyNodeTypes.WanFirstLastFrameToVideo, new
             {
-                positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae,
-                width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = len, batch_size = 1,
-                start_image = ComfyGraph.Ref(ScaledSource, 0), end_image = endImage,
+                positive = ComfyGraph.Ref(Positive, 0),
+                negative = ComfyGraph.Ref(Negative, 0),
+                vae,
+                width = ComfyGraph.Ref(SourceSize, 0),
+                height = ComfyGraph.Ref(SourceSize, 1),
+                length = len,
+                batch_size = 1,
+                start_image = ComfyGraph.Ref(ScaledSource, 0),
+                end_image = endImage,
             });
         }
         else
@@ -223,8 +249,13 @@ public sealed class WanA14bI2VWorkflow : EditWorkflowBase
             // WanImageToVideo re-emits conditioning + the start latent (3 outputs: positive, negative, latent).
             wf[Cond] = ComfyGraph.Node(ComfyNodeTypes.WanImageToVideo, new
             {
-                positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae,
-                width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = len, batch_size = 1,
+                positive = ComfyGraph.Ref(Positive, 0),
+                negative = ComfyGraph.Ref(Negative, 0),
+                vae,
+                width = ComfyGraph.Ref(SourceSize, 0),
+                height = ComfyGraph.Ref(SourceSize, 1),
+                length = len,
+                batch_size = 1,
                 start_image = ComfyGraph.Ref(ScaledSource, 0),
             });
         }
@@ -257,14 +288,14 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        var (mh, ml) = Vid.LoadExperts(wf, p, req);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        (object? mh, object? ml) = Vid.LoadExperts(wf, p, req);
         wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "wan", device = "default" });
         object clip = ComfyGraph.Ref(Nodes.Clip, 0);
         wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
         object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         int len = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
@@ -296,7 +327,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
         wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
         wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.Model, 0), shift = p.DblReq(WorkflowParamKeys.Shift) });
         object model = ComfyGraph.Ref(ModelSampling, 0);
@@ -305,7 +336,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflowBase
         wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
         object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         int len = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
@@ -346,7 +377,7 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
         wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
         wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.Model, 0), shift = p.DblReq(WorkflowParamKeys.Shift) });
         object model = ComfyGraph.Ref(ModelSampling, 0);
@@ -355,7 +386,7 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflowBase
         wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
         object vae = ComfyGraph.Ref(Nodes.Vae, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         int len = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });

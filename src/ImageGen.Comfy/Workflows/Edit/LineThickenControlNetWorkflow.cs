@@ -41,13 +41,13 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
-        var src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
+        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
 
-        var prompt = p.Str(WorkflowParamKeys.StylePrompt);
+        string? prompt = p.Str(WorkflowParamKeys.StylePrompt);
         if (string.IsNullOrWhiteSpace(prompt)) prompt = inputs.Positive;
-        var neg = p.Str(WorkflowParamKeys.Negative) ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
+        string neg = p.Str(WorkflowParamKeys.Negative) ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
         // 60/61, not 12/13 — FlattenOnWhite already owns 11-14 (EmptyImage 12, InvertMask 13, composite 14).
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prompt, clip = clip0 });
         wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });

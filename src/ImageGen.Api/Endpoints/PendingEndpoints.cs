@@ -1,6 +1,8 @@
-using ImageGen.Application.Services;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Models;
+using ImageGen.Application.Services;
+using ImageGen.Domain.Entities;
 
 namespace ImageGen.Api.Endpoints;
 
@@ -12,8 +14,8 @@ public static class PendingEndpoints
         // progress polled from the gateway). The originating tab still tracks its own job directly.
         api.MapGet(Routes.Pending, async (HttpContext context, PendingJobService pending) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var jobs = await pending.ListForUserAsync(userId, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            IReadOnlyList<PendingJob> jobs = await pending.ListForUserAsync(userId, context.RequestAborted);
             return Results.Ok(jobs.Select(j => j.ToView()).ToList());
         });
 
@@ -21,12 +23,12 @@ public static class PendingEndpoints
         // from here, so the result is persisted even if this browser closes before seeing it.
         api.MapPost(Routes.Pending, async (HttpContext context, PendingJobService pending, TimeProvider clock) =>
         {
-            var record = await Json.ReadAsync<PendingJobContract>(context);
+            PendingJobContract? record = await Json.ReadAsync<PendingJobContract>(context);
             if (record is null || string.IsNullOrWhiteSpace(record.JobId))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
-            var command = record.ToRegisterPendingJobCommand(userId, clock.GetUtcNow().UtcDateTime);
+            long userId = context.User.GetRequiredUserId();
+            RegisterPendingJobCommand command = record.ToRegisterPendingJobCommand(userId, clock.GetUtcNow().UtcDateTime);
             await pending.RegisterAsync(command, context.RequestAborted);
             return Results.Ok(new { ok = true });
         });

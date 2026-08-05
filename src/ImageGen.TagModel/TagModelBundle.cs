@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.Domain.CodeAnalysis;
+using System.Text.Json;
 
 namespace ImageGen.TagModel;
 
@@ -75,28 +75,28 @@ public sealed class TagModelBundle : IDisposable
     [AllowMagicStrings("file-purpose descriptions in the missing-artifact exception message")]
     public static TagModelBundle Load(string directory)
     {
-        var onnx = Require(directory, GraphFileName, "the model graph");
-        var outIds = Require(directory, OutIdsFileName, "the decoder-row to vocab-id map");
-        var vocabPath = Require(directory, VocabFileName, "the tag vocabulary");
+        string onnx = Require(directory, GraphFileName, "the model graph");
+        string outIds = Require(directory, OutIdsFileName, "the decoder-row to vocab-id map");
+        string vocabPath = Require(directory, VocabFileName, "the tag vocabulary");
 
         // The graph references its weights by relative name, so the ~870 MB sibling must be beside it. ORT reports a
         // confusing protobuf error if it is missing, so check for it here where the message can say what is wrong.
-        var weights = Path.Combine(directory, WeightsFileName);
+        string weights = Path.Combine(directory, WeightsFileName);
         if (!File.Exists(weights))
             throw new FileNotFoundException(
                 $"'tag_s2srec2.onnx.data' (the model weights, ~870 MB) is missing from '{directory}'. The graph "
                 + "references it by name, so it must sit beside tag_s2srec2.onnx.", weights);
 
-        var vocab = TagVocab.Load(vocabPath);
-        var session = new S2SRec2Session(onnx, outIds, vocab.Count);
+        TagVocab vocab = TagVocab.Load(vocabPath);
+        S2SRec2Session session = new S2SRec2Session(onnx, outIds, vocab.Count);
 
         if (session.EmittableCount > vocab.Count)
             throw new InvalidDataException(
                 $"the model can emit {session.EmittableCount:N0} tags but the vocabulary holds {vocab.Count:N0}. "
                 + "These artifacts are from different builds.");
 
-        var junkPath = Path.Combine(directory, JunkIdsFileName);
-        var junkIds = File.Exists(junkPath) ? ReadInt32Array(junkPath) : [];
+        string junkPath = Path.Combine(directory, JunkIdsFileName);
+        int[] junkIds = File.Exists(junkPath) ? ReadInt32Array(junkPath) : [];
 
         return new TagModelBundle(vocab, session, LoadCalibration(directory), junkIds);
     }
@@ -107,20 +107,20 @@ public sealed class TagModelBundle : IDisposable
     /// </summary>
     private static DisplayCalibration? LoadCalibration(string directory)
     {
-        var path = Path.Combine(directory, CalibrationFileName);
+        string path = Path.Combine(directory, CalibrationFileName);
         if (!File.Exists(path))
             return null;
 
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var root = document.RootElement;
-        if (!root.TryGetProperty(CalibrationAProperty, out var a) || !root.TryGetProperty(CalibrationBProperty, out var b))
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        JsonElement root = document.RootElement;
+        if (!root.TryGetProperty(CalibrationAProperty, out JsonElement a) || !root.TryGetProperty(CalibrationBProperty, out JsonElement b))
             return null;
         return new DisplayCalibration(a.GetDouble(), b.GetDouble());
     }
 
     private static string Require(string directory, string fileName, string what)
     {
-        var path = Path.Combine(directory, fileName);
+        string path = Path.Combine(directory, fileName);
         if (!File.Exists(path))
             throw new FileNotFoundException(
                 $"'{fileName}' ({what}) is missing from '{directory}'. Fetch the tag model artifacts, or set "
@@ -130,8 +130,8 @@ public sealed class TagModelBundle : IDisposable
 
     private static int[] ReadInt32Array(string path)
     {
-        var bytes = File.ReadAllBytes(path);
-        var values = new int[bytes.Length / sizeof(int)];
+        byte[] bytes = File.ReadAllBytes(path);
+        int[] values = new int[bytes.Length / sizeof(int)];
         Buffer.BlockCopy(bytes, 0, values, 0, values.Length * sizeof(int));
         return values;
     }

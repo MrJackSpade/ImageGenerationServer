@@ -52,16 +52,16 @@ public static class UserCrypto
     /// <summary>Randomized AES-GCM (fresh nonce). For free-text columns never searched by value.</summary>
     public static string EncryptRandomized(UserKeys keys, string plaintext)
     {
-        var nonce = RandomNumberGenerator.GetBytes(NonceBytes);
+        byte[] nonce = RandomNumberGenerator.GetBytes(NonceBytes);
         return RandomizedPrefix + Seal(keys.Randomized, nonce, plaintext);
     }
 
     /// <summary>Deterministic AES-GCM (synthetic nonce). For token/name columns that stay equality-searchable.</summary>
     public static string EncryptDeterministic(UserKeys keys, string plaintext)
     {
-        var plain = Encoding.UTF8.GetBytes(plaintext);
-        var mac = HMACSHA256.HashData(keys.DeterministicMac, plain);
-        var nonce = mac[..NonceBytes];
+        byte[] plain = Encoding.UTF8.GetBytes(plaintext);
+        byte[] mac = HMACSHA256.HashData(keys.DeterministicMac, plain);
+        byte[] nonce = mac[..NonceBytes];
         return DeterministicPrefix + Seal(keys.Deterministic, nonce, plain);
     }
 
@@ -84,12 +84,12 @@ public static class UserCrypto
 
     private static string Seal(byte[] key, byte[] nonce, byte[] plain)
     {
-        var cipher = new byte[plain.Length];
-        var tag = new byte[TagBytes];
-        using (var aes = new AesGcm(key, TagBytes))
+        byte[] cipher = new byte[plain.Length];
+        byte[] tag = new byte[TagBytes];
+        using (AesGcm aes = new AesGcm(key, TagBytes))
             aes.Encrypt(nonce, plain, cipher, tag);
 
-        var frame = new byte[NonceBytes + TagBytes + cipher.Length];
+        byte[] frame = new byte[NonceBytes + TagBytes + cipher.Length];
         nonce.CopyTo(frame, 0);
         tag.CopyTo(frame, NonceBytes);
         cipher.CopyTo(frame, NonceBytes + TagBytes);
@@ -98,12 +98,12 @@ public static class UserCrypto
 
     private static string Open(byte[] key, ReadOnlySpan<char> base64)
     {
-        var frame = Convert.FromBase64String(base64.ToString());
-        var nonce = frame.AsSpan(0, NonceBytes);
-        var tag = frame.AsSpan(NonceBytes, TagBytes);
-        var cipher = frame.AsSpan(NonceBytes + TagBytes);
-        var plain = new byte[cipher.Length];
-        using (var aes = new AesGcm(key, TagBytes))
+        byte[] frame = Convert.FromBase64String(base64.ToString());
+        Span<byte> nonce = frame.AsSpan(0, NonceBytes);
+        Span<byte> tag = frame.AsSpan(NonceBytes, TagBytes);
+        Span<byte> cipher = frame.AsSpan(NonceBytes + TagBytes);
+        byte[] plain = new byte[cipher.Length];
+        using (AesGcm aes = new AesGcm(key, TagBytes))
             aes.Decrypt(nonce, cipher, tag, plain);
         return Encoding.UTF8.GetString(plain);
     }

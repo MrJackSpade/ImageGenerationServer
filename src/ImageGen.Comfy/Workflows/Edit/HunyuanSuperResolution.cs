@@ -78,13 +78,17 @@ internal static class HunyuanSr
         wf[Nodes.UpsamplerLoader] = ComfyGraph.Node(ComfyNodeTypes.LatentUpscaleModelLoader, new { model_name = p.Model(WorkflowParamKeys.SrUpsampler) });
         wf[Nodes.LatentUpscale] = ComfyGraph.Node(ComfyNodeTypes.HunyuanVideo15LatentUpscaleWithModel, new
         {
-            model = ComfyGraph.Ref(Nodes.UpsamplerLoader, 0), samples = baseLatent,
-            upscale_method = "bilinear", width = p.IntReq(WorkflowParamKeys.SrWidth), height = p.IntReq(WorkflowParamKeys.SrHeight), crop = "disabled",
+            model = ComfyGraph.Ref(Nodes.UpsamplerLoader, 0),
+            samples = baseLatent,
+            upscale_method = "bilinear",
+            width = p.IntReq(WorkflowParamKeys.SrWidth),
+            height = p.IntReq(WorkflowParamKeys.SrHeight),
+            crop = "disabled",
         });
 
         // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
         // Required: positive/negative/latent/noise_augmentation; optional: vae/start_image/clip_vision_output.
-        var srInputs = new Dictionary<string, object>
+        Dictionary<string, object> srInputs = new Dictionary<string, object>
         {
             [Inputs.Positive] = positive,
             [Inputs.Negative] = negative,

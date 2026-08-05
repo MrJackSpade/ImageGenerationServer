@@ -19,17 +19,17 @@ public sealed class TagService(ITagDisplayRepository displays, IHistoryRepositor
     public async Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
         long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (tagNames.Count == 0)
             return result;
 
-        var overrides = await _displays.GetManyAsync(userId, tagNames, ct);
-        var latest = await _history.GetLatestImageIdsForTagsAsync(userId, tagNames, ct);
-        foreach (var name in tagNames)
+        IReadOnlyDictionary<string, string> overrides = await _displays.GetManyAsync(userId, tagNames, ct);
+        IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForTagsAsync(userId, tagNames, ct);
+        foreach (string name in tagNames)
         {
-            if (overrides.TryGetValue(name, out var ov))
+            if (overrides.TryGetValue(name, out string? ov))
                 result[name] = ov;
-            else if (latest.TryGetValue(name, out var l))
+            else if (latest.TryGetValue(name, out string? l))
                 result[name] = l;
         }
         return result;
@@ -38,7 +38,7 @@ public sealed class TagService(ITagDisplayRepository displays, IHistoryRepositor
     /// <summary>Set the user's portrait image for a tag. Returns false if the image isn't in the user's history.</summary>
     public async Task<bool> SetAsync(long userId, string tagName, string gatewayImageId, DateTime nowUtc, CancellationToken ct)
     {
-        var entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
+        HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
             return false;
 

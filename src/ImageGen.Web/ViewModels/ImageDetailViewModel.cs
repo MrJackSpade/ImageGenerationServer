@@ -76,30 +76,30 @@ public sealed class ImageDetailViewModel
             if (string.IsNullOrWhiteSpace(Entry.Prompt))
                 return [new PromptChip(NoPromptText, null, string.Empty)];
 
-            var marks = Entry.Marks;
-            var chips = new List<PromptChip>();
-            var plain = new List<string>();
+            IReadOnlyDictionary<string, string> marks = Entry.Marks;
+            List<PromptChip> chips = new List<PromptChip>();
+            List<string> plain = new List<string>();
 
             void FlushPlain()
             {
                 if (plain.Count == 0) return;
                 // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
                 // the run's outer edges are trimmed for display.
-                var text = string.Join(SegmentDelimiter, plain).Trim();
+                string text = string.Join(SegmentDelimiter, plain).Trim();
                 if (text.Length > 0) chips.Add(new PromptChip(text, null, string.Empty));
                 plain.Clear();
             }
 
-            foreach (var seg in Entry.Prompt.Split(','))
+            foreach (string seg in Entry.Prompt.Split(','))
             {
-                var key = PromptMarkers.Key(seg);
-                if (key.Length > 0 && marks.TryGetValue(key, out var kind))
+                string key = PromptMarkers.Key(seg);
+                if (key.Length > 0 && marks.TryGetValue(key, out string? kind))
                 {
                     FlushPlain();
-                    var isArtist = kind == TokenKinds.Artist;
-                    var banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
-                    var bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
-                    var category = isArtist ? null : TagCategory.Slug(TagTypeByToken.GetValueOrDefault(key));
+                    bool isArtist = kind == TokenKinds.Artist;
+                    bool banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
+                    bool bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
+                    string? category = isArtist ? null : TagCategory.Slug(TagTypeByToken.GetValueOrDefault(key));
                     chips.Add(new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category));
                 }
                 else

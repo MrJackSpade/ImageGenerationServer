@@ -33,11 +33,11 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
         };
-        var src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
+        object src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
         // Extract anime line art (white-on-black), invert to dark-lines-on-white, force back to the source size.
         wf[Lineart] = ComfyGraph.Node(ComfyNodeTypes.AnimeLineArtPreprocessor, new { image = src, resolution = p.IntReq(WorkflowParamKeys.Resolution) });
         wf[Invert] = ComfyGraph.Node(ComfyNodeTypes.ImageInvert, new { image = ComfyGraph.Ref(Lineart, 0) });

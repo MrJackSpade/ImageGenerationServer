@@ -1,10 +1,9 @@
-using System.Data.Common;
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using ImageGen.Application.Security;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Collections.Concurrent;
+using System.Data.Common;
+using System.Security.Cryptography;
 
 namespace ImageGen.Infrastructure.Security;
 
@@ -44,23 +43,23 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
 
     private async Task<UserCrypto.UserKeys> GetKeysAsync(long userId, CancellationToken ct)
     {
-        if (_cache.TryGetValue(userId, out var cached))
+        if (_cache.TryGetValue(userId, out UserCrypto.UserKeys? cached))
             return cached;
-        var material = await LoadOrProvisionKeyAsync(userId, ct);
+        byte[] material = await LoadOrProvisionKeyAsync(userId, ct);
         return _cache.GetOrAdd(userId, UserCrypto.DeriveSubkeys(material));
     }
 
     private async Task<byte[]> LoadOrProvisionKeyAsync(long userId, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
-        var existing = await SelectKeyAsync(conn, userId, ct);
+        byte[]? existing = await SelectKeyAsync(conn, userId, ct);
         if (existing is not null)
             return existing;
 
         // Provision a fresh key, race-safely: only the first writer for this user inserts; everyone re-reads the
         // committed row afterwards, so there is never more than one key per user even under concurrent first use.
-        await using (var insert = conn.Command(
+        await using (DbCommand insert = conn.Command(
             @"INSERT INTO dbo.UserEncryptionKey (UserId, KeyMaterial, CreatedAtUtc)
               SELECT @id, @key, @created
               WHERE NOT EXISTS (SELECT 1 FROM dbo.UserEncryptionKey WHERE UserId = @id);"))
@@ -77,10 +76,10 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
 
     private static async Task<byte[]?> SelectKeyAsync(DbConnection conn, long userId, CancellationToken ct)
     {
-        await using var cmd = conn.Command(
+        await using DbCommand cmd = conn.Command(
             "SELECT KeyMaterial FROM dbo.UserEncryptionKey WHERE UserId = @id;");
         cmd.AddParam("@id", userId);
-        var result = await cmd.ExecuteScalarAsync(ct);
+        object? result = await cmd.ExecuteScalarAsync(ct);
         return result is null or DBNull ? null : (byte[])result;
     }
 }

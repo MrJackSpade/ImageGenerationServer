@@ -1,5 +1,5 @@
-﻿using System.Text.Json;
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
+using System.Text.Json;
 
 namespace ImageGen.Comfy;
 
@@ -148,7 +148,7 @@ public sealed class ParamValues
     public ParamValues(IReadOnlyDictionary<string, object?> v) => _v = v;
 
     public bool Has(string key) => _v.ContainsKey(key) && _v[key] is not null;
-    public object? Raw(string key) => _v.TryGetValue(key, out var v) ? v : null;
+    public object? Raw(string key) => _v.TryGetValue(key, out object? v) ? v : null;
 
     public int Int(string key, int dflt = 0) => (int)Math.Round(Dbl(key, dflt));
 
@@ -161,17 +161,17 @@ public sealed class ParamValues
     /// <summary>Coerce a raw param to a 64-bit int (seeds need the full long range, which <see cref="Int"/> truncates).</summary>
     public long Long(string key, long dflt = 0)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => dflt,
             JsonElement je => je.ValueKind == JsonValueKind.Number
-                ? (je.TryGetInt64(out var l) ? l : (je.TryGetDouble(out var d) ? (long)d : dflt)) : dflt,
+                ? (je.TryGetInt64(out long l) ? l : (je.TryGetDouble(out double d) ? (long)d : dflt)) : dflt,
             long l => l,
             int i => i,
             double d => (long)d,
             float f => (long)f,
-            string s => long.TryParse(s, out var p) ? p : dflt,
+            string s => long.TryParse(s, out long p) ? p : dflt,
             _ => dflt
         };
     }
@@ -182,27 +182,27 @@ public sealed class ParamValues
     public static int AsInt(object? v, int dflt = 0) => v switch
     {
         null => dflt,
-        JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var d) ? (int)Math.Round(d) : dflt,
+        JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? (int)Math.Round(d) : dflt,
         double d => (int)Math.Round(d),
         float f => (int)Math.Round(f),
         long l => (int)l,
         int i => i,
-        string s => int.TryParse(s, out var p) ? p : dflt,
+        string s => int.TryParse(s, out int p) ? p : dflt,
         _ => dflt
     };
 
     public double Dbl(string key, double dflt = 0)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => dflt,
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var d) ? d : dflt,
+            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : dflt,
             double d => d,
             float f => f,
             long l => l,
             int i => i,
-            string s => double.TryParse(s, out var p) ? p : dflt,
+            string s => double.TryParse(s, out double p) ? p : dflt,
             _ => dflt
         };
     }
@@ -211,23 +211,23 @@ public sealed class ParamValues
     /// throws a <see cref="RenderValidationException"/> naming the key, instead of substituting a made-up number.</summary>
     public double DblReq(string key)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => throw MissingParam(key),
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var d) ? d : throw NotNumeric(key, je.ToString()),
+            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : throw NotNumeric(key, je.ToString()),
             double d => d,
             float f => f,
             long l => l,
             int i => i,
-            string s => double.TryParse(s, out var p) ? p : throw NotNumeric(key, s),
+            string s => double.TryParse(s, out double p) ? p : throw NotNumeric(key, s),
             _ => throw NotNumeric(key, v.ToString())
         };
     }
 
     public string? Str(string key)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => null,
@@ -271,7 +271,7 @@ public sealed class ParamValues
 
     public bool Bool(string key, bool dflt = false)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => dflt,
@@ -290,11 +290,11 @@ public sealed class ParamValues
     /// optional knobs like FluxGuidance / ModelSamplingAuraFlow where "unset" means "omit the node".</summary>
     public double? DblOrNull(string key)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         return v switch
         {
             null => null,
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out var d) ? d : (double?)null,
+            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : (double?)null,
             double d => d,
             float f => f,
             long l => l,
@@ -306,7 +306,7 @@ public sealed class ParamValues
     /// <summary>A string array param (e.g. Qwen reference input slots ["image2","image3"]); empty when absent.</summary>
     public string[] StrArray(string key)
     {
-        var v = Raw(key);
+        object? v = Raw(key);
         if (v is JsonElement je && je.ValueKind == JsonValueKind.Array)
             return je.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToArray();
         if (v is string[] arr) return arr;
@@ -319,7 +319,7 @@ public sealed class ParamValues
     public (int w, int h) Dims(string aspectKey, string sub, int fallbackW, int fallbackH)
     {
         if (Raw(aspectKey) is JsonElement je && je.ValueKind == JsonValueKind.Object
-            && je.TryGetProperty(sub, out var arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
+            && je.TryGetProperty(sub, out JsonElement arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
             && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
             return (arr[0].GetInt32(), arr[1].GetInt32());
         return (fallbackW, fallbackH);
@@ -331,7 +331,7 @@ public sealed class ParamValues
     public (int w, int h) DimsReq(string aspectKey, string sub)
     {
         if (Raw(aspectKey) is JsonElement je && je.ValueKind == JsonValueKind.Object
-            && je.TryGetProperty(sub, out var arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
+            && je.TryGetProperty(sub, out JsonElement arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
             && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
             return (arr[0].GetInt32(), arr[1].GetInt32());
         if (Has(WorkflowParamKeys.Width) && Has(WorkflowParamKeys.Height))
@@ -511,11 +511,11 @@ public sealed class RequirementLinks
     public IEnumerable<string> All()
     {
         if (!string.IsNullOrEmpty(Checkpoint)) yield return Checkpoint;
-        foreach (var te in TextEncoders) if (!string.IsNullOrEmpty(te)) yield return te;
+        foreach (string te in TextEncoders) if (!string.IsNullOrEmpty(te)) yield return te;
         if (!string.IsNullOrEmpty(Vae)) yield return Vae;
         if (!string.IsNullOrEmpty(MotionModel)) yield return MotionModel;
         if (!string.IsNullOrEmpty(ControlNet)) yield return ControlNet;
-        foreach (var x in Extra) if (!string.IsNullOrEmpty(x)) yield return x;
+        foreach (string x in Extra) if (!string.IsNullOrEmpty(x)) yield return x;
     }
 }
 

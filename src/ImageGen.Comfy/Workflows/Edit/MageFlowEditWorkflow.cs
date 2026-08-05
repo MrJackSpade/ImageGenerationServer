@@ -36,18 +36,21 @@ public abstract class MageFlowEditBase : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
 
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training
         // distribution instead of asking the model to render at, e.g., 3000px.
         wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 16,
+            image = ComfyGraph.Ref(Nodes.Source, 0),
+            upscale_method = "lanczos",
+            megapixels = 1.0,
+            resolution_steps = 16,
         });
 
-        var enc = new Dictionary<string, object>
+        Dictionary<string, object> enc = new Dictionary<string, object>
         {
             [Inputs.Clip] = clip0,
             [Inputs.Prompt] = inputs.Positive,
@@ -60,7 +63,7 @@ public abstract class MageFlowEditBase : EditWorkflowBase
         };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
-        var refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
         int rn = p.Has(WorkflowParamKeys.ReferenceMax) ? Math.Min(refNames.Count, p.IntReq(WorkflowParamKeys.ReferenceMax)) : 0;   // no reference_max declared → no extra refs
         for (int i = 0; i < rn; i++)
         {
@@ -68,7 +71,10 @@ public abstract class MageFlowEditBase : EditWorkflowBase
             wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
             wf[scale] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new
             {
-                image = ComfyGraph.Ref(load, 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 16,
+                image = ComfyGraph.Ref(load, 0),
+                upscale_method = "lanczos",
+                megapixels = 1.0,
+                resolution_steps = 16,
             });
             enc[$"image_{i + 2}"] = ComfyGraph.Ref(scale, 0);
         }

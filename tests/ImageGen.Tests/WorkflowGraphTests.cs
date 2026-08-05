@@ -1,7 +1,7 @@
-using System.Text.Json;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -15,7 +15,7 @@ public sealed class WorkflowGraphTests
 {
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new DirectoryNotFoundException("configurations/ not found above the test bin dir.");
@@ -23,12 +23,12 @@ public sealed class WorkflowGraphTests
 
     private static (WorkflowCatalog catalog, WorkflowRegistry registry) Build()
     {
-        var root = RepoRoot();
-        var cfg = new ComfyOptions
+        string root = RepoRoot();
+        ComfyOptions cfg = new ComfyOptions
         {
             CatalogPath = Path.Combine(root, "configurations"),
         };
-        var catalog = new WorkflowCatalog(cfg, NullLogger<WorkflowCatalog>.Instance);
+        WorkflowCatalog catalog = new WorkflowCatalog(cfg, NullLogger<WorkflowCatalog>.Instance);
         // Bind every slot to a synthetic filename derived from its id. These tests assert that the file bound to a
         // slot reaches the right loader node -- which is the actual invariant. Asserting the AUTHOR's filenames would
         // bake one machine's disk into the suite.
@@ -52,11 +52,11 @@ public sealed class WorkflowGraphTests
     /// </summary>
     private static ParamValues Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
     {
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         // The real thing, not a copy of it. Duplicating this loop here would let it fall out of step with the
         // renderer — which is precisely how a resolution rule can be right in the tests and wrong live.
         catalog.ResolveModelRefs(wf, cfg.Id, v);
@@ -65,12 +65,12 @@ public sealed class WorkflowGraphTests
 
     private static string BuildJson(string configId, WorkflowInputs inputs)
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig(configId);
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig(configId);
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var graph = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
+        Dictionary<string, object> graph = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
         Assert.NotEmpty(graph);
         return JsonSerializer.Serialize(graph);
     }
@@ -82,14 +82,14 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Catalog_loads_all_configurations()
     {
-        var (catalog, _) = Build();
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
 
         // Every file in the tree loads, and none is silently dropped. Counted against the directory rather than a
         // literal: a hardcoded number turns "a workflow failed to load" and "somebody added one" into the same
         // red test, and the number is then updated by whoever is in a hurry.
-        var onDisk = Directory.GetFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json").Length;
+        int onDisk = Directory.GetFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json").Length;
         Assert.Equal(onDisk, catalog.AllConfigs().Count);
-        var pony = catalog.FindConfig("pony-v6");
+        WorkflowConfiguration? pony = catalog.FindConfig("pony-v6");
         Assert.NotNull(pony);
         Assert.NotNull(catalog.FindRequirement(pony.Requirements.Checkpoint));
     }
@@ -103,22 +103,28 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Every_configuration_builds_from_only_its_declared_params()
     {
-        var (catalog, registry) = Build();
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
 
         // Maximal inputs so NO input-related refusal (missing source/mask/end/refs) fires — every failure that remains
         // is then a config that failed to supply a parameter its workflow requires.
-        var inputs = new WorkflowInputs
+        WorkflowInputs inputs = new WorkflowInputs
         {
-            Positive = "a cat", Negative = "blurry", Aspect = "square",
-            SourceImageName = "src.png", MaskImageName = "mask.png", EndImageName = "end.png",
-            SourceVideoName = "src.mp4", SourceWidth = 1216, SourceHeight = 832,
+            Positive = "a cat",
+            Negative = "blurry",
+            Aspect = "square",
+            SourceImageName = "src.png",
+            MaskImageName = "mask.png",
+            EndImageName = "end.png",
+            SourceVideoName = "src.mp4",
+            SourceWidth = 1216,
+            SourceHeight = 832,
             ReferenceImageNames = new[] { "ref1.png", "ref2.png" },
         };
 
-        var failures = new List<string>();
-        foreach (var cfg in catalog.AllConfigs())
+        List<string> failures = new List<string>();
+        foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
         {
-            var wf = registry.Find(cfg.WorkflowName);
+            IWorkflow? wf = registry.Find(cfg.WorkflowName);
             if (wf is null) { failures.Add($"{cfg.Id}: no workflow '{cfg.WorkflowName}'"); continue; }
             try { wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs); }
             catch (Exception ex) { failures.Add($"{cfg.Id} ({cfg.WorkflowName}): {ex.Message}"); }
@@ -134,9 +140,9 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Every_requirement_links_to_a_slot_that_exists()
     {
-        var (catalog, _) = Build();
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
 
-        var dangling = catalog.AllConfigs()
+        List<string> dangling = catalog.AllConfigs()
             .SelectMany(c => c.Requirements.All().Select(slot => (Config: c.Id, Slot: slot)))
             .Where(x => catalog.FindRequirement(x.Slot) is null)
             .Select(x => $"{x.Config} -> {x.Slot}")
@@ -154,7 +160,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void MiniMaxH3_t2v_builds_the_native_audio_topology_not_a_silent_webp()
     {
-        var json = BuildJson("minimax-h3-t2v", Gen);
+        string json = BuildJson("minimax-h3-t2v", Gen);
         Assert.Contains("MiniMaxH3ImageToVideo", json);      // the one H3-specific conditioning+latent node
         Assert.Contains("UNETLoader", json);                 // int8 ConvRot loads through the plain diffusion loader
         Assert.Contains("\"minimax\"", json);                // CLIPLoader type for the Qwen3-VL encoder
@@ -171,7 +177,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void MiniMaxH3_i2v_feeds_the_source_as_the_first_frame()
     {
-        var json = BuildJson("minimax-h3-i2v", Edit);
+        string json = BuildJson("minimax-h3-i2v", Edit);
         Assert.Contains("MiniMaxH3ImageToVideo", json);
         Assert.Contains("first_frame", json);
         Assert.Contains("LoadImage", json);
@@ -182,16 +188,16 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void PixelAnima_is_a_generate_workflow_txt2img_under_projection_plus_final_quantize()
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("pixelanima");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("pixelanima");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         // It's a GENERATE workflow (text→image, no source), not an edit.
         Assert.Equal(WorkflowKind.Generate, wf.Kind);
         Assert.Equal(WorkflowMedia.Image, wf.Media);
 
-        var json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg),
+        string json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg),
             new WorkflowInputs { Positive = "1girl, solo", Aspect = "square" }));
 
         // Plain txt2img topology from the base (Anima loads via UNETLoader; no source LoadImage).
@@ -215,18 +221,18 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void PixelQuantizeVideo_builds_v2v_load_quantize_save_chain()
     {
-        var inputs = new WorkflowInputs { SourceVideoName = "forgemcp_edit_src.mp4" };
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("pixel-quantize-video");
+        WorkflowInputs inputs = new WorkflowInputs { SourceVideoName = "forgemcp_edit_src.mp4" };
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("pixel-quantize-video");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         // It declares a VIDEO source (so the edit submit uploads a real clip + loads it) and a VIDEO output.
         Assert.Equal(WorkflowMedia.Video, wf.SourceMedia);
         Assert.Equal(WorkflowMedia.Video, wf.Media);
         Assert.False(wf.RequiresModel);   // model-free — survives the catalog's no-checkpoint gate
 
-        var json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs));
+        string json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs));
         // Decode the clip → frames, pixel-quantize every frame, re-encode an animated WEBP. No model head.
         Assert.Contains("\"LoadVideo\"", json);
         Assert.Contains("forgemcp_edit_src.mp4", json);
@@ -247,23 +253,32 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void PixelQuantizeVideo_fp_engine_routes_to_feature_preserving_node()
     {
-        var inputs = new WorkflowInputs { SourceVideoName = "forgemcp_edit_src.mp4" };
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("pixel-quantize-video");
+        WorkflowInputs inputs = new WorkflowInputs { SourceVideoName = "forgemcp_edit_src.mp4" };
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("pixel-quantize-video");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
         // Schema no longer carries defaults (Phase B); supply every param the graph reads, engine flipped to fp.
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["virtual_resolution"] = 128, ["palette"] = "chroma-256", ["final_method"] = "median", ["fps"] = 0,
+            ["virtual_resolution"] = 128,
+            ["palette"] = "chroma-256",
+            ["final_method"] = "median",
+            ["fps"] = 0,
             ["engine"] = "fp",
-            ["thicken"] = 0.75, ["tau"] = 0.6, ["lam"] = 0.015, ["k"] = 31, ["beta"] = 0.5, ["step"] = 5.6,
+            ["thicken"] = 0.75,
+            ["tau"] = 0.6,
+            ["lam"] = 0.015,
+            ["k"] = 31,
+            ["beta"] = 0.5,
+            ["step"] = 5.6,
             ["key_background"] = false,
-            ["grid_w"] = 384, ["grid_h"] = 256,   // grid carries no schema default now — the config supplies it
+            ["grid_w"] = 384,
+            ["grid_h"] = 256,   // grid carries no schema default now — the config supplies it
         };
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
 
         // Same V2V scaffolding, but the quantize node is the feature-preserving one (not PixelQuantize).
         Assert.Contains("\"LoadVideo\"", json);
@@ -280,7 +295,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void AnimaInpaint_builds_masked_img2img_with_separate_mask()
     {
-        var json = BuildJson("anima-inpaint", EditMasked);
+        string json = BuildJson("anima-inpaint", EditMasked);
         // The mask is a SEPARATE white-on-black image (LoadImageMask, red channel), grown, confining denoise. The
         // source stays pristine (VAEEncode of the source RGB) so the region outside the mask is preserved.
         Assert.Contains("\"LoadImageMask\"", json);
@@ -319,7 +334,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void AnimaRedraw_builds_whole_image_img2img_with_no_mask()
     {
-        var json = BuildJson("anima-redraw", Edit);
+        string json = BuildJson("anima-redraw", Edit);
         // Whole-image img2img: the source RGB is VAE-encoded to the latent and sampled with NO mask.
         Assert.Contains("\"VAEEncode\"", json);
         Assert.DoesNotContain("EmptyLatentImage", json);
@@ -342,7 +357,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Flux1DevRedraw_puts_the_distilled_guidance_in_the_conditioning()
     {
-        var json = BuildJson("flux1-dev-redraw", Edit);
+        string json = BuildJson("flux1-dev-redraw", Edit);
         // Same whole-image img2img topology as the Anima redraw — one graph class, a FLUX config.
         Assert.Contains("\"VAEEncode\"", json);
         Assert.DoesNotContain("SetLatentNoiseMask", json);
@@ -364,7 +379,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Flux1SchnellRedraw_omits_the_guidance_node_the_distilled_weight_has_no_use_for()
     {
-        var json = BuildJson("flux1-schnell-redraw", Edit);
+        string json = BuildJson("flux1-schnell-redraw", Edit);
         Assert.Contains("\"VAEEncode\"", json);
         Assert.Contains("\"steps\":4", json);
         // schnell is LADD-distilled with no guidance embedding: the config declares no `guidance`, so no node.
@@ -374,7 +389,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Chroma1HdRedraw_adds_the_flow_shift_and_the_t5_padding_fix()
     {
-        var json = BuildJson("chroma1-hd-redraw", Edit);
+        string json = BuildJson("chroma1-hd-redraw", Edit);
         Assert.Contains("\"VAEEncode\"", json);
         // Chroma's two required nodes, mirroring its generate graph.
         Assert.Contains("\"T5TokenizerOptions\"", json);
@@ -390,7 +405,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Flux2Klein4bBaseRedraw_samples_the_non_distilled_base_at_real_cfg()
     {
-        var json = BuildJson("flux2-klein-4b-base-redraw", Edit);
+        string json = BuildJson("flux2-klein-4b-base-redraw", Edit);
         // The base model, not a quality tier of the distilled one: real CFG 5 over 20 steps, so no guidance node.
         Assert.Contains("\"cfg\":5", json);
         Assert.Contains("\"steps\":20", json);
@@ -418,7 +433,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void PhotAnimaRedraw_reuses_the_shared_redraw_graph_on_the_photanima_checkpoint()
     {
-        var json = BuildJson("photanima-redraw", Edit);
+        string json = BuildJson("photanima-redraw", Edit);
         // Same whole-image img2img topology as anima-redraw — one graph class, two configs.
         Assert.Contains("\"VAEEncode\"", json);
         Assert.DoesNotContain("EmptyLatentImage", json);
@@ -444,13 +459,13 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("\"ImageScale\"", BuildJson("photanima-redraw", Edit));
 
         // Push well past Photanima's budget and it downscales too — to /16-snapped dims, aspect preserved.
-        var big = new WorkflowInputs { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 2048, SourceHeight = 2048 };
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("photanima-redraw");
+        WorkflowInputs big = new WorkflowInputs { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 2048, SourceHeight = 2048 };
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("photanima-redraw");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var bigJson = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), big));
+        string bigJson = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), big));
         Assert.Contains("\"ImageScale\"", bigJson);
         Assert.Contains("\"width\":1024", bigJson);    // sqrt(1044480/2048^2)*2048 = 1022 → snapped to 1024
         Assert.Contains("\"height\":1024", bigJson);
@@ -464,12 +479,12 @@ public sealed class WorkflowGraphTests
     {
         // A 0.1 step can't express 0.35 (and makes 0.6 a coarse slider). The configs omit `step`, so the value has to
         // come from the workflow's ParamSpec — assert it survives the config→spec fallback.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig(configId);
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig(configId);
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var spec = wf.Schema.First(s => s.Key == "denoise");
+        ParamSpec spec = wf.Schema.First(s => s.Key == "denoise");
         Assert.Equal(0.01, spec.Step);
         Assert.Null(cfg.Params["denoise"].Step);   // nothing overrides it at the config layer
         Assert.True(cfg.Params["denoise"].Exposed);
@@ -499,10 +514,10 @@ public sealed class WorkflowGraphTests
     public void Redraw_configs_share_one_picker_section_and_drop_it_from_their_names()
     {
         // The "Redraw" header carries the category, so the names must not repeat it.
-        var (catalog, _) = Build();
-        foreach (var id in new[] { "anima-redraw", "photanima-redraw", "krea2-redraw" })
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
+        foreach (string? id in new[] { "anima-redraw", "photanima-redraw", "krea2-redraw" })
         {
-            var cfg = catalog.FindConfig(id);
+            WorkflowConfiguration? cfg = catalog.FindConfig(id);
             Assert.NotNull(cfg);
             Assert.Equal("Redraw", cfg.EditGroup);
             Assert.Null(cfg.EffectType);   // must NOT be an effect — that would move it to the Effects tab
@@ -514,10 +529,10 @@ public sealed class WorkflowGraphTests
     public void Upscale_configs_share_one_picker_section_and_drop_it_from_their_names()
     {
         // The "Upscale" header carries the category, so the names must not repeat it.
-        var (catalog, _) = Build();
-        foreach (var id in new[] { "upscale-anime", "upscale-photo", "seedvr2-upscale" })
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
+        foreach (string? id in new[] { "upscale-anime", "upscale-photo", "seedvr2-upscale" })
         {
-            var cfg = catalog.FindConfig(id);
+            WorkflowConfiguration? cfg = catalog.FindConfig(id);
             Assert.NotNull(cfg);
             Assert.Equal("Upscale", cfg.EditGroup);
             Assert.Null(cfg.EffectType);   // must NOT be an effect — that would move it to the Effects tab
@@ -528,7 +543,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void SeedVr2_builds_a_one_frame_dit_vae_upscaler_chain_with_blockswap()
     {
-        var json = BuildJson("seedvr2-upscale", Edit);
+        string json = BuildJson("seedvr2-upscale", Edit);
         // The pack's three nodes, wired DiT + VAE -> upscaler.
         Assert.Contains("\"SeedVR2LoadDiTModel\"", json);
         Assert.Contains("\"SeedVR2LoadVAEModel\"", json);
@@ -557,13 +572,21 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void SeedVr2_scale_converts_to_a_short_edge_target_and_falls_back_without_source_dims()
     {
-        var wf = new SeedVr2UpscaleWorkflow();
+        SeedVr2UpscaleWorkflow wf = new SeedVr2UpscaleWorkflow();
         ParamValues P(int scale) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = scale,
-            ["max_resolution"] = 0, ["batch_size"] = 1,
-            ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
-            ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
+            ["dit_model"] = "d.gguf",
+            ["vae_model"] = "v.safetensors",
+            ["scale"] = scale,
+            ["max_resolution"] = 0,
+            ["batch_size"] = 1,
+            ["device"] = "cuda:0",
+            ["offload_device"] = "cpu",
+            ["vae_tile_size"] = 512,
+            ["vae_tile_overlap"] = 64,
+            ["blocks_to_swap"] = 32,
+            ["attention_mode"] = "sdpa",
+            ["color_correction"] = "lab",
         });
         string Json(ParamValues p, WorkflowInputs i) => JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), i));
 
@@ -572,15 +595,15 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"resolution\":2496", Json(P(3), Edit));
 
         // Odd short edge must snap up to even (the node's step): 833 * 1 -> 834.
-        var odd = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 1000, SourceHeight = 833 };
+        WorkflowInputs odd = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 1000, SourceHeight = 833 };
         Assert.Contains("\"resolution\":834", Json(P(1), odd));
 
         // No source dims is a broken image source, not a real state — REFUSED, not upscaled to a fabricated size.
-        var noDims = new WorkflowInputs { SourceImageName = "s.png" };
+        WorkflowInputs noDims = new WorkflowInputs { SourceImageName = "s.png" };
         Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(4), new ResolvedRequirements(), noDims));
 
         // The node caps resolution at 16384 and rejects the WHOLE prompt above it — clamp instead of emitting a 400.
-        var huge = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 9000, SourceHeight = 5000 };
+        WorkflowInputs huge = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 9000, SourceHeight = 5000 };
         Assert.Contains("\"resolution\":16384", Json(P(4), huge));
 
         // A scale below 1 is REFUSED, not floored to 1 — a 0x upscale is the caller's mistake to see, not to have
@@ -593,25 +616,34 @@ public sealed class WorkflowGraphTests
     {
         // The upstream node caps seed at 2^32-1, unlike ComfyUI's samplers. Passing the app's 64-bit seed straight
         // through makes ComfyUI reject the whole prompt: "Value 2709052392662243722 bigger than max of 4294967295".
-        var wf = new SeedVr2UpscaleWorkflow();
+        SeedVr2UpscaleWorkflow wf = new SeedVr2UpscaleWorkflow();
         ParamValues P(long seed) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["dit_model"] = "d.gguf", ["vae_model"] = "v.safetensors", ["scale"] = 2,
-            ["max_resolution"] = 0, ["batch_size"] = 1, ["seed"] = seed,
-            ["device"] = "cuda:0", ["offload_device"] = "cpu", ["vae_tile_size"] = 512, ["vae_tile_overlap"] = 64,
-            ["blocks_to_swap"] = 32, ["attention_mode"] = "sdpa", ["color_correction"] = "lab",
+            ["dit_model"] = "d.gguf",
+            ["vae_model"] = "v.safetensors",
+            ["scale"] = 2,
+            ["max_resolution"] = 0,
+            ["batch_size"] = 1,
+            ["seed"] = seed,
+            ["device"] = "cuda:0",
+            ["offload_device"] = "cpu",
+            ["vae_tile_size"] = 512,
+            ["vae_tile_overlap"] = 64,
+            ["blocks_to_swap"] = 32,
+            ["attention_mode"] = "sdpa",
+            ["color_correction"] = "lab",
         });
         long SeedOf(long s)
         {
-            var graph = wf.Build(P(s), new ResolvedRequirements(), Edit);
-            var inputs = JsonSerializer.SerializeToElement(((Dictionary<string, object>)graph["32"])["inputs"]);
+            Dictionary<string, object> graph = wf.Build(P(s), new ResolvedRequirements(), Edit);
+            JsonElement inputs = JsonSerializer.SerializeToElement(((Dictionary<string, object>)graph["32"])["inputs"]);
             return inputs.GetProperty("seed").GetInt64();
         }
 
         // The seed that overflows the cap, and the extremes.
-        foreach (var s in new[] { 2709052392662243722L, long.MaxValue, 4294967296L, 4294967295L, 1L })
+        foreach (long s in new[] { 2709052392662243722L, long.MaxValue, 4294967296L, 4294967295L, 1L })
         {
-            var got = SeedOf(s);
+            long got = SeedOf(s);
             Assert.InRange(got, 0L, 4294967295L);
         }
         // In-range seeds pass through untouched, and the fold is deterministic (a re-run reproduces).
@@ -624,7 +656,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void SeedVr2_needs_no_checkpoint_and_preserves_composition()
     {
-        var wf = new SeedVr2UpscaleWorkflow();
+        SeedVr2UpscaleWorkflow wf = new SeedVr2UpscaleWorkflow();
         Assert.False(wf.RequiresModel);         // the pack's own loaders fetch the DiT + VAE
         Assert.True(wf.PreservesComposition);   // a restore must never trip the no-change gate
     }
@@ -636,16 +668,16 @@ public sealed class WorkflowGraphTests
         // Eligibility is node-aware, so the link expresses the real dependency instead of being a trap: were it to
         // demand a file binding for every requirement, a node slot — which can never have one — would gate the
         // configuration off permanently.
-        var (catalog, _) = Build();
-        var cfg = catalog.FindConfig("seedvr2-upscale");
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("seedvr2-upscale");
         Assert.NotNull(cfg);
         Assert.Contains("comfyui-seedvr2-node", cfg.Requirements.All());
 
-        var node = catalog.FindRequirement("comfyui-seedvr2-node");
+        Requirement? node = catalog.FindRequirement("comfyui-seedvr2-node");
         Assert.NotNull(node);
         Assert.False(string.IsNullOrWhiteSpace(node.Node));   // met by node presence, not by a bound file
 
-        foreach (var id in cfg.Requirements.All())
+        foreach (string id in cfg.Requirements.All())
             Assert.NotNull(catalog.FindRequirement(id));
     }
 
@@ -660,7 +692,7 @@ public sealed class WorkflowGraphTests
     [InlineData("pixelize-hidream", "QuadrupleCLIPLoader")]
     public void A_configuration_gets_the_clip_loader_its_encoder_count_calls_for(string configId, string loader)
     {
-        var json = BuildJson(configId, Edit);
+        string json = BuildJson(configId, Edit);
         Assert.Contains($"\"{loader}\"", json);
         // And never the single-encoder loader the dual-boolean selection would fall back to.
         Assert.DoesNotContain("\"CLIPLoaderGGUF\"", json);
@@ -673,7 +705,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void A_checkpoint_without_encoders_uses_the_declared_ones_instead_of_its_null_clip()
     {
-        var json = BuildJson("pixelize-sd35", Edit);
+        string json = BuildJson("pixelize-sd35", Edit);
         // Node 4 is CheckpointLoaderSimple; its output 1 is the CLIP that does not exist here.
         Assert.DoesNotContain("[\"4\",1]", json);
         Assert.Contains("\"TripleCLIPLoader\"", json);
@@ -682,7 +714,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void UpscaleAnime_runs_the_2x_net_and_emits_no_resample_at_native_scale()
     {
-        var json = BuildJson("upscale-anime", Edit);
+        string json = BuildJson("upscale-anime", Edit);
         // Feed-forward SR only: no diffusion, no conditioning, no latent anywhere in the graph.
         Assert.Contains("\"UpscaleModelLoader\"", json);
         Assert.Contains("\"ImageUpscaleWithModel\"", json);
@@ -701,7 +733,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void UpscalePhoto_fits_its_4x_net_down_to_the_requested_scale()
     {
-        var json = BuildJson("upscale-photo", Edit);
+        string json = BuildJson("upscale-photo", Edit);
         Assert.Contains("nomos2-hq-dat2-4x.safetensors", json);
         Assert.Contains("\"ImageUpscaleWithModel\"", json);
         Assert.DoesNotContain("KSampler", json);
@@ -716,15 +748,15 @@ public sealed class WorkflowGraphTests
     {
         // Guards the ratio arithmetic in both directions: a 2x net asked for 4x must resample UP by 2.0 after the
         // SR pass (not silently clamp, and not skip the node as if it were native).
-        var wf = new UpscaleWorkflow();
-        var p = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        UpscaleWorkflow wf = new UpscaleWorkflow();
+        ParamValues p = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["upscale_model"] = "anime-sharp-v2-rplksr-sharp-2x.safetensors",
             ["model_scale"] = 2.0,
             ["scale"] = 4,
             ["resample"] = "lanczos",
         });
-        var json = JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), Edit));
+        string json = JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), Edit));
         Assert.Contains("\"ImageScaleBy\"", json);
         Assert.Contains("\"scale_by\":2", json);
     }
@@ -744,18 +776,18 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Upscale_takes_no_prompt_and_preserves_composition()
     {
-        var wf = new UpscaleWorkflow();
+        UpscaleWorkflow wf = new UpscaleWorkflow();
         Assert.False(wf.RequiresModel);          // no checkpoint — the SR net loads itself
         Assert.True(wf.PreservesComposition);    // an upscale must never trip the no-change gate
         // The instruction is carried by the edit path but has nowhere to go — assert it never reaches the graph.
-        var json = BuildJson("upscale-photo", Edit);
+        string json = BuildJson("upscale-photo", Edit);
         Assert.DoesNotContain("make it red", json);
     }
 
     [Fact]
     public void Krea2Redraw_builds_single_turbo_partial_denoise_over_the_source()
     {
-        var json = BuildJson("krea2-redraw", Edit);
+        string json = BuildJson("krea2-redraw", Edit);
         // Whole-image img2img: the source RGB is VAE-encoded to the init latent and sampled with NO mask.
         Assert.Contains("\"VAEEncode\"", json);
         Assert.DoesNotContain("EmptyLatentImage", json);
@@ -781,21 +813,21 @@ public sealed class WorkflowGraphTests
     {
         // Neutral knobs emit no node at all — the graph stays byte-identical to plain Krea 2. Guards the shared helper
         // now that the txt2img base, the refiner, and the Turbo redraw all route through it.
-        var wf = new Krea2RedrawWorkflow();
-        var neutral = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        Krea2RedrawWorkflow wf = new Krea2RedrawWorkflow();
+        ParamValues neutral = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["rebalance_multiplier"] = 1.0,
             ["per_layer_weights"] = Krea2Rebalance.NeutralWeights,
         });
         Assert.False(Krea2Rebalance.IsActive(neutral));
 
-        var graph = new Dictionary<string, object>();
-        var positive = ComfyGraph.Ref("13", 0);
+        Dictionary<string, object> graph = new Dictionary<string, object>();
+        object positive = ComfyGraph.Ref("13", 0);
         Assert.Same(positive, Krea2Rebalance.Apply(graph, positive, neutral, "15"));
         Assert.Empty(graph);
 
         // ...and a single non-neutral layer weight is enough to switch it on.
-        var oneLayerHot = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        ParamValues oneLayerHot = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
             ["rebalance_multiplier"] = 1.0,
             ["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0",
@@ -811,19 +843,23 @@ public sealed class WorkflowGraphTests
     {
         // The core of the feature: a UI negative (WorkflowInputs.Negative) is merged with the model's config default
         // negative, never replacing it. The user's tags LEAD, the Anima default follows, comma-joined.
-        var withNeg = new WorkflowInputs
+        WorkflowInputs withNeg = new WorkflowInputs
         {
-            Positive = "make it red", SourceImageName = "src.png", MaskImageName = "mask.png",
-            SourceWidth = 1216, SourceHeight = 832, Negative = "extra hands, jpeg artifacts",
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            MaskImageName = "mask.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            Negative = "extra hands, jpeg artifacts",
         };
-        var json = BuildJson("anima-inpaint", withNeg);
+        string json = BuildJson("anima-inpaint", withNeg);
         Assert.Contains("extra hands, jpeg artifacts, worst quality, low quality, score_1, score_2, score_3, artist name", json);
     }
 
     [Fact]
     public void AnimaOutpaint_builds_pad_for_outpaint_masked_img2img()
     {
-        var json = BuildJson("anima-outpaint", Edit);
+        string json = BuildJson("anima-outpaint", Edit);
         // Masked-denoise op (grow the border mask, confine denoise to it) PLUS the inpainting LLLite that conditions
         // the border on the known pixels + hole so it continues structure. No composite hack.
         Assert.Contains("\"ImagePadForOutpaint\"", json);
@@ -841,7 +877,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void FluxFill_takes_the_mask_as_native_model_conditioning_not_a_controlnet()
     {
-        var json = BuildJson("flux1-fill-inpaint", EditMasked);
+        string json = BuildJson("flux1-fill-inpaint", EditMasked);
         // The whole point of this workflow: the mask is the MODEL's input. InpaintModelConditioning feeds the model
         // the blanked region as concat_latent_image + the mask as concat_mask. No ControlNet is involved anywhere.
         Assert.Contains("\"InpaintModelConditioning\"", json);
@@ -881,19 +917,19 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void FluxFillOutpaint_pads_the_canvas_and_leaves_the_grey_pad_alone()
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("flux1-fill-outpaint");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("flux1-fill-outpaint");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left"] = 256; v["pad_right"] = 256;
-        var inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
 
         Assert.Contains("\"ImagePadForOutpaint\"", json);
         Assert.Contains("\"feathering\":0", json);       // softening happens once, in the mask chain
@@ -910,7 +946,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenImageInpaint_conditions_the_fill_on_the_instantx_controlnet_and_pastes_back()
     {
-        var json = BuildJson("qwen-image-inpaint", EditMasked);
+        string json = BuildJson("qwen-image-inpaint", EditMasked);
         // The fill conditioning: the InstantX inpainting ControlNet, applied through AliMama's node (Comfy reuses it
         // — there is no Qwen-specific apply node). Without this the masked region is invented, not continued.
         Assert.Contains("\"ControlNetLoader\"", json);
@@ -944,7 +980,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenImageOutpaint_pads_the_canvas_and_conditions_the_border_on_the_controlnet()
     {
-        var json = BuildJson("qwen-image-outpaint", Edit);
+        string json = BuildJson("qwen-image-outpaint", Edit);
         // ImagePadForOutpaint supplies both the enlarged canvas and the border mask — no painted mask upload here.
         Assert.Contains("\"ImagePadForOutpaint\"", json);
         Assert.DoesNotContain("\"LoadImageMask\"", json);
@@ -976,20 +1012,20 @@ public sealed class WorkflowGraphTests
         // outpaint the fill region touches those edges, so the mask would fall toward 0 exactly over
         // ImagePadForOutpaint's 0.5-GREY fill — the sampler would leave the grey half-denoised AND
         // ImageCompositeMasked would blend it in, producing a grey frame (measured: RGB 127 at x=0).
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-outpaint");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("qwen-image-outpaint");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left"] = 256; v["pad_right"] = 256;
-        var inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
-        var graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs);
-        var json = JsonSerializer.Serialize(graph);
+        WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
+        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs);
+        string json = JsonSerializer.Serialize(graph);
 
         Assert.DoesNotContain("FeatherMask", json);              // the node that would cause it
         Assert.Contains("\"ImageBlur\"", json);                  // blur the mask's own boundary instead
@@ -1013,7 +1049,7 @@ public sealed class WorkflowGraphTests
         // ~63 gradient column with a near-binary mask). Grow 16 = 2σ places the 50% blend point 16px inside the
         // original with the descent starting right at the pad boundary.
         Assert.Contains("\"expand\":16", JsonSerializer.Serialize(graph["30"]));
-        var blurNode = JsonSerializer.Serialize(graph["33"]);
+        string blurNode = JsonSerializer.Serialize(graph["33"]);
         Assert.Contains("\"blur_radius\":31", blurNode);
         Assert.Contains("\"sigma\":8", blurNode);
 
@@ -1021,7 +1057,7 @@ public sealed class WorkflowGraphTests
         // ImagePadForOutpaint mask). ANY deficit below 1 over the grey pad leaks 0.5-grey into that column through
         // the latent re-injection and the composite: measured seam columns of 51/34/10 as the unclamped gaussian's
         // boundary value went 0.933/0.977/0.9987, seam-free only with a hard 1 there.
-        var clamp = JsonSerializer.Serialize(graph["35"]);
+        string clamp = JsonSerializer.Serialize(graph["35"]);
         Assert.Contains("\"MaskComposite\"", clamp);
         Assert.Contains("\"add\"", clamp);
         Assert.Contains("\"20\"", clamp);                                   // clamped against the RAW pad mask
@@ -1044,7 +1080,7 @@ public sealed class WorkflowGraphTests
     {
         // 1216x832 is under the 1536 ceiling — nothing may be resized. Guards the standing rule that we never
         // silently change a user's resolution, and the fact that Comfy's own node would have UPSCALED this to 1536.
-        var json = BuildJson("qwen-image-inpaint", EditMasked);
+        string json = BuildJson("qwen-image-inpaint", EditMasked);
         // ImageScale is the only node that resizes; MaskToImage is NOT a proxy for scaling — the mask blur
         // round-trips through IMAGE too, so it is present either way.
         Assert.DoesNotContain("\"ImageScale\"", json);
@@ -1054,12 +1090,15 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenImageInpaint_scales_canvas_and_mask_together_when_over_the_ceiling()
     {
-        var big = new WorkflowInputs
+        WorkflowInputs big = new WorkflowInputs
         {
-            Positive = "make it red", SourceImageName = "src.png", MaskImageName = "mask.png",
-            SourceWidth = 4000, SourceHeight = 3000,
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            MaskImageName = "mask.png",
+            SourceWidth = 4000,
+            SourceHeight = 3000,
         };
-        var json = BuildJson("qwen-image-inpaint", big);
+        string json = BuildJson("qwen-image-inpaint", big);
         // 4000x3000 -> long edge capped at 1536, aspect kept, both snapped down to a multiple of 16: 1536x1152.
         Assert.Contains("\"width\":1536", json);
         Assert.Contains("\"height\":1152", json);
@@ -1072,17 +1111,17 @@ public sealed class WorkflowGraphTests
     public void QwenImageOutpaint_measures_the_ceiling_against_the_PADDED_canvas()
     {
         // Source is under the ceiling, but the pads push the real canvas over it — the ceiling must see the padded size.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-outpaint");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("qwen-image-outpaint");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         v["pad_left"] = 600; v["pad_right"] = 600;
-        var inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
         // 1216 + 600 + 600 = 2416 wide > 1536, so it scales even though the SOURCE alone was under the ceiling.
         Assert.Contains("\"ImageScale\"", json);
         Assert.Contains("\"width\":1536", json);
@@ -1091,7 +1130,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HunyuanImage21_builds_with_sd3_sampling_and_image_latent()
     {
-        var json = BuildJson("hunyuanimage21", Gen);
+        string json = BuildJson("hunyuanimage21", Gen);
         Assert.Contains("\"EmptyHunyuanImageLatent\"", json);
         Assert.Contains("\"ModelSamplingSD3\"", json);
         Assert.Contains("hunyuanimage21-distilled.safetensors", json);
@@ -1102,7 +1141,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HunyuanVideo15_i2v_sr_appends_super_resolution_pass()
     {
-        var json = BuildJson("hunyuanvideo15-i2v-sr", Edit);
+        string json = BuildJson("hunyuanvideo15-i2v-sr", Edit);
         Assert.Contains("\"LatentUpscaleModelLoader\"", json);
         Assert.Contains("\"HunyuanVideo15LatentUpscaleWithModel\"", json);
         Assert.Contains("\"HunyuanVideo15SuperResolution\"", json);
@@ -1118,7 +1157,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HunyuanVideo15_i2v_without_sr_has_no_super_resolution_nodes()
     {
-        var json = BuildJson("hunyuanvideo15-i2v", Edit);
+        string json = BuildJson("hunyuanvideo15-i2v", Edit);
         Assert.DoesNotContain("HunyuanVideo15SuperResolution", json);
         Assert.DoesNotContain("LatentUpscaleModelLoader", json);
     }
@@ -1126,7 +1165,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void PonyV6_builds_a_checkpoint_clipskip_graph()
     {
-        var json = BuildJson("pony-v6", Gen);
+        string json = BuildJson("pony-v6", Gen);
         Assert.Contains("\"CheckpointLoaderSimple\"", json);
         Assert.Contains("\"CLIPSetLastLayer\"", json);     // clip_skip = 2
         Assert.Contains("\"EmptyLatentImage\"", json);     // std latent
@@ -1138,7 +1177,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void ZImageTurbo_builds_a_gguf_sd3_graph()
     {
-        var json = BuildJson("z-image-turbo", Gen);
+        string json = BuildJson("z-image-turbo", Gen);
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"EmptySD3LatentImage\"", json);
         Assert.Contains("\"steps\":8", json);
@@ -1147,7 +1186,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Sd35Medium_builds_an_sd3_latent_graph()
     {
-        var json = BuildJson("sd35-medium", Gen);
+        string json = BuildJson("sd35-medium", Gen);
         Assert.Contains("\"CheckpointLoaderSimple\"", json);
         Assert.Contains("\"EmptySD3LatentImage\"", json);
     }
@@ -1155,7 +1194,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Flux1Dev_applies_flux_guidance()
     {
-        var json = BuildJson("flux1-dev", Gen);
+        string json = BuildJson("flux1-dev", Gen);
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"FluxGuidance\"", json);
         Assert.Contains("\"guidance\":3.5", json);
@@ -1164,7 +1203,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void FluxKontext_builds_a_reference_latent_edit_graph()
     {
-        var json = BuildJson("flux1-kontext", Edit);
+        string json = BuildJson("flux1-kontext", Edit);
         Assert.Contains("\"ReferenceLatent\"", json);
         Assert.Contains("\"FluxGuidance\"", json);
         Assert.Contains("\"SaveImage\"", json);
@@ -1173,7 +1212,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void WanI2V_builds_a_video_graph()
     {
-        var json = BuildJson("wan22-ti2v-5b", Edit);
+        string json = BuildJson("wan22-ti2v-5b", Edit);
         Assert.Contains("\"Wan22ImageToVideoLatent\"", json);
         Assert.Contains("\"SaveAnimatedWEBP\"", json);
     }
@@ -1181,7 +1220,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Ltxv_builds_a_video_graph()
     {
-        var json = BuildJson("ltxv-i2v", Edit);
+        string json = BuildJson("ltxv-i2v", Edit);
         Assert.Contains("\"LTXVImgToVideo\"", json);
         Assert.Contains("\"SaveAnimatedWEBP\"", json);
     }
@@ -1189,7 +1228,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenImageEdit_builds_a_qwen_edit_graph()
     {
-        var json = BuildJson("qwen-image-edit", Edit);
+        string json = BuildJson("qwen-image-edit", Edit);
         Assert.Contains("\"TextEncodeQwenImageEditPlus\"", json);
         Assert.Contains("\"SaveImage\"", json);
     }
@@ -1199,56 +1238,56 @@ public sealed class WorkflowGraphTests
     {
         // Default path (all mask_*_pct=0 from the schema defaults): the sampler reads the source latent directly and
         // SaveImage consumes the raw VAEDecode — no reframe nodes at all.
-        var json = BuildJson("qwen-image-edit", Edit);
+        string json = BuildJson("qwen-image-edit", Edit);
         Assert.DoesNotContain("\"ImageCompositeMasked\"", json);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
         Assert.Equal("14", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
         Assert.Equal("8", root.GetProperty("9").GetProperty("inputs").GetProperty("images")[0].GetString());
     }
 
     [Theory]                                                     // L    R    T    B    → rect x, y, w, h  (src 1216×832)
-    [InlineData(0,  0,  50, 0,   0,   416, 1216, 416)]           // lower half
-    [InlineData(0,  0,  34, 0,   0,   282, 1216, 550)]           // lower ⅔ — the crouch case
-    [InlineData(25, 25, 0,  0,   304, 0,   608,  832)]           // centre column
-    [InlineData(0,  0,  0,  50,  0,   0,   1216, 416)]           // upper half
+    [InlineData(0, 0, 50, 0, 0, 416, 1216, 416)]           // lower half
+    [InlineData(0, 0, 34, 0, 0, 282, 1216, 550)]           // lower ⅔ — the crouch case
+    [InlineData(25, 25, 0, 0, 304, 0, 608, 832)]           // centre column
+    [InlineData(0, 0, 0, 50, 0, 0, 1216, 416)]           // upper half
     public void QwenImageEdit_mask_pct_samples_the_rect_and_composites_it_back(int l, int r, int t, int b, int x, int y, int w, int h)
     {
         // Each mask_*_pct blocks dim·pct/100 px on that side; what's left is the drawing rect. The sampler runs on a
         // latent shaped like the RECT (stride-aligned), and the decode is pasted back onto a white full-size canvas at
         // the rect's offset — so the model fills a correctly-shaped frame rather than being clipped by a mask.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-edit");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("qwen-image-edit");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
-        var graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
+        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
 
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
-        var root = doc.RootElement;
+        using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
+        JsonElement root = doc.RootElement;
 
         // The sampled canvas is the rect, rounded DOWN to the 16px latent stride.
-        var seed = root.GetProperty("80");
+        JsonElement seed = root.GetProperty("80");
         Assert.Equal("EmptyImage", seed.GetProperty("class_type").GetString());
         Assert.Equal(w - w % 16, seed.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(h - h % 16, seed.GetProperty("inputs").GetProperty("height").GetInt32());
         Assert.Equal("81", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
 
         // Stride rounding undone, then pasted at the rect offset onto a full-size white canvas.
-        var back = root.GetProperty("82");
+        JsonElement back = root.GetProperty("82");
         Assert.Equal(w, back.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(h, back.GetProperty("inputs").GetProperty("height").GetInt32());
-        var canvas = root.GetProperty("83");
+        JsonElement canvas = root.GetProperty("83");
         Assert.Equal(1216, canvas.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(832, canvas.GetProperty("inputs").GetProperty("height").GetInt32());
         Assert.Equal(16777215, canvas.GetProperty("inputs").GetProperty("color").GetInt32());   // white margin
-        var comp = root.GetProperty("84");
+        JsonElement comp = root.GetProperty("84");
         Assert.Equal("ImageCompositeMasked", comp.GetProperty("class_type").GetString());
         Assert.Equal(x, comp.GetProperty("inputs").GetProperty("x").GetInt32());
         Assert.Equal(y, comp.GetProperty("inputs").GetProperty("y").GetInt32());
@@ -1268,16 +1307,16 @@ public sealed class WorkflowGraphTests
     [InlineData(0, 0, 120, 0)]     // out of range
     public void QwenImageEdit_rejects_a_degenerate_mask(int l, int r, int t, int b)
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("qwen-image-edit");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("qwen-image-edit");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
         Assert.ThrowsAny<ArgumentException>(() => wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit));
     }
@@ -1285,7 +1324,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void AnimateDiffI2V_builds_sparsectrl_ipadapter_graph()
     {
-        var ltng = BuildJson("animatediff-lightning-i2v", Edit);
+        string ltng = BuildJson("animatediff-lightning-i2v", Edit);
         Assert.Contains("IPAdapterUnifiedLoader", ltng);
         Assert.Contains("\"IPAdapter\"", ltng);               // the apply node (distinct from the loader)
         Assert.Contains("ACN_SparseCtrlLoaderAdvanced", ltng);
@@ -1293,7 +1332,7 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"SaveAnimatedWEBP\"", ltng);
         Assert.DoesNotContain("LoraLoaderModelOnly", ltng);   // Lightning has no LCM LoRA
 
-        var lcm = BuildJson("animatelcm-i2v", Edit);
+        string lcm = BuildJson("animatelcm-i2v", Edit);
         Assert.Contains("LoraLoaderModelOnly", lcm);          // AnimateLCM applies the LCM LoRA
         Assert.Contains("\"sampler_name\":\"lcm\"", lcm);     // and samples with lcm
     }
@@ -1301,7 +1340,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HiDream_builds_a_quad_clip_sd3_graph()
     {
-        var json = BuildJson("hidream-full", Gen);
+        string json = BuildJson("hidream-full", Gen);
         Assert.Contains("\"QuadrupleCLIPLoader\"", json);
         Assert.Contains("\"ModelSamplingSD3\"", json);
         Assert.Contains("\"EmptySD3LatentImage\"", json);
@@ -1312,7 +1351,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HiDreamDev_uses_its_own_shift_and_sampler()
     {
-        var json = BuildJson("hidream-dev", Gen);
+        string json = BuildJson("hidream-dev", Gen);
         Assert.Contains("\"shift\":6", json);              // Dev flow-shift (per-config, flows through MergeParams)
         Assert.Contains("\"sampler_name\":\"lcm\"", json);
         Assert.Contains("\"steps\":28", json);
@@ -1321,7 +1360,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Sd35LargeTriple_builds_a_checkpoint_triple_clip_graph()
     {
-        var json = BuildJson("sd35-large-bf16", Gen);
+        string json = BuildJson("sd35-large-bf16", Gen);
         Assert.Contains("\"CheckpointLoaderSimple\"", json);
         Assert.Contains("\"TripleCLIPLoader\"", json);
         Assert.Contains("\"EmptySD3LatentImage\"", json);
@@ -1331,7 +1370,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Chroma_builds_a_t5_only_auraflow_graph()
     {
-        var json = BuildJson("chroma1-hd", Gen);
+        string json = BuildJson("chroma1-hd", Gen);
         Assert.Contains("\"CLIPLoader\"", json);
         Assert.Contains("\"T5TokenizerOptions\"", json);
         Assert.Contains("\"ModelSamplingAuraFlow\"", json);
@@ -1341,7 +1380,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void QwenImageBase_builds_on_the_generic_pipeline()
     {
-        var json = BuildJson("qwen-image", Gen);
+        string json = BuildJson("qwen-image", Gen);
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"ModelSamplingAuraFlow\"", json);   // auraflow 3.1
         Assert.Contains("\"EmptySD3LatentImage\"", json);
@@ -1350,7 +1389,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Flux2Dev_applies_flux_guidance()
     {
-        var json = BuildJson("flux2-dev", Gen);
+        string json = BuildJson("flux2-dev", Gen);
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"FluxGuidance\"", json);
         Assert.Contains("\"EmptyFlux2LatentImage\"", json);
@@ -1364,9 +1403,9 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void No_configuration_is_another_one_under_a_different_name()
     {
-        var (catalog, _) = Build();
+        (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
 
-        var duplicates = catalog.AllConfigs()
+        List<string> duplicates = catalog.AllConfigs()
             .GroupBy(c => string.Join("|",
                 c.WorkflowName,
                 string.Join(",", c.Requirements.All().OrderBy(x => x, StringComparer.Ordinal)),
@@ -1396,11 +1435,11 @@ public sealed class WorkflowGraphTests
     /// <summary>Build a config's graph with every slot bound to a file of the given extension.</summary>
     private static string BuildJsonBoundTo(string configId, string extension)
     {
-        var (catalog, registry) = Build();
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
         catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + extension));
-        var cfg = catalog.FindConfig(configId);
+        WorkflowConfiguration? cfg = catalog.FindConfig(configId);
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
         return JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
     }
@@ -1413,13 +1452,13 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void A_machine_setting_overrides_the_shipped_one()
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("flux1-dev");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("flux1-dev");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
-        var shipped = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
+        string shipped = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":28", shipped);
 
         catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
@@ -1427,7 +1466,7 @@ public sealed class WorkflowGraphTests
             ["flux1-dev"] = new Dictionary<string, string> { ["param.steps"] = "12" },
         });
 
-        var overridden = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
+        string overridden = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":12", overridden);
         Assert.DoesNotContain("\"steps\":28", overridden);
     }
@@ -1435,7 +1474,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void WanA14b_i2v_builds_a_two_expert_moe_video_graph()
     {
-        var json = BuildJson("wan22-i2v-a14b", Edit);
+        string json = BuildJson("wan22-i2v-a14b", Edit);
         Assert.Contains("\"WanImageToVideo\"", json);
         Assert.Contains("\"KSamplerAdvanced\"", json);
         Assert.Contains("\"return_with_leftover_noise\":\"enable\"", json);   // high-noise expert
@@ -1450,8 +1489,8 @@ public sealed class WorkflowGraphTests
     {
         // An END frame (the source is the first frame) flips the conditioning node to WanFirstLastFrameToVideo with
         // both start_image and end_image wired, and loads the end frame via its own LoadImage. The plain i2v node is gone.
-        var inputs = new WorkflowInputs { Positive = "make it red", SourceImageName = "src.png", EndImageName = "forgemcp_edit_last.png", SourceWidth = 1216, SourceHeight = 832 };
-        var json = BuildJson("wan22-i2v-a14b", inputs);
+        WorkflowInputs inputs = new WorkflowInputs { Positive = "make it red", SourceImageName = "src.png", EndImageName = "forgemcp_edit_last.png", SourceWidth = 1216, SourceHeight = 832 };
+        string json = BuildJson("wan22-i2v-a14b", inputs);
         Assert.Contains("\"WanFirstLastFrameToVideo\"", json);
         Assert.DoesNotContain("\"WanImageToVideo\"", json);
         Assert.Contains("forgemcp_edit_last.png", json);
@@ -1460,36 +1499,36 @@ public sealed class WorkflowGraphTests
 
     [Theory]
     //          L,   R,   T,   B  → canvasW, canvasH, offsetX, offsetY   (source Edit = 1216×832)
-    [InlineData(200, 0,   0,   0,   3648, 832,  2432, 0)]     // left:   whitespace left,   char flush right
-    [InlineData(100, 100, 0,   0,   3648, 832,  1216, 0)]     // center: whitespace split,  char centered
-    [InlineData(0,   200, 0,   0,   3648, 832,  0,    0)]     // right:  whitespace right,  char flush left
-    [InlineData(0,   0,   100, 0,   1216, 1664, 0,    832)]   // top:    whitespace top,    char flush bottom
-    [InlineData(0,   0,   0,   100, 1216, 1664, 0,    0)]     // bottom: whitespace bottom, char flush top
+    [InlineData(200, 0, 0, 0, 3648, 832, 2432, 0)]     // left:   whitespace left,   char flush right
+    [InlineData(100, 100, 0, 0, 3648, 832, 1216, 0)]     // center: whitespace split,  char centered
+    [InlineData(0, 200, 0, 0, 3648, 832, 0, 0)]     // right:  whitespace right,  char flush left
+    [InlineData(0, 0, 100, 0, 1216, 1664, 0, 832)]   // top:    whitespace top,    char flush bottom
+    [InlineData(0, 0, 0, 100, 1216, 1664, 0, 0)]     // bottom: whitespace bottom, char flush top
     public void WanA14b_i2v_pad_pct_builds_the_expected_canvas(int l, int r, int t, int b, int w, int h, int x, int y)
     {
         // Each pad_*_pct adds dim·pct/100 px on that side; the source is composited onto the enlarged white canvas at
         // the top-left additions, and THAT feeds the total-pixel scale instead of the raw LoadImage.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("wan22-i2v-a14b");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("wan22-i2v-a14b");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left_pct"] = l; v["pad_right_pct"] = r; v["pad_top_pct"] = t; v["pad_bottom_pct"] = b;
-        var graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
+        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
 
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
-        var root = doc.RootElement;
-        var canvas = root.GetProperty("71");
+        using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
+        JsonElement root = doc.RootElement;
+        JsonElement canvas = root.GetProperty("71");
         Assert.Equal("EmptyImage", canvas.GetProperty("class_type").GetString());
         Assert.Equal(w, canvas.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(h, canvas.GetProperty("inputs").GetProperty("height").GetInt32());
         Assert.Equal(16777215, canvas.GetProperty("inputs").GetProperty("color").GetInt32());   // white
-        var comp = root.GetProperty("73");
+        JsonElement comp = root.GetProperty("73");
         Assert.Equal("ImageCompositeMasked", comp.GetProperty("class_type").GetString());
         Assert.Equal(x, comp.GetProperty("inputs").GetProperty("x").GetInt32());
         Assert.Equal(y, comp.GetProperty("inputs").GetProperty("y").GetInt32());
@@ -1502,18 +1541,18 @@ public sealed class WorkflowGraphTests
     public void WanA14b_i2v_without_padding_is_unchanged()
     {
         // Default path (all pad_*_pct=0 from the schema defaults): no canvas/composite, scale reads the raw image.
-        var json = BuildJson("wan22-i2v-a14b", Edit);
+        string json = BuildJson("wan22-i2v-a14b", Edit);
         Assert.DoesNotContain("\"EmptyImage\"", json);
         Assert.DoesNotContain("\"ImageCompositeMasked\"", json);
-        using var doc = JsonDocument.Parse(json);
-        var scaleImg = doc.RootElement.GetProperty("11").GetProperty("inputs").GetProperty("image");
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement scaleImg = doc.RootElement.GetProperty("11").GetProperty("inputs").GetProperty("image");
         Assert.Equal("10", scaleImg[0].GetString());   // scale consumes LoadImage directly
     }
 
     [Fact]
     public void WanA14b_t2v_builds_an_empty_latent_moe_graph()
     {
-        var json = BuildJson("wan22-t2v-a14b", Gen);
+        string json = BuildJson("wan22-t2v-a14b", Gen);
         Assert.Contains("\"EmptyHunyuanLatentVideo\"", json);
         Assert.Contains("\"KSamplerAdvanced\"", json);
         Assert.Contains("wan2-2-t2v-low-noise-14b.safetensors", json);   // low-noise expert via unet_low (int8 ConvRot)
@@ -1524,7 +1563,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HunyuanVideo15_t2v_builds_a_cfgguider_video_graph()
     {
-        var json = BuildJson("hunyuanvideo15-t2v", Gen);
+        string json = BuildJson("hunyuanvideo15-t2v", Gen);
         Assert.Contains("\"EmptyHunyuanVideo15Latent\"", json);
         Assert.Contains("\"hunyuan_video_15\"", json);
         Assert.Contains("\"CFGGuider\"", json);
@@ -1535,7 +1574,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void HunyuanVideo_t2v_builds_a_fluxguidance_basicguider_graph()
     {
-        var json = BuildJson("hunyuanvideo-t2v", Gen);
+        string json = BuildJson("hunyuanvideo-t2v", Gen);
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"EmptyHunyuanLatentVideo\"", json);
         Assert.Contains("\"FluxGuidance\"", json);
@@ -1546,7 +1585,7 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Ltx23_i2v_reuses_the_ltx2_graph_with_23_files()
     {
-        var json = BuildJson("ltx23-i2v", Edit);
+        string json = BuildJson("ltx23-i2v", Edit);
         Assert.Contains("\"LTXVImgToVideo\"", json);
         Assert.Contains("\"LTXVScheduler\"", json);
         Assert.Contains("ltx-2-3-22b-distilled-1-1.safetensors", json);
@@ -1559,23 +1598,23 @@ public sealed class WorkflowGraphTests
     {
         // Neutral values (multiplier 1.0 + all-ones weights) → no rebalance node; the graph is plain Krea 2. The
         // krea2 configs now BAKE a non-neutral rebalance, so force neutral here to exercise the workflow's skip path.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2-turbo");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("krea2-turbo");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 1.0;
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0";
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"type\":\"krea2\"", json);
         Assert.Contains("krea2-turbo.safetensors", json);
         Assert.DoesNotContain("ConditioningKrea2Rebalance", json);
-        using var doc = JsonDocument.Parse(json);
+        using JsonDocument doc = JsonDocument.Parse(json);
         // The sampler reads the positive text-encode (node 6) directly.
         Assert.Equal("6", doc.RootElement.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
     }
@@ -1585,9 +1624,9 @@ public sealed class WorkflowGraphTests
     {
         // The krea2-turbo config bakes multiplier 4.0 + the uncensor weights (exposed:false), so a plain build with
         // merged config defaults (no overrides) splices the rebalance node between the encode and the sampler.
-        var json = BuildJson("krea2-turbo", Gen);
-        using var doc = JsonDocument.Parse(json);
-        var node = doc.RootElement.GetProperty("13");
+        string json = BuildJson("krea2-turbo", Gen);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement node = doc.RootElement.GetProperty("13");
         Assert.Equal("ConditioningKrea2Rebalance", node.GetProperty("class_type").GetString());
         Assert.Equal(4.0, node.GetProperty("inputs").GetProperty("multiplier").GetDouble());
         Assert.Equal("1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
@@ -1598,23 +1637,23 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Krea2_with_rebalance_splices_the_node_between_encode_and_sampler()
     {
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2-turbo");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("krea2-turbo");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 2.0;
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0";
-        var graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen);
+        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen);
 
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
-        var root = doc.RootElement;
-        var node = root.GetProperty("13");
+        using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
+        JsonElement root = doc.RootElement;
+        JsonElement node = root.GetProperty("13");
         Assert.Equal("ConditioningKrea2Rebalance", node.GetProperty("class_type").GetString());
         Assert.Equal(2.0, node.GetProperty("inputs").GetProperty("multiplier").GetDouble());
         Assert.Equal("1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
@@ -1629,19 +1668,19 @@ public sealed class WorkflowGraphTests
     public void Krea2_rebalance_activates_on_weights_only()
     {
         // Multiplier neutral (1.0) but non-neutral weights still activates the node (weights-only rebalance).
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("krea2");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("krea2");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 1.0;   // force neutral multiplier (the config now bakes 4.0) to isolate weights-only
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0";
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
         Assert.Contains("ConditioningKrea2Rebalance", json);
         Assert.Contains("\"multiplier\":1", json);
     }
@@ -1649,9 +1688,9 @@ public sealed class WorkflowGraphTests
     [Fact]
     public void Krea2Refine_builds_base_then_turbo_polish_chain()
     {
-        var json = BuildJson("krea2-refine", Gen);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
+        string json = BuildJson("krea2-refine", Gen);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
         // Two UNet loaders: RAW base in node 4, Turbo refiner (motion_model slot) in node 40. The RAW base resolves to
         // the int8 quant — it's the registered file that's actually on disk (the fp8 one is registered but not
         // downloaded, and the requirement presence-gates on what's there).
@@ -1660,14 +1699,14 @@ public sealed class WorkflowGraphTests
         // Baked uncensor rebalance is spliced (node 13).
         Assert.Equal("ConditioningKrea2Rebalance", root.GetProperty("13").GetProperty("class_type").GetString());
         // Stage 1 base sampler (node 3): full denoise at base cfg 4, base model (node 4), from the empty latent (node 5).
-        var s1 = root.GetProperty("3").GetProperty("inputs");
+        JsonElement s1 = root.GetProperty("3").GetProperty("inputs");
         Assert.Equal(1.0, s1.GetProperty("denoise").GetDouble());
         Assert.Equal(4.0, s1.GetProperty("cfg").GetDouble());
         Assert.Equal("4", s1.GetProperty("model")[0].GetString());
         Assert.Equal("13", s1.GetProperty("positive")[0].GetString());
         Assert.Equal("5", s1.GetProperty("latent_image")[0].GetString());
         // Stage 2 Turbo polish (node 30): partial denoise over the base latent (node 3), cfg 1, Turbo model (node 40).
-        var s2 = root.GetProperty("30").GetProperty("inputs");
+        JsonElement s2 = root.GetProperty("30").GetProperty("inputs");
         Assert.Equal(0.35, s2.GetProperty("denoise").GetDouble());
         Assert.Equal(1.0, s2.GetProperty("cfg").GetDouble());
         Assert.Equal("40", s2.GetProperty("model")[0].GetString());
@@ -1681,18 +1720,18 @@ public sealed class WorkflowGraphTests
     public void Overrides_change_the_emitted_steps()
     {
         // The settings layer + an override flow into the graph: raise steps via a merged value.
-        var (catalog, registry) = Build();
-        var cfg = catalog.FindConfig("pony-v6");
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("pony-v6");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (var kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
-        foreach (var kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["steps"] = 42;   // an override
-        var json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":42", json);
     }
 
@@ -1702,13 +1741,15 @@ public sealed class WorkflowGraphTests
         // The QIE pixelizer's reference>0 branch VAE-encodes a snapped source. The FixedScale must be its OWN node and
         // REFERENCED — passing the node dict inline as `pixels` hands the encoder a dict ('dict' object has no
         // attribute 'shape'). Shared by pixelize-qwen/-longcat/-longcat-turbo/-firered.
-        var req = new ResolvedRequirements
+        ResolvedRequirements req = new ResolvedRequirements
         {
-            Checkpoint = "qwen.gguf", TextEncoders = new[] { "te.gguf" }, Vae = "vae.safetensors",
+            Checkpoint = "qwen.gguf",
+            TextEncoders = new[] { "te.gguf" },
+            Vae = "vae.safetensors",
             Resolution = new ModelResolution { MinW = 928, MinH = 928, MaxW = 1664, MaxH = 1664, Step = 16 },
         };
-        var wf = new QwenPixelizeWorkflow();
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        QwenPixelizeWorkflow wf = new QwenPixelizeWorkflow();
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         // Schema no longer carries defaults (Phase B), so the test supplies every param the graph reads.
         v["clip_type"] = "qwen_image"; v["dual"] = false;
         v["steps"] = 20; v["cfg"] = 4.0; v["sampler"] = "euler"; v["scheduler"] = "simple"; v["shift"] = 3.1;
@@ -1718,15 +1759,15 @@ public sealed class WorkflowGraphTests
         v["width"] = 0; v["height"] = 0;
         v["reference"] = 80; v["virtual_resolution"] = 256; v["snap_resolution"] = true;
         v["loader"] = "unet_gguf"; v["grid_w"] = 384; v["grid_h"] = 256;                 // grid_w/h carry no schema default
-        var pv = new ParamValues(v);
-        var inputs = new WorkflowInputs { SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
-        var graph = wf.Build(pv, req, inputs);
+        ParamValues pv = new ParamValues(v);
+        WorkflowInputs inputs = new WorkflowInputs { SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
+        Dictionary<string, object> graph = wf.Build(pv, req, inputs);
 
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
-        var root = doc.RootElement;
-        Assert.True(root.TryGetProperty("25", out var n25));                       // FixedScale exists as its own node
+        using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
+        JsonElement root = doc.RootElement;
+        Assert.True(root.TryGetProperty("25", out JsonElement n25));                       // FixedScale exists as its own node
         Assert.Equal("ImageScale", n25.GetProperty("class_type").GetString());
-        var pixels = root.GetProperty("21").GetProperty("inputs").GetProperty("pixels");
+        JsonElement pixels = root.GetProperty("21").GetProperty("inputs").GetProperty("pixels");
         Assert.Equal(JsonValueKind.Array, pixels.ValueKind);                        // a [id, idx] ref, not an inline node
         Assert.Equal("25", pixels[0].GetString());
     }

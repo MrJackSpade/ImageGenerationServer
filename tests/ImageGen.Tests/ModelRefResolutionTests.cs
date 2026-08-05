@@ -21,10 +21,10 @@ public sealed class ModelRefResolutionTests
     [Fact]
     public void An_unresolvable_model_ref_fails_and_names_the_slot()
     {
-        var (catalog, wf) = Build(bindEverything: true);
-        var v = Bag(("motion_model", "a-slot-that-does-not-exist"));
+        (WorkflowCatalog? catalog, IWorkflow? wf) = Build(bindEverything: true);
+        Dictionary<string, object?> v = Bag(("motion_model", "a-slot-that-does-not-exist"));
 
-        var ex = Assert.Throws<RenderValidationException>(() => catalog.ResolveModelRefs(wf, "animatediff-sd15", v));
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(() => catalog.ResolveModelRefs(wf, "animatediff-sd15", v));
         Assert.Contains("a-slot-that-does-not-exist", ex.Message);
         Assert.Contains("motion_model", ex.Message);
         Assert.Contains("animatediff-sd15", ex.Message);
@@ -35,18 +35,18 @@ public sealed class ModelRefResolutionTests
     {
         // The distinction that matters: the catalogue knows the slot, this machine simply has no file for it.
         // Silently rendering here would make a missing binding indistinguishable from a working one.
-        var (catalog, wf) = Build(bindEverything: false);
-        var v = Bag(("motion_model", "v3-sd15-mm"));
+        (WorkflowCatalog? catalog, IWorkflow? wf) = Build(bindEverything: false);
+        Dictionary<string, object?> v = Bag(("motion_model", "v3-sd15-mm"));
 
-        var ex = Assert.Throws<RenderValidationException>(() => catalog.ResolveModelRefs(wf, "animatediff-sd15", v));
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(() => catalog.ResolveModelRefs(wf, "animatediff-sd15", v));
         Assert.Contains("v3-sd15-mm", ex.Message);
     }
 
     [Fact]
     public void A_bound_slot_resolves_to_its_file()
     {
-        var (catalog, wf) = Build(bindEverything: true);
-        var v = Bag(("motion_model", "v3-sd15-mm"));
+        (WorkflowCatalog? catalog, IWorkflow? wf) = Build(bindEverything: true);
+        Dictionary<string, object?> v = Bag(("motion_model", "v3-sd15-mm"));
 
         catalog.ResolveModelRefs(wf, "animatediff-sd15", v);
         Assert.Equal("v3-sd15-mm.safetensors", v["motion_model"]);
@@ -56,8 +56,8 @@ public sealed class ModelRefResolutionTests
     public void An_absent_model_ref_is_left_alone()
     {
         // An optional LoRA nobody set is ABSENT, not unbound — a configuration without one must still build.
-        var (catalog, wf) = Build(bindEverything: true);
-        var v = Bag(("motion_model", "v3-sd15-mm"));   // no "lora" key at all
+        (WorkflowCatalog? catalog, IWorkflow? wf) = Build(bindEverything: true);
+        Dictionary<string, object?> v = Bag(("motion_model", "v3-sd15-mm"));   // no "lora" key at all
 
         catalog.ResolveModelRefs(wf, "animatediff-sd15", v);
         Assert.False(v.ContainsKey("lora"));
@@ -68,15 +68,15 @@ public sealed class ModelRefResolutionTests
     {
         // A literal model filename in a graph builder would reintroduce exactly the bug above, on exactly one
         // machine, so the shape itself is banned rather than the instances.
-        var offenders = new List<string>();
-        var dir = Path.Combine(RepoRoot(), "src", "ImageGen.Comfy", "Workflows");
-        foreach (var f in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+        List<string> offenders = new List<string>();
+        string dir = Path.Combine(RepoRoot(), "src", "ImageGen.Comfy", "Workflows");
+        foreach (string f in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
         {
-            var lines = File.ReadAllLines(f);
-            for (var i = 0; i < lines.Length; i++)
+            string[] lines = File.ReadAllLines(f);
+            for (int i = 0; i < lines.Length; i++)
             {
-                var line = lines[i];
-                var code = line.TrimStart();
+                string line = lines[i];
+                string code = line.TrimStart();
                 if (code.StartsWith("//") || code.StartsWith("///")) continue;   // prose may name a file
                 if (!line.Contains(".safetensors\"") && !line.Contains(".ckpt\"") && !line.Contains(".pth\"")) continue;
                 offenders.Add($"{Path.GetFileName(f)}:{i + 1}  {code.Trim()}");
@@ -97,14 +97,14 @@ public sealed class ModelRefResolutionTests
         // The gating half of the same bug: checking requirements but not params model refs would offer a
         // configuration with an unbound one and then fail at submit. wan22-i2v-a14b names its second MoE expert
         // nowhere but params, so it is the case that proves the rule.
-        var (catalog, _) = Build(bindEverything: true);
-        var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var cfg = catalog.FindConfig("wan22-i2v-a14b");
+        (WorkflowCatalog? catalog, IWorkflow _) = Build(bindEverything: true);
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+        WorkflowConfiguration? cfg = catalog.FindConfig("wan22-i2v-a14b");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
-        var asked = catalog.ModelRefSlots(wf, cfg).ToList();
+        List<string> asked = catalog.ModelRefSlots(wf, cfg).ToList();
         Assert.Contains("wan2-2-i2v-low-noise-14b", asked);
         Assert.DoesNotContain(asked, s => s == "lora");   // unset optional params ask for nothing
     }
@@ -114,11 +114,11 @@ public sealed class ModelRefResolutionTests
     {
         // `anima` sets no model-ref param at all — its models are all in `requirements`. It must therefore ask for
         // nothing here, or gating on this would hide every configuration that simply has no optional LoRA.
-        var (catalog, _) = Build(bindEverything: true);
-        var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var cfg = catalog.FindConfig("anima");
+        (WorkflowCatalog? catalog, IWorkflow _) = Build(bindEverything: true);
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+        WorkflowConfiguration? cfg = catalog.FindConfig("anima");
         Assert.NotNull(cfg);
-        var wf = registry.Find(cfg.WorkflowName);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
         Assert.DoesNotContain(catalog.ModelRefSlots(wf, cfg), _ => true);
@@ -129,14 +129,14 @@ public sealed class ModelRefResolutionTests
     {
         // The catalogue-wide version: an id here that has no slot file resolves to "" at submit and FAILS the
         // render, rather than silently producing a graph with an empty filename.
-        var (catalog, _) = Build(bindEverything: true);
-        var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var dangling = new List<string>();
-        foreach (var cfg in catalog.AllConfigs())
+        (WorkflowCatalog? catalog, IWorkflow _) = Build(bindEverything: true);
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+        List<string> dangling = new List<string>();
+        foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
         {
-            var wf = registry.Find(cfg.WorkflowName);
+            IWorkflow? wf = registry.Find(cfg.WorkflowName);
             if (wf is null) continue;
-            foreach (var slot in catalog.ModelRefSlots(wf, cfg))
+            foreach (string slot in catalog.ModelRefSlots(wf, cfg))
                 if (catalog.FindRequirement(slot) is null) dangling.Add($"{cfg.Id} -> {slot}");
         }
 
@@ -147,29 +147,29 @@ public sealed class ModelRefResolutionTests
 
     private static Dictionary<string, object?> Bag(params (string Key, object? Value)[] pairs)
     {
-        var v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (k, val) in pairs) v[k] = val;
+        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string? k, object? val) in pairs) v[k] = val;
         return v;
     }
 
     private static (WorkflowCatalog Catalog, IWorkflow Workflow) Build(bool bindEverything)
     {
-        var catalog = new WorkflowCatalog(
+        WorkflowCatalog catalog = new WorkflowCatalog(
             new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
             NullLogger<WorkflowCatalog>.Instance);
         catalog.SetBindings(bindEverything
             ? catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors")
             : new Dictionary<string, string>());
 
-        var registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        var wf = registry.Find("animatediff-sd15");
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+        IWorkflow? wf = registry.Find("animatediff-sd15");
         Assert.NotNull(wf);
         return (catalog, wf);
     }
 
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new DirectoryNotFoundException("repo root not found.");

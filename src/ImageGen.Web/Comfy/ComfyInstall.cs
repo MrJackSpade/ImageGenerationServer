@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.Comfy;
+using System.Text.Json;
 
 namespace ImageGen.Web.Comfy;
 
@@ -50,7 +50,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     /// </summary>
     public ComfyInstallInfo Describe()
     {
-        var root = Root;
+        string? root = Root;
         if (root is null)
             return new ComfyInstallInfo(null, false,
                 "No renderer folder is set. Patches change ComfyUI's own files, so this needs the directory it is "
@@ -83,28 +83,28 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     /// </summary>
     public async Task<string?> DetectRootAsync(CancellationToken ct)
     {
-        var address = _endpoint.BaseUrl?.Trim().TrimEnd('/');
+        string? address = _endpoint.BaseUrl?.Trim().TrimEnd('/');
         if (string.IsNullOrEmpty(address)) return null;
-        if (!Uri.TryCreate(address + "/internal/folder_paths", UriKind.Absolute, out var uri)) return null;
+        if (!Uri.TryCreate(address + "/internal/folder_paths", UriKind.Absolute, out Uri? uri)) return null;
 
         try
         {
-            var http = _httpFactory.CreateClient();
-            using var response = await http.GetAsync(uri, ct);
+            HttpClient http = _httpFactory.CreateClient();
+            using HttpResponseMessage response = await http.GetAsync(uri, ct);
             if (!response.IsSuccessStatusCode) return null;
 
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            if (!document.RootElement.TryGetProperty(ConfigsKey, out var configs) ||
+            using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            if (!document.RootElement.TryGetProperty(ConfigsKey, out JsonElement configs) ||
                 configs.ValueKind != JsonValueKind.Array ||
                 configs.GetArrayLength() == 0) return null;
 
-            var configured = configs[0].GetString();
+            string? configured = configs[0].GetString();
             if (string.IsNullOrWhiteSpace(configured)) return null;
 
             // <root>/models/configs -> <root>. Done with string operations because the separators are the
             // RENDERER's; on a different platform they simply will not resolve, which is the answer we want.
-            var models = Path.GetDirectoryName(configured.TrimEnd('/', '\\'));
-            var root = models is null ? null : Path.GetDirectoryName(models);
+            string? models = Path.GetDirectoryName(configured.TrimEnd('/', '\\'));
+            string? root = models is null ? null : Path.GetDirectoryName(models);
             if (string.IsNullOrWhiteSpace(root)) return null;
 
             return File.Exists(Path.Combine(root, MainScript)) && Directory.Exists(Path.Combine(root, CoreDirectory))
@@ -122,7 +122,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     /// <summary>The root, or an exception naming what is wrong with it. For the write paths, which cannot proceed.</summary>
     public string RequireRoot()
     {
-        var info = Describe();
+        ComfyInstallInfo info = Describe();
         return info.Ok
             ? info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.")
             : throw new InvalidOperationException(info.Error ?? "The configured renderer folder is not usable.");

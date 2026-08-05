@@ -31,8 +31,8 @@ public sealed class SubmissionMemoryGate(ISystemMemory memory, Func<long> minAva
     /// </summary>
     public string? Refusal()
     {
-        var available = _memory.AvailableBytes();
-        var floor = MinAvailableBytes;
+        long available = _memory.AvailableBytes();
+        long floor = MinAvailableBytes;
         if (available >= floor)
             return null;
         return $"The renderer is low on memory ({available / (1024 * 1024)} MB free, {floor / (1024 * 1024)} MB required) "

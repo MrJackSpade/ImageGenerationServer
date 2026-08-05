@@ -3,6 +3,7 @@ using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -18,12 +19,12 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
 
     public async Task<TagDisplay?> GetAsync(long userId, string tagName, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {Columns} FROM dbo.TagDisplay WHERE UserId = @userId AND TagName = @name;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, tagName, ct));
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
             return null;
         return new TagDisplay
@@ -39,27 +40,27 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
     public async Task<IReadOnlyDictionary<string, string>> GetManyAsync(
         long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (tagNames.Count == 0)
             return result;
 
-        var names = tagNames.ToList();
-        var ps = new string[names.Count];
-        for (var i = 0; i < names.Count; i++)
+        List<string> names = tagNames.ToList();
+        string[] ps = new string[names.Count];
+        for (int i = 0; i < names.Count; i++)
             ps[i] = "@a" + i;
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT TagName, GatewayImageId FROM dbo.TagDisplay WHERE UserId = @userId AND TagName IN ({string.Join(',', ps)});");
         cmd.AddParam("@userId", userId);
-        for (var i = 0; i < names.Count; i++)
+        for (int i = 0; i < names.Count; i++)
             cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, names[i], ct));
 
-        var raw = new List<TagNameImageRow>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        List<TagNameImageRow> raw = new List<TagNameImageRow>();
+        await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
                 raw.Add(new TagNameImageRow(reader.GetString(0), reader.GetString(1)));
-        foreach (var row in raw)
+        foreach (TagNameImageRow row in raw)
             result[await _cipher.DecryptDeterministicAsync(userId, row.Name, ct)] = row.ImageId;
         return result;
     }
@@ -68,11 +69,11 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
 
     public async Task SetAsync(TagDisplay d, CancellationToken ct)
     {
-        var name = await _cipher.DeterministicAsync(d.UserId, d.TagName, ct);
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        string name = await _cipher.DeterministicAsync(d.UserId, d.TagName, ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
         int updated;
-        await using (var cmd = conn.Command(
+        await using (DbCommand cmd = conn.Command(
             "UPDATE dbo.TagDisplay SET GatewayImageId = @img, SetAtUtc = @at WHERE UserId = @userId AND TagName = @name;"))
         {
             cmd.AddParam("@userId", d.UserId);
@@ -84,7 +85,7 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
 
         if (updated == 0)
         {
-            await using var cmd = conn.Command(
+            await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.TagDisplay (UserId, TagName, GatewayImageId, SetAtUtc) VALUES (@userId, @name, @img, @at);");
             cmd.AddParam("@userId", d.UserId);
             cmd.AddParam("@name", name);
@@ -96,8 +97,8 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
 
     public async Task DeleteAsync(long userId, string tagName, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.TagDisplay WHERE UserId = @userId AND TagName = @name;");
         cmd.AddParam("@userId", userId);
         cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, tagName, ct));

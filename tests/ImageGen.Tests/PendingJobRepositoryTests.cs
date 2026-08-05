@@ -10,11 +10,11 @@ public sealed class PendingJobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Add_then_list_roundtrips()
     {
-        var user = await fixture.NewUserAsync("pending-roundtrip");
+        User user = await fixture.NewUserAsync("pending-roundtrip");
         await fixture.Pending.AddAsync(Job(user.Id, "job-1"), Ct);
 
-        var all = await fixture.Pending.ListAllAsync(Ct);
-        var mine = all.Where(j => j.UserId == user.Id).ToList();
+        IReadOnlyList<PendingJob> all = await fixture.Pending.ListAllAsync(Ct);
+        List<PendingJob> mine = all.Where(j => j.UserId == user.Id).ToList();
         Assert.Single(mine);
         Assert.Equal("job-1", mine[0].JobId);
         Assert.Equal("a prompt", mine[0].Prompt);
@@ -25,38 +25,38 @@ public sealed class PendingJobRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Add_is_idempotent_by_user_and_job_id()
     {
-        var user = await fixture.NewUserAsync("pending-dedupe");
+        User user = await fixture.NewUserAsync("pending-dedupe");
         await fixture.Pending.AddAsync(Job(user.Id, "dup"), Ct);
         await fixture.Pending.AddAsync(Job(user.Id, "dup"), Ct);
 
-        var mine = (await fixture.Pending.ListAllAsync(Ct)).Count(j => j.UserId == user.Id);
+        int mine = (await fixture.Pending.ListAllAsync(Ct)).Count(j => j.UserId == user.Id);
         Assert.Equal(1, mine);
     }
 
     [Fact]
     public async Task Remove_clears_only_the_target_row()
     {
-        var user = await fixture.NewUserAsync("pending-remove");
+        User user = await fixture.NewUserAsync("pending-remove");
         await fixture.Pending.AddAsync(Job(user.Id, "keep"), Ct);
         await fixture.Pending.AddAsync(Job(user.Id, "drop"), Ct);
 
-        var drop = (await fixture.Pending.ListAllAsync(Ct)).Single(j => j.UserId == user.Id && j.JobId == "drop");
+        PendingJob drop = (await fixture.Pending.ListAllAsync(Ct)).Single(j => j.UserId == user.Id && j.JobId == "drop");
         await fixture.Pending.RemoveAsync(drop.Id, Ct);
 
-        var mine = (await fixture.Pending.ListAllAsync(Ct)).Where(j => j.UserId == user.Id).Select(j => j.JobId).ToList();
+        List<string> mine = (await fixture.Pending.ListAllAsync(Ct)).Where(j => j.UserId == user.Id).Select(j => j.JobId).ToList();
         Assert.Equal(["keep"], mine);
     }
 
     [Fact]
     public async Task ListForUser_returns_only_that_users_jobs_oldest_first()
     {
-        var alice = await fixture.NewUserAsync("pending-alice");
-        var bob = await fixture.NewUserAsync("pending-bob");
+        User alice = await fixture.NewUserAsync("pending-alice");
+        User bob = await fixture.NewUserAsync("pending-bob");
         await fixture.Pending.AddAsync(Job(alice.Id, "a1", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
         await fixture.Pending.AddAsync(Job(alice.Id, "a2", new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc)), Ct);
         await fixture.Pending.AddAsync(Job(bob.Id, "b1"), Ct);
 
-        var mine = await fixture.Pending.ListForUserAsync(alice.Id, Ct);
+        IReadOnlyList<PendingJob> mine = await fixture.Pending.ListForUserAsync(alice.Id, Ct);
         Assert.Equal(["a1", "a2"], mine.Select(j => j.JobId).ToList());   // oldest first, bob's excluded
     }
 

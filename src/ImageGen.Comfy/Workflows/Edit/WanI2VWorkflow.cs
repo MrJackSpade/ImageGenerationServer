@@ -30,12 +30,12 @@ public sealed class WanI2VWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
         model0 = ComfyGraph.ApplyLora(wf, model0, p);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
         wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
         model0 = ComfyGraph.Ref(ModelSampling, 0);
-        var seed = ComfyGraph.Seed(p);
+        long seed = ComfyGraph.Seed(p);
         int len = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         double budgetMp = 0.9;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)

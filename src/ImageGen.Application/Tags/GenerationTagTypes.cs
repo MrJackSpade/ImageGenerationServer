@@ -61,7 +61,7 @@ public static class GenerationTagTypes
         bool legacy;
         try
         {
-            using var doc = JsonDocument.Parse(storedJson);
+            using JsonDocument doc = JsonDocument.Parse(storedJson);
             switch (doc.RootElement.ValueKind)
             {
                 case JsonValueKind.Array:                       // v1: the switchable-four selection, general implicit
@@ -69,7 +69,7 @@ public static class GenerationTagTypes
                     legacy = true;
                     break;
                 case JsonValueKind.Object:
-                    var stored = doc.RootElement.Deserialize<StoredMask>();
+                    StoredMask? stored = doc.RootElement.Deserialize<StoredMask>();
                     if (stored is null || stored.V != StoredVersion)
                         throw new InvalidOperationException($"Stored generation mask has an unknown version: {storedJson}");
                     parsed = stored.Types;
@@ -82,7 +82,7 @@ public static class GenerationTagTypes
         catch (JsonException ex) { throw new InvalidOperationException($"Stored generation mask is not JSON: {storedJson}", ex); }
         if (parsed is null) throw new InvalidOperationException($"Stored generation mask holds no types: {storedJson}");
         if (legacy) parsed = parsed.Append(GeneralType).ToArray();
-        if (!TryNormalize(parsed, out var types, out var error)) throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
+        if (!TryNormalize(parsed, out IReadOnlyList<string>? types, out string? error)) throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
         return types;
     }
 
@@ -98,10 +98,10 @@ public static class GenerationTagTypes
     /// valid: it means every switchable type is off.</summary>
     public static bool TryNormalize(IEnumerable<string>? requested, out IReadOnlyList<string> types, out string? error)
     {
-        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var raw in requested ?? Enumerable.Empty<string>())
+        HashSet<string> wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string raw in requested ?? Enumerable.Empty<string>())
         {
-            var name = raw.Trim();
+            string name = raw.Trim();
             if (name.Length == 0) continue;
             if (!Selectable.Contains(name, StringComparer.OrdinalIgnoreCase))
             {

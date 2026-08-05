@@ -1,6 +1,4 @@
-﻿using ImageGen.Application.Rendering;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 internal static class PixelHarnessGraph
 {

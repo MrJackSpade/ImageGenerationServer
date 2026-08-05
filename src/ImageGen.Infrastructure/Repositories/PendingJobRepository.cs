@@ -1,10 +1,9 @@
-using System.Data.Common;
 using ImageGen.Application.Security;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -23,8 +22,8 @@ INSERT INTO dbo.PendingJob (UserId, JobId, Prompt, ModelFriendly, ModelId, Aspec
 SELECT @userId, @jobId, @prompt, @modelFriendly, @modelId, @aspect, @created
 WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId = @jobId);";
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(sql);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(sql);
         cmd.AddParam("@userId", job.UserId);
         cmd.AddParam("@jobId", job.JobId);
         cmd.AddParam("@prompt", await _cipher.EncryptAsync(job.UserId, job.Prompt, ct));
@@ -37,16 +36,16 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
 
     public async Task<IReadOnlyList<PendingJob>> ListAllAsync(CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {Columns} FROM dbo.PendingJob ORDER BY CreatedAtUtc ASC, Id ASC;");
         return await ReadAllAsync(cmd, ct);
     }
 
     public async Task<IReadOnlyList<PendingJob>> ListForUserAsync(long userId, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {Columns} FROM dbo.PendingJob WHERE UserId = @userId ORDER BY CreatedAtUtc ASC, Id ASC;");
         cmd.AddParam("@userId", userId);
         return await ReadAllAsync(cmd, ct);
@@ -54,23 +53,23 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
 
     public async Task RemoveAsync(long id, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command("DELETE FROM dbo.PendingJob WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("DELETE FROM dbo.PendingJob WHERE Id = @id;");
         cmd.AddParam("@id", id);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private async Task<IReadOnlyList<PendingJob>> ReadAllAsync(DbCommand cmd, CancellationToken ct)
     {
-        var raw = new List<PendingJobRow>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        List<PendingJobRow> raw = new List<PendingJobRow>();
+        await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
                 raw.Add(new PendingJobRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     reader.GetString(4), reader.GetString(5), reader.GetString(6),
                     DateTime.SpecifyKind(reader.GetDateTime(7), DateTimeKind.Utc)));
 
-        var rows = new List<PendingJob>(raw.Count);
-        foreach (var r in raw)
+        List<PendingJob> rows = new List<PendingJob>(raw.Count);
+        foreach (PendingJobRow r in raw)
             rows.Add(new PendingJob
             {
                 Id = r.Id,

@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Database;
@@ -16,7 +17,7 @@ internal static class DbCommandExtensions
     /// <summary>A command for <paramref name="sql"/> on this connection, optionally enlisted in a transaction.</summary>
     internal static DbCommand Command(this DbConnection connection, string sql, DbTransaction? transaction = null)
     {
-        var cmd = connection.CreateCommand();
+        DbCommand cmd = connection.CreateCommand();
         cmd.CommandText = sql;
         if (transaction is not null)
             cmd.Transaction = transaction;
@@ -30,7 +31,7 @@ internal static class DbCommandExtensions
     /// </summary>
     internal static DbCommand AddParam(this DbCommand cmd, string name, object? value)
     {
-        var p = cmd.CreateParameter();
+        DbParameter p = cmd.CreateParameter();
         p.ParameterName = name;
         p.Value = value ?? DBNull.Value;
         cmd.Parameters.Add(p);
@@ -49,8 +50,7 @@ internal static class DbCommandExtensions
     {
         if (cmd is Microsoft.Data.SqlClient.SqlCommand sqlCommand)
         {
-            var typed = value is byte[]
-                ? sqlCommand.Parameters.Add(name, System.Data.SqlDbType.VarBinary, -1)
+            SqlParameter typed = value is byte[]? sqlCommand.Parameters.Add(name, System.Data.SqlDbType.VarBinary, -1)
                 : sqlCommand.Parameters.Add(name, System.Data.SqlDbType.NVarChar, -1);
             typed.Value = value ?? DBNull.Value;
             return cmd;

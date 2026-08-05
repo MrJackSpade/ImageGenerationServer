@@ -1,5 +1,5 @@
-using System.Data.Common;
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Database;
 
@@ -12,7 +12,7 @@ public sealed class SqlConnectionFactory(string connectionString) : IDbConnectio
     /// <inheritdoc />
     public async Task<DbConnection> OpenAsync(CancellationToken ct)
     {
-        var connection = new SqlConnection(_connectionString);
+        SqlConnection connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(ct);
         return connection;
     }

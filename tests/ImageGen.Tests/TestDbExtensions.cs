@@ -12,7 +12,7 @@ internal static class TestDbExtensions
     /// <summary>A command for <paramref name="sql"/> on this connection.</summary>
     internal static DbCommand Command(this DbConnection connection, string sql)
     {
-        var cmd = connection.CreateCommand();
+        DbCommand cmd = connection.CreateCommand();
         cmd.CommandText = sql;
         return cmd;
     }
@@ -20,7 +20,7 @@ internal static class TestDbExtensions
     /// <summary>Adds a named parameter, mapping a CLR null to SQL NULL.</summary>
     internal static DbCommand AddParam(this DbCommand cmd, string name, object? value)
     {
-        var p = cmd.CreateParameter();
+        DbParameter p = cmd.CreateParameter();
         p.ParameterName = name;
         p.Value = value ?? DBNull.Value;
         cmd.Parameters.Add(p);

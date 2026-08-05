@@ -1,5 +1,6 @@
-using System.Text.Json;
 using ImageGen.Comfy;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ImageGen.Tests;
 
@@ -26,18 +27,18 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_civitai_renamed_checkpoint_is_recognised_by_its_published_name()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("pony", RequirementKind.Checkpoint, "pony.*diffusion.*v6")],
             Files(RequirementKind.Checkpoint, "ponyDiffusionV6XL_v6StartWithThisOne.safetensors"));
 
-        var m = Assert.Single(result);
+        SlotMatch m = Assert.Single(result);
         Assert.Equal("ponyDiffusionV6XL_v6StartWithThisOne.safetensors", m.AutoBind);
     }
 
     [Fact]
     public void Matching_ignores_case_and_separators_and_the_extension()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("z", RequirementKind.UnetGguf, "z[-_. ]?image[-_. ]?turbo")],
             Files(RequirementKind.UnetGguf, "Z_Image_Turbo-Q4_K_M.gguf"));
 
@@ -48,11 +49,11 @@ public sealed class ModelMatcherTests
     [Fact]
     public void Several_files_matching_one_slot_are_proposed_but_none_is_bound()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("flux", RequirementKind.UnetGguf, "flux1[-_. ]?dev")],
             Files(RequirementKind.UnetGguf, "flux1-dev-Q4_K_S.gguf", "flux1-dev-Q5_K_M.gguf"));
 
-        var m = Assert.Single(result);
+        SlotMatch m = Assert.Single(result);
         Assert.Null(m.AutoBind);
         Assert.Equal(2, m.Candidates.Count);
     }
@@ -64,7 +65,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_file_two_slots_both_claim_is_bound_to_neither()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [
                 Slot("hd", RequirementKind.Unet, "chroma1[-_. ]?hd"),
                 Slot("flash", RequirementKind.Unet, "chroma1[-_. ]?hd[-_. ]?flash"),
@@ -83,15 +84,15 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_pattern_never_reaches_into_another_kind()
     {
-        var files = new Dictionary<RequirementKind, IReadOnlyList<string>>
+        Dictionary<RequirementKind, IReadOnlyList<string>> files = new Dictionary<RequirementKind, IReadOnlyList<string>>
         {
             [RequirementKind.Checkpoint] = ["shared-name.safetensors"],
             [RequirementKind.Vae] = ["shared-name.safetensors"],
         };
 
-        var result = ModelMatcher.Match([Slot("ckpt-only", RequirementKind.Checkpoint, "shared[-_. ]?name")], files);
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match([Slot("ckpt-only", RequirementKind.Checkpoint, "shared[-_. ]?name")], files);
 
-        var m = Assert.Single(result);
+        SlotMatch m = Assert.Single(result);
         Assert.Equal("ckpt-only", m.SlotId);
         Assert.Single(m.Candidates);   // the VAE of the same name is not a candidate
     }
@@ -99,7 +100,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_slot_with_no_patterns_is_never_matched()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("unpatterned", RequirementKind.Checkpoint)],
             Files(RequirementKind.Checkpoint, "anything.safetensors"));
 
@@ -109,7 +110,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_slot_whose_patterns_match_nothing_present_is_omitted()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("absent", RequirementKind.Checkpoint, "not.*here")],
             Files(RequirementKind.Checkpoint, "something-else.safetensors"));
 
@@ -120,7 +121,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_name_with_no_extension_is_matched_whole()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("node", RequirementKind.SeedVr2, "ComfyUI[-_. ]?SeedVR2")],
             Files(RequirementKind.SeedVr2, "ComfyUI-SeedVR2"));
 
@@ -131,7 +132,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void Version_dots_survive_extension_stripping()
     {
-        var result = ModelMatcher.Match(
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match(
             [Slot("wan", RequirementKind.UnetGguf, @"wan2\.2.*ti2v")],
             Files(RequirementKind.UnetGguf, "Wan2.2-TI2V-5B-Q4_K_M.gguf"));
 
@@ -146,7 +147,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_lookahead_is_rejected_with_a_message_naming_the_slot()
     {
-        var ex = Assert.Throws<ArgumentException>(() =>
+        ArgumentException ex = Assert.Throws<ArgumentException>(() =>
             ModelMatcher.Compile(Slot("bad-slot", RequirementKind.Checkpoint, "foo(?!bar)")));
 
         Assert.Contains("bad-slot", ex.Message);
@@ -156,7 +157,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void An_invalid_pattern_is_rejected_with_a_message_naming_the_slot()
     {
-        var ex = Assert.Throws<ArgumentException>(() =>
+        ArgumentException ex = Assert.Throws<ArgumentException>(() =>
             ModelMatcher.Compile(Slot("broken", RequirementKind.Checkpoint, "unclosed(")));
 
         Assert.Contains("broken", ex.Message);
@@ -169,7 +170,7 @@ public sealed class ModelMatcherTests
     /// </summary>
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new DirectoryNotFoundException("configurations/models not found above the test bin dir.");
@@ -177,18 +178,18 @@ public sealed class ModelMatcherTests
 
     private static List<MatchableSlot> ShippedSlots()
     {
-        var slots = new List<MatchableSlot>();
-        foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
+        List<MatchableSlot> slots = new List<MatchableSlot>();
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            var root = doc.RootElement;
-            var patterns = root.TryGetProperty("match", out var m) && m.ValueKind == JsonValueKind.Array
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
+            JsonElement root = doc.RootElement;
+            List<string> patterns = root.TryGetProperty("match", out JsonElement m) && m.ValueKind == JsonValueKind.Array
                 ? m.EnumerateArray().Select(e => e.RequireString()).ToList()
                 : [];
             // Mirrors ParseKind: an unrecognised kind is a failure, not a bucket. If this throws, a shipped
             // slot names a kind that no loader serves.
-            var raw = root.GetProperty("kind").RequireString();
-            var kind = Enum.TryParse<RequirementKind>(raw.Replace("_", ""), ignoreCase: true, out var k)
+            string raw = root.GetProperty("kind").RequireString();
+            RequirementKind kind = Enum.TryParse<RequirementKind>(raw.Replace("_", ""), ignoreCase: true, out RequirementKind k)
                 ? k
                 : throw new InvalidOperationException($"slot kind '{raw}' maps to no RequirementKind");
             slots.Add(new MatchableSlot(root.GetProperty("id").RequireString(), kind, patterns));
@@ -199,12 +200,12 @@ public sealed class ModelMatcherTests
     [Fact]
     public void Every_shipped_pattern_compiles_without_backtracking()
     {
-        var slots = ShippedSlots();
+        List<MatchableSlot> slots = ShippedSlots();
         Assert.NotEmpty(slots);
 
         // Compile throws naming the offending slot, which is the whole point — this assertion exists so that
         // message appears in CI rather than in a user's startup log.
-        foreach (var slot in slots) ModelMatcher.Compile(slot);
+        foreach (MatchableSlot slot in slots) ModelMatcher.Compile(slot);
     }
 
     /// <summary>
@@ -216,13 +217,13 @@ public sealed class ModelMatcherTests
     [Fact]
     public void No_shipped_pattern_reaches_into_another_slot_of_its_kind()
     {
-        var slots = ShippedSlots();
-        var collisions = new List<string>();
+        List<MatchableSlot> slots = ShippedSlots();
+        List<string> collisions = new List<string>();
 
-        foreach (var slot in slots.Where(s => s.Patterns.Count > 0))
+        foreach (MatchableSlot? slot in slots.Where(s => s.Patterns.Count > 0))
         {
-            var regexes = ModelMatcher.Compile(slot);
-            foreach (var other in slots.Where(o => o.Kind == slot.Kind && o.Id != slot.Id))
+            IReadOnlyList<Regex> regexes = ModelMatcher.Compile(slot);
+            foreach (MatchableSlot? other in slots.Where(o => o.Kind == slot.Kind && o.Id != slot.Id))
             {
                 // A slot id is the closest thing the catalogue still holds to "what that model is called", now
                 // that the author's filenames are gone, so it stands in for the other model's real filename.

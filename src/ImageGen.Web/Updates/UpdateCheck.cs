@@ -1,5 +1,5 @@
-using System.Text.Json;
 using ImageGen.Web.Configuration;
+using System.Text.Json;
 
 namespace ImageGen.Web.Updates;
 
@@ -94,7 +94,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
     private async Task<UpdateStatus> AskAsync(CancellationToken ct)
     {
-        var current = running;
+        Version? current = running;
         if (current is null)
         {
             _log.LogDebug("Update check skipped: this build carries no version, so there is nothing to compare.");
@@ -109,19 +109,19 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
         try
         {
-            var http = _httpFactory.CreateClient();
+            HttpClient http = _httpFactory.CreateClient();
             http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             http.DefaultRequestHeaders.Accept.ParseAdd(GitHubJsonMediaType);
 
-            using var response = await http.GetAsync(LatestRelease, ct);
+            using HttpResponseMessage response = await http.GetAsync(LatestRelease, ct);
             if (!response.IsSuccessStatusCode)
             {
                 _log.LogInformation("Update check answered {Status}; no update will be reported this run.", (int)response.StatusCode);
                 return UpdateStatus.Nothing;
             }
 
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-            var tag = document.RootElement.TryGetProperty(TagNameProperty, out var t) ? t.GetString() : null;
+            using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            string? tag = document.RootElement.TryGetProperty(TagNameProperty, out JsonElement t) ? t.GetString() : null;
 
             // A pre-release tag (a '-suffix' build: -test, -rc.1, …) is never offered as an update. GitHub's
             // /releases/latest already skips releases FLAGGED prerelease, but a test tag published as a normal
@@ -133,7 +133,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
                 return new UpdateStatus(current.ToString(), null, null);
             }
 
-            var latest = AppVersion.Parse(tag);
+            Version? latest = AppVersion.Parse(tag);
 
             if (latest is null)
             {
@@ -149,7 +149,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
 
             _log.LogInformation("Update check: running {Current}, {Latest} is available.", current, latest);
 
-            var url = document.RootElement.TryGetProperty(HtmlUrlProperty, out var u) ? u.GetString() : null;
+            string? url = document.RootElement.TryGetProperty(HtmlUrlProperty, out JsonElement u) ? u.GetString() : null;
             return new UpdateStatus(current.ToString(), latest.ToString(), url ?? ReleasesPage);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

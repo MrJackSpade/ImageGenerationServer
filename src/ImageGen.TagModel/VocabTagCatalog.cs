@@ -34,21 +34,21 @@ public sealed class VocabTagCatalog : ITagCatalog
     {
         _vocab = vocab;
 
-        var tags = new List<int>();
-        var artists = new List<int>();
-        for (var id = 0; id < vocab.Count; id++)
+        List<int> tags = new List<int>();
+        List<int> artists = new List<int>();
+        for (int id = 0; id < vocab.Count; id++)
             (vocab.IsArtist(id) ? artists : tags).Add(id);
 
         _tagsByCount = [.. tags.OrderByDescending(id => vocab.Counts[id])];
         _artistsByCount = [.. artists.OrderByDescending(id => vocab.Counts[id])];
 
         _byName = new Dictionary<string, int>(vocab.Count, StringComparer.OrdinalIgnoreCase);
-        for (var id = 0; id < vocab.Count; id++)
+        for (int id = 0; id < vocab.Count; id++)
             _byName.TryAdd(vocab.Tags[id], id);
 
         _artistCumulative = new long[_artistsByCount.Length];
         long running = 0;
-        for (var i = 0; i < _artistsByCount.Length; i++)
+        for (int i = 0; i < _artistsByCount.Length; i++)
         {
             // Floor of 1: an artist with a zero corpus count would otherwise be unreachable, which reads as the
             // catalog quietly having fewer artists than it reports.
@@ -76,13 +76,13 @@ public sealed class VocabTagCatalog : ITagCatalog
     public IReadOnlyList<TagEntry> Query(string query, bool artist, int limit)
     {
         Ensure.GreaterThanZero(limit);   // an empty ask is the caller's mistake to see, not a silent [] (as the model path also refuses)
-        var needle = query.Trim();
+        string needle = query.Trim();
 
         // Pre-sorted by count, so the first `limit` substring matches ARE the top `limit` by count -- no scoring pass
         // over ~639k entries per keystroke.
-        var source = artist ? _artistsByCount : _tagsByCount;
-        var results = new List<TagEntry>(Math.Min(limit, 32));
-        foreach (var id in source)
+        int[] source = artist ? _artistsByCount : _tagsByCount;
+        List<TagEntry> results = new List<TagEntry>(Math.Min(limit, 32));
+        foreach (int id in source)
         {
             if (needle.Length > 0 &&
                 !_vocab.Tags[id].Contains(needle, StringComparison.OrdinalIgnoreCase))
@@ -95,38 +95,38 @@ public sealed class VocabTagCatalog : ITagCatalog
 
     /// <inheritdoc />
     public TagEntry? Lookup(string name) =>
-        name is not null && _byName.TryGetValue(name, out var id) ? Entry(id) : null;
+        name is not null && _byName.TryGetValue(name, out int id) ? Entry(id) : null;
 
     /// <inheritdoc />
     public bool IsArtist(string name) =>
-        name is not null && _byName.TryGetValue(name, out var id) && _vocab.IsArtist(id);
+        name is not null && _byName.TryGetValue(name, out int id) && _vocab.IsArtist(id);
 
     /// <inheritdoc />
     public string? RandomArtist(IReadOnlySet<string>? exclude)
     {
         if (_artistsByCount.Length == 0) return null;
 
-        var total = _artistCumulative[^1];
+        long total = _artistCumulative[^1];
         // Bounded retries on the weighted draw: with a handful of exclusions against ~294k artists a redraw almost
         // always lands immediately, and this avoids rebuilding the cumulative table per call.
-        for (var attempt = 0; attempt < 24; attempt++)
+        for (int attempt = 0; attempt < 24; attempt++)
         {
-            var target = Random.Shared.NextInt64(total);
-            var index = UpperBound(_artistCumulative, target);
-            var name = _vocab.Tags[_artistsByCount[index]];
+            long target = Random.Shared.NextInt64(total);
+            int index = UpperBound(_artistCumulative, target);
+            string name = _vocab.Tags[_artistsByCount[index]];
             if (exclude is null || !exclude.Contains(name))
                 return name;
         }
 
         // The draw kept hitting excluded artists, so fall back to an exact weighted pick over what is left. Reached
         // only when the exclusion set covers most of the corpus weight -- a user who has banned the popular artists.
-        var eligible = _artistsByCount.Where(id => exclude is null || !exclude.Contains(_vocab.Tags[id])).ToArray();
+        int[] eligible = _artistsByCount.Where(id => exclude is null || !exclude.Contains(_vocab.Tags[id])).ToArray();
         if (eligible.Length == 0) return null;
 
         long remaining = 0;
-        foreach (var id in eligible) remaining += Math.Max(1, _vocab.Counts[id]);
-        var pick = Random.Shared.NextInt64(remaining);
-        foreach (var id in eligible)
+        foreach (int id in eligible) remaining += Math.Max(1, _vocab.Counts[id]);
+        long pick = Random.Shared.NextInt64(remaining);
+        foreach (int id in eligible)
         {
             pick -= Math.Max(1, _vocab.Counts[id]);
             if (pick < 0) return _vocab.Tags[id];
@@ -140,11 +140,11 @@ public sealed class VocabTagCatalog : ITagCatalog
     /// <summary>First index whose cumulative total exceeds <paramref name="target"/>.</summary>
     private static int UpperBound(long[] cumulative, long target)
     {
-        var lo = 0;
-        var hi = cumulative.Length - 1;
+        int lo = 0;
+        int hi = cumulative.Length - 1;
         while (lo < hi)
         {
-            var mid = lo + ((hi - lo) / 2);
+            int mid = lo + ((hi - lo) / 2);
             if (cumulative[mid] > target) hi = mid;
             else lo = mid + 1;
         }

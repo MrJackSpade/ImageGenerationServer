@@ -59,10 +59,10 @@ public static class Krea2Rebalance
     public static bool IsActive(ParamValues p)
     {
         if (Math.Abs(p.DblReq(WorkflowParamKeys.RebalanceMultiplier) - 1.0) > 1e-6) return true;
-        var w = p.StrReq(WorkflowParamKeys.PerLayerWeights);
+        string w = p.StrReq(WorkflowParamKeys.PerLayerWeights);
         if (!string.IsNullOrWhiteSpace(w))
-            foreach (var part in w.Split(','))
-                if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d)
+            foreach (string part in w.Split(','))
+                if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double d)
                     && Math.Abs(d - 1.0) > 1e-6) return true;
         return false;
     }

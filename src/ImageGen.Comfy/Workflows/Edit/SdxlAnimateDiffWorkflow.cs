@@ -25,9 +25,9 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);
-        var seed = ComfyGraph.Seed(p);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
+        long seed = ComfyGraph.Seed(p);
         int frames = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         double denoise = p.DblReq(WorkflowParamKeys.Denoise);

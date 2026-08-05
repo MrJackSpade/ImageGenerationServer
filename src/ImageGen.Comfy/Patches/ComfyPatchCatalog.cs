@@ -63,16 +63,16 @@ public static class ComfyPatchCatalog
     /// <param name="nodesDirectory"><c>comfy-nodes/</c>. Skipped when absent.</param>
     public static IReadOnlyList<ComfyPatch> Load(string? patchDirectory, string? nodesDirectory)
     {
-        var patches = new List<ComfyPatch>();
+        List<ComfyPatch> patches = new List<ComfyPatch>();
 
         if (!string.IsNullOrWhiteSpace(patchDirectory) && Directory.Exists(patchDirectory))
-            foreach (var file in Directory.EnumerateFiles(patchDirectory, PatchGlob).OrderBy(f => f, StringComparer.Ordinal))
+            foreach (string? file in Directory.EnumerateFiles(patchDirectory, PatchGlob).OrderBy(f => f, StringComparer.Ordinal))
                 patches.Add(ReadAuthored(file));
 
         if (!string.IsNullOrWhiteSpace(nodesDirectory) && Directory.Exists(nodesDirectory))
             patches.AddRange(ReadNodePacks(nodesDirectory));
 
-        var duplicate = patches.GroupBy(p => p.Id, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
+        IGrouping<string, ComfyPatch>? duplicate = patches.GroupBy(p => p.Id, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
         if (duplicate is not null)
             throw new LoadException($"Two patches share the id '{duplicate.Key}'. Ids address a patch over the API and must be unique.");
 
@@ -82,18 +82,18 @@ public static class ComfyPatchCatalog
     /// <summary>Read one <c>comfy-patches/*.patch</c>: the header, then the diff after the <c>---</c>.</summary>
     private static ComfyPatch ReadAuthored(string path)
     {
-        var name = Path.GetFileName(path);
-        var text = File.ReadAllText(path);
-        var lines = UnifiedDiff.SplitLines(text);
+        string name = Path.GetFileName(path);
+        string text = File.ReadAllText(path);
+        string[] lines = UnifiedDiff.SplitLines(text);
 
-        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string? key = null;
-        var index = 0;
-        var sawSeparator = false;
+        int index = 0;
+        bool sawSeparator = false;
 
         for (; index < lines.Length; index++)
         {
-            var line = lines[index];
+            string line = lines[index];
             if (line == HeaderSeparator) { index++; sawSeparator = true; break; }
 
             // Continuation: a leading space folds the line onto the previous field, so Does: and Why: can be
@@ -104,7 +104,7 @@ public static class ComfyPatchCatalog
                 continue;
             }
 
-            var colon = line.IndexOf(':');
+            int colon = line.IndexOf(':');
             if (colon < 1) throw new LoadException($"{name}: line {index + 1} is neither a 'Key: value' header nor the '---' that ends them.");
             key = line[..colon].Trim();
             fields[key] = line[(colon + 1)..].Trim();
@@ -112,23 +112,23 @@ public static class ComfyPatchCatalog
 
         if (!sawSeparator) throw new LoadException($"{name}: no '---' separating the header from the diff.");
 
-        string Required(string field) => fields.TryGetValue(field, out var value) && value.Length > 0
+        string Required(string field) => fields.TryGetValue(field, out string? value) && value.Length > 0
             ? value
             : throw new LoadException($"{name}: no {field}: header.");
 
-        string? Optional(string field) => fields.TryGetValue(field, out var value) && value.Length > 0 ? value : null;
+        string? Optional(string field) => fields.TryGetValue(field, out string? value) && value.Length > 0 ? value : null;
 
-        var target = Required(HeaderField.Target).Replace('\\', '/').Trim('/');
+        string target = Required(HeaderField.Target).Replace('\\', '/').Trim('/');
         if (target.Length == 0) target = CurrentDirectory;
         if (target != CurrentDirectory && (Path.IsPathRooted(target) || target.Split('/').Contains(ParentDirectory)))
             throw new LoadException($"{name}: Target '{target}' leaves the ComfyUI directory.");
 
-        var source = Optional(HeaderField.Source);
-        var rev = Optional(HeaderField.Rev);
+        string? source = Optional(HeaderField.Source);
+        string? rev = Optional(HeaderField.Rev);
         if (source is not null && rev is null)
             throw new LoadException($"{name}: Source: without Rev:. A patch that installs its target must pin the revision it was written against.");
 
-        var body = index < lines.Length ? string.Join('\n', lines[index..]) : "";
+        string body = index < lines.Length ? string.Join('\n', lines[index..]) : "";
         IReadOnlyList<FileDiff> files;
 
         if (string.IsNullOrWhiteSpace(body))
@@ -168,7 +168,7 @@ public static class ComfyPatchCatalog
     /// <summary>The numeric prefix on the filename, which is what orders the authored patches. No prefix sorts last.</summary>
     private static int OrderFromName(string name)
     {
-        var digits = name.TakeWhile(char.IsAsciiDigit).ToArray();
+        char[] digits = name.TakeWhile(char.IsAsciiDigit).ToArray();
         return digits.Length > 0 ? int.Parse(new string(digits)) : int.MaxValue;
     }
 
@@ -177,32 +177,32 @@ public static class ComfyPatchCatalog
 
     private static List<ComfyPatch> ReadNodePacks(string nodesDirectory)
     {
-        var manifestPath = Path.Combine(nodesDirectory, ManifestFileName);
+        string manifestPath = Path.Combine(nodesDirectory, ManifestFileName);
         if (!File.Exists(manifestPath))
             throw new LoadException($"{nodesDirectory} has no packs.json, so nothing in it can be described as a patch.");
 
-        using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        if (!document.RootElement.TryGetProperty(PackProperty.Packs, out var array) || array.ValueKind != JsonValueKind.Array)
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        if (!document.RootElement.TryGetProperty(PackProperty.Packs, out JsonElement array) || array.ValueKind != JsonValueKind.Array)
             throw new LoadException("packs.json has no \"packs\" array.");
 
-        var patches = new List<ComfyPatch>();
-        foreach (var element in array.EnumerateArray())
+        List<ComfyPatch> patches = new List<ComfyPatch>();
+        foreach (JsonElement element in array.EnumerateArray())
         {
             string Required(string field) =>
-                element.TryGetProperty(field, out var value) && value.GetString() is { Length: > 0 } text
+                element.TryGetProperty(field, out JsonElement value) && value.GetString() is { Length: > 0 } text
                     ? text
                     : throw new LoadException($"packs.json: an entry has no \"{field}\".");
 
-            var entry = new PackEntry(
+            PackEntry entry = new PackEntry(
                 Dir: Required(PackProperty.Dir),
-                Order: element.TryGetProperty(PackProperty.Order, out var order) ? order.GetInt32() : int.MaxValue,
+                Order: element.TryGetProperty(PackProperty.Order, out JsonElement order) ? order.GetInt32() : int.MaxValue,
                 Id: Required(PackProperty.Id),
                 Title: Required(PackProperty.Title),
                 Does: Required(PackProperty.Does),
                 Why: Required(PackProperty.Why),
-                Warn: element.TryGetProperty(PackProperty.Warn, out var warn) ? warn.GetString() : null);
+                Warn: element.TryGetProperty(PackProperty.Warn, out JsonElement warn) ? warn.GetString() : null);
 
-            var packRoot = Path.Combine(nodesDirectory, entry.Dir);
+            string packRoot = Path.Combine(nodesDirectory, entry.Dir);
             if (!Directory.Exists(packRoot))
                 throw new LoadException($"packs.json names \"{entry.Dir}\", which is not in {nodesDirectory}.");
 
@@ -213,19 +213,19 @@ public static class ComfyPatchCatalog
 
     private static ComfyPatch SynthesisePack(PackEntry entry, string packRoot)
     {
-        var files = new List<FileDiff>();
+        List<FileDiff> files = new List<FileDiff>();
 
-        foreach (var file in Directory.EnumerateFiles(packRoot, AllFilesGlob, SearchOption.AllDirectories)
+        foreach (string? file in Directory.EnumerateFiles(packRoot, AllFilesGlob, SearchOption.AllDirectories)
                      .OrderBy(f => f, StringComparer.Ordinal))
         {
-            var relative = Path.GetRelativePath(packRoot, file).Replace('\\', '/');
+            string relative = Path.GetRelativePath(packRoot, file).Replace('\\', '/');
             if (relative.Split('/').Any(segment => NotPartOfAPack.Contains(segment, StringComparer.Ordinal))) continue;
 
             // A pack is not always only source — sketchKeras ships a .pth its node cannot run without — and a
             // file with no lines is carried whole instead of diffed. Detected by content rather than extension:
             // the question is whether it can be split into lines and put back byte-identically, and a NUL byte
             // is the answer that it cannot.
-            var bytes = File.ReadAllBytes(file);
+            byte[] bytes = File.ReadAllBytes(file);
             files.Add(bytes.Contains((byte)0)
                 ? UnifiedDiff.AddedBinary(relative, bytes)
                 : UnifiedDiff.Added(relative, new UTF8Encoding(false).GetString(bytes)));
@@ -254,7 +254,7 @@ public static class ComfyPatchCatalog
     /// </summary>
     public static (PatchState State, string? Detail) Inspect(ComfyPatch patch, string comfyRoot)
     {
-        var target = patch.ResolveTarget(comfyRoot);
+        string target = patch.ResolveTarget(comfyRoot);
 
         // An install-only patch has nothing to reverse-apply, so its state is simply whether the pack is there.
         if (patch.IsInstallOnly)
@@ -265,10 +265,10 @@ public static class ComfyPatchCatalog
                 ? (PatchState.NotApplied, null)
                 : (PatchState.TargetMissing, $"{patch.Target} is not installed.");
 
-        var reverse = PatchApplier.Probe(target, patch.Files, reverse: true);
+        PatchProbe reverse = PatchApplier.Probe(target, patch.Files, reverse: true);
         if (reverse.Ok) return (PatchState.Applied, null);
 
-        var forward = PatchApplier.Probe(target, patch.Files, reverse: false);
+        PatchProbe forward = PatchApplier.Probe(target, patch.Files, reverse: false);
         if (forward.Ok) return (PatchState.NotApplied, null);
 
         return (PatchState.Conflicted, forward.Reason);

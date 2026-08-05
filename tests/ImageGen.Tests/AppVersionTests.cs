@@ -1,4 +1,6 @@
 using ImageGen.Web.Updates;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ImageGen.Tests;
 
@@ -59,9 +61,9 @@ public sealed class AppVersionTests
     [InlineData("0.10.0", "0.9.0", false)]             // 10 > 9, not string order
     public void Only_a_strictly_newer_release_counts(string current, string latest, bool newer)
     {
-        var running = AppVersion.Parse(current);
+        Version? running = AppVersion.Parse(current);
         Assert.NotNull(running);
-        var published = AppVersion.Parse(latest);
+        Version? published = AppVersion.Parse(latest);
         Assert.NotNull(published);
         Assert.Equal(newer, published > running);
     }
@@ -101,20 +103,20 @@ public sealed class AppVersionTests
         Skip.If(Environment.GetEnvironmentVariable("IMAGEGEN_UPDATE_LIVE") is null,
             "set IMAGEGEN_UPDATE_LIVE=1 to run this against the real releases API");
 
-        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
-        var log = Microsoft.Extensions.Logging.Abstractions.NullLogger<UpdateCheck>.Instance;
+        IConfigurationRoot config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        NullLogger<UpdateCheck> log = Microsoft.Extensions.Logging.Abstractions.NullLogger<UpdateCheck>.Instance;
 
-        var behind = await new UpdateCheck(new Factory(), config, log, new Version(0, 0, 1)).GetAsync(default);
+        UpdateStatus behind = await new UpdateCheck(new Factory(), config, log, new Version(0, 0, 1)).GetAsync(default);
         Assert.NotNull(behind.Latest);
         Assert.NotNull(behind.Url);
         Assert.True(Version.Parse(behind.Latest) > new Version(0, 0, 1));
 
         // A version nothing can be newer than. Reports the running version and no update.
-        var ahead = await new UpdateCheck(new Factory(), config, log, new Version(999, 0, 0)).GetAsync(default);
+        UpdateStatus ahead = await new UpdateCheck(new Factory(), config, log, new Version(999, 0, 0)).GetAsync(default);
         Assert.Null(ahead.Latest);
 
         // A build with no version never even asks.
-        var unversioned = await new UpdateCheck(new Factory(), config, log, null).GetAsync(default);
+        UpdateStatus unversioned = await new UpdateCheck(new Factory(), config, log, null).GetAsync(default);
         Assert.Null(unversioned.Current);
         Assert.Null(unversioned.Latest);
     }

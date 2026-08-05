@@ -46,9 +46,9 @@ public sealed class PromptFinalizerGatingTests
     [InlineData("a,,b")]                                                     // an empty middle segment the reflow would have dropped
     public void Non_tag_model_returns_a_plain_prompt_byte_for_byte(string prompt)
     {
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
         {
-            var f = PromptFinalizer.Finalize(prompt, tg);
+            FinalizedPrompt f = PromptFinalizer.Finalize(prompt, tg);
             Assert.Equal(prompt, f.Rendered);
             Assert.Empty(f.Marks);   // nothing about a non-tag prompt is bookmarkable
         }
@@ -62,7 +62,7 @@ public sealed class PromptFinalizerGatingTests
     [InlineData("a &#039; b")]                     // an HTML entity's '#' is untouched too
     public void Non_tag_model_treats_markers_and_underscores_as_literal_text(string prompt)
     {
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
     }
 
@@ -80,7 +80,7 @@ public sealed class PromptFinalizerGatingTests
     [InlineData("~")]                                               // a lone '~'
     public void Non_tag_model_keeps_a_tilde_led_segment_verbatim(string prompt)
     {
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
     }
 
@@ -91,7 +91,7 @@ public sealed class PromptFinalizerGatingTests
     [InlineData("hoshino_ruby~, plain phrase")]
     public void Non_tag_model_leaves_an_interior_tilde_alone(string prompt)
     {
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
     }
 
@@ -101,7 +101,7 @@ public sealed class PromptFinalizerGatingTests
     public void Non_tag_model_passes_a_negative_prompt_through_verbatim()
     {
         const string neg = "blurry, ~watermark, low quality";
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
             Assert.Equal(neg, PromptFinalizer.Finalize(neg, tg).Rendered);
     }
 
@@ -110,7 +110,7 @@ public sealed class PromptFinalizerGatingTests
     [Fact]
     public void Non_tag_model_maps_null_to_empty_and_preserves_empty_and_whitespace()
     {
-        foreach (var tg in NonTag)
+        foreach (WorkflowTagging? tg in NonTag)
         {
             Assert.Equal("", PromptFinalizer.Finalize(null, tg).Rendered);
             Assert.Equal("", PromptFinalizer.Finalize("", tg).Rendered);
@@ -125,7 +125,7 @@ public sealed class PromptFinalizerGatingTests
     public void A_block_with_neither_tags_nor_artists_matches_the_null_non_tag_path()
     {
         const string p = "wide shot, ~5 meters away, dusk";
-        var neither = new WorkflowTagging(Tags: false, Artists: false, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging neither = new WorkflowTagging(Tags: false, Artists: false, KeepArtistMarker: false, UnderscoresToSpaces: false);
 
         Assert.Equal(PromptFinalizer.Finalize(p, null).Rendered, PromptFinalizer.Finalize(p, neither).Rendered);
         Assert.Equal(p, PromptFinalizer.Finalize(p, neither).Rendered);   // ...and that shared answer is verbatim
@@ -139,7 +139,7 @@ public sealed class PromptFinalizerGatingTests
     [InlineData(true, true)]     // both
     public void Any_block_that_speaks_tags_or_artists_is_a_tag_model_and_drops_a_guide(bool tags, bool artists)
     {
-        var tg = new WorkflowTagging(tags, artists, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging tg = new WorkflowTagging(tags, artists, KeepArtistMarker: false, UnderscoresToSpaces: false);
         Assert.Equal("wide shot, dusk", PromptFinalizer.Finalize("wide shot, ~5 meters away, dusk", tg).Rendered);
     }
 
@@ -158,7 +158,7 @@ public sealed class PromptFinalizerGatingTests
     [Fact]
     public void Tag_model_strips_markers_folds_underscores_and_records_marks()
     {
-        var f = PromptFinalizer.Finalize("#bad_anatomy, @some_artist, score_1", Anima);
+        FinalizedPrompt f = PromptFinalizer.Finalize("#bad_anatomy, @some_artist, score_1", Anima);
 
         Assert.Equal("bad anatomy, @some artist, score_1", f.Rendered);   // '#' gone, '@' kept, '_' folded, score_ kept
         Assert.Equal(TokenKinds.Tag, f.Marks["bad_anatomy"]);
@@ -170,7 +170,7 @@ public sealed class PromptFinalizerGatingTests
     [Fact]
     public void Tag_model_drops_a_guide_and_keeps_an_inert_tag()
     {
-        var f = PromptFinalizer.Finalize("!1girl, ~1boy, #castle", Anima);
+        FinalizedPrompt f = PromptFinalizer.Finalize("!1girl, ~1boy, #castle", Anima);
 
         Assert.Equal("1girl, castle", f.Rendered);
         Assert.False(f.Marks.ContainsKey("1boy"));

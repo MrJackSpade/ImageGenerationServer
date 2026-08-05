@@ -103,9 +103,9 @@ public static class UnifiedDiff
 
     public static IReadOnlyList<FileDiff> Parse(string diff)
     {
-        var lines = SplitLines(diff);
-        var files = new List<FileDiff>();
-        var i = 0;
+        string[] lines = SplitLines(diff);
+        List<FileDiff> files = new List<FileDiff>();
+        int i = 0;
 
         while (i < lines.Length)
         {
@@ -123,37 +123,37 @@ public static class UnifiedDiff
                 continue;
             }
 
-            var oldPath = HeaderPath(lines[i], DiffMarker.OldFileHeader, i);
+            string? oldPath = HeaderPath(lines[i], DiffMarker.OldFileHeader, i);
             i++;
             if (i >= lines.Length || !lines[i].StartsWith(DiffMarker.NewFileHeader, StringComparison.Ordinal))
                 throw new FormatException($"line {i + 1}: a '--- ' line must be followed by '+++ '.");
-            var newPath = HeaderPath(lines[i], DiffMarker.NewFileHeader, i);
+            string? newPath = HeaderPath(lines[i], DiffMarker.NewFileHeader, i);
             i++;
 
-            var change = (oldPath, newPath) switch
+            FileChange change = (oldPath, newPath) switch
             {
                 (null, null) => throw new FormatException($"line {i}: neither side of this file header names a file."),
                 (null, not null) => FileChange.Add,
                 (not null, null) => FileChange.Delete,
                 _ => FileChange.Modify,
             };
-            var path = newPath ?? oldPath ?? throw new InvalidOperationException("A diff entry has neither an old nor a new path.");
+            string path = newPath ?? oldPath ?? throw new InvalidOperationException("A diff entry has neither an old nor a new path.");
 
-            var hunks = new List<Hunk>();
-            var oldNoNewline = false;
-            var newNoNewline = false;
+            List<Hunk> hunks = new List<Hunk>();
+            bool oldNoNewline = false;
+            bool newNoNewline = false;
 
             while (i < lines.Length && lines[i].StartsWith(DiffMarker.HunkMarker, StringComparison.Ordinal))
             {
-                var (oldStart, oldCount, newStart, newCount) = ParseHunkHeader(lines[i], i);
+                (int oldStart, int oldCount, int newStart, int newCount) = ParseHunkHeader(lines[i], i);
                 i++;
 
-                var oldLines = new List<string>();
-                var newLines = new List<string>();
+                List<string> oldLines = new List<string>();
+                List<string> newLines = new List<string>();
 
                 while ((oldLines.Count < oldCount || newLines.Count < newCount) && i < lines.Length)
                 {
-                    var line = lines[i];
+                    string line = lines[i];
 
                     // An empty line inside a hunk is a context line whose trailing space git dropped.
                     // Treating it as end-of-hunk truncates the patch, which is how a "clean" apply loses code.
@@ -174,7 +174,7 @@ public static class UnifiedDiff
                         continue;
                     }
 
-                    var content = line[1..];
+                    string content = line[1..];
                     switch (line[0])
                     {
                         case ' ': oldLines.Add(content); newLines.Add(content); break;
@@ -210,10 +210,10 @@ public static class UnifiedDiff
     /// <summary>The path out of a '--- a/x' or '+++ b/x' line, or null for /dev/null.</summary>
     private static string? HeaderPath(string line, string prefix, int index)
     {
-        var value = line[prefix.Length..].Trim();
+        string value = line[prefix.Length..].Trim();
 
         // git appends a tab and a timestamp on some outputs; the path is everything before it.
-        var tab = value.IndexOf('\t');
+        int tab = value.IndexOf('\t');
         if (tab >= 0) value = value[..tab];
 
         if (value is DiffMarker.DevNull) return null;
@@ -224,7 +224,7 @@ public static class UnifiedDiff
         // A path escaping the target directory would let a patch write anywhere on the disk. This engine
         // applies patches the app ships, but "we only load our own" is not a property that survives, and the
         // check costs nothing.
-        var normalised = value.Replace('\\', '/');
+        string normalised = value.Replace('\\', '/');
         if (Path.IsPathRooted(normalised) || normalised.Split('/').Contains(DiffMarker.ParentDirectory))
             throw new FormatException($"line {index + 1}: '{value}' leaves the target directory.");
 
@@ -234,26 +234,26 @@ public static class UnifiedDiff
     private static (int OldStart, int OldCount, int NewStart, int NewCount) ParseHunkHeader(string line, int index)
     {
         // @@ -oldStart,oldCount +newStart,newCount @@ optional heading
-        var end = line.IndexOf(DiffMarker.HunkMarker, 2, StringComparison.Ordinal);
+        int end = line.IndexOf(DiffMarker.HunkMarker, 2, StringComparison.Ordinal);
         if (end < 0) throw new FormatException($"line {index + 1}: unterminated hunk header.");
 
-        var parts = line[2..end].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = line[2..end].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || parts[0][0] != '-' || parts[1][0] != '+')
             throw new FormatException($"line {index + 1}: '{line}' is not a hunk header.");
 
-        var (oldStart, oldCount) = ParseRange(parts[0][1..], index);
-        var (newStart, newCount) = ParseRange(parts[1][1..], index);
+        (int oldStart, int oldCount) = ParseRange(parts[0][1..], index);
+        (int newStart, int newCount) = ParseRange(parts[1][1..], index);
         return (oldStart, oldCount, newStart, newCount);
     }
 
     private static (int Start, int Count) ParseRange(string range, int index)
     {
-        var comma = range.IndexOf(',');
+        int comma = range.IndexOf(',');
         // No comma means a one-line range — "@@ -3 +3,2 @@" is legal and means count 1.
-        var startText = comma < 0 ? range : range[..comma];
-        var countText = comma < 0 ? "1" : range[(comma + 1)..];
+        string startText = comma < 0 ? range : range[..comma];
+        string countText = comma < 0 ? "1" : range[(comma + 1)..];
 
-        if (!int.TryParse(startText, out var start) || !int.TryParse(countText, out var count) || start < 0 || count < 0)
+        if (!int.TryParse(startText, out int start) || !int.TryParse(countText, out int count) || start < 0 || count < 0)
             throw new FormatException($"line {index + 1}: '{range}' is not a line range.");
         return (start, count);
     }
@@ -264,8 +264,8 @@ public static class UnifiedDiff
     /// </summary>
     public static FileDiff Added(string path, string content)
     {
-        var endsWithoutNewline = content.Length > 0 && !content.EndsWith('\n');
-        var lines = SplitLines(content).ToList();
+        bool endsWithoutNewline = content.Length > 0 && !content.EndsWith('\n');
+        List<string> lines = SplitLines(content).ToList();
 
         // A file ending in a newline splits to a trailing empty element that is not a line of the file.
         if (!endsWithoutNewline && lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
@@ -283,8 +283,8 @@ public static class UnifiedDiff
     /// <summary>Render back to unified-diff text — what the UI shows when someone asks what a patch contains.</summary>
     public static string Write(IEnumerable<FileDiff> files)
     {
-        var text = new StringBuilder();
-        foreach (var file in files)
+        StringBuilder text = new StringBuilder();
+        foreach (FileDiff file in files)
         {
             if (file.IsBinary)
             {
@@ -295,15 +295,15 @@ public static class UnifiedDiff
                 continue;
             }
 
-            var oldSide = file.Change == FileChange.Add ? DiffMarker.DevNull : DiffMarker.OldPathPrefix + file.Path;
-            var newSide = file.Change == FileChange.Delete ? DiffMarker.DevNull : DiffMarker.NewPathPrefix + file.Path;
+            string oldSide = file.Change == FileChange.Add ? DiffMarker.DevNull : DiffMarker.OldPathPrefix + file.Path;
+            string newSide = file.Change == FileChange.Delete ? DiffMarker.DevNull : DiffMarker.NewPathPrefix + file.Path;
             text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
             if (file.Change == FileChange.Add) text.Append(DiffMarker.NewFileMode);
             if (file.Change == FileChange.Delete) text.Append(DiffMarker.DeletedFileMode);
             text.Append(DiffMarker.OldFileHeader).Append(oldSide).Append('\n');
             text.Append(DiffMarker.NewFileHeader).Append(newSide).Append('\n');
 
-            foreach (var hunk in file.Hunks)
+            foreach (Hunk hunk in file.Hunks)
             {
                 text.Append(DiffMarker.HunkHeaderStart).Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
                     .Append(DiffMarker.NewRangePrefix).Append(hunk.NewLines.Count == 0 ? 0 : hunk.NewStart).Append(',').Append(hunk.NewLines.Count)

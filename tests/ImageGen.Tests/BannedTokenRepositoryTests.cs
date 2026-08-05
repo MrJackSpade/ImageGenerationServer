@@ -23,11 +23,11 @@ public sealed class BannedTokenRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_saved_ban_comes_back_as_a_sampler_exclusion_for_that_workflow()
     {
-        var user = await fixture.NewUserAsync("ban-roundtrip");
+        User user = await fixture.NewUserAsync("ban-roundtrip");
         await fixture.Bans.AddAsync(Ban(user.Id, "anima", "wet_shirt", TokenKind.Tag), Ct);
         await fixture.Bans.AddAsync(Ban(user.Id, "anima", "some_artist", TokenKind.Artist), Ct);
 
-        var (tags, artists) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
+        (HashSet<string>? tags, HashSet<string>? artists) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
 
         Assert.Contains("wet_shirt", tags);
         Assert.Contains("some_artist", artists);
@@ -38,10 +38,10 @@ public sealed class BannedTokenRepositoryTests(TestDatabaseFixture fixture)
     {
         // Settings takes a free-hand name. The tag model samples canonical booru tokens, so "Wet Shirt" has to survive
         // the encrypt/decrypt round trip AND canonicalize to "wet_shirt", or the ban silently never fires.
-        var user = await fixture.NewUserAsync("ban-freehand");
+        User user = await fixture.NewUserAsync("ban-freehand");
         await fixture.Bans.AddAsync(Ban(user.Id, "anima", "Wet Shirt", TokenKind.Tag), Ct);
 
-        var (tags, _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
+        (HashSet<string>? tags, HashSet<string> _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
 
         Assert.Contains("wet_shirt", tags);
     }
@@ -49,10 +49,10 @@ public sealed class BannedTokenRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_ban_binds_only_the_workflow_it_was_saved_for()
     {
-        var user = await fixture.NewUserAsync("ban-permodel");
+        User user = await fixture.NewUserAsync("ban-permodel");
         await fixture.Bans.AddAsync(Ban(user.Id, "anima", "wet_shirt", TokenKind.Tag), Ct);
 
-        var (other, _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "pixelharness", Ct));
+        (HashSet<string>? other, HashSet<string> _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "pixelharness", Ct));
 
         Assert.Empty(other);
     }
@@ -60,11 +60,11 @@ public sealed class BannedTokenRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Bans_are_isolated_per_user()
     {
-        var alice = await fixture.NewUserAsync("ban-alice");
-        var bob = await fixture.NewUserAsync("ban-bob");
+        User alice = await fixture.NewUserAsync("ban-alice");
+        User bob = await fixture.NewUserAsync("ban-bob");
         await fixture.Bans.AddAsync(Ban(alice.Id, "anima", "wet_shirt", TokenKind.Tag), Ct);
 
-        var (bobs, _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(bob.Id, "anima", Ct));
+        (HashSet<string>? bobs, HashSet<string> _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(bob.Id, "anima", Ct));
 
         Assert.Empty(bobs);
     }
@@ -72,12 +72,12 @@ public sealed class BannedTokenRepositoryTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Removing_a_ban_lifts_the_exclusion()
     {
-        var user = await fixture.NewUserAsync("ban-lift");
+        User user = await fixture.NewUserAsync("ban-lift");
         await fixture.Bans.AddAsync(Ban(user.Id, "anima", "wet_shirt", TokenKind.Tag), Ct);
 
         Assert.True(await fixture.Bans.RemoveAsync(new BannedTokenKey(user.Id, "anima", "wet_shirt", TokenKind.Tag), Ct));
 
-        var (tags, _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
+        (HashSet<string>? tags, HashSet<string> _) = RenderOrchestrator.BanKeys(await fixture.Bans.GetForModelAsync(user.Id, "anima", Ct));
         Assert.Empty(tags);
     }
 }

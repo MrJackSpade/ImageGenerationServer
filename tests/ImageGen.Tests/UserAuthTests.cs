@@ -1,5 +1,7 @@
 using ImageGen.Application.Security;
 using ImageGen.Application.Services;
+using ImageGen.Domain.Entities;
+using System.Data.Common;
 
 namespace ImageGen.Tests;
 
@@ -8,7 +10,7 @@ public sealed class PasswordHasherTests
     [Fact]
     public void Hash_then_verify_roundtrips()
     {
-        var hash = PasswordHasher.Hash("correct horse battery staple");
+        string hash = PasswordHasher.Hash("correct horse battery staple");
         Assert.True(PasswordHasher.Verify("correct horse battery staple", hash));
         Assert.False(PasswordHasher.Verify("wrong password", hash));
     }
@@ -52,13 +54,13 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Register_creates_user_and_login_succeeds()
     {
-        var svc = Service();
-        var created = await svc.RegisterAsync("alice_auth", "s3cretpw!", "Alice", Ct);
+        UserService svc = Service();
+        User? created = await svc.RegisterAsync("alice_auth", "s3cretpw!", "Alice", Ct);
         Assert.NotNull(created);
         Assert.Equal("alice_auth", created.Username);
         Assert.Equal("Alice", created.DisplayName);
 
-        var ok = await svc.AuthenticateAsync("alice_auth", "s3cretpw!", Ct);
+        User? ok = await svc.AuthenticateAsync("alice_auth", "s3cretpw!", Ct);
         Assert.NotNull(ok);
         Assert.Equal(created.Id, ok.Id);
     }
@@ -75,13 +77,13 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Username_uniqueness_and_login_ignore_case()
     {
-        var svc = Service();
+        UserService svc = Service();
         Assert.NotNull(await svc.RegisterAsync("CaseUser", "password1", "Case", Ct));
 
         Assert.Null(await svc.RegisterAsync("caseuser", "password2", "Impostor", Ct));
         Assert.Null(await svc.RegisterAsync("CASEUSER", "password3", "Impostor", Ct));
 
-        var ok = await svc.AuthenticateAsync("cAsEuSeR", "password1", Ct);
+        User? ok = await svc.AuthenticateAsync("cAsEuSeR", "password1", Ct);
         Assert.NotNull(ok);
         Assert.Equal("CaseUser", ok.Username);   // the row that was actually stored, not the spelling typed
     }
@@ -89,7 +91,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Duplicate_username_is_rejected()
     {
-        var svc = Service();
+        UserService svc = Service();
         Assert.NotNull(await svc.RegisterAsync("dup_auth", "password1", "", Ct));
         Assert.Null(await svc.RegisterAsync("dup_auth", "password2", "", Ct));
     }
@@ -97,7 +99,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Wrong_password_and_unknown_user_fail()
     {
-        var svc = Service();
+        UserService svc = Service();
         await svc.RegisterAsync("bob_auth", "rightpass1", "", Ct);
         Assert.Null(await svc.AuthenticateAsync("bob_auth", "wrongpass", Ct));
         Assert.Null(await svc.AuthenticateAsync("nobody_auth", "whatever1", Ct));
@@ -106,7 +108,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Display_name_defaults_to_username()
     {
-        var created = await Service().RegisterAsync("nodisplay_auth", "password1", "", Ct);
+        User? created = await Service().RegisterAsync("nodisplay_auth", "password1", "", Ct);
         Assert.NotNull(created);
         Assert.Equal("nodisplay_auth", created.DisplayName);
     }
@@ -119,8 +121,8 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Workflow_relations_round_trip_and_replace_wholesale()
     {
-        var svc = Service();
-        var user = await svc.RegisterAsync("wfrel_auth", "password1", "", Ct);
+        UserService svc = Service();
+        User? user = await svc.RegisterAsync("wfrel_auth", "password1", "", Ct);
         Assert.NotNull(user);
 
         await svc.SetFavoriteWorkflowsAsync(user.Id, ["anima", "flux2"], Ct);
@@ -130,7 +132,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
             ["anima"] = ["favourite", "fast"],
         }, Ct);
 
-        var prefs = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
+        UserWorkflowPrefs prefs = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
         Assert.Equal(["anima", "flux2"], prefs.Favorites.Order());
         Assert.Equal(["slow-one"], prefs.Hidden);
         Assert.Equal(["fast", "favourite"], prefs.Tags["anima"].Order());
@@ -139,7 +141,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
         await svc.SetFavoriteWorkflowsAsync(user.Id, ["flux2"], Ct);
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>(), Ct);
 
-        var after = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
+        UserWorkflowPrefs after = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
         Assert.Equal(["flux2"], after.Favorites);
         Assert.Empty(after.Tags);
         Assert.Equal(["slow-one"], after.Hidden);   // untouched: each set has its own write
@@ -150,8 +152,8 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task A_workflow_id_is_queryable_and_its_label_is_encrypted()
     {
-        var svc = Service();
-        var user = await svc.RegisterAsync("wfcrypto_auth", "password1", "", Ct);
+        UserService svc = Service();
+        User? user = await svc.RegisterAsync("wfcrypto_auth", "password1", "", Ct);
         Assert.NotNull(user);
         await svc.SetFavoriteWorkflowsAsync(user.Id, ["anima"], Ct);
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>
@@ -159,21 +161,21 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
             ["anima"] = ["my private label"],
         }, Ct);
 
-        await using var conn = await fixture.ConnectionFactory.OpenAsync(Ct);
+        await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
 
         // The relation can be asked the question a blob could not: who favourited this workflow?
-        await using (var cmd = conn.Command(
+        await using (DbCommand cmd = conn.Command(
             "SELECT COUNT(*) FROM dbo.UserFavoriteWorkflow WHERE WorkflowId = 'anima' AND UserId = @id;"))
         {
             cmd.AddParam("@id", user.Id);
             Assert.Equal(1, Convert.ToInt32(await cmd.ExecuteScalarAsync(Ct)));
         }
 
-        await using (var cmd = conn.Command(
+        await using (DbCommand cmd = conn.Command(
             "SELECT Tag FROM dbo.UserWorkflowTag WHERE UserId = @id;"))
         {
             cmd.AddParam("@id", user.Id);
-            var scalar = await cmd.ExecuteScalarAsync(Ct);
+            object? scalar = await cmd.ExecuteScalarAsync(Ct);
             Assert.NotNull(scalar);
             Assert.NotEqual("my private label", (string)scalar);
         }
@@ -187,18 +189,18 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Bookmark_prefs_round_trip_on_the_account()
     {
-        var svc = Service();
-        var user = await svc.RegisterAsync("bmprefs_auth", "password1", "", Ct);
+        UserService svc = Service();
+        User? user = await svc.RegisterAsync("bmprefs_auth", "password1", "", Ct);
         Assert.NotNull(user);
         const string blob = """{"collapsed":["__global__/images","Landscapes","Landscapes/tags"]}""";
 
         await svc.SetBookmarkPrefsAsync(user.Id, blob, Ct);
-        var stored = await svc.GetByIdAsync(user.Id, Ct);
+        User? stored = await svc.GetByIdAsync(user.Id, Ct);
         Assert.NotNull(stored);
         Assert.Equal(blob, stored.BookmarkPrefs);
 
         await svc.SetBookmarkPrefsAsync(user.Id, "  ", Ct);
-        var cleared = await svc.GetByIdAsync(user.Id, Ct);
+        User? cleared = await svc.GetByIdAsync(user.Id, Ct);
         Assert.NotNull(cleared);
         Assert.Null(cleared.BookmarkPrefs);
     }

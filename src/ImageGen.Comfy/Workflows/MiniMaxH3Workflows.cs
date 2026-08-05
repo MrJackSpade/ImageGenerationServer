@@ -75,7 +75,7 @@ file static class H3
     /// otherwise identical — one H3 node, one distilled sampler chain, dual (video+audio) decode, one mp4-with-audio.</summary>
     public static Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs, bool i2v)
     {
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
 
         // Loaders. Diffusion via DiffusionLoader → plain UNETLoader (int8 ConvRot loads natively, weight_dtype default
         // keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames) and audio
@@ -93,7 +93,7 @@ file static class H3
         double fps = p.DblReq(WorkflowParamKeys.Fps);
 
         // The single H3 conditioning+latent node. It encodes the prompt itself and emits (positive CONDITIONING, LATENT).
-        var h3 = new Dictionary<string, object>
+        Dictionary<string, object> h3 = new Dictionary<string, object>
         {
             [Inputs.Clip] = clip,
             [Inputs.Vae] = videoVae,
@@ -118,7 +118,7 @@ file static class H3
         }
         else
         {
-            var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+            (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
             h3[Inputs.Width] = w;
             h3[Inputs.Height] = h;
         }

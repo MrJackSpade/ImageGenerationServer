@@ -18,13 +18,13 @@ public sealed class TagServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task ResolveMany_falls_back_to_latest_gen_then_honors_a_pick()
     {
-        var user = await fixture.NewUserAsync("tag-display");
+        User user = await fixture.NewUserAsync("tag-display");
         // Two gens for "snow"; the newer is the fallback display image.
         await fixture.History.AddAsync(Gen(user.Id, "snow-old", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
         await fixture.History.AddAsync(Gen(user.Id, "snow-new", "snow", new DateTime(2026, 1, 2, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        var svc = NewService();
+        TagService svc = NewService();
 
-        var fallback = await svc.ResolveManyAsync(user.Id, ["snow"], Ct);
+        IReadOnlyDictionary<string, string> fallback = await svc.ResolveManyAsync(user.Id, ["snow"], Ct);
         Assert.Equal("snow-new", fallback["snow"]);   // newest gen with the tag
 
         // Pick the older one explicitly -> the manual pick wins.
@@ -39,19 +39,19 @@ public sealed class TagServiceTests(TestDatabaseFixture fixture)
     [Fact]
     public async Task Set_rejects_an_image_not_in_the_users_history()
     {
-        var user = await fixture.NewUserAsync("tag-reject");
+        User user = await fixture.NewUserAsync("tag-reject");
         Assert.False(await NewService().SetAsync(user.Id, "snow", "not-mine", DateTime.UtcNow, Ct));
     }
 
     [Fact]
     public async Task ResolveMany_is_per_user_and_absent_when_a_tag_has_neither_pick_nor_gen()
     {
-        var alice = await fixture.NewUserAsync("tag-many-a");
-        var bob = await fixture.NewUserAsync("tag-many-b");
+        User alice = await fixture.NewUserAsync("tag-many-a");
+        User bob = await fixture.NewUserAsync("tag-many-b");
         await fixture.History.AddAsync(Gen(alice.Id, "a-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
         await fixture.History.AddAsync(Gen(bob.Id, "b-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
 
-        var resolved = await NewService().ResolveManyAsync(alice.Id, ["snow", "unseen"], Ct);
+        IReadOnlyDictionary<string, string> resolved = await NewService().ResolveManyAsync(alice.Id, ["snow", "unseen"], Ct);
         Assert.Equal("a-snow", resolved["snow"]);           // fallback to alice's own gen
         Assert.False(resolved.ContainsKey("unseen"));        // no gen, no pick -> absent (placeholder)
         Assert.DoesNotContain("b-snow", resolved.Values);    // never sees bob's image

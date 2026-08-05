@@ -1,11 +1,10 @@
-using System.Data.Common;
 using ImageGen.Application.Security;
 using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -24,8 +23,8 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
     public async Task AddAsync(
         long userId, string category, string encryptedPayload, DateTime createdAtUtc, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             "INSERT INTO dbo.UserLog (UserId, Category, Payload, CreatedAtUtc) "
             + "VALUES (@userId, @category, @payload, @created);");
         cmd.AddParam("@userId", userId);
@@ -44,21 +43,21 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
         // An out-of-range limit is REFUSED, not clamped — silently returning 1,000 for a request of a million reads
         // to the caller as "that's all there is".
         Ensure.Between(limit, MinLimit, MaxLimit);
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             $"SELECT {_dialect.TopPrefix("@limit")}Id, UserId, Category, Payload, CreatedAtUtc FROM dbo.UserLog "
             + $"WHERE UserId = @userId ORDER BY CreatedAtUtc DESC, Id DESC{_dialect.TopSuffix("@limit")};");
         cmd.AddParam("@limit", limit);
         cmd.AddParam("@userId", userId);
 
-        var raw = new List<UserLogRow>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        List<UserLogRow> raw = new List<UserLogRow>();
+        await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
                 raw.Add(new UserLogRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     DateTime.SpecifyKind(reader.GetDateTime(4), DateTimeKind.Utc)));
 
-        var list = new List<UserLogEntry>(raw.Count);
-        foreach (var r in raw)
+        List<UserLogEntry> list = new List<UserLogEntry>(raw.Count);
+        foreach (UserLogRow r in raw)
             list.Add(new UserLogEntry
             {
                 Id = r.Id,

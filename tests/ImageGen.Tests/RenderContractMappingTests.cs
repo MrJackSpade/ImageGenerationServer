@@ -1,4 +1,5 @@
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Tests;
 
@@ -12,7 +13,7 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void A_generate_request_carries_its_mask_into_the_spec()
     {
-        var spec = new GenerateRequest("anima", "a prompt", null, "square", RandomPrompt: true,
+        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square", RandomPrompt: true,
             TagTypes: ["general", "character"]).ToSpec();
 
         Assert.Equal(["general", "character"], spec.TagTypes);
@@ -25,12 +26,12 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void A_batch_item_carries_its_mask_into_the_spec()
     {
-        var item = new EnqueueItem(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
+        EnqueueItem item = new EnqueueItem(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
             Aspect: "square", Instruction: null, ImageId: null, RandomPrompt: true, TagTypes: ["meta"]);
 
-        var ri = item.ToRenderItem();
+        RenderItem? ri = item.ToRenderItem();
         Assert.NotNull(ri);
-        var spec = ri.Gen;
+        GenerateSpec? spec = ri.Gen;
         Assert.NotNull(spec);
 
         Assert.Equal(["meta"], spec.TagTypes);
@@ -40,7 +41,7 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void An_omitted_mask_stays_null()
     {
-        var spec = new GenerateRequest("anima", "a prompt", null, "square").ToSpec();
+        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square").ToSpec();
 
         Assert.Null(spec.TagTypes);
     }

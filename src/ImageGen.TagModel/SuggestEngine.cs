@@ -47,15 +47,15 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         if (limit < 1)
             throw new ArgumentOutOfRangeException(nameof(limit), limit, "limit must be at least 1.");
 
-        var vocab = _bundle.Vocab;
-        var query = fragment.Trim().ToLowerInvariant();
+        TagVocab vocab = _bundle.Vocab;
+        string query = fragment.Trim().ToLowerInvariant();
 
-        var present = new List<int>();
-        var presentSet = new HashSet<int>();
-        var unknown = new List<string>();
-        foreach (var raw in contextTags)
+        List<int> present = new List<int>();
+        HashSet<int> presentSet = new HashSet<int>();
+        List<string> unknown = new List<string>();
+        foreach (string raw in contextTags)
         {
-            var tag = raw.Trim();
+            string tag = raw.Trim();
             if (tag.Length == 0) continue;
             if (vocab.IdOf(tag) is int id)
             {
@@ -79,17 +79,17 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         {
             // Scoring is deliberately unconditioned by TYPE: suggest ranks every category, artists included, because
             // this path answers what the user is typing rather than what generation may emit.
-            var (logits, _) = _bundle.Session.Forward(present, TypeMask.AllTypes);
+            (float[]? logits, float _) = _bundle.Session.Forward(present, TypeMask.AllTypes);
             conditional = Softmax(logits);
             display = Display(logits, conditional);
         }
 
         // 'distinctive' divides by the base rate, which without a floor promotes tags seen a handful of times in
         // millions of images -- statistically striking, useless as a suggestion.
-        var score = new float[conditional.Length];
+        float[] score = new float[conditional.Length];
         if (present.Count > 0 && mode == Mode.Distinctive)
         {
-            for (var i = 0; i < score.Length; i++)
+            for (int i = 0; i < score.Length; i++)
                 score[i] = vocab.Marginal[i] >= 5e-5f ? conditional[i] / Math.Max(vocab.Marginal[i], 1e-9f) : 0f;
         }
         else
@@ -97,14 +97,14 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             Array.Copy(conditional, score, score.Length);
         }
 
-        var junk = _bundle.JunkIds.ToHashSet();
+        HashSet<int> junk = _bundle.JunkIds.ToHashSet();
         List<int> ordered;
         int total;
 
         if (query.Length > 0)
         {
-            var candidates = new List<int>();
-            for (var i = 0; i < vocab.Count; i++)
+            List<int> candidates = new List<int>();
+            for (int i = 0; i < vocab.Count; i++)
                 if (!presentSet.Contains(i) && !junk.Contains(i) && vocab.Lowercase[i].Contains(query, StringComparison.Ordinal))
                     candidates.Add(i);
             candidates.Sort((x, y) => score[y].CompareTo(score[x]));
@@ -115,21 +115,21 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         {
             // Excluded rather than filtered afterwards, so a full page of results still comes back when the top of the
             // distribution is tags the prompt already has.
-            var ranking = new float[score.Length];
+            float[] ranking = new float[score.Length];
             Array.Copy(score, ranking, score.Length);
-            foreach (var id in presentSet) ranking[id] = -1f;
-            foreach (var id in junk) ranking[id] = -1f;
+            foreach (int id in presentSet) ranking[id] = -1f;
+            foreach (int id in junk) ranking[id] = -1f;
 
             ordered = TopK(ranking, limit);
             total = ordered.Count;
         }
 
-        var results = new List<Suggestion>(ordered.Count);
-        foreach (var id in ordered)
+        List<Suggestion> results = new List<Suggestion>(ordered.Count);
+        foreach (int id in ordered)
         {
             // Marginal is eps-floored positive by construction (TagVocab clamps it to [eps, 1-eps]), so the base rate
             // is never zero here — no divide guard, which would only paper over a corrupt bundle.
-            var baseRate = vocab.Marginal[id];
+            float baseRate = vocab.Marginal[id];
             results.Add(new Suggestion(
                 vocab.Tags[id],
                 display[id],
@@ -152,9 +152,9 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         if (_bundle.Calibration is null)
             return conditional;
 
-        var (a, b) = (_bundle.Calibration.A, _bundle.Calibration.B);
-        var display = new float[logits.Length];
-        for (var i = 0; i < logits.Length; i++)
+        (double a, double b) = (_bundle.Calibration.A, _bundle.Calibration.B);
+        float[] display = new float[logits.Length];
+        for (int i = 0; i < logits.Length; i++)
         {
             // -inf marks an unemittable tag; it has no calibrated probability, and exp() of it would be a NaN factory.
             display[i] = float.IsNegativeInfinity(logits[i])
@@ -167,24 +167,24 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     /// <summary>Softmax over the vocabulary, shifted by the max so the exponentials cannot overflow.</summary>
     internal static float[] Softmax(float[] logits)
     {
-        var max = float.NegativeInfinity;
-        foreach (var v in logits)
+        float max = float.NegativeInfinity;
+        foreach (float v in logits)
             if (v > max) max = v;
 
-        var result = new float[logits.Length];
+        float[] result = new float[logits.Length];
         if (float.IsNegativeInfinity(max))
             return result;   // every tag unemittable: a uniform zero, not a division by zero
 
         double sum = 0;
-        for (var i = 0; i < logits.Length; i++)
+        for (int i = 0; i < logits.Length; i++)
         {
-            var e = float.IsNegativeInfinity(logits[i]) ? 0.0 : Math.Exp(logits[i] - max);
+            double e = float.IsNegativeInfinity(logits[i]) ? 0.0 : Math.Exp(logits[i] - max);
             result[i] = (float)e;
             sum += e;
         }
         // sum >= 1 here: `max` is finite (the all-unemittable case returned above), so the max element contributes
         // exp(0) = 1 — there is no divide-by-zero to guard against.
-        for (var i = 0; i < result.Length; i++)
+        for (int i = 0; i < result.Length; i++)
             result[i] = (float)(result[i] / sum);
         return result;
     }
@@ -193,13 +193,13 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     private static List<int> TopK(float[] values, int k)
     {
         k = Math.Min(k, values.Length);
-        var best = new List<int>(k);
-        var taken = new bool[values.Length];
-        for (var n = 0; n < k; n++)
+        List<int> best = new List<int>(k);
+        bool[] taken = new bool[values.Length];
+        for (int n = 0; n < k; n++)
         {
-            var bestIndex = -1;
-            var bestValue = float.NegativeInfinity;
-            for (var i = 0; i < values.Length; i++)
+            int bestIndex = -1;
+            float bestValue = float.NegativeInfinity;
+            for (int i = 0; i < values.Length; i++)
             {
                 if (taken[i] || values[i] <= bestValue) continue;
                 bestValue = values[i];

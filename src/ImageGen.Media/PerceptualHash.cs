@@ -34,7 +34,7 @@ internal static class PerceptualHash
     private static readonly double[,] Cos = BuildCos();
     private static double[,] BuildCos()
     {
-        var m = new double[N, N];
+        double[,] m = new double[N, N];
         for (int k = 0; k < N; k++)
             for (int x = 0; x < N; x++)
                 m[k, x] = Math.Cos(Math.PI * (2 * x + 1) * k / (2.0 * N));
@@ -55,7 +55,7 @@ internal static class PerceptualHash
     private static bool[] PHash(byte[] png)
     {
         double[,] g = new double[N, N];
-        using (var im = Image.Load<Rgba32>(png))
+        using (Image<Rgba32> im = Image.Load<Rgba32>(png))
         {
             int H = im.Height, W = im.Width;
             int[] rowCell = CellMap(H), colCell = CellMap(W);
@@ -66,7 +66,7 @@ internal static class PerceptualHash
                 int ci = rowCell[y];
                 for (int x = 0; x < W; x++)
                 {
-                    var p = im[x, y];
+                    Rgba32 p = im[x, y];
                     int cj = colCell[x];
                     sum[ci, cj] += (p.R * 299 + p.G * 587 + p.B * 114) / 1000.0;  // ITU-R 601 luma
                     cnt[ci, cj]++;

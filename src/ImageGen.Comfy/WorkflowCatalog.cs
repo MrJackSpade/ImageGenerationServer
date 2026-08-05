@@ -1,8 +1,7 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
-using ImageGen.Application.Rendering;
+﻿using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace ImageGen.Comfy;
 
@@ -59,7 +58,7 @@ public sealed class WorkflowCatalog
 
     public WorkflowCatalog(ComfyOptions config, ILogger<WorkflowCatalog> log)
     {
-        var root = config.CatalogPath;
+        string root = config.CatalogPath;
         _workflowsDir = root.Length == 0 ? "" : Path.Combine(root, CatalogText.WorkflowsSection);
         _modelsDir = root.Length == 0 ? "" : Path.Combine(root, CatalogText.ModelsSection);
         _log = log;
@@ -73,7 +72,7 @@ public sealed class WorkflowCatalog
     /// </summary>
     public void SetBindings(IReadOnlyDictionary<string, string> bindings)
     {
-        var copy = new Dictionary<string, string>(bindings, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> copy = new Dictionary<string, string>(bindings, StringComparer.OrdinalIgnoreCase);
         lock (_lock) _bindings = copy;
     }
 
@@ -88,11 +87,11 @@ public sealed class WorkflowCatalog
     /// </summary>
     public void SetParamOverrides(IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> overrides)
     {
-        var copy = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (configId, settings) in overrides)
+        Dictionary<string, Dictionary<string, JsonElement>> copy = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string? configId, IReadOnlyDictionary<string, string>? settings) in overrides)
         {
-            var parsed = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (key, raw) in settings)
+            Dictionary<string, JsonElement> parsed = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string? key, string? raw) in settings)
             {
                 if (!key.StartsWith(CatalogText.ParamPrefix, StringComparison.OrdinalIgnoreCase)) continue;
                 parsed[key[CatalogText.ParamPrefix.Length..]] = AsJson(raw);
@@ -106,7 +105,7 @@ public sealed class WorkflowCatalog
     public IReadOnlyDictionary<string, JsonElement> ParamOverridesFor(string configId)
     {
         lock (_lock)
-            return _paramOverrides.TryGetValue(configId, out var v)
+            return _paramOverrides.TryGetValue(configId, out Dictionary<string, JsonElement>? v)
                 ? v
                 : (IReadOnlyDictionary<string, JsonElement>)new Dictionary<string, JsonElement>();
     }
@@ -125,8 +124,8 @@ public sealed class WorkflowCatalog
         ReloadIfChanged();
         lock (_lock)
         {
-            if (_byId.TryGetValue(id, out var c)) return c;
-            foreach (var kv in _byId)
+            if (_byId.TryGetValue(id, out WorkflowConfiguration? c)) return c;
+            foreach (KeyValuePair<string, WorkflowConfiguration> kv in _byId)
                 if (kv.Key.Contains(id, StringComparison.OrdinalIgnoreCase)
                     || id.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
                     return kv.Value;
@@ -142,7 +141,7 @@ public sealed class WorkflowCatalog
     {
         if (string.IsNullOrWhiteSpace(slotId)) return "";
         ReloadIfChanged();
-        lock (_lock) return _bindings.TryGetValue(slotId, out var f) ? f : "";
+        lock (_lock) return _bindings.TryGetValue(slotId, out string? f) ? f : "";
     }
 
     /// <summary>
@@ -158,14 +157,14 @@ public sealed class WorkflowCatalog
     /// </summary>
     public void ResolveModelRefs(IWorkflow wf, string configId, IDictionary<string, object?> v)
     {
-        foreach (var spec in wf.Schema)
+        foreach (ParamSpec spec in wf.Schema)
         {
-            if (!spec.IsModelRef || !v.TryGetValue(spec.Key, out var raw)) continue;
-            var slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
+            if (!spec.IsModelRef || !v.TryGetValue(spec.Key, out object? raw)) continue;
+            string? slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
                                              : raw as string;
             // Not set at all is legitimate — an optional LoRA is absent, not unbound. Set-but-unresolvable is not.
             if (string.IsNullOrWhiteSpace(slot)) continue;
-            var file = ResolveSlot(slot);
+            string file = ResolveSlot(slot);
             if (string.IsNullOrWhiteSpace(file))
                 throw new RenderValidationException(
                     $"Configuration '{configId}' needs a file for '{slot}' ({spec.Key}), and this machine has none bound. "
@@ -186,14 +185,14 @@ public sealed class WorkflowCatalog
     /// </summary>
     public IEnumerable<string> ModelRefSlots(IWorkflow wf, WorkflowConfiguration cfg)
     {
-        var overrides = ParamOverridesFor(cfg.Id);
-        foreach (var spec in wf.Schema)
+        IReadOnlyDictionary<string, JsonElement> overrides = ParamOverridesFor(cfg.Id);
+        foreach (ParamSpec spec in wf.Schema)
         {
             if (!spec.IsModelRef) continue;
-            object? raw = overrides.TryGetValue(spec.Key, out var ov) ? ov
-                        : cfg.Params.TryGetValue(spec.Key, out var cp) ? cp.Value
+            object? raw = overrides.TryGetValue(spec.Key, out JsonElement ov) ? ov
+                        : cfg.Params.TryGetValue(spec.Key, out ConfigParam? cp) ? cp.Value
                         : null;
-            var slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
+            string? slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
                                              : raw as string;
             if (!string.IsNullOrWhiteSpace(slot)) yield return slot;
         }
@@ -229,7 +228,7 @@ public sealed class WorkflowCatalog
         {
             // A slot resolves to whatever THIS MACHINE has bound to it. An unbound slot yields an empty filename;
             // presence-gating will already have hidden the configuration, and the diagnostics list says which slot.
-            string Name(string? rid) => rid is not null && _bindings.TryGetValue(rid, out var f) ? f : "";
+            string Name(string? rid) => rid is not null && _bindings.TryGetValue(rid, out string? f) ? f : "";
             return new ResolvedRequirements
             {
                 Checkpoint = Name(cfg.Requirements.Checkpoint),
@@ -268,11 +267,11 @@ public sealed class WorkflowCatalog
     /// catalog mid-save — so only a present file with a moved stamp counts.</summary>
     private void ReloadIfChanged()
     {
-        var wfNow = PresentStamp(_workflowsDir);
-        var reqNow = PresentStamp(_modelsDir);
+        (DateTime, int)? wfNow = PresentStamp(_workflowsDir);
+        (DateTime, int)? reqNow = PresentStamp(_modelsDir);
         lock (_reloadGate)
         {
-            var changed = (wfNow is { } w && w != _wfStamp) || (reqNow is { } r && r != _modelStamp);
+            bool changed = (wfNow is { } w && w != _wfStamp) || (reqNow is { } r && r != _modelStamp);
             if (!changed) return;
             if (_badVersion == (wfNow, reqNow)) return;   // this exact version already failed and was reported
 
@@ -305,12 +304,12 @@ public sealed class WorkflowCatalog
     private static (DateTime, int)? PresentStamp(string dir)
     {
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return null;
-        var newest = DateTime.MinValue;
-        var count = 0;
-        foreach (var file in Directory.EnumerateFiles(dir, CatalogText.JsonGlob))
+        DateTime newest = DateTime.MinValue;
+        int count = 0;
+        foreach (string file in Directory.EnumerateFiles(dir, CatalogText.JsonGlob))
         {
             count++;
-            var written = File.GetLastWriteTimeUtc(file);
+            DateTime written = File.GetLastWriteTimeUtc(file);
             if (written > newest) newest = written;
         }
         return (newest, count);
@@ -322,16 +321,16 @@ public sealed class WorkflowCatalog
     private void Load()
     {
         // Models first (configurations link to them by slot id).
-        var reqById = new Dictionary<string, Requirement>(StringComparer.OrdinalIgnoreCase);
-        var modelStamp = _modelStamp;
+        Dictionary<string, Requirement> reqById = new Dictionary<string, Requirement>(StringComparer.OrdinalIgnoreCase);
+        (DateTime Newest, int Count) modelStamp = _modelStamp;
         if (RequireConfiguredDirectory(_modelsDir, CatalogText.ModelsSection))
         {
             modelStamp = PresentStamp(_modelsDir)
                 ?? throw new InvalidOperationException($"The models catalog directory vanished while loading: {_modelsDir}");
-            var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (path, dto) in ReadAll(_modelsDir, CatalogJsonContext.Default.ModelFileDto))
+            Dictionary<string, string> seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string? path, ModelFileDto? dto) in ReadAll(_modelsDir, CatalogJsonContext.Default.ModelFileDto))
             {
-                var id = dto.Id;
+                string? id = dto.Id;
                 if (string.IsNullOrEmpty(id))
                     throw new InvalidOperationException($"{path}: a model file must have an 'id'.");
                 RequireIdMatchesFileName(path, id);
@@ -348,18 +347,18 @@ public sealed class WorkflowCatalog
             }
         }
 
-        var byId = new Dictionary<string, WorkflowConfiguration>(StringComparer.OrdinalIgnoreCase);
-        var all = new List<WorkflowConfiguration>();
-        var wfStamp = _wfStamp;
+        Dictionary<string, WorkflowConfiguration> byId = new Dictionary<string, WorkflowConfiguration>(StringComparer.OrdinalIgnoreCase);
+        List<WorkflowConfiguration> all = new List<WorkflowConfiguration>();
+        (DateTime Newest, int Count) wfStamp = _wfStamp;
         if (RequireConfiguredDirectory(_workflowsDir, CatalogText.WorkflowsSection))
         {
             wfStamp = PresentStamp(_workflowsDir)
                 ?? throw new InvalidOperationException($"The workflows catalog directory vanished while loading: {_workflowsDir}");
-            var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (path, dto) in ReadAll(_workflowsDir, CatalogJsonContext.Default.WorkflowFileDto))
+            Dictionary<string, string> seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string? path, WorkflowFileDto? dto) in ReadAll(_workflowsDir, CatalogJsonContext.Default.WorkflowFileDto))
             {
-                var id = dto.Id;
-                var wf = dto.Workflow;
+                string? id = dto.Id;
+                string? wf = dto.Workflow;
                 // A configuration with no id or no workflow class cannot run, and dropping it silently is
                 // indistinguishable from this box not being able to afford it.
                 if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(wf))
@@ -367,7 +366,7 @@ public sealed class WorkflowCatalog
                 RequireIdMatchesFileName(path, id);
                 RequireUnique(seen, id, path, CatalogText.WorkflowEntity);
 
-                var entry = BuildConfiguration(dto, id, wf);
+                WorkflowConfiguration entry = BuildConfiguration(dto, id, wf);
                 all.Add(entry);
                 byId[id] = entry;
             }
@@ -396,7 +395,7 @@ public sealed class WorkflowCatalog
     /// </summary>
     private IEnumerable<(string Path, T Dto)> ReadAll<T>(string dir, JsonTypeInfo<T> type)
     {
-        foreach (var path in Directory.EnumerateFiles(dir, CatalogText.JsonGlob).OrderBy(p => p, StringComparer.Ordinal))
+        foreach (string? path in Directory.EnumerateFiles(dir, CatalogText.JsonGlob).OrderBy(p => p, StringComparer.Ordinal))
         {
             T? dto;
             try
@@ -427,7 +426,7 @@ public sealed class WorkflowCatalog
     /// </summary>
     private static void RequireIdMatchesFileName(string path, string id)
     {
-        var stem = Path.GetFileNameWithoutExtension(path);
+        string stem = Path.GetFileNameWithoutExtension(path);
         if (!string.Equals(stem, id, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 $"{path}: the file is named '{stem}' but declares id '{id}'. Rename one to match the other.");
@@ -439,7 +438,7 @@ public sealed class WorkflowCatalog
     /// </summary>
     private static void RequireUnique(Dictionary<string, string> seen, string id, string path, string what)
     {
-        if (seen.TryGetValue(id, out var first))
+        if (seen.TryGetValue(id, out string? first))
             throw new InvalidOperationException($"Two {what} files declare id '{id}': {first} and {path}.");
         seen[id] = path;
     }
@@ -458,7 +457,7 @@ public sealed class WorkflowCatalog
 
     private static WorkflowConfiguration BuildConfiguration(WorkflowFileDto c, string id, string workflow)
     {
-        var rl = c.Requirements is { } r
+        RequirementLinks rl = c.Requirements is { } r
             ? new RequirementLinks
             {
                 Checkpoint = r.Checkpoint ?? "",
@@ -470,9 +469,9 @@ public sealed class WorkflowCatalog
             }
             : new RequirementLinks();
 
-        var pars = new Dictionary<string, ConfigParam>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, ConfigParam> pars = new Dictionary<string, ConfigParam>(StringComparer.OrdinalIgnoreCase);
         if (c.Params is { } pmap)
-            foreach (var (name, p) in pmap)
+            foreach ((string? name, ConfigParamDto? p) in pmap)
                 pars[name] = new ConfigParam
                 {
                     Value = CloneValue(p.Value),
@@ -500,11 +499,11 @@ public sealed class WorkflowCatalog
 
     private static ModelCard BuildCard(CardDto? m, string id, string? friendlyName)
     {
-        var prompt = m?.Prompt;
-        var speed = m?.Speed;
-        var negative = m?.Negative;
-        var ui = m?.UiHelp;
-        var reference = m?.Reference;
+        PromptDto? prompt = m?.Prompt;
+        SpeedDto? speed = m?.Speed;
+        NegativeDto? negative = m?.Negative;
+        UiHelpDto? ui = m?.UiHelp;
+        ReferenceDto? reference = m?.Reference;
         return new ModelCard
         {
             Name = id,
@@ -593,7 +592,7 @@ public sealed class WorkflowCatalog
         JsonValueKind.True => true,
         JsonValueKind.False => false,
         JsonValueKind.Null => null,
-        JsonValueKind.Number => v.TryGetInt64(out var l) ? l : v.GetDouble(),
+        JsonValueKind.Number => v.TryGetInt64(out long l) ? l : v.GetDouble(),
         _ => v.Clone()   // object / array (e.g. the aspect dims map, reference_inputs list)
     };
 

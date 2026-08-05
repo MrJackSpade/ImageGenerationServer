@@ -36,7 +36,7 @@ public sealed class MachineSettingsController(MachineConfigService machine, Comf
     public async Task<IActionResult> Put([FromBody] SettingWrite body, CancellationToken ct)
     {
         if (body is null || string.IsNullOrWhiteSpace(body.Key)) return BadRequest(new { error = "A key is required." });
-        var spec = MachineSettingSpecs.Find(body.Key);
+        MachineSettingSpec? spec = MachineSettingSpecs.Find(body.Key);
         if (spec is null) return BadRequest(new { error = $"'{body.Key}' is not a machine setting." });
         if (spec.Required && string.IsNullOrWhiteSpace(body.Value))
             return BadRequest(new { error = $"{spec.Label} is required and cannot be cleared." });
@@ -52,7 +52,7 @@ public sealed class MachineSettingsController(MachineConfigService machine, Comf
     [HttpPost("probe")]
     public async Task<IActionResult> Probe([FromBody] ProbeRequest body, CancellationToken ct)
     {
-        var result = await _probe.TryAsync(body?.Url, ct);
+        ProbeResult result = await _probe.TryAsync(body?.Url, ct);
         return Json(new { ok = result.Ok, error = result.Error });
     }
 }

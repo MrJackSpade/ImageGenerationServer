@@ -1,8 +1,8 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using System.Collections.Immutable;
 
 namespace ImageGen.Analyzers;
 
@@ -49,7 +49,7 @@ public sealed class NullForgivingOperatorAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static void AnalyzeSuppression(SyntaxNodeAnalysisContext context)
     {
-        var suppression = (PostfixUnaryExpressionSyntax)context.Node;
+        PostfixUnaryExpressionSyntax suppression = (PostfixUnaryExpressionSyntax)context.Node;
         context.ReportDiagnostic(Diagnostic.Create(Rule, suppression.OperatorToken.GetLocation()));
     }
 }

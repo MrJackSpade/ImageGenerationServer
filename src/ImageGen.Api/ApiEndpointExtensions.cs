@@ -1,8 +1,5 @@
 using ImageGen.Api.Auth;
 using ImageGen.Api.Endpoints;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
 
 namespace ImageGen.Api;
 
@@ -37,7 +34,7 @@ public static class ApiEndpointExtensions
     public static void MapImageGenApi(this IEndpointRouteBuilder app)
     {
         // Client-side action endpoints.
-        var api = app.MapGroup(Routes.ApiBase).RequireAuthorization();
+        RouteGroupBuilder api = app.MapGroup(Routes.ApiBase).RequireAuthorization();
         api.MapHistoryEndpoints();
         api.MapBookmarkEndpoints();
         api.MapBanEndpoints();
@@ -49,15 +46,15 @@ public static class ApiEndpointExtensions
 
         // The render backend under /forge. Gated: the caller must be authenticated (a login cookie or a per-user
         // X-Api-Key). Every job is owned by that real user; the resolved id + caller scope are stashed for the queue.
-        var forge = app.MapGroup(ForgeApi.PublicBase);
+        RouteGroupBuilder forge = app.MapGroup(ForgeApi.PublicBase);
         forge.AddEndpointFilter(async (ctx, next) =>
         {
-            var http = ctx.HttpContext;
+            HttpContext http = ctx.HttpContext;
             // Endpoints opting out (e.g. /healthz for liveness probes) skip the auth gate entirely.
             if (http.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
                 return await next(ctx);
             if (http.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
-            var owner = http.User.GetUserId();
+            long? owner = http.User.GetUserId();
             if (owner is null) return Results.Unauthorized();
             http.Items[RequestItems.OwnerUserId] = owner.Value;
             // API-key callers (flagged by the API-key middleware) get the api-visible list; browsers the ui-visible list.

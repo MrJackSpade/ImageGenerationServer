@@ -25,10 +25,10 @@ public sealed class LtxvI2VWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out _, out var vae0);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out _, out object? vae0);
         model0 = ComfyGraph.ApplyLora(wf, model0, p);   // optional anime-style LoRA on the LTX model
-        var seed = ComfyGraph.Seed(p);
+        long seed = ComfyGraph.Seed(p);
         int frames = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         // LTX loads its own external T5 (clip_type "ltxv").

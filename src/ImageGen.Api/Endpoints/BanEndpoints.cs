@@ -1,7 +1,8 @@
-using ImageGen.Application.Services;
-using ImageGen.Domain;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Services;
+using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 
 namespace ImageGen.Api.Endpoints;
 
@@ -14,9 +15,9 @@ public static class BanEndpoints
         // path resolves bans in the worker rather than having the browser hand them over.
         api.MapGet(Routes.BansAll, async (HttpContext context, BanService bans) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var list = await bans.GetAllAsync(userId, context.RequestAborted);
-            var groups = list
+            long userId = context.User.GetRequiredUserId();
+            IReadOnlyList<BannedToken> list = await bans.GetAllAsync(userId, context.RequestAborted);
+            List<ModelBansGroup> groups = list
                 .GroupBy(b => b.ModelId, StringComparer.Ordinal)
                 .Select(g => new ModelBansGroup
                 {
@@ -30,20 +31,20 @@ public static class BanEndpoints
 
         api.MapPost(Routes.Bans, async (HttpContext context, BanService bans) =>
         {
-            var request = await Json.ReadAsync<BanRequest>(context);
+            BanRequest? request = await Json.ReadAsync<BanRequest>(context);
             if (request is null || string.IsNullOrWhiteSpace(request.ModelId) || string.IsNullOrWhiteSpace(request.Name))
                 return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
-            var added = await bans.AddAsync(
+            long userId = context.User.GetRequiredUserId();
+            bool added = await bans.AddAsync(
                 userId, request.ModelId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         api.MapDelete(Routes.Bans, async (HttpContext context, BanService bans, string modelId, string name, string kind) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var removed = await bans.RemoveAsync(
+            long userId = context.User.GetRequiredUserId();
+            bool removed = await bans.RemoveAsync(
                 userId, modelId, name, WireMapping.ParseKind(kind), context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });

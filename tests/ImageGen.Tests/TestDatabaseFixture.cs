@@ -5,8 +5,8 @@ using ImageGen.Infrastructure;
 using ImageGen.Infrastructure.Database;
 using ImageGen.Infrastructure.Repositories;
 using ImageGen.Infrastructure.Security;
-using Microsoft.Data.Sqlite;
 using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
 
 namespace ImageGen.Tests;
 
@@ -89,7 +89,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     {
         if (Provider == DatabaseProvider.SqlServer)
         {
-            await using var master = new SqlConnection(MasterConnectionString);
+            await using SqlConnection master = new SqlConnection(MasterConnectionString);
             await master.OpenAsync();
             await DropSqlServerTestDbAsync(master);
             await Exec(master, "CREATE DATABASE ImageGenTest");
@@ -103,7 +103,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     {
         if (Provider == DatabaseProvider.SqlServer)
         {
-            await using var master = new SqlConnection(MasterConnectionString);
+            await using SqlConnection master = new SqlConnection(MasterConnectionString);
             await master.OpenAsync();
             await DropSqlServerTestDbAsync(master);
             return;
@@ -111,7 +111,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
 
         // Release the native file handles before deleting, or the WAL/SHM siblings stay locked on Windows.
         SqliteConnection.ClearAllPools();
-        foreach (var file in new[] { _sqliteDbPath, _sqliteDbPath + "-wal", _sqliteDbPath + "-shm" })
+        foreach (string? file in new[] { _sqliteDbPath, _sqliteDbPath + "-wal", _sqliteDbPath + "-shm" })
         {
             // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
             try { if (File.Exists(file)) File.Delete(file); }
@@ -132,7 +132,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
 
     private static async Task Exec(SqlConnection connection, string sql)
     {
-        await using var command = new SqlCommand(sql, connection);
+        await using SqlCommand command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
     }
 }

@@ -214,18 +214,18 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
 
     public override ConfigParamDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        using var doc = JsonDocument.ParseValue(ref reader);
-        var pv = doc.RootElement;
+        using JsonDocument doc = JsonDocument.ParseValue(ref reader);
+        JsonElement pv = doc.RootElement;
 
-        if (pv.ValueKind == JsonValueKind.Object && pv.TryGetProperty(EnvelopeMember.Value, out var value))
+        if (pv.ValueKind == JsonValueKind.Object && pv.TryGetProperty(EnvelopeMember.Value, out JsonElement value))
         {
-            foreach (var member in pv.EnumerateObject())
+            foreach (JsonProperty member in pv.EnumerateObject())
                 if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Exposed or EnvelopeMember.Min or EnvelopeMember.Max or EnvelopeMember.Step))
                     throw new JsonException(
                         $"Unknown key '{member.Name}' in a parameter envelope. A wrapped parameter may declare only "
                         + "value, exposed, min, max and step.");
 
-            bool? exposed = pv.TryGetProperty(EnvelopeMember.Exposed, out var e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False
+            bool? exposed = pv.TryGetProperty(EnvelopeMember.Exposed, out JsonElement e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False
                 ? e.GetBoolean()
                 : null;
             return new ConfigParamDto
@@ -247,5 +247,5 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
         throw new NotSupportedException("The catalog is read-only; configuration params are never serialized out.");
 
     private static double? Number(JsonElement e, string key) =>
-        e.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+        e.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
 }

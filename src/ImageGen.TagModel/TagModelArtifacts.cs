@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
-using System.Text.Json;
 using ImageGen.Domain.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace ImageGen.TagModel;
 
@@ -44,19 +44,19 @@ public static class TagModelArtifacts
     [AllowMagicStrings("log message templates")]
     public static async Task EnsureAsync(HttpClient http, ILogger logger, CancellationToken ct)
     {
-        var directory = TagModelServiceCollectionExtensions.ArtifactsDirectory;
+        string directory = TagModelServiceCollectionExtensions.ArtifactsDirectory;
         Directory.CreateDirectory(directory);
 
         // The manifest carries the size and hash every other file is checked against, so it comes first — and it is
         // re-fetched every time, because it is small and it is what tells us whether the rest is current.
-        var manifestPath = Path.Combine(directory, ManifestFileName);
+        string manifestPath = Path.Combine(directory, ManifestFileName);
         await DownloadAsync(http, ManifestFileName, manifestPath, logger, ct);
 
-        var files = ReadManifest(manifestPath);
-        var fetched = 0;
-        foreach (var (name, entry) in files)
+        Dictionary<string, ManifestEntry> files = ReadManifest(manifestPath);
+        int fetched = 0;
+        foreach ((string? name, ManifestEntry? entry) in files)
         {
-            var target = Path.Combine(directory, name);
+            string target = Path.Combine(directory, name);
             if (File.Exists(target) && new FileInfo(target).Length == entry.Bytes) continue;
 
             if (fetched == 0)
@@ -70,14 +70,14 @@ public static class TagModelArtifacts
 
     private static Dictionary<string, ManifestEntry> ReadManifest(string path)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        if (!document.RootElement.TryGetProperty(FilesProperty, out var files))
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        if (!document.RootElement.TryGetProperty(FilesProperty, out JsonElement files))
             throw new InvalidDataException($"'{path}' has no 'files' section; it is not a tag model manifest.");
 
-        var result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
-        foreach (var file in files.EnumerateObject())
+        Dictionary<string, ManifestEntry> result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
+        foreach (JsonProperty file in files.EnumerateObject())
         {
-            var sha256 = file.Value.GetProperty(Sha256Property).GetString();
+            string? sha256 = file.Value.GetProperty(Sha256Property).GetString();
             if (string.IsNullOrEmpty(sha256))
                 throw new InvalidDataException(
                     $"'{path}': manifest entry '{file.Name}' has no sha256. Every artifact must carry a checksum — "
@@ -91,22 +91,22 @@ public static class TagModelArtifacts
     private static async Task DownloadAsync(
         HttpClient http, string name, string target, ILogger logger, CancellationToken ct, ManifestEntry? expected = null)
     {
-        var partial = target + ".part";
+        string partial = target + ".part";
         logger.LogInformation("Tag model: downloading {Name}.", name);
         try
         {
-            using (var response = await http.GetAsync($"{PublishedAt}/{name}", HttpCompletionOption.ResponseHeadersRead, ct))
+            using (HttpResponseMessage response = await http.GetAsync($"{PublishedAt}/{name}", HttpCompletionOption.ResponseHeadersRead, ct))
             {
                 response.EnsureSuccessStatusCode();
-                await using var source = await response.Content.ReadAsStreamAsync(ct);
-                await using var destination = File.Create(partial);
+                await using Stream source = await response.Content.ReadAsStreamAsync(ct);
+                await using FileStream destination = File.Create(partial);
                 await source.CopyToAsync(destination, ct);
             }
 
             if (expected is not null && !string.IsNullOrEmpty(expected.Sha256))
             {
-                await using var stream = File.OpenRead(partial);
-                var actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
+                await using FileStream stream = File.OpenRead(partial);
+                string actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
                 if (!string.Equals(actual, expected.Sha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException(
                         $"'{name}' failed its checksum (expected {expected.Sha256}, got {actual}).");

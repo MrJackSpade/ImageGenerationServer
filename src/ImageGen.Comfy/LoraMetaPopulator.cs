@@ -1,12 +1,10 @@
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Threading.Channels;
 using ImageGen.Application.Civitai;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Threading.Channels;
 
 namespace ImageGen.Comfy;
 
@@ -42,14 +40,14 @@ public sealed class LoraMetaPopulator(
         // Off means never touch CivitAI — the same gate the lookup itself enforces, applied here so nothing queues.
         if (!civitai.IsEnabled())
             return;
-        foreach (var name in loraNames)
+        foreach (string name in loraNames)
             if (!string.IsNullOrWhiteSpace(name) && _queued.TryAdd(name, 0))
                 _queue.Writer.TryWrite(name);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var name in _queue.Reader.ReadAllAsync(stoppingToken))
+        await foreach (string name in _queue.Reader.ReadAllAsync(stoppingToken))
         {
             try
             {
@@ -75,11 +73,11 @@ public sealed class LoraMetaPopulator(
 
     private async Task PopulateOneAsync(string name, CancellationToken ct)
     {
-        await using var scope = scopes.CreateAsyncScope();
-        var meta = scope.ServiceProvider.GetRequiredService<ILoraMetaRepository>();
-        var previews = scope.ServiceProvider.GetRequiredService<ILoraPreviewRepository>();
+        await using AsyncServiceScope scope = scopes.CreateAsyncScope();
+        ILoraMetaRepository meta = scope.ServiceProvider.GetRequiredService<ILoraMetaRepository>();
+        ILoraPreviewRepository previews = scope.ServiceProvider.GetRequiredService<ILoraPreviewRepository>();
 
-        var existing = (await meta.GetManyAsync([name], ct)).GetValueOrDefault(name);
+        LoraMeta? existing = (await meta.GetManyAsync([name], ct)).GetValueOrDefault(name);
         if (existing is not null)
         {
             // Already cached. The only thing that might still be missing is the preview BYTES — a row can hold a CDN
@@ -95,7 +93,7 @@ public sealed class LoraMetaPopulator(
             return;
         }
 
-        var path = ResolveOnDisk(await LoraRootsAsync(ct), name);
+        string? path = ResolveOnDisk(await LoraRootsAsync(ct), name);
         if (path is null)
         {
             // Enumerated by ComfyUI but not resolvable on this box (a remote renderer). Record an empty row so the
@@ -105,15 +103,15 @@ public sealed class LoraMetaPopulator(
         }
 
         string sha;
-        await using (var fs = File.OpenRead(path))
-        using (var alg = SHA256.Create())
+        await using (FileStream fs = File.OpenRead(path))
+        using (SHA256 alg = SHA256.Create())
             sha = Convert.ToHexString(await alg.ComputeHashAsync(fs, ct));
 
-        var info = await civitai.LookupByHashAsync(sha, ct);
+        CivitaiLoraInfo? info = await civitai.LookupByHashAsync(sha, ct);
         // Preview first, row last: once the row exists, its promised preview is already on disk. The URL is kept ONLY
         // when its bytes were actually cached, so "row exists + PreviewUrl set" always implies a served preview — that
         // invariant is what lets the client stop polling exactly when the card is fully populated.
-        var cached = !string.IsNullOrEmpty(info?.PreviewImageUrl)
+        bool cached = !string.IsNullOrEmpty(info?.PreviewImageUrl)
                      && await CachePreviewAsync(previews, name, info.PreviewImageUrl, ct);
         await meta.UpsertAsync(
             new LoraMeta(name, sha, info?.TrainedWords ?? [], info?.ModelName, cached ? info?.PreviewImageUrl : null, DateTime.UtcNow), ct);
@@ -121,7 +119,7 @@ public sealed class LoraMetaPopulator(
 
     private async Task<bool> CachePreviewAsync(ILoraPreviewRepository previews, string name, string url, CancellationToken ct)
     {
-        var p = await civitai.DownloadPreviewAsync(url, ct);
+        CivitaiPreview? p = await civitai.DownloadPreviewAsync(url, ct);
         if (p is null)
             return false;
         await previews.UpsertAsync(name, p.Bytes, p.ContentType, DateTime.UtcNow, ct);
@@ -132,15 +130,15 @@ public sealed class LoraMetaPopulator(
     {
         if (_loraRoots is not null)
             return _loraRoots;
-        var folders = await comfy.GetFolderPathsAsync(ct);
-        return _loraRoots = folders.TryGetValue(LorasFolderKey, out var roots) ? roots : [];
+        IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await comfy.GetFolderPathsAsync(ct);
+        return _loraRoots = folders.TryGetValue(LorasFolderKey, out IReadOnlyList<string>? roots) ? roots : [];
     }
 
     private static string? ResolveOnDisk(IReadOnlyList<string> roots, string name)
     {
-        foreach (var root in roots)
+        foreach (string root in roots)
         {
-            var candidate = Path.Combine(root, name);
+            string candidate = Path.Combine(root, name);
             if (File.Exists(candidate)) return candidate;
         }
         return null;

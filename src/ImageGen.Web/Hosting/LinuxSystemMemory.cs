@@ -1,5 +1,5 @@
-using System.Globalization;
 using ImageGen.Application.Platform;
+using System.Globalization;
 
 namespace ImageGen.Web.Hosting;
 
@@ -40,14 +40,14 @@ public sealed class LinuxSystemMemory : ISystemMemory
             throw new InvalidOperationException($"could not read {MemInfoPath}; available memory is unknown.", ex);
         }
 
-        foreach (var line in lines)
+        foreach (string line in lines)
         {
             if (!line.StartsWith(MemAvailablePrefix, StringComparison.Ordinal))
                 continue;
 
             // "MemAvailable:    1234567 kB"
-            var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (fields.Length >= 2 && long.TryParse(fields[1], CultureInfo.InvariantCulture, out var kilobytes))
+            string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (fields.Length >= 2 && long.TryParse(fields[1], CultureInfo.InvariantCulture, out long kilobytes))
                 return kilobytes * 1024L;
 
             throw new InvalidOperationException($"could not parse '{line}' from {MemInfoPath}.");

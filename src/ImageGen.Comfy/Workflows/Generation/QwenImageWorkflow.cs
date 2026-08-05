@@ -7,4 +7,4 @@
 /// their configs gate themselves to 24GB via min_vram_mb. The HiDream / SD3.5-triple-CLIP / Chroma topologies need
 /// their own graphs — see HighVramWorkflows.cs.
 /// </summary>
-public sealed class QwenImageWorkflow   : Txt2ImgWorkflowBase { public override string Name => "qwen-image"; }
+public sealed class QwenImageWorkflow : Txt2ImgWorkflowBase { public override string Name => "qwen-image"; }

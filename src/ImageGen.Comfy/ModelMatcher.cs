@@ -42,8 +42,8 @@ public static class ModelMatcher
     /// <summary>Compiles a slot's patterns. Throws <see cref="ArgumentException"/> naming the bad pattern.</summary>
     public static IReadOnlyList<Regex> Compile(MatchableSlot slot)
     {
-        var compiled = new List<Regex>(slot.Patterns.Count);
-        foreach (var pattern in slot.Patterns)
+        List<Regex> compiled = new List<Regex>(slot.Patterns.Count);
+        foreach (string pattern in slot.Patterns)
         {
             try
             {
@@ -76,33 +76,33 @@ public static class ModelMatcher
         IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> filesByKind)
     {
         // Pass one: what does each slot recognise?
-        var hits = new List<(MatchableSlot Slot, List<string> Files)>();
-        foreach (var slot in slots)
+        List<(MatchableSlot Slot, List<string> Files)> hits = new List<(MatchableSlot Slot, List<string> Files)>();
+        foreach (MatchableSlot slot in slots)
         {
             if (slot.Patterns.Count == 0) continue;
-            if (!filesByKind.TryGetValue(slot.Kind, out var files) || files.Count == 0) continue;
+            if (!filesByKind.TryGetValue(slot.Kind, out IReadOnlyList<string>? files) || files.Count == 0) continue;
 
-            var regexes = Compile(slot);
-            var matched = files.Where(f => regexes.Any(rx => rx.IsMatch(Stem(f)))).ToList();
+            IReadOnlyList<Regex> regexes = Compile(slot);
+            List<string> matched = files.Where(f => regexes.Any(rx => rx.IsMatch(Stem(f)))).ToList();
             if (matched.Count > 0) hits.Add((slot, matched));
         }
 
         // Pass two: how many slots of the same kind claim each file? A file two slots both recognise means the
         // patterns are too loose, and picking one of them silently would hide a catalogue bug on the user's disk.
-        var claims = new Dictionary<(RequirementKind, string), int>();
-        foreach (var (slot, files) in hits)
-            foreach (var f in files)
+        Dictionary<(RequirementKind, string), int> claims = new Dictionary<(RequirementKind, string), int>();
+        foreach ((MatchableSlot? slot, List<string>? files) in hits)
+            foreach (string f in files)
             {
-                var key = (slot.Kind, f);
-                claims[key] = claims.TryGetValue(key, out var n) ? n + 1 : 1;
+                (RequirementKind Kind, string f) key = (slot.Kind, f);
+                claims[key] = claims.TryGetValue(key, out int n) ? n + 1 : 1;
             }
 
         return hits.Select(h =>
         {
             // Bind only on a clean one-to-one: this slot recognised exactly one file, and nothing else of the
             // same kind recognised it either.
-            var only = h.Files.Count == 1 ? h.Files[0] : null;
-            var auto = only is not null && claims[(h.Slot.Kind, only)] == 1 ? only : null;
+            string? only = h.Files.Count == 1 ? h.Files[0] : null;
+            string? auto = only is not null && claims[(h.Slot.Kind, only)] == 1 ? only : null;
             return new SlotMatch(h.Slot.Id, h.Files, auto);
         }).ToList();
     }
@@ -116,7 +116,7 @@ public static class ModelMatcher
         // Only the final extension, and only a short one: "Wan2.2-TI2V-5B-Q4_K_M.gguf" must lose ".gguf" and keep
         // the version dots, which Path.GetFileNameWithoutExtension would also do — but a name with no extension at
         // all (a custom-node directory, which the catalogue does carry) must survive untouched.
-        var dot = fileName.LastIndexOf('.');
+        int dot = fileName.LastIndexOf('.');
         if (dot <= 0 || fileName.Length - dot > 12) return fileName;
         return fileName[..dot];
     }

@@ -32,7 +32,7 @@ public static class AppVersion
         //
         // InformationalVersion rather than AssemblyVersion: it carries <Version> verbatim (plus a "+<commit>"
         // the SDK appends) instead of being truncated to four numeric parts.
-        var informational = typeof(AppVersion).Assembly
+        string? informational = typeof(AppVersion).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
         return Parse(informational);
@@ -52,18 +52,18 @@ public static class AppVersion
         // with no tag), NOT a parse failure to be conflated with the malformed case below.
         if (string.IsNullOrWhiteSpace(text)) return null;
 
-        var value = text.Trim();
+        string value = text.Trim();
         if (value.StartsWith('v') || value.StartsWith('V')) value = value[1..];
 
-        var plus = value.IndexOf('+');
+        int plus = value.IndexOf('+');
         if (plus >= 0) value = value[..plus];
 
-        var dash = value.IndexOf('-');
+        int dash = value.IndexOf('-');
         if (dash >= 0) value = value[..dash];
 
         // Present but not a version is MALFORMED, not "no version": a version string that will not parse is a broken
         // tag or a broken build stamp, and returning null here would launder that into silence. Surface it.
-        if (!Version.TryParse(value, out var parsed))
+        if (!Version.TryParse(value, out Version? parsed))
             throw new FormatException(
                 $"'{text}' is not a version — '{value}' does not parse as major.minor[.build[.revision]].");
 
@@ -82,11 +82,11 @@ public static class AppVersion
     public static bool IsPrerelease(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
-        var value = text.Trim();
+        string value = text.Trim();
         if (value.StartsWith('v') || value.StartsWith('V')) value = value[1..];
         // Strip build metadata FIRST — it follows '+' and may itself contain '-' (e.g. a commit-ish), which is not a
         // pre-release marker. What remains carries a '-' only when there is a genuine pre-release suffix.
-        var plus = value.IndexOf('+');
+        int plus = value.IndexOf('+');
         if (plus >= 0) value = value[..plus];
         return value.Contains('-');
     }

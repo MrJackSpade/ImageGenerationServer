@@ -43,18 +43,18 @@ public sealed class TagVocab
         RowCount = rowCount;
 
         _byName = new Dictionary<string, int>(tags.Length, StringComparer.Ordinal);
-        for (var i = 0; i < tags.Length; i++)
+        for (int i = 0; i < tags.Length; i++)
             _byName[tags[i]] = i;
 
         Lowercase = new string[tags.Length];
-        for (var i = 0; i < tags.Length; i++)
+        for (int i = 0; i < tags.Length; i++)
             Lowercase[i] = tags[i].ToLowerInvariant();
 
         // Base rate per tag, clamped off {0,1} exactly as cvae/vocab.py does, so a rare tag's log-odds stays finite
         // and the "lift" a suggestion reports matches what the Python server reported for the same tag.
         Marginal = new float[tags.Length];
-        var eps = 1.0 / (rowCount + 2.0);
-        for (var i = 0; i < tags.Length; i++)
+        double eps = 1.0 / (rowCount + 2.0);
+        for (int i = 0; i < tags.Length; i++)
             Marginal[i] = (float)Math.Clamp(counts[i] / (double)rowCount, eps, 1.0 - eps);
     }
 
@@ -80,7 +80,7 @@ public sealed class TagVocab
     public int Count => Tags.Length;
 
     /// <summary>Vocab id for an exact tag name, or null when the vocabulary has no such tag.</summary>
-    public int? IdOf(string tag) => _byName.TryGetValue(tag, out var id) ? id : null;
+    public int? IdOf(string tag) => _byName.TryGetValue(tag, out int id) ? id : null;
 
     /// <summary>True when this tag is a gelbooru artist tag — what decides '@' versus '#' for a sampled name.</summary>
     public bool IsArtist(int id) => Types[id] == TypeMask.CategoryArtist;
@@ -93,14 +93,14 @@ public sealed class TagVocab
     /// </summary>
     public static TagVocab Load(string path)
     {
-        using var stream = File.OpenRead(path);
-        using var document = JsonDocument.Parse(stream);
-        var root = document.RootElement;
+        using FileStream stream = File.OpenRead(path);
+        using JsonDocument document = JsonDocument.Parse(stream);
+        JsonElement root = document.RootElement;
 
-        var rowCount = root.GetProperty(NRowsProperty).GetInt64();
-        var tags = ReadStrings(root, TagsProperty);
-        var counts = ReadInt64s(root, CountsProperty);
-        var types = ReadBytes(root, TypesProperty);
+        long rowCount = root.GetProperty(NRowsProperty).GetInt64();
+        string[] tags = ReadStrings(root, TagsProperty);
+        long[] counts = ReadInt64s(root, CountsProperty);
+        byte[] types = ReadBytes(root, TypesProperty);
 
         if (counts.Length != tags.Length)
             throw new InvalidDataException($"{path}: {counts.Length} counts for {tags.Length} tags.");
@@ -114,7 +114,7 @@ public sealed class TagVocab
         // Refuse an HTML-encoded vocab instead of compensating for it. Decoding here cannot be made safe: it is not
         // idempotent, so it would corrupt an already-decoded vocab ('&ether' becomes 'ðer'). A literal '&' is normal
         // in real tags ('tiger_&_bunny'); an ENTITY never is, so this is a build mistake and has to fail loudly.
-        var encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
+        string[] encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
         if (encoded.Length > 0)
             throw new InvalidDataException(
                 $"{path}: tag names are still HTML-encoded (e.g. {string.Join(Separator, encoded)}). This vocab predates "
@@ -125,10 +125,10 @@ public sealed class TagVocab
 
     private static string[] ReadStrings(JsonElement root, string name)
     {
-        var array = root.GetProperty(name);
-        var result = new string[array.GetArrayLength()];
-        var i = 0;
-        foreach (var element in array.EnumerateArray())
+        JsonElement array = root.GetProperty(name);
+        string[] result = new string[array.GetArrayLength()];
+        int i = 0;
+        foreach (JsonElement element in array.EnumerateArray())
             result[i++] = element.GetString()
                 ?? throw new JsonException($"Vocab array '{name}' contains a non-string element.");
         return result;
@@ -136,21 +136,21 @@ public sealed class TagVocab
 
     private static long[] ReadInt64s(JsonElement root, string name)
     {
-        var array = root.GetProperty(name);
-        var result = new long[array.GetArrayLength()];
-        var i = 0;
-        foreach (var element in array.EnumerateArray())
+        JsonElement array = root.GetProperty(name);
+        long[] result = new long[array.GetArrayLength()];
+        int i = 0;
+        foreach (JsonElement element in array.EnumerateArray())
             result[i++] = element.GetInt64();
         return result;
     }
 
     private static byte[] ReadBytes(JsonElement root, string name)
     {
-        if (!root.TryGetProperty(name, out var array))
+        if (!root.TryGetProperty(name, out JsonElement array))
             return [];
-        var result = new byte[array.GetArrayLength()];
-        var i = 0;
-        foreach (var element in array.EnumerateArray())
+        byte[] result = new byte[array.GetArrayLength()];
+        int i = 0;
+        foreach (JsonElement element in array.EnumerateArray())
             result[i++] = (byte)element.GetInt32();
         return result;
     }

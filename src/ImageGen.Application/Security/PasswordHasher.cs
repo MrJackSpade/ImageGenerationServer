@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using ImageGen.Domain.CodeAnalysis;
+using System.Security.Cryptography;
 
 namespace ImageGen.Application.Security;
 
@@ -18,8 +18,8 @@ public static class PasswordHasher
 
     public static string Hash(string password)
     {
-        var salt = RandomNumberGenerator.GetBytes(SaltBytes);
-        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, HashBytes);
+        byte[] salt = RandomNumberGenerator.GetBytes(SaltBytes);
+        byte[] hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, HashBytes);
         return $"PBKDF2${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
@@ -37,13 +37,13 @@ public static class PasswordHasher
         if (string.IsNullOrEmpty(stored))
             throw new InvalidOperationException("Stored password hash is missing.");
 
-        var parts = stored.Split('$');
+        string[] parts = stored.Split('$');
         if (parts.Length != 4)
             throw new InvalidOperationException(
                 $"Stored password hash is malformed: expected 4 '$'-separated fields, found {parts.Length}.");
         if (parts[0] != Pbkdf2Algorithm)
             throw new InvalidOperationException("Stored password hash names an unknown algorithm (expected PBKDF2).");
-        if (!int.TryParse(parts[1], out var iterations) || iterations <= 0)
+        if (!int.TryParse(parts[1], out int iterations) || iterations <= 0)
             throw new InvalidOperationException("Stored password hash carries an unreadable iteration count.");
 
         byte[] salt, expected;
@@ -59,7 +59,7 @@ public static class PasswordHasher
         if (salt.Length == 0 || expected.Length == 0)
             throw new InvalidOperationException("Stored password hash has an empty salt or digest.");
 
-        var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expected.Length);
+        byte[] actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expected.Length);
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
 }

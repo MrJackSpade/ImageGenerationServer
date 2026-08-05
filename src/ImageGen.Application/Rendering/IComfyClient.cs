@@ -1,6 +1,6 @@
+using ImageGen.Domain.Repositories;
 using System.Net.WebSockets;
 using System.Text.Json;
-using ImageGen.Domain.Repositories;
 
 namespace ImageGen.Application.Rendering;
 

@@ -1,6 +1,7 @@
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -19,16 +20,16 @@ public sealed class CatalogOverrideRepository(IDbConnectionFactory connectionFac
     /// <inheritdoc/>
     public async Task<IReadOnlyDictionary<string, ModelBinding>> BindingsAsync(string machineName, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             "SELECT SlotId, FileName, IsAuto FROM dbo.ModelBinding WHERE MachineName = @m;");
         cmd.AddParam("@m", machineName);
 
-        var result = new Dictionary<string, ModelBinding>(StringComparer.OrdinalIgnoreCase);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        Dictionary<string, ModelBinding> result = new Dictionary<string, ModelBinding>(StringComparer.OrdinalIgnoreCase);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var slot = reader.GetString(0);
+            string slot = reader.GetString(0);
             result[slot] = new ModelBinding(slot, reader.GetString(1), reader.AsBool(2));
         }
         return result;
@@ -38,12 +39,12 @@ public sealed class CatalogOverrideRepository(IDbConnectionFactory connectionFac
     public async Task SetBindingAsync(
         string machineName, string slotId, string? fileName, bool isAuto, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
         // Delete-then-insert rather than an engine-specific upsert: MERGE and ON CONFLICT are spelled differently
         // and this is a single small row guarded by a unique index. The transaction is what makes it atomic.
-        await using (var del = conn.Command(
+        await using (DbCommand del = conn.Command(
             "DELETE FROM dbo.ModelBinding WHERE MachineName = @m AND SlotId = @s;"))
         {
             del.Transaction = tx;
@@ -54,7 +55,7 @@ public sealed class CatalogOverrideRepository(IDbConnectionFactory connectionFac
 
         if (!string.IsNullOrWhiteSpace(fileName))
         {
-            await using var ins = conn.Command(@"
+            await using DbCommand ins = conn.Command(@"
 INSERT INTO dbo.ModelBinding (MachineName, SlotId, FileName, IsAuto, UpdatedAtUtc)
 VALUES (@m, @s, @f, @auto, @now);");
             ins.Transaction = tx;
@@ -75,14 +76,14 @@ VALUES (@m, @s, @f, @auto, @now);");
     {
         if (slotToFile.Count == 0) return;
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
-        foreach (var (slot, file) in slotToFile)
+        foreach ((string? slot, string? file) in slotToFile)
         {
             // WHERE NOT EXISTS, not a blind insert: a slot the user has already bound by hand must never be
             // overwritten by a pattern, and this runs on every catalogue load.
-            await using var cmd = conn.Command(@"
+            await using DbCommand cmd = conn.Command(@"
 INSERT INTO dbo.ModelBinding (MachineName, SlotId, FileName, IsAuto, UpdatedAtUtc)
 SELECT @m, @s, @f, 1, @now
 WHERE NOT EXISTS (
@@ -103,17 +104,17 @@ WHERE NOT EXISTS (
     public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> OverridesAsync(
         string machineName, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
             "SELECT ConfigId, SettingKey, SettingValue FROM dbo.ConfigOverride WHERE MachineName = @m;");
         cmd.AddParam("@m", machineName);
 
-        var byConfig = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        Dictionary<string, Dictionary<string, string>> byConfig = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var configId = reader.GetString(0);
-            if (!byConfig.TryGetValue(configId, out var settings))
+            string configId = reader.GetString(0);
+            if (!byConfig.TryGetValue(configId, out Dictionary<string, string>? settings))
                 byConfig[configId] = settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             settings[reader.GetString(1)] = reader.GetString(2);
         }
@@ -128,10 +129,10 @@ WHERE NOT EXISTS (
     public async Task SetOverrideAsync(
         string machineName, string configId, string settingKey, string? settingValue, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
-        await using (var del = conn.Command(
+        await using (DbCommand del = conn.Command(
             "DELETE FROM dbo.ConfigOverride WHERE MachineName = @m AND ConfigId = @c AND SettingKey = @k;"))
         {
             del.Transaction = tx;
@@ -145,7 +146,7 @@ WHERE NOT EXISTS (
         // "set it to nothing" cannot be confused with each other.
         if (!string.IsNullOrWhiteSpace(settingValue))
         {
-            await using var ins = conn.Command(@"
+            await using DbCommand ins = conn.Command(@"
 INSERT INTO dbo.ConfigOverride (MachineName, ConfigId, SettingKey, SettingValue, UpdatedAtUtc)
 VALUES (@m, @c, @k, @v, @now);");
             ins.Transaction = tx;

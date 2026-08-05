@@ -18,7 +18,7 @@ public sealed class BanKeyTests
     [Fact]
     public void Bans_split_by_kind_into_the_sampler_exclusion_sets()
     {
-        var (tags, artists) = RenderOrchestrator.BanKeys(
+        (HashSet<string>? tags, HashSet<string>? artists) = RenderOrchestrator.BanKeys(
             [Ban("wet_shirt", TokenKind.Tag), Ban("bad_anatomy", TokenKind.Tag), Ban("some_artist", TokenKind.Artist)]);
 
         Assert.True(tags.SetEquals(["wet_shirt", "bad_anatomy"]));
@@ -30,7 +30,7 @@ public sealed class BanKeyTests
     {
         // The tag model samples canonical booru tokens ("wet_shirt"), but a ban can be typed into Settings free-hand
         // ("Wet Shirt") or arrive marker-prefixed from the chip UI. Both must still zero the same tag.
-        var (tags, artists) = RenderOrchestrator.BanKeys([Ban("Wet Shirt", TokenKind.Tag), Ban("@Some Artist", TokenKind.Artist)]);
+        (HashSet<string>? tags, HashSet<string>? artists) = RenderOrchestrator.BanKeys([Ban("Wet Shirt", TokenKind.Tag), Ban("@Some Artist", TokenKind.Artist)]);
 
         Assert.Contains("wet_shirt", tags);
         Assert.Contains("some_artist", artists);
@@ -39,7 +39,7 @@ public sealed class BanKeyTests
     [Fact]
     public void No_bans_means_no_exclusions()
     {
-        var (tags, artists) = RenderOrchestrator.BanKeys([]);
+        (HashSet<string>? tags, HashSet<string>? artists) = RenderOrchestrator.BanKeys([]);
         Assert.Empty(tags);
         Assert.Empty(artists);
     }

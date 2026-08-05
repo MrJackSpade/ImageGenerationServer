@@ -40,7 +40,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
     public async Task<IReadOnlyList<TagSuggestion>?> QueryAsync(
         string context, string fragment, int limit, CancellationToken ct)
     {
-        var contextTags = context.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] contextTags = context.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         await _gate.WaitAsync(ct);
         try
@@ -48,7 +48,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
             // A limit below 1 is refused, not floored to 1 — an empty ask is the caller's mistake to see, not to have
             // silently turned into a one-result response (the /tags endpoint already rejects it before we get here).
             Ensure.GreaterThanZero(limit);
-            var result = _suggest.Query(contextTags, fragment, limit);
+            SuggestEngine.SuggestResult result = _suggest.Query(contextTags, fragment, limit);
             if (result.Results.Count == 0)
                 return null;   // "no match" is a non-failure, and the port says null for it
 
@@ -72,13 +72,13 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         string? seed, double? temperature, IReadOnlyCollection<string>? banned,
         IReadOnlyList<string> allowedTypes, CancellationToken ct)
     {
-        var seedTags = NormalizeTags(seed);
-        var bannedTags = banned is null ? [] : NormalizeTags(string.Join(',', banned));
+        string[] seedTags = NormalizeTags(seed);
+        string[] bannedTags = banned is null ? [] : NormalizeTags(string.Join(',', banned));
 
         // The caller's list names the types that stay ALLOWED, so it is passed straight through -- including the ones
         // it offers no switch for. Translating or defaulting it here is exactly the drift that would collapse
         // generation to [highres, original].
-        var typeMask = TypeMask.FromAllowedNames(allowedTypes);
+        int typeMask = TypeMask.FromAllowedNames(allowedTypes);
 
         // A present temperature outside the slider's [0, 5] is REFUSED, not clamped — a quietly clamped value would
         // render at a temperature the user did not choose. Null legitimately means "unspecified": the model's natural 1.0.
@@ -89,8 +89,8 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         {
             // The seedless path (no user tags — a from-scratch prompt) reaches wider into the tail so the set is more
             // varied; a seeded set stays pinned near the user's context at the default floor.
-            var minP = seedTags.Length == 0 ? GenerateEngine.SeedlessMinP : GenerateEngine.DefaultMinP;
-            var result = _generate.Generate(
+            double minP = seedTags.Length == 0 ? GenerateEngine.SeedlessMinP : GenerateEngine.DefaultMinP;
+            GenerateEngine.Result result = _generate.Generate(
                 seedTags, Random.Shared.Next(), temp, bannedTags, typeMask, minP);
 
             return result.Tags.Count == 0 ? null : result.Tags;

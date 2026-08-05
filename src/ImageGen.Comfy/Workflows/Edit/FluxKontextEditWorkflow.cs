@@ -22,10 +22,10 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);
-        var seed = ComfyGraph.Seed(p);
-        var refNames = inputs.ReferenceImageNames;
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
+        long seed = ComfyGraph.Seed(p);
+        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
         wf[SourceScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(Nodes.Source, 0) });

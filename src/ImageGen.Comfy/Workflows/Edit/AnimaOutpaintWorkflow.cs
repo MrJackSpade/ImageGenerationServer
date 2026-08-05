@@ -64,8 +64,8 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
 
         if (p.Loader() == LoaderKind.Checkpoint && p.Has(WorkflowParamKeys.ClipSkip) && p.IntReq(WorkflowParamKeys.ClipSkip) is int clipSkip && clipSkip > 0)
         {
@@ -74,9 +74,9 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         }
 
         // Negative = the config default with the UI negative (inputs.Negative) appended — never replaced.
-        var rp = p.Str(WorkflowParamKeys.RequiredPrefix);
-        var prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
-        var neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
+        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
+        string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
+        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prefix + inputs.Positive, clip = clip0 });
         wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
 
@@ -110,7 +110,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
             end_percent = p.DblReq(WorkflowParamKeys.LlliteEnd),
             preserve_wrapper = true,
         });
-        var ksModel = ComfyGraph.Ref(LlliteApply, 0);
+        object ksModel = ComfyGraph.Ref(LlliteApply, 0);
 
         // Encode the padded canvas; confine denoising to the padded (masked) border so the original region is kept.
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.

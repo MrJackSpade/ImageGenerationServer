@@ -1,6 +1,8 @@
-using System.Security.Claims;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Primitives;
+using System.Security.Claims;
 
 namespace ImageGen.Web.Auth;
 
@@ -29,13 +31,13 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
     {
         if (context.User.Identity?.IsAuthenticated != true)
         {
-            var key = ExtractKey(context.Request);
+            string? key = ExtractKey(context.Request);
             if (!string.IsNullOrWhiteSpace(key))
             {
-                var user = await users.GetByApiKeyAsync(key, context.RequestAborted);
+                User? user = await users.GetByApiKeyAsync(key, context.RequestAborted);
                 if (user is not null)
                 {
-                    var identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
+                    ClaimsIdentity identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
                     identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
                     identity.AddClaim(new Claim(ClaimTypes.Name, user.DisplayName));
                     context.User = new ClaimsPrincipal(identity);
@@ -52,10 +54,10 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
     /// <summary>Pull the key from the <c>X-Api-Key</c> header, falling back to <c>Authorization: Bearer &lt;key&gt;</c>.</summary>
     private static string? ExtractKey(HttpRequest request)
     {
-        if (request.Headers.TryGetValue(HeaderName, out var headerVal) && !string.IsNullOrWhiteSpace(headerVal))
+        if (request.Headers.TryGetValue(HeaderName, out StringValues headerVal) && !string.IsNullOrWhiteSpace(headerVal))
             return headerVal.ToString().Trim();
 
-        var auth = request.Headers.Authorization.ToString();
+        string auth = request.Headers.Authorization.ToString();
         if (auth.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
             return auth[BearerPrefix.Length..].Trim();
 

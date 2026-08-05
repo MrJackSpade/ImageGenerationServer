@@ -1,5 +1,4 @@
 using ImageGen.Application.Media;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ImageGen.Media;
 

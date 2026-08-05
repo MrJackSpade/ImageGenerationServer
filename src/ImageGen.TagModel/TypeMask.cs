@@ -89,21 +89,21 @@ public static class TypeMask
         if (allowedNames is null)
             return NoArtist;
 
-        var allowed = allowedNames
+        HashSet<string> allowed = allowedNames
             .Select(n => n.Trim().ToLowerInvariant())
             .Where(n => n.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
 
-        var suppressible = Droppable.ToDictionary(c => Names[c], c => c, StringComparer.Ordinal);
-        var unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
+        Dictionary<string, int> suppressible = Droppable.ToDictionary(c => Names[c], c => c, StringComparer.Ordinal);
+        string[] unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length > 0)
             throw new ArgumentException(
                 $"unknown tag type(s) {string.Join(NameListSeparator, unknown)}; the suppressible types are "
                 + string.Join(NameListSeparator, suppressible.Keys.Order(StringComparer.Ordinal)),
                 nameof(allowedNames));
 
-        var mask = AllTypes;
-        foreach (var (name, category) in suppressible)
+        int mask = AllTypes;
+        foreach ((string? name, int category) in suppressible)
             if (!allowed.Contains(name))
                 mask &= ~(1 << category);
         return mask;
@@ -112,7 +112,7 @@ public static class TypeMask
     /// <summary>'all', or 'no:artist,character' — for logs and diagnostics.</summary>
     public static string Describe(int mask)
     {
-        var missing = Enumerable.Range(0, CategoryCount)
+        string[] missing = Enumerable.Range(0, CategoryCount)
             .Where(c => Names.ContainsKey(c) && !Allows(mask, c))
             .Select(c => Names[c])
             .ToArray();

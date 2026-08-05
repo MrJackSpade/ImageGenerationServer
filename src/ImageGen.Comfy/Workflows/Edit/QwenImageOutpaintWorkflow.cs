@@ -61,7 +61,10 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
         {
             image = ComfyGraph.Ref(Nodes.Source, 0),
-            left = pl, top = pt, right = pr, bottom = pb,
+            left = pl,
+            top = pt,
+            right = pr,
+            bottom = pb,
             // feathering=0 ON PURPOSE. The node's feathering ramps the mask INWARD from the pad boundary, which would
             // stack with the shared mask_grow/mask_blur softening and give a doubly-wide band of PARTIAL denoise over
             // the original pixels — a mushy seam. Softening happens once, in SoftenMask.
@@ -81,11 +84,14 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         // of a grey|content step. (Denoise stays 1.0 — see DefaultDenoise for why partial denoise over the scaffold
         // does not work here.)
         // CanvasSize refuses a source with unknown dimensions, so the padded canvas is always real here.
-        var canvas = CanvasSize(p, inputs);
+        (int W, int H) canvas = CanvasSize(p, inputs);
         wf[StretchScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos",
-            width = canvas.W, height = canvas.H, crop = "disabled",
+            image = ComfyGraph.Ref(Nodes.Source, 0),
+            upscale_method = "lanczos",
+            width = canvas.W,
+            height = canvas.H,
+            crop = "disabled",
         });
         // sigma 10.0 is ImageBlur's node maximum.
         wf[PrefillBlur] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(StretchScale, 0), blur_radius = 31, sigma = 10.0 });
@@ -93,7 +99,9 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         {
             destination = ComfyGraph.Ref(PrefillBlur, 0),
             source = ComfyGraph.Ref(Nodes.Source, 0),
-            x = pl, y = pt, resize_source = false,
+            x = pl,
+            y = pt,
+            resize_source = false,
         });
         image = ComfyGraph.Ref(PrefillComposite, 0);
     }

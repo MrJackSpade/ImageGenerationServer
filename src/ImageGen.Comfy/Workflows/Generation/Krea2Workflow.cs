@@ -1,6 +1,4 @@
-﻿using System.Globalization;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Krea 2 (RAW base) text-to-image. Aesthetic-first open model on the Qwen-Image VAE (Wan 2.1 latent format) with a

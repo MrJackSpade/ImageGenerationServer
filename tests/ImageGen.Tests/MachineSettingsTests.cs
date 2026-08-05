@@ -18,8 +18,8 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
 
     private (IConfigurationRoot Config, MachineSettingsConfigurationSource Source) BuildConfig(string machine)
     {
-        var source = new MachineSettingsConfigurationSource(_db.MachineSettings, machine);
-        var config = new ConfigurationBuilder().Add(source).Build();
+        MachineSettingsConfigurationSource source = new MachineSettingsConfigurationSource(_db.MachineSettings, machine);
+        IConfigurationRoot config = new ConfigurationBuilder().Add(source).Build();
         return (config, source);
     }
 
@@ -29,7 +29,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
         const string machine = "cfg-read";
         await _db.MachineSettings.SetAsync(machine, "ComfyUI:BaseUrl", "http://box:8188", CancellationToken.None);
 
-        var (config, _) = BuildConfig(machine);
+        (IConfigurationRoot? config, MachineSettingsConfigurationSource _) = BuildConfig(machine);
 
         Assert.Equal("http://box:8188", config["ComfyUI:BaseUrl"]);
     }
@@ -38,7 +38,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     public async Task A_write_is_visible_to_the_next_read_without_rebuilding()
     {
         const string machine = "cfg-live";
-        var (config, source) = BuildConfig(machine);
+        (IConfigurationRoot? config, MachineSettingsConfigurationSource? source) = BuildConfig(machine);
         Assert.NotNull(source.Provider);
         Assert.Null(config["ComfyUI:BaseUrl"]);
 
@@ -53,9 +53,9 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     public async Task A_write_fires_the_change_token()
     {
         const string machine = "cfg-token";
-        var (config, source) = BuildConfig(machine);
+        (IConfigurationRoot? config, MachineSettingsConfigurationSource? source) = BuildConfig(machine);
         Assert.NotNull(source.Provider);
-        var fired = false;
+        bool fired = false;
         Microsoft.Extensions.Primitives.ChangeToken.OnChange(config.GetReloadToken, () => fired = true);
 
         await source.Provider.WriteAsync("Auth:RegistrationCode", "hunter2", CancellationToken.None);
@@ -67,7 +67,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     public async Task A_blank_write_removes_the_key_rather_than_storing_emptiness()
     {
         const string machine = "cfg-clear";
-        var (config, source) = BuildConfig(machine);
+        (IConfigurationRoot? config, MachineSettingsConfigurationSource? source) = BuildConfig(machine);
         Assert.NotNull(source.Provider);
         await source.Provider.WriteAsync("Auth:RegistrationCode", "code", CancellationToken.None);
         Assert.Equal("code", config["Auth:RegistrationCode"]);
@@ -77,7 +77,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
         // Unset and set-to-nothing have to stay the same state: the required-key check and the first-boot flow both
         // read "is there a value", and an empty string that counts as a value would skip setup on an unset box.
         Assert.Null(config["Auth:RegistrationCode"]);
-        var stored = await _db.MachineSettings.AllAsync(machine, CancellationToken.None);
+        IReadOnlyDictionary<string, string> stored = await _db.MachineSettings.AllAsync(machine, CancellationToken.None);
         Assert.DoesNotContain("Auth:RegistrationCode", stored.Keys);
     }
 
@@ -99,14 +99,14 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
         await _db.MachineSettings.SetAsync(machine, "Logging:FilePath", "one", CancellationToken.None);
         await _db.MachineSettings.SetAsync(machine, "Logging:FilePath", "two", CancellationToken.None);
 
-        var stored = await _db.MachineSettings.AllAsync(machine, CancellationToken.None);
+        IReadOnlyDictionary<string, string> stored = await _db.MachineSettings.AllAsync(machine, CancellationToken.None);
         Assert.Equal("two", stored["Logging:FilePath"]);
     }
 
     [Fact]
     public void Every_spec_key_is_unique_and_findable()
     {
-        var keys = MachineSettingSpecs.All.Select(s => s.Key).ToList();
+        List<string> keys = MachineSettingSpecs.All.Select(s => s.Key).ToList();
         Assert.Equal(keys.Count, keys.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(keys, k => Assert.NotNull(MachineSettingSpecs.Find(k)));
         // The settings API refuses anything not on the list, so an unknown key must not resolve.
@@ -127,7 +127,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     public async Task An_unset_toggle_reads_as_its_declared_default()
     {
         const string machine = "cfg-bool";
-        var (config, source) = BuildConfig(machine);
+        (IConfigurationRoot? config, MachineSettingsConfigurationSource? source) = BuildConfig(machine);
         Assert.NotNull(source.Provider);
 
         Assert.Null(config["Updates:Enabled"]);

@@ -71,7 +71,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflowBase
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // No model head: the quantizer is pure CPU. Source → (matte | flatten-on-white) → quantize → save.
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
         };

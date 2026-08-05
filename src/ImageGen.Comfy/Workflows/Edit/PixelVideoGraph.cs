@@ -36,13 +36,13 @@ internal static class PixelVideoGraph
     /// params + defaults). The quantizer flattens the <c>(B,T,H,W,3)</c> video decode into per-frame batches itself.</summary>
     public static void QuantizeFrames(Dictionary<string, object> wf, ParamValues p, string quantNodeId = Nodes.Quantize)
     {
-        var save = wf.Values.OfType<Dictionary<string, object>>()
-            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct) && ct as string == ComfyNodeTypes.SaveAnimatedWEBP);
+        Dictionary<string, object>? save = wf.Values.OfType<Dictionary<string, object>>()
+            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out object? ct) && ct as string == ComfyNodeTypes.SaveAnimatedWEBP);
         if (save is null) return;
-        var inputs = AsInputDict(save[ComfyGraphKeys.Inputs]);
-        if (!inputs.TryGetValue(ComfyGraphKeys.Images, out var imagesSrc)) return;
+        Dictionary<string, object?> inputs = AsInputDict(save[ComfyGraphKeys.Inputs]);
+        if (!inputs.TryGetValue(ComfyGraphKeys.Images, out object? imagesSrc)) return;
 
-        var (gw, gh) = Grid(p);
+        (int gw, int gh) = Grid(p);
         wf[quantNodeId] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
         {
             image = imagesSrc,
@@ -60,24 +60,24 @@ internal static class PixelVideoGraph
     /// so the per-step projection runs for each (both experts of an MoE). The VAE is taken from the decode node.</summary>
     public static void PatchModelProjection(Dictionary<string, object> wf, ParamValues p)
     {
-        var decode = wf.Values.OfType<Dictionary<string, object>>()
-            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct)
+        Dictionary<string, object>? decode = wf.Values.OfType<Dictionary<string, object>>()
+            .FirstOrDefault(n => n.TryGetValue(ComfyGraphKeys.ClassType, out object? ct)
                                  && ct as string is ComfyNodeTypes.VAEDecode or ComfyNodeTypes.VAEDecodeTiled);
         if (decode is null) return;
-        var decInputs = AsInputDict(decode[ComfyGraphKeys.Inputs]);
-        if (!decInputs.TryGetValue(ComfyGraphKeys.Vae, out var vae) || vae is null) return;
+        Dictionary<string, object?> decInputs = AsInputDict(decode[ComfyGraphKeys.Inputs]);
+        if (!decInputs.TryGetValue(ComfyGraphKeys.Vae, out object? vae) || vae is null) return;
 
-        var (gw, gh) = Grid(p);
-        var consumers = wf.Values.OfType<Dictionary<string, object>>()
-            .Where(n => n.TryGetValue(ComfyGraphKeys.ClassType, out var ct) && ct is string s && ModelConsumers.Contains(s))
+        (int gw, int gh) = Grid(p);
+        List<Dictionary<string, object>> consumers = wf.Values.OfType<Dictionary<string, object>>()
+            .Where(n => n.TryGetValue(ComfyGraphKeys.ClassType, out object? ct) && ct is string s && ModelConsumers.Contains(s))
             .ToList();
 
         int next = 710;
-        foreach (var node in consumers)
+        foreach (Dictionary<string, object>? node in consumers)
         {
-            var inputs = AsInputDict(node[ComfyGraphKeys.Inputs]);
-            if (!inputs.TryGetValue(ComfyGraphKeys.Model, out var modelSrc) || modelSrc is null) continue;
-            var projId = (next++).ToString();
+            Dictionary<string, object?> inputs = AsInputDict(node[ComfyGraphKeys.Inputs]);
+            if (!inputs.TryGetValue(ComfyGraphKeys.Model, out object? modelSrc) || modelSrc is null) continue;
+            string projId = (next++).ToString();
             wf[projId] = ComfyGraph.Node(ComfyNodeTypes.PixelManifoldProjection, new
             {
                 model = modelSrc,

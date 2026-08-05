@@ -19,19 +19,19 @@ public sealed class WebpToMp4Tests
     /// <summary>An animated webp of <paramref name="frames"/> frames, each a different colour.</summary>
     private static byte[] AnimatedWebp(int width, int height, int frames, int frameDelayMs)
     {
-        using var image = new Image<Rgba32>(width, height);
+        using Image<Rgba32> image = new Image<Rgba32>(width, height);
         image.Frames.RootFrame.Metadata.GetWebpMetadata().FrameDelay = (uint)frameDelayMs;
         image.Mutate(c => c.BackgroundColor(Color.Red));
 
-        for (var i = 1; i < frames; i++)
+        for (int i = 1; i < frames; i++)
         {
-            using var next = new Image<Rgba32>(width, height);
+            using Image<Rgba32> next = new Image<Rgba32>(width, height);
             next.Mutate(c => c.BackgroundColor(i % 2 == 0 ? Color.Blue : Color.Green));
-            var added = image.Frames.AddFrame(next.Frames.RootFrame);
+            ImageFrame<Rgba32> added = image.Frames.AddFrame(next.Frames.RootFrame);
             added.Metadata.GetWebpMetadata().FrameDelay = (uint)frameDelayMs;
         }
 
-        using var ms = new MemoryStream();
+        using MemoryStream ms = new MemoryStream();
         image.Save(ms, new WebpEncoder { FileFormat = WebpFileFormatType.Lossless });
         return ms.ToArray();
     }
@@ -43,7 +43,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public void An_animated_webp_is_recognised_and_a_still_one_is_not()
     {
-        var processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
         Assert.True(processor.IsAnimatedWebp(AnimatedWebp(32, 32, frames: 4, frameDelayMs: 100)));
         Assert.False(processor.IsAnimatedWebp(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100)));
     }
@@ -51,10 +51,10 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task An_animated_webp_transcodes_to_a_real_mp4()
     {
-        var processor = new MediaProcessor(new MediaOptions());
-        var webp = AnimatedWebp(64, 48, frames: 12, frameDelayMs: 100);
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        byte[] webp = AnimatedWebp(64, 48, frames: 12, frameDelayMs: 100);
 
-        var mp4 = await processor.WebpToMp4Async(webp, maxEdge: null, Ct);
+        byte[] mp4 = await processor.WebpToMp4Async(webp, maxEdge: null, Ct);
 
         Assert.NotEmpty(mp4);
         Assert.True(LooksLikeMp4(mp4), "output does not begin with an ftyp box");
@@ -70,10 +70,10 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task The_output_is_fragmented_so_it_plays_without_seeking()
     {
-        var processor = new MediaProcessor(new MediaOptions());
-        var mp4 = await processor.WebpToMp4Async(AnimatedWebp(32, 32, 8, 100), maxEdge: null, Ct);
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        byte[] mp4 = await processor.WebpToMp4Async(AnimatedWebp(32, 32, 8, 100), maxEdge: null, Ct);
 
-        var text = System.Text.Encoding.ASCII.GetString(mp4);
+        string text = System.Text.Encoding.ASCII.GetString(mp4);
         int moov = text.IndexOf("moov", StringComparison.Ordinal);
         Assert.True(moov >= 0, "no moov atom — the file is not a complete mp4");
         Assert.True(moov < 2048, $"moov is {moov} bytes in; a fragmented mp4 puts it at the front");
@@ -83,11 +83,11 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task MaxEdge_downscales_the_longest_side()
     {
-        var processor = new MediaProcessor(new MediaOptions());
-        var big = AnimatedWebp(200, 100, frames: 4, frameDelayMs: 100);
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        byte[] big = AnimatedWebp(200, 100, frames: 4, frameDelayMs: 100);
 
-        var full = await processor.WebpToMp4Async(big, maxEdge: null, Ct);
-        var small = await processor.WebpToMp4Async(big, maxEdge: 64, Ct);
+        byte[] full = await processor.WebpToMp4Async(big, maxEdge: null, Ct);
+        byte[] small = await processor.WebpToMp4Async(big, maxEdge: 64, Ct);
 
         Assert.True(LooksLikeMp4(full));
         Assert.True(LooksLikeMp4(small));
@@ -102,8 +102,8 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task An_odd_sized_clip_still_encodes()
     {
-        var processor = new MediaProcessor(new MediaOptions());
-        var mp4 = await processor.WebpToMp4Async(AnimatedWebp(101, 77, frames: 4, frameDelayMs: 100), null, Ct);
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        byte[] mp4 = await processor.WebpToMp4Async(AnimatedWebp(101, 77, frames: 4, frameDelayMs: 100), null, Ct);
         Assert.True(LooksLikeMp4(mp4));
     }
 
@@ -113,7 +113,7 @@ public sealed class WebpToMp4Tests
         // IsAnimatedWebp gates the call, so a single-frame webp reaching WebpToMp4 means that gate was bypassed or the
         // source is malformed. A still image has no frame timing, so there is nothing to convert and no rate to read —
         // it must surface as a broken state rather than be encoded with an invented frame rate.
-        var processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             processor.WebpToMp4Async(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100), null, Ct));
     }
@@ -121,8 +121,8 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task Cancellation_is_observed()
     {
-        var processor = new MediaProcessor(new MediaOptions());
-        using var cts = new CancellationTokenSource();
+        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        using CancellationTokenSource cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>

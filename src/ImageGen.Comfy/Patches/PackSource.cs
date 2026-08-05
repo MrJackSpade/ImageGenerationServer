@@ -33,34 +33,34 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         if (Directory.Exists(destination))
             throw new FetchException($"{destination} already exists — nothing was fetched over it.");
 
-        var archive = ArchiveUrl(sourceUrl, rev);
+        Uri archive = ArchiveUrl(sourceUrl, rev);
 
         // Unpack beside the destination and move into place at the end, so an interrupted download never
         // leaves a half-extracted pack that looks installed. Same volume, so the move is atomic.
-        var staging = destination + ".incoming";
+        string staging = destination + ".incoming";
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
 
         try
         {
-            var http = _httpFactory.CreateClient();
+            HttpClient http = _httpFactory.CreateClient();
             // GitHub serves codeload without authentication but requires a user agent.
             http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
 
-            using var response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
+            using HttpResponseMessage response = await http.GetAsync(archive, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!response.IsSuccessStatusCode)
             {
-                var hint = (int)response.StatusCode == 404 ? " The revision or repository could not be found." : "";
+                string hint = (int)response.StatusCode == 404 ? " The revision or repository could not be found." : "";
                 throw new FetchException($"{archive} answered {(int)response.StatusCode}.{hint}");
             }
 
             Directory.CreateDirectory(staging);
-            await using var stream = await response.Content.ReadAsStreamAsync(ct);
-            await using var gzip = new GZipStream(stream, CompressionMode.Decompress);
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
+            await using GZipStream gzip = new GZipStream(stream, CompressionMode.Decompress);
             await ExtractStrippingRootAsync(gzip, staging, ct);
 
             // A commit archive wraps everything in one "{repo}-{sha}" directory. What we want is its contents.
-            var entries = Directory.GetFileSystemEntries(staging);
-            var root = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
+            string[] entries = Directory.GetFileSystemEntries(staging);
+            string root = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
 
             Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? throw new InvalidOperationException($"'{destination}' has no parent directory."));
             Directory.Move(root, destination);
@@ -78,17 +78,17 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
     /// <summary>The commit archive for a GitHub repository URL.</summary>
     internal static Uri ArchiveUrl(string sourceUrl, string rev)
     {
-        if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out var uri))
+        if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out Uri? uri))
             throw new FetchException($"'{sourceUrl}' is not a repository URL.");
 
         if (!uri.Host.Equals(GitHubHost, StringComparison.OrdinalIgnoreCase) &&
             !uri.Host.Equals(GitHubWwwHost, StringComparison.OrdinalIgnoreCase))
             throw new FetchException($"{uri.Host} is not somewhere this knows how to fetch a pinned archive from. Install {sourceUrl} yourself and apply the patch again.");
 
-        var path = uri.AbsolutePath.Trim('/');
+        string path = uri.AbsolutePath.Trim('/');
         if (path.EndsWith(GitSuffix, StringComparison.OrdinalIgnoreCase)) path = path[..^4];
 
-        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length != 2) throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");
 
         return new Uri($"https://codeload.github.com/{segments[0]}/{segments[1]}/tar.gz/{rev}");
@@ -101,15 +101,15 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
     /// </summary>
     private static async Task ExtractStrippingRootAsync(Stream tar, string destination, CancellationToken ct)
     {
-        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-        await using var reader = new TarReader(tar);
+        string root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
+        await using TarReader reader = new TarReader(tar);
 
         while (await reader.GetNextEntryAsync(cancellationToken: ct) is { } entry)
         {
             if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile or TarEntryType.Directory))
                 continue;   // links, devices and the rest have no place in a node pack
 
-            var full = Path.GetFullPath(Path.Combine(destination, entry.Name.Replace('/', Path.DirectorySeparatorChar)));
+            string full = Path.GetFullPath(Path.Combine(destination, entry.Name.Replace('/', Path.DirectorySeparatorChar)));
             if (!full.StartsWith(root, StringComparison.Ordinal))
                 throw new FetchException($"the archive contains '{entry.Name}', which would be written outside the pack directory.");
 

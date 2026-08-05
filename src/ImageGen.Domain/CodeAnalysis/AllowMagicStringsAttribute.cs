@@ -1,5 +1,3 @@
-using System;
-
 namespace ImageGen.Domain.CodeAnalysis;
 
 /// <summary>

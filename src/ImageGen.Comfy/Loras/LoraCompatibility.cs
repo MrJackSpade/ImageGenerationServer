@@ -56,7 +56,7 @@ public static class LoraCompatibility
     /// whose header can't be read is reported compatible + CLIP-capable (unknown → show, never hide).</summary>
     public static Result Evaluate(string loraPath, IReadOnlySet<long>? checkpointDims)
     {
-        var lora = ReadCached(loraPath);
+        FileDims? lora = ReadCached(loraPath);
         if (lora is null)
             return new Result(true, true);   // couldn't parse — show it, model-only assumption off
 
@@ -64,14 +64,14 @@ public static class LoraCompatibility
         if (checkpointDims is null || checkpointDims.Count == 0 || lora.LoraFeatureDims.Count == 0)
             return new Result(true, lora.ClipCapable);
 
-        var compatible = lora.LoraFeatureDims.All(checkpointDims.Contains);
+        bool compatible = lora.LoraFeatureDims.All(checkpointDims.Contains);
         return new Result(compatible, lora.ClipCapable);
     }
 
     /// <summary>The set of layer dimensions present in a checkpoint (absolute path), or null when it can't be read.</summary>
     public static IReadOnlySet<long>? CheckpointDims(string checkpointPath)
     {
-        var dims = ReadCached(checkpointPath);
+        FileDims? dims = ReadCached(checkpointPath);
         return dims is null || dims.AllDims.Count == 0 ? null : dims.AllDims;
     }
 
@@ -81,30 +81,30 @@ public static class LoraCompatibility
         try { info = new FileInfo(path); if (!info.Exists) return null; }
         catch { return null; }
 
-        var key = $"{path}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
-        if (Cache.TryGetValue(key, out var cached))
+        string key = $"{path}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+        if (Cache.TryGetValue(key, out FileDims? cached))
             return cached;
 
-        var shapes = ReadShapes(path);
+        IReadOnlyDictionary<string, long[]>? shapes = ReadShapes(path);
         if (shapes is null)
             return null;
 
-        var dims = Derive(shapes);
+        FileDims dims = Derive(shapes);
         Cache[key] = dims;
         return dims;
     }
 
     private static FileDims Derive(IReadOnlyDictionary<string, long[]> shapes)
     {
-        var all = new HashSet<long>();
-        var feature = new HashSet<long>();
-        var clip = false;
-        foreach (var (name, dim) in shapes)
+        HashSet<long> all = new HashSet<long>();
+        HashSet<long> feature = new HashSet<long>();
+        bool clip = false;
+        foreach ((string? name, long[]? dim) in shapes)
         {
             if (dim.Length >= 2)
-                foreach (var d in dim) all.Add(d);
+                foreach (long d in dim) all.Add(d);
 
-            var lower = name.ToLowerInvariant();
+            string lower = name.ToLowerInvariant();
             // kohya text-encoder LoRA keys: lora_te_, lora_te1_, lora_te2_; diffusers: text_encoder/text_model.
             if (lower.Contains(Names.LoraTe) || lower.Contains(Names.TextEncoder) || lower.Contains(Names.TextModel))
                 clip = true;
@@ -141,25 +141,25 @@ public static class LoraCompatibility
     /// its <c>shape</c>. Only the header is read — never the weights.</summary>
     private static IReadOnlyDictionary<string, long[]> ReadSafetensors(string path)
     {
-        using var fs = File.OpenRead(path);
+        using FileStream fs = File.OpenRead(path);
         Span<byte> lenBuf = stackalloc byte[8];
         fs.ReadExactly(lenBuf);
-        var headerLen = BinaryPrimitives.ReadUInt64LittleEndian(lenBuf);
+        ulong headerLen = BinaryPrimitives.ReadUInt64LittleEndian(lenBuf);
         if (headerLen == 0 || headerLen > 200_000_000)   // a sane guard; real headers are KBs–low MBs
             return new Dictionary<string, long[]>();
 
-        var json = new byte[headerLen];
+        byte[] json = new byte[headerLen];
         fs.ReadExactly(json);
-        using var doc = JsonDocument.Parse(json);
+        using JsonDocument doc = JsonDocument.Parse(json);
 
-        var result = new Dictionary<string, long[]>();
-        foreach (var prop in doc.RootElement.EnumerateObject())
+        Dictionary<string, long[]> result = new Dictionary<string, long[]>();
+        foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
         {
             if (prop.Name == Names.MetadataKey || prop.Value.ValueKind != JsonValueKind.Object) continue;
-            if (!prop.Value.TryGetProperty(Names.ShapeKey, out var shapeEl) || shapeEl.ValueKind != JsonValueKind.Array) continue;
-            var dims = new long[shapeEl.GetArrayLength()];
-            var i = 0;
-            foreach (var d in shapeEl.EnumerateArray())
+            if (!prop.Value.TryGetProperty(Names.ShapeKey, out JsonElement shapeEl) || shapeEl.ValueKind != JsonValueKind.Array) continue;
+            long[] dims = new long[shapeEl.GetArrayLength()];
+            int i = 0;
+            foreach (JsonElement d in shapeEl.EnumerateArray())
                 dims[i++] = d.GetInt64();
             result[prop.Name] = dims;
         }
@@ -171,27 +171,27 @@ public static class LoraCompatibility
     /// and the dimensions are the logical (unquantised) tensor shapes.</summary>
     private static IReadOnlyDictionary<string, long[]> ReadGguf(string path)
     {
-        using var fs = File.OpenRead(path);
-        using var br = new BinaryReader(fs);   // BinaryReader is little-endian; GGUF is little-endian
+        using FileStream fs = File.OpenRead(path);
+        using BinaryReader br = new BinaryReader(fs);   // BinaryReader is little-endian; GGUF is little-endian
 
         if (br.ReadUInt32() != 0x46554747)   // "GGUF"
             return new Dictionary<string, long[]>();
-        var version = br.ReadUInt32();
+        uint version = br.ReadUInt32();
 
         // v1 used uint32 counts/lengths; v2+ use uint64. Modern quants are v3.
-        var tensorCount = ReadCount(br, version);
-        var kvCount = ReadCount(br, version);
+        ulong tensorCount = ReadCount(br, version);
+        ulong kvCount = ReadCount(br, version);
 
         for (ulong i = 0; i < kvCount; i++)
             SkipKv(br, version);
 
-        var result = new Dictionary<string, long[]>();
+        Dictionary<string, long[]> result = new Dictionary<string, long[]>();
         for (ulong i = 0; i < tensorCount; i++)
         {
-            var name = ReadGgufString(br, version);
-            var nDims = br.ReadUInt32();
-            var dims = new long[nDims];
-            for (var d = 0; d < nDims; d++)
+            string name = ReadGgufString(br, version);
+            uint nDims = br.ReadUInt32();
+            long[] dims = new long[nDims];
+            for (int d = 0; d < nDims; d++)
                 dims[d] = (long)ReadCount(br, version);
             _ = br.ReadUInt32();   // ggml type
             _ = br.ReadUInt64();   // data offset
@@ -204,7 +204,7 @@ public static class LoraCompatibility
 
     private static string ReadGgufString(BinaryReader br, uint version)
     {
-        var len = ReadCount(br, version);
+        ulong len = ReadCount(br, version);
         if (len > 10_000_000) throw new InvalidDataException("GGUF string length out of range.");
         return Encoding.UTF8.GetString(br.ReadBytes((int)len));
     }
@@ -229,8 +229,8 @@ public static class LoraCompatibility
             case TUint64 or TInt64 or TFloat64: br.ReadUInt64(); break;
             case TString: ReadGgufString(br, version); break;
             case TArray:
-                var elemType = br.ReadUInt32();
-                var count = ReadCount(br, version);
+                uint elemType = br.ReadUInt32();
+                ulong count = ReadCount(br, version);
                 for (ulong i = 0; i < count; i++)
                     SkipValue(br, version, elemType);
                 break;

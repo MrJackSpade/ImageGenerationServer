@@ -12,7 +12,7 @@ public sealed class WorkflowRegistry
     public WorkflowRegistry(IEnumerable<IWorkflow> workflows)
     {
         _byName = new Dictionary<string, IWorkflow>(StringComparer.OrdinalIgnoreCase);
-        foreach (var w in workflows) _byName[w.Name] = w;   // last registration wins on a duplicate name
+        foreach (IWorkflow w in workflows) _byName[w.Name] = w;   // last registration wins on a duplicate name
     }
 
     public IWorkflow? Find(string? name) =>

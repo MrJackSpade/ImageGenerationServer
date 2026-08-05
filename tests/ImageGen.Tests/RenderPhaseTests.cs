@@ -15,14 +15,14 @@ public sealed class RenderPhaseTests
 {
     private static RenderJob JobWith(params SlotState[] states)
     {
-        var job = new RenderJob
+        RenderJob job = new RenderJob
         {
             JobId = "j1",
             Owner = 1,
             MachineName = "TESTBOX",
             CreatedAt = DateTimeOffset.UtcNow,
         };
-        for (var i = 0; i < states.Length; i++)
+        for (int i = 0; i < states.Length; i++)
             job.Slots.Add(new RenderSlot
             {
                 Job = job,
@@ -39,7 +39,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_batch_with_a_finished_slot_and_the_rest_waiting_is_queued()
     {
-        var job = JobWith(SlotState.Done, SlotState.Queued, SlotState.Queued);
+        RenderJob job = JobWith(SlotState.Done, SlotState.Queued, SlotState.Queued);
 
         Assert.Equal(RenderPhase.Queued, RenderPhases.Of(job));
     }
@@ -48,7 +48,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_batch_with_a_failed_slot_and_the_rest_waiting_is_queued()
     {
-        var job = JobWith(SlotState.Error, SlotState.Queued);
+        RenderJob job = JobWith(SlotState.Error, SlotState.Queued);
 
         Assert.Equal(RenderPhase.Queued, RenderPhases.Of(job));
     }
@@ -57,7 +57,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_job_with_an_executing_slot_is_running()
     {
-        var job = JobWith(SlotState.Done, SlotState.Running, SlotState.Queued);
+        RenderJob job = JobWith(SlotState.Done, SlotState.Running, SlotState.Queued);
 
         Assert.Equal(RenderPhase.Running, RenderPhases.Of(job));
     }
@@ -66,7 +66,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_finished_batch_is_done_even_when_some_slots_failed()
     {
-        var job = JobWith(SlotState.Done, SlotState.Error);
+        RenderJob job = JobWith(SlotState.Done, SlotState.Error);
 
         Assert.Equal(RenderPhase.Done, RenderPhases.Of(job));
     }
@@ -75,7 +75,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_batch_that_produced_nothing_is_error()
     {
-        var job = JobWith(SlotState.Error, SlotState.Error);
+        RenderJob job = JobWith(SlotState.Error, SlotState.Error);
 
         Assert.Equal(RenderPhase.Error, RenderPhases.Of(job));
     }
@@ -84,7 +84,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_stopped_generation_is_cancelled_not_error()
     {
-        var job = JobWith(SlotState.Cancelled);
+        RenderJob job = JobWith(SlotState.Cancelled);
 
         Assert.Equal(RenderPhase.Cancelled, RenderPhases.Of(job));
     }
@@ -96,7 +96,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_batch_stopped_after_some_images_landed_is_cancelled_not_done()
     {
-        var job = JobWith(SlotState.Done, SlotState.Done, SlotState.Done, SlotState.Cancelled, SlotState.Cancelled);
+        RenderJob job = JobWith(SlotState.Done, SlotState.Done, SlotState.Done, SlotState.Cancelled, SlotState.Cancelled);
 
         Assert.Equal(RenderPhase.Cancelled, RenderPhases.Of(job));
         Assert.Equal(3, job.Produced);
@@ -106,7 +106,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void A_cancelled_slot_is_terminal()
     {
-        var job = JobWith(SlotState.Done, SlotState.Cancelled);
+        RenderJob job = JobWith(SlotState.Done, SlotState.Cancelled);
 
         Assert.True(job.AllTerminal);
         Assert.Equal(2, job.Progress);
@@ -197,7 +197,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void The_backend_queue_separates_executing_from_merely_pending()
     {
-        var q = new BackendQueue(
+        BackendQueue q = new BackendQueue(
             Executing: new HashSet<string>(StringComparer.Ordinal) { "on-gpu" },
             Pending: new HashSet<string>(StringComparer.Ordinal) { "behind-it" });
 

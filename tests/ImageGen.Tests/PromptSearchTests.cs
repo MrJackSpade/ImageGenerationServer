@@ -12,7 +12,7 @@ public sealed class PromptSearchTests
     [Fact]
     public void Every_term_must_appear()
     {
-        var terms = PromptSearch.Terms("snow miku");
+        string[] terms = PromptSearch.Terms("snow miku");
 
         Assert.True(PromptSearch.Matches(terms, "hatsune miku, standing in snow, night"));
         Assert.False(PromptSearch.Matches(terms, "hatsune miku, on a beach"));   // one term short is not a match
@@ -23,7 +23,7 @@ public sealed class PromptSearchTests
     public void Terms_need_not_be_adjacent_or_in_order()
     {
         // An AND of contains, not a phrase search: word order and distance are irrelevant.
-        var terms = PromptSearch.Terms("miku snow");
+        string[] terms = PromptSearch.Terms("miku snow");
         Assert.True(PromptSearch.Matches(terms, "snow, forest, night, hatsune miku"));
     }
 
@@ -45,7 +45,7 @@ public sealed class PromptSearchTests
     {
         // The stored raw prompt is the marker dialect ("#long_hair"); an image is findable by what the user typed,
         // not only by what the model was finally handed.
-        var terms = PromptSearch.Terms("long_hair");
+        string[] terms = PromptSearch.Terms("long_hair");
         Assert.True(PromptSearch.Matches(terms, prompt: "1girl, smile", rawPrompt: "#long_hair, 1girl, smile"));
     }
 
@@ -53,7 +53,7 @@ public sealed class PromptSearchTests
     public void A_term_cannot_span_the_join_between_the_two_prompt_forms()
     {
         // Both forms are searched, but as separate texts — the end of one plus the start of the other is not a hit.
-        var terms = PromptSearch.Terms("smile1girl");
+        string[] terms = PromptSearch.Terms("smile1girl");
         Assert.False(PromptSearch.Matches(terms, prompt: "1girl, smile", rawPrompt: "1girl, smile"));
     }
 
@@ -70,7 +70,7 @@ public sealed class PromptSearchTests
     [InlineData("   ")]
     public void An_empty_box_is_not_a_filter(string? query)
     {
-        var terms = PromptSearch.Terms(query);
+        string[] terms = PromptSearch.Terms(query);
         Assert.Empty(terms);
         Assert.True(PromptSearch.Matches(terms, "literally anything"));
     }

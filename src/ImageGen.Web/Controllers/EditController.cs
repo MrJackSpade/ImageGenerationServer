@@ -1,4 +1,5 @@
 using ImageGen.Application.Services;
+using ImageGen.Domain.Entities;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,11 +23,11 @@ public sealed class EditController(HistoryService history) : Controller
         // Seed the first conversation bubble with the source image's prompt when it's one of ours, and the inpaint box
         // with the prompt VERBATIM as it was submitted — markers and underscores intact, because that is the string
         // that was stored, not a reconstruction of it. Same string the card's copy button and its Reload use.
-        var prompt = "(image)";
-        var tagPrompt = "";
-        var negativePrompt = "";
-        var userId = User.GetRequiredUserId();
-        var entry = await _history.GetByImageIdAsync(userId, id, ct);
+        string prompt = "(image)";
+        string tagPrompt = "";
+        string negativePrompt = "";
+        long userId = User.GetRequiredUserId();
+        HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is not null)
         {
             prompt = entry.Prompt;

@@ -67,7 +67,7 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
     {
         // Node ids stay clear of the shared edit head (3/4/5/6/8/9/10/13/14) — only LoadImage "10" and SaveImage "9"
         // are reused, since the edit save path keys off the "forgemcp_edit" prefix.
-        var wf = new Dictionary<string, object>
+        Dictionary<string, object> wf = new Dictionary<string, object>
         {
             [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.") }),
             [UpscaleModel] = ComfyGraph.Node(ComfyNodeTypes.UpscaleModelLoader, new { model_name = p.Model(WorkflowParamKeys.UpscaleModel) }),

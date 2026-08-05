@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace ImageGen.Tests;
 
@@ -15,12 +16,12 @@ public sealed class SqliteAttachSpikeTests : IDisposable
     [Fact]
     public async Task Attaching_the_file_as_dbo_makes_schema_qualified_sql_resolve()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
 
         await ExecAsync(conn, "CREATE TABLE dbo.Thing (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL);");
         await ExecAsync(conn, "INSERT INTO dbo.Thing (Name) VALUES ('alpha');");
 
-        await using var cmd = conn.CreateCommand();
+        await using SqliteCommand cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT Name FROM dbo.Thing WHERE Id = 1;";
         Assert.Equal("alpha", await cmd.ExecuteScalarAsync());
     }
@@ -33,7 +34,7 @@ public sealed class SqliteAttachSpikeTests : IDisposable
     [Fact]
     public async Task Changes_guard_makes_last_insert_rowid_report_null_when_nothing_was_inserted()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         await ExecAsync(conn, "CREATE TABLE dbo.U (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL);");
 
         const string guardedInsert = @"
@@ -42,15 +43,15 @@ SELECT @name WHERE NOT EXISTS (SELECT 1 FROM dbo.U WHERE Name = @name);
 SELECT CASE WHEN changes() = 0 THEN NULL ELSE last_insert_rowid() END;";
 
         // First insert wins and reports its id.
-        var first = await ScalarAsync(conn, guardedInsert, ("@name", "bob"));
+        object? first = await ScalarAsync(conn, guardedInsert, ("@name", "bob"));
         Assert.Equal(1L, Convert.ToInt64(first));
 
         // Second is a duplicate: NULL, not the id of row 1 -- and not the previous rowid either.
-        var second = await ScalarAsync(conn, guardedInsert, ("@name", "bob"));
+        object? second = await ScalarAsync(conn, guardedInsert, ("@name", "bob"));
         Assert.True(second is null or DBNull, $"expected NULL for a duplicate, got '{second}'");
 
         // A different name inserts again, proving the guard did not wedge the statement.
-        var third = await ScalarAsync(conn, guardedInsert, ("@name", "carol"));
+        object? third = await ScalarAsync(conn, guardedInsert, ("@name", "carol"));
         Assert.Equal(2L, Convert.ToInt64(third));
     }
 
@@ -61,7 +62,7 @@ SELECT CASE WHEN changes() = 0 THEN NULL ELSE last_insert_rowid() END;";
     [Fact]
     public async Task Unguarded_last_insert_rowid_wrongly_reports_the_previous_id_for_a_duplicate()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         await ExecAsync(conn, "CREATE TABLE dbo.U (Id INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL);");
 
         const string unguarded = @"
@@ -81,7 +82,7 @@ SELECT last_insert_rowid();";
     [Fact]
     public async Task Collate_nocase_preserves_case_insensitive_username_uniqueness()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         // NOTE the DDL asymmetry this spike exists to find: the INDEX NAME carries the schema, the table it indexes
         // must NOT ("CREATE INDEX ... ON dbo.AppUser" is a syntax error). DML is unaffected.
         await ExecAsync(conn,
@@ -90,7 +91,7 @@ SELECT last_insert_rowid();";
 
         await ExecAsync(conn, "INSERT INTO dbo.AppUser (Username) VALUES ('Bob');");
 
-        var dup = await Assert.ThrowsAsync<SqliteException>(
+        SqliteException dup = await Assert.ThrowsAsync<SqliteException>(
             () => ExecAsync(conn, "INSERT INTO dbo.AppUser (Username) VALUES ('bob');"));
         Assert.Contains("UNIQUE", dup.Message, StringComparison.OrdinalIgnoreCase);
 
@@ -104,7 +105,7 @@ SELECT last_insert_rowid();";
     [Fact]
     public async Task Foreign_key_cascade_fires_on_a_connection_from_the_factory()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         // A foreign key can never cross databases in SQLite, so the referenced table is named WITHOUT the schema
         // even though the table being created carries it. "REFERENCES dbo.Parent(Id)" is a syntax error.
         await ExecAsync(conn,
@@ -123,12 +124,12 @@ SELECT last_insert_rowid();";
     [Fact]
     public async Task A_transaction_over_the_attached_database_is_atomic_under_wal()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         await ExecAsync(conn, "CREATE TABLE dbo.T (Id INTEGER PRIMARY KEY AUTOINCREMENT, V INTEGER NOT NULL);");
 
-        await using (var tx = await conn.BeginTransactionAsync(default))
+        await using (DbTransaction tx = await conn.BeginTransactionAsync(default))
         {
-            await using var cmd = conn.CreateCommand();
+            await using SqliteCommand cmd = conn.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
             cmd.CommandText = "INSERT INTO dbo.T (V) VALUES (1); INSERT INTO dbo.T (V) VALUES (2);";
             await cmd.ExecuteNonQueryAsync();
@@ -136,9 +137,9 @@ SELECT last_insert_rowid();";
         }
         Assert.Equal(0L, Convert.ToInt64(await ScalarAsync(conn, "SELECT COUNT(*) FROM dbo.T;")));
 
-        await using (var tx = await conn.BeginTransactionAsync(default))
+        await using (DbTransaction tx = await conn.BeginTransactionAsync(default))
         {
-            await using var cmd = conn.CreateCommand();
+            await using SqliteCommand cmd = conn.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
             cmd.CommandText = "INSERT INTO dbo.T (V) VALUES (3); INSERT INTO dbo.T (V) VALUES (4);";
             await cmd.ExecuteNonQueryAsync();
@@ -161,14 +162,14 @@ SELECT last_insert_rowid();";
     [Fact]
     public async Task Integral_columns_are_long_but_only_the_scalar_unbox_actually_breaks()
     {
-        await using var conn = await OpenAsync();
+        await using SqliteConnection conn = await OpenAsync();
         await ExecAsync(conn, "CREATE TABLE dbo.N (Tiny INTEGER, Flag INTEGER, Num INTEGER, Amount REAL);");
         await ExecAsync(conn, "INSERT INTO dbo.N VALUES (3, 1, 42, 1.5);");
 
-        await using (var cmd = conn.CreateCommand())
+        await using (SqliteCommand cmd = conn.CreateCommand())
         {
             cmd.CommandText = "SELECT Tiny, Flag, Num, Amount FROM dbo.N;";
-            await using var reader = await cmd.ExecuteReaderAsync();
+            await using SqliteDataReader reader = await cmd.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
 
             // The underlying value really is long for all three integral columns.
@@ -191,10 +192,10 @@ SELECT last_insert_rowid();";
         }
 
         // The real break: COUNT(*) boxes a long, and (int) on a boxed long is an invalid unbox.
-        await using (var cmd = conn.CreateCommand())
+        await using (SqliteCommand cmd = conn.CreateCommand())
         {
             cmd.CommandText = "SELECT COUNT(*) FROM dbo.N;";
-            var boxed = await cmd.ExecuteScalarAsync();
+            object? boxed = await cmd.ExecuteScalarAsync();
             Assert.IsType<long>(boxed);
             Assert.NotNull(boxed);
             Assert.Throws<InvalidCastException>(() => (int)boxed);
@@ -205,7 +206,7 @@ SELECT last_insert_rowid();";
     /// <summary>Opens a connection the way the real factory will: file attached as <c>dbo</c>, WAL, FK enforcement on.</summary>
     private async Task<SqliteConnection> OpenAsync()
     {
-        var conn = new SqliteConnection("Data Source=:memory:");
+        SqliteConnection conn = new SqliteConnection("Data Source=:memory:");
         await conn.OpenAsync();
         await ExecAsync(conn, $"ATTACH DATABASE '{_dbPath.Replace("'", "''")}' AS dbo;");
         await ExecAsync(conn, "PRAGMA dbo.journal_mode = WAL;");
@@ -215,17 +216,17 @@ SELECT last_insert_rowid();";
 
     private static async Task ExecAsync(SqliteConnection conn, string sql, params (string, object)[] ps)
     {
-        await using var cmd = conn.CreateCommand();
+        await using SqliteCommand cmd = conn.CreateCommand();
         cmd.CommandText = sql;
-        foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v);
+        foreach ((string? n, object? v) in ps) cmd.Parameters.AddWithValue(n, v);
         await cmd.ExecuteNonQueryAsync();
     }
 
     private static async Task<object?> ScalarAsync(SqliteConnection conn, string sql, params (string, object)[] ps)
     {
-        await using var cmd = conn.CreateCommand();
+        await using SqliteCommand cmd = conn.CreateCommand();
         cmd.CommandText = sql;
-        foreach (var (n, v) in ps) cmd.Parameters.AddWithValue(n, v);
+        foreach ((string? n, object? v) in ps) cmd.Parameters.AddWithValue(n, v);
         return await cmd.ExecuteScalarAsync();
     }
 
@@ -233,7 +234,7 @@ SELECT last_insert_rowid();";
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();
-        foreach (var f in new[] { _dbPath, _dbPath + "-wal", _dbPath + "-shm" })
+        foreach (string? f in new[] { _dbPath, _dbPath + "-wal", _dbPath + "-shm" })
             // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
             if (File.Exists(f)) try { File.Delete(f); } catch (IOException) { }
     }

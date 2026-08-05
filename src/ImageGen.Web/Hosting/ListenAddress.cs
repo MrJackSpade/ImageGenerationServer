@@ -45,16 +45,16 @@ public static class ListenAddress
         if (string.IsNullOrWhiteSpace(configuredUrls)) return configuredUrls;
         isPortFree ??= CanListen;
 
-        var resolved = new List<string>();
-        foreach (var raw in configuredUrls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        List<string> resolved = new List<string>();
+        foreach (string raw in configuredUrls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (!TryParse(raw, out var scheme, out var host, out var port) || isPortFree(AddressFor(host), port))
+            if (!TryParse(raw, out string? scheme, out string? host, out int port) || isPortFree(AddressFor(host), port))
             {
                 resolved.Add(raw);
                 continue;
             }
 
-            var free = NextFreePort(AddressFor(host), port, isPortFree);
+            int? free = NextFreePort(AddressFor(host), port, isPortFree);
             if (free is null)
             {
                 // Nothing above it is free. Hand back the original and let Kestrel report the real bind error
@@ -73,7 +73,7 @@ public static class ListenAddress
     /// <summary>The first free port above <paramref name="from"/>, or null if the port space runs out.</summary>
     private static int? NextFreePort(IPAddress address, int from, Func<IPAddress, int, bool> isPortFree)
     {
-        for (var port = from + 1; port <= IPEndPoint.MaxPort; port++)
+        for (int port = from + 1; port <= IPEndPoint.MaxPort; port++)
             if (isPortFree(address, port)) return port;
         return null;
     }
@@ -82,7 +82,7 @@ public static class ListenAddress
     {
         try
         {
-            using var listener = new TcpListener(address, port);
+            using TcpListener listener = new TcpListener(address, port);
             listener.Start();
             return true;
         }
@@ -98,18 +98,18 @@ public static class ListenAddress
     /// </summary>
     private static IPAddress AddressFor(string host) =>
         host is WildcardStar or WildcardPlus or AnyHostIPv4 ? IPAddress.Any
-        : IPAddress.TryParse(host, out var parsed) ? parsed
+        : IPAddress.TryParse(host, out IPAddress? parsed) ? parsed
         : IPAddress.Loopback;
 
     private static bool TryParse(string url, out string scheme, out string host, out int port)
     {
         scheme = host = ""; port = 0;
-        var schemeEnd = url.IndexOf(SchemeSeparator, StringComparison.Ordinal);
+        int schemeEnd = url.IndexOf(SchemeSeparator, StringComparison.Ordinal);
         if (schemeEnd <= 0) return false;
 
         scheme = url[..schemeEnd];
-        var rest = url[(schemeEnd + 3)..].TrimEnd('/');
-        var portStart = rest.LastIndexOf(':');
+        string rest = url[(schemeEnd + 3)..].TrimEnd('/');
+        int portStart = rest.LastIndexOf(':');
         if (portStart < 0 || !int.TryParse(rest[(portStart + 1)..], out port)) return false;
 
         host = rest[..portStart];

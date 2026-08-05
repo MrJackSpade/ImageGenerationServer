@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using ImageGen.Application.Platform;
+using System.Runtime.InteropServices;
 
 namespace ImageGen.Web.Hosting;
 
@@ -12,7 +12,7 @@ public sealed class WindowsSystemMemory : ISystemMemory
 {
     public long AvailableBytes()
     {
-        var status = new MemoryStatusEx { dwLength = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+        MemoryStatusEx status = new MemoryStatusEx { dwLength = (uint)Marshal.SizeOf<MemoryStatusEx>() };
         // No fallback on failure. A gate that cannot read the number must not quietly answer "plenty of room" — that
         // is precisely how an unrenderable job gets accepted. Surface the OS error to the caller instead.
         if (!GlobalMemoryStatusEx(ref status))

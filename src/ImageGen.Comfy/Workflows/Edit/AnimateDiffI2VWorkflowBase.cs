@@ -54,17 +54,17 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        var seed = ComfyGraph.Seed(p);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        long seed = ComfyGraph.Seed(p);
         int frames = p.IntReq(WorkflowParamKeys.Length);
         double fps = p.DblReq(WorkflowParamKeys.Fps);
         double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
-        var beta = p.StrReq(WorkflowParamKeys.BetaSchedule);
-        var motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model(WorkflowParamKeys.MotionModel);
+        string beta = p.StrReq(WorkflowParamKeys.BetaSchedule);
+        string motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model(WorkflowParamKeys.MotionModel);
 
         wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
         object baseModel = ComfyGraph.Ref(Nodes.Model, 0);
-        var lcmLora = p.Str(WorkflowParamKeys.LcmLora);
+        string? lcmLora = p.Str(WorkflowParamKeys.LcmLora);
         if (!string.IsNullOrWhiteSpace(lcmLora))   // AnimateLCM: apply the LCM LoRA to the base model to enable lcm sampling
         {
             wf[LcmLora] = ComfyGraph.Node(ComfyNodeTypes.LoraLoaderModelOnly, new { model = ComfyGraph.Ref(Nodes.Model, 0), lora_name = lcmLora, strength_model = 1.0 });

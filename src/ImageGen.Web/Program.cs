@@ -3,16 +3,16 @@ using ImageGen.Application;
 using ImageGen.Application.Platform;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;
-using ImageGen.TagModel;
 using ImageGen.Comfy;
 using ImageGen.Comfy.Patches;
-using ImageGen.Web.Comfy;
 using ImageGen.Infrastructure;
 using ImageGen.Infrastructure.Database;
 using ImageGen.Infrastructure.Repositories;
-using ImageGen.Web.Configuration;
 using ImageGen.Media;
+using ImageGen.TagModel;
 using ImageGen.Web.Auth;
+using ImageGen.Web.Comfy;
+using ImageGen.Web.Configuration;
 using ImageGen.Web.Hosting;
 using ImageGen.Web.Reconciler;
 using ImageGen.Web.Updates;
@@ -21,8 +21,8 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
-var config = builder.Configuration;
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+ConfigurationManager config = builder.Configuration;
 
 // --- this machine's configuration ------------------------------------------------------------------
 // FIRST, before anything reads a setting. The appsettings file holds only what has to be known before the app can
@@ -38,7 +38,7 @@ var config = builder.Configuration;
 // A missing dbo.MachineSetting throws here and the app does not start. Deliberate: the alternative is booting on
 // code defaults for values the operator believes they set, which is the failure this whole design removes. Under
 // SQL Server apply schema.sql first — the app's login has no DDL rights, by design.
-var connectionString = config.GetConnectionString(ConfigKeys.ConnectionStringName)
+string connectionString = config.GetConnectionString(ConfigKeys.ConnectionStringName)
     ?? throw new InvalidOperationException("Missing connection string 'ImageGen'.");
 
 // Which engine. Defaults to Sqlite, which needs no server and no out-of-band schema step, so an unconfigured
@@ -47,17 +47,17 @@ var connectionString = config.GetConnectionString(ConfigKeys.ConnectionStringNam
 // string but no provider gets a named error at startup, not a silent second database.
 // Unset defaults to Sqlite (the zero-config engine); a value that is SET but not a known provider is a typo, not a
 // request for the default — surfacing it beats silently starting on a different (empty) database than intended.
-var providerConfigured = config[ConfigKeys.DatabaseProvider];
+string? providerConfigured = config[ConfigKeys.DatabaseProvider];
 const string providerListSeparator = ", ";
-var databaseProvider = string.IsNullOrWhiteSpace(providerConfigured)
+DatabaseProvider databaseProvider = string.IsNullOrWhiteSpace(providerConfigured)
     ? DatabaseProvider.Sqlite
-    : Enum.TryParse<DatabaseProvider>(providerConfigured, ignoreCase: true, out var parsed)
+    : Enum.TryParse<DatabaseProvider>(providerConfigured, ignoreCase: true, out DatabaseProvider parsed)
         ? parsed
         : throw new InvalidOperationException(
             $"Database:Provider is '{providerConfigured}', which is not a known provider — expected one of "
             + $"{string.Join(providerListSeparator, Enum.GetNames<DatabaseProvider>())} (unset defaults to Sqlite).");
 
-var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConnectionFactory(connectionString, databaseProvider);
+IDbConnectionFactory bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConnectionFactory(connectionString, databaseProvider);
 
 // The schema comes BEFORE the settings are read, and both come before the host is built. Under SQLite the app is
 // the only schema mechanism there is -- no server, no login, no elevated sqlcmd -- so a fresh install must create
@@ -68,7 +68,7 @@ var bootstrapConnections = InfrastructureServiceCollectionExtensions.CreateConne
 if (config.GetValue(ConfigKeys.EnsureSchemaOnStartup, databaseProvider == DatabaseProvider.Sqlite))
     await new DatabaseInitializer(bootstrapConnections, databaseProvider).EnsureSchemaAsync(CancellationToken.None);
 
-var machineSettings = new MachineSettingsConfigurationSource(
+MachineSettingsConfigurationSource machineSettings = new MachineSettingsConfigurationSource(
     new MachineSettingRepository(bootstrapConnections), Environment.MachineName);
 ((IConfigurationBuilder)config).Add(machineSettings);
 
@@ -89,10 +89,10 @@ var machineSettings = new MachineSettingsConfigurationSource(
 // The path is a machine setting, not an appsettings.json key. The literal here is the shipped default, kept in code
 // so an install that has never set the path still logs — to this default location — rather than silently stopping.
 // Blank the setting to turn the file sink off.
-var logFilePath = config[ConfigKeys.LoggingFilePath] ?? "logs/imagegen-.log";
+string logFilePath = config[ConfigKeys.LoggingFilePath] ?? "logs/imagegen-.log";
 if (!string.IsNullOrWhiteSpace(logFilePath))
 {
-    var logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
+    string logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
     Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? throw new InvalidOperationException($"Log path '{logPath}' has no parent directory."));
 
     // Unset keeps the shipped default level; a SET-but-unparseable value is a typo and throws rather than silently
@@ -101,7 +101,7 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
     static Serilog.Events.LogEventLevel Level(string? configured, Serilog.Events.LogEventLevel fallback)
     {
         if (string.IsNullOrWhiteSpace(configured)) return fallback;
-        if (!Enum.TryParse<LogLevel>(configured, ignoreCase: true, out var mel))
+        if (!Enum.TryParse<LogLevel>(configured, ignoreCase: true, out LogLevel mel))
             throw new InvalidOperationException(
                 $"A configured log level is '{configured}', which is not one of Trace, Debug, Information, Warning, Error, Critical, None.");
         return mel == LogLevel.None ? fallback : (Serilog.Events.LogEventLevel)mel;   // MEL Trace..Critical map 1:1 onto Serilog Verbose..Fatal
@@ -143,15 +143,15 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
 // WITH the application -- the release archive copies configurations/ next to the binary, so the only correct answer
 // is the one below. Nothing in the repo, the deploy, or any box ever set it: it was a text box whose every valid
 // value was already its default, and whose invalid values fail the boot.
-var comfyOptions = new ComfyOptions
+ComfyOptions comfyOptions = new ComfyOptions
 {
     CatalogPath = "configurations",
 };
 // ffmpeg runs IN-PROCESS (Loxifi.FFmpeg), so there is no executable to locate, no download step, and no path to
 // configure. The defaults pick Cisco's OpenH264 from the LGPL runtime -- see MediaOptions for why x264 is not the
 // default despite being the better encoder.
-var mediaOptions = new MediaOptions();
-var renderOptions = new RenderOptions();
+MediaOptions mediaOptions = new MediaOptions();
+RenderOptions renderOptions = new RenderOptions();
 
 // --- DI (composition root) -----------------------------------------------------------------------
 builder.Services.AddSingleton<AuthOptions>();          // reads Auth:RegistrationCode live
@@ -218,8 +218,8 @@ builder.Services.AddMedia(mediaOptions);
 //
 // The app FETCHES the artifacts itself if they are not there, so there is no separate download step a user has to
 // know to run (or know not to run) before anything works: the app knows it needs the file, so the app gets it.
-using var startupLoggers = LoggerFactory.Create(b => b.AddConsole());
-using (var artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
+using ILoggerFactory startupLoggers = LoggerFactory.Create(b => b.AddConsole());
+using (HttpClient artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
     await TagModelArtifacts.EnsureAsync(
         artifactsHttp, startupLoggers.CreateLogger(LogNames.TagModelCategory), CancellationToken.None);
 builder.Services.AddTagModel();
@@ -247,7 +247,7 @@ builder.Services.Configure<FormOptions>(options =>
 // its own trusted reverse proxy wants and how this has always run. It is also spoofable by anyone who can reach the app
 // directly, so a packaged install that is exposed differently needs to be able to say no. Defaults to the historical
 // behaviour; set Security:TrustAllProxies=false to keep ASP.NET's loopback-only default instead.
-var trustAllProxies = config.IsOn(ConfigKeys.TrustAllProxies);
+bool trustAllProxies = config.IsOn(ConfigKeys.TrustAllProxies);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
@@ -308,14 +308,14 @@ builder.Services.AddAuthorization();
 //
 // NOTE for a proxied deployment: nginx forwards to a fixed port, so an app that quietly moved is an app the proxy
 // can no longer reach. The warning is the only signal; pin the port and keep it free if that matters.
-var configuredUrls = config[ConfigKeys.Urls];
-var listenUrls = ListenAddress.Resolve(
+string? configuredUrls = config[ConfigKeys.Urls];
+string? listenUrls = ListenAddress.Resolve(
     configuredUrls,
     onMoved: (host, wanted, actual) => startupLoggers.CreateLogger(LogNames.StartupCategory).LogWarning(
         "Port {Wanted} on {Host} is already in use; listening on {Actual} instead.", wanted, host, actual));
 if (listenUrls != configuredUrls) config[ConfigKeys.Urls] = listenUrls;
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // (The schema is applied at the top of this file, before the machine settings are read out of it.)
 
@@ -336,8 +336,8 @@ app.Services.GetRequiredService<ITagCatalog>();
 // is the moment something is going wrong, which is the worst possible time to need a restart.
 app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
 {
-    var exposeStackTraces = app.Configuration.IsOn(ConfigKeys.ExposeStackTraces);
-    var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    bool exposeStackTraces = app.Configuration.IsOn(ConfigKeys.ExposeStackTraces);
+    Exception? ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
     ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
     ctx.Response.ContentType = "application/json";
     await ctx.Response.WriteAsJsonAsync(new
@@ -368,7 +368,7 @@ app.MapImageGenApi();   // /api (client actions) + /forge (render backend)
 // on work in flight, not queue depth. Exposes only counts — no prompts, no user data.
 app.MapGet(Routes.DrainStatus, (RenderOrchestrator queue) =>
 {
-    var w = queue.Workload();
+    WorkloadSnapshot w = queue.Workload();
     return Results.Ok(new
     {
         activeJobs = w.ActiveJobs,
@@ -392,9 +392,9 @@ app.MapGet(Routes.DrainStatus, (RenderOrchestrator queue) =>
 await app.StartAsync();
 
 string? firstReachable = null;
-foreach (var address in app.Urls)
+foreach (string address in app.Urls)
 {
-    var reachable = StartupBrowser.Reachable(address);
+    string reachable = StartupBrowser.Reachable(address);
     firstReachable ??= reachable;
     Console.WriteLine();
     // ASCII only. This is the one line a user is told to read, and a Windows console on a non-UTF-8 code page

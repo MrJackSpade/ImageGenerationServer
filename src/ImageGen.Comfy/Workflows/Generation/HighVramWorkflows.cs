@@ -18,7 +18,7 @@ file static class HighVram
     /// <summary>The model loader block (UNETLoader / UnetLoaderGGUF / CheckpointLoaderSimple), returning model+vae refs.</summary>
     public static (object model, object vae) LoadDiffusion(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req)
     {
-        var loader = p.Loader();
+        LoaderKind loader = p.Loader();
         if (loader == LoaderKind.Checkpoint)
         {
             wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
@@ -40,8 +40,8 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        var (model0, vae0) = HighVram.LoadDiffusion(wf, p, req);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        (object? model0, object? vae0) = HighVram.LoadDiffusion(wf, p, req);
         wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.QuadrupleCLIPLoader, new
         {
             clip_name1 = req.TextEncoder(0),
@@ -53,7 +53,7 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflowBase
         wf[Nodes.ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
         object modelSrc = ComfyGraph.Ref(Nodes.ModelSampling, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
         wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
         wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });
@@ -87,7 +87,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
+        Dictionary<string, object> wf = new Dictionary<string, object>();
         wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
         object model0 = ComfyGraph.Ref(Nodes.Model, 0), vae0 = ComfyGraph.Ref(Nodes.Model, 2);
         wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.TripleCLIPLoader, new
@@ -98,7 +98,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflowBase
         });
         object clipSrc = ComfyGraph.Ref(Nodes.Clip, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
         wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
         wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });
@@ -134,9 +134,9 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        var (model0, vae0) = HighVram.LoadDiffusion(wf, p, req);
-        var clipName = req.TextEncoder(0);
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        (object? model0, object? vae0) = HighVram.LoadDiffusion(wf, p, req);
+        string clipName = req.TextEncoder(0);
         wf[Nodes.Clip] = ComfyGraph.IsGguf(clipName)
             ? ComfyGraph.Node(ComfyNodeTypes.CLIPLoaderGGUF, new { clip_name = clipName, type = "chroma" })
             : ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = clipName, type = "chroma", device = "default" });
@@ -146,7 +146,7 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflowBase
         wf[Nodes.ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
         object modelSrc = ComfyGraph.Ref(Nodes.ModelSampling, 0);
 
-        var (w, h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
         wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clipSrc });
         wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clipSrc });
         wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = w, height = h, batch_size = 1 });

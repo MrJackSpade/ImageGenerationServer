@@ -27,7 +27,7 @@ public sealed class InMemoryUploadStore : IUploadStore
 
     public string Add(UploadedImage image)
     {
-        var id = Guid.NewGuid().ToString(GuidFormat);   // same shape as a generated image id, so callers can't tell them apart
+        string id = Guid.NewGuid().ToString(GuidFormat);   // same shape as a generated image id, so callers can't tell them apart
         lock (_gate)
         {
             _index[id] = image;

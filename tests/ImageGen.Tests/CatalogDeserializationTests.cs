@@ -1,6 +1,6 @@
+using ImageGen.Comfy;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using ImageGen.Comfy;
 
 namespace ImageGen.Tests;
 
@@ -24,9 +24,9 @@ public sealed class CatalogDeserializationTests
 
     private static void AssertAllParse<T>(string sub, JsonTypeInfo<T> type)
     {
-        var dir = Path.Combine(RepoRoot(), "configurations", sub);
-        var failures = new List<string>();
-        foreach (var f in Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
+        string dir = Path.Combine(RepoRoot(), "configurations", sub);
+        List<string> failures = new List<string>();
+        foreach (string? f in Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
         {
             try
             {
@@ -45,7 +45,7 @@ public sealed class CatalogDeserializationTests
 
     private static string RepoRoot()
     {
-        var dir = AppContext.BaseDirectory;
+        string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
             dir = Path.GetDirectoryName(dir);
         return dir ?? throw new DirectoryNotFoundException("configurations/ not found above the test bin dir.");
@@ -71,7 +71,7 @@ public sealed class CatalogDeserializationTests
     [Fact]
     public void Param_forms_all_deserialize_to_the_expected_shape()
     {
-        var dto = Workflow("""
+        WorkflowFileDto? dto = Workflow("""
             {
               "id":"x","workflow":"W",
               "params":{
@@ -84,18 +84,18 @@ public sealed class CatalogDeserializationTests
             }
             """);
         Assert.NotNull(dto);
-        var p = dto.Params;
+        Dictionary<string, ConfigParamDto>? p = dto.Params;
         Assert.NotNull(p);
 
         // Bare scalar shorthand: the token is the value, nothing exposed or bounded.
-        var steps = p["steps"];
+        ConfigParamDto steps = p["steps"];
         Assert.Equal(8, steps.Value.GetInt32());
         Assert.False(steps.Exposed);
         Assert.False(steps.Locked);
         Assert.Null(steps.Min);
 
         // Envelope form: value plus the exposed/min/max/step siblings.
-        var cfg = p["cfg"];
+        ConfigParamDto cfg = p["cfg"];
         Assert.Equal(7, cfg.Value.GetInt32());
         Assert.True(cfg.Exposed);
         Assert.False(cfg.Locked);
@@ -104,7 +104,7 @@ public sealed class CatalogDeserializationTests
         Assert.Equal(0.5, cfg.Step);
 
         // Explicit "exposed": false is a baked, locked knob.
-        var baked = p["baked"];
+        ConfigParamDto baked = p["baked"];
         Assert.False(baked.Exposed);
         Assert.True(baked.Locked);
 

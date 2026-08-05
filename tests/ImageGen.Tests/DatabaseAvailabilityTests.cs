@@ -24,10 +24,10 @@ public sealed class DatabaseAvailabilityTests
     [Fact]
     public async Task An_unreachable_server_is_unavailable()
     {
-        await using var conn = new SqlConnection(
+        await using SqlConnection conn = new SqlConnection(
             "Server=127.0.0.1,9;Database=nope;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False");
 
-        var ex = await Record.ExceptionAsync(() => conn.OpenAsync());
+        Exception ex = await Record.ExceptionAsync(() => conn.OpenAsync());
 
         Assert.NotNull(ex);
         Assert.True(_availability.IsUnavailable(ex), $"a refused connection should read as unavailable, got: {ex}");

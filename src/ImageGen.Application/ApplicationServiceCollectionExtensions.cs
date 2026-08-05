@@ -1,12 +1,10 @@
 using ImageGen.Application.Images;
 using ImageGen.Application.Logging;
-using ImageGen.Application.Prompting;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Security;
 using ImageGen.Application.Services;
 using ImageGen.Domain.Logging;
 using ImageGen.Domain.Repositories;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ImageGen.Application;
 

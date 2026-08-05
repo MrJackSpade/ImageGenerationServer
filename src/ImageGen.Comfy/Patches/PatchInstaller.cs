@@ -38,7 +38,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// <returns>A line to show the operator when something is left for them to do, otherwise null.</returns>
     public async Task<string?> ApplyAsync(ComfyPatch patch, string comfyRoot, string? python, bool overwrite, CancellationToken ct)
     {
-        var target = patch.ResolveTarget(comfyRoot);
+        string target = patch.ResolveTarget(comfyRoot);
 
         if (!Directory.Exists(target))
         {
@@ -73,7 +73,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// </summary>
     public void Remove(ComfyPatch patch, string comfyRoot)
     {
-        var target = patch.ResolveTarget(comfyRoot);
+        string target = patch.ResolveTarget(comfyRoot);
         if (!Directory.Exists(target)) throw new PatchConflictException($"{patch.Target} is not installed.");
 
         if (patch.IsInstallOnly)
@@ -100,7 +100,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// </summary>
     private async Task<string?> InstallRequirementsAsync(string packDirectory, string? python, CancellationToken ct)
     {
-        var requirements = Path.Combine(packDirectory, RequirementsFileName);
+        string requirements = Path.Combine(packDirectory, RequirementsFileName);
         if (!File.Exists(requirements)) return null;
 
         if (string.IsNullOrWhiteSpace(python))
@@ -109,9 +109,9 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
 
         _log.LogInformation("Installing {Requirements} with {Python}", requirements, python);
 
-        var constraints = PinInstalledTorch(python, ct);
+        string constraints = PinInstalledTorch(python, ct);
 
-        var process = new Process
+        Process process = new Process
         {
             StartInfo = new ProcessStartInfo(python,
                 ["-m", "pip", "install", "--no-cache-dir", "--constraint", constraints, "-r", requirements])
@@ -125,8 +125,8 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         process.Start();
         // No deadline: pip fetching a large wheel over a slow link is not a failure, and a clock invented here
         // would kill it partway and leave a half-installed environment.
-        var stdout = process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = process.StandardError.ReadToEndAsync(ct);
+        Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
+        Task<string> stderr = process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
 
         if (process.ExitCode != 0)
@@ -146,7 +146,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// </summary>
     private string PinInstalledTorch(string python, CancellationToken ct)
     {
-        var freeze = new Process
+        Process freeze = new Process
         {
             StartInfo = new ProcessStartInfo(python, ["-m", "pip", "freeze"])
             {
@@ -156,20 +156,20 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
             },
         };
         freeze.Start();
-        var installed = freeze.StandardOutput.ReadToEnd();
+        string installed = freeze.StandardOutput.ReadToEnd();
         freeze.WaitForExit();
 
         if (freeze.ExitCode != 0)
             throw new PatchConflictException($"Could not read the installed packages from {python} — pip freeze exited {freeze.ExitCode}.");
 
-        var pinned = installed
+        IEnumerable<string> pinned = installed
             .Split('\n')
             .Select(line => line.Trim())
             .Where(line => line.StartsWith(TorchPin, StringComparison.OrdinalIgnoreCase)
                         || line.StartsWith(TorchvisionPin, StringComparison.OrdinalIgnoreCase)
                         || line.StartsWith(TorchaudioPin, StringComparison.OrdinalIgnoreCase));
 
-        var path = Path.Combine(Path.GetTempPath(), $"imagegen-torch-constraints-{Environment.ProcessId}.txt");
+        string path = Path.Combine(Path.GetTempPath(), $"imagegen-torch-constraints-{Environment.ProcessId}.txt");
         File.WriteAllLines(path, pinned);
         return path;
     }

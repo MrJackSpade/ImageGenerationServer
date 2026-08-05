@@ -1,10 +1,9 @@
-using System.Data.Common;
 using ImageGen.Application.Security;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -13,7 +12,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
 {
     /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against
     /// this list — change one and renumber the other.</summary>
-    private const string Columns ="Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs";
+    private const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs";
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
     /// <summary>Supplies the few SQL fragments the two engines spell differently.</summary>
     private readonly ISqlDialect _dialect = dialect;
@@ -21,38 +20,38 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
 
     public async Task<User?> GetByIdAsync(long id, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Id = @id;");
         cmd.AddParam("@id", id);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;
     }
 
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Username = @username;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE Username = @username;");
         cmd.AddParam("@username", username);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;
     }
 
     public async Task<bool> AnyExistAsync(CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         // EXISTS, not COUNT(*): the question is "is there one", and this runs on every anonymous hit of the
         // sign-in page.
-        await using var cmd = conn.Command(
+        await using DbCommand cmd = conn.Command(
             "SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.AppUser) THEN 1 ELSE 0 END;");
         return await cmd.ScalarInt32Async(ct) == 1;
     }
 
     public async Task<User?> GetByApiKeyAsync(string apiKey, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE ApiKey = @apiKey;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command($"SELECT {Columns} FROM dbo.AppUser WHERE ApiKey = @apiKey;");
         cmd.AddParam("@apiKey", apiKey);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? await MapUserAsync(reader, ct) : null;
     }
 
@@ -61,19 +60,19 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
         // The trailing identity read must return NULL when the guard matched an existing row -- that NULL is how this
         // method reports "username already taken" below. See ISqlDialect.InsertedIdentityOrNull: SQLite needs a
         // changes() guard to behave the way SCOPE_IDENTITY() does for free.
-        var sql = $@"
+        string sql = $@"
 INSERT INTO dbo.AppUser (Username, PasswordHash, DisplayName, CreatedAtUtc)
 SELECT @username, @hash, @displayName, @created
 WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 {_dialect.InsertedIdentityOrNull}";
 
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(sql);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(sql);
         cmd.AddParam("@username", user.Username);
         cmd.AddParam("@hash", user.PasswordHash);
         cmd.AddParam("@displayName", user.DisplayName);
         cmd.AddParam("@created", user.CreatedAtUtc);
-        var newId = await cmd.ScalarNullableInt64Async(ct);
+        long? newId = await cmd.ScalarNullableInt64Async(ct);
         if (newId is null)
             return null;   // username already taken
 
@@ -89,8 +88,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     public async Task UpdateComposerPrefsAsync(long userId, string? prefsJson, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command("UPDATE dbo.AppUser SET ComposerPrefs = @prefs WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET ComposerPrefs = @prefs WHERE Id = @id;");
         cmd.AddParam("@prefs", (object?)await _cipher.EncryptNullableAsync(userId, prefsJson, ct) ?? DBNull.Value);
         cmd.AddParam("@id", userId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -98,8 +97,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     public async Task UpdateEditPrefsAsync(long userId, string? prefsJson, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command("UPDATE dbo.AppUser SET EditPrefs = @prefs WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET EditPrefs = @prefs WHERE Id = @id;");
         // Editor state blob -> encrypt at rest with the user cipher, exactly like ComposerPrefs.
         cmd.AddParam("@prefs", (object?)await _cipher.EncryptNullableAsync(userId, prefsJson, ct) ?? DBNull.Value);
         cmd.AddParam("@id", userId);
@@ -108,8 +107,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     public async Task UpdateBookmarkPrefsAsync(long userId, string? prefsJson, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command("UPDATE dbo.AppUser SET BookmarkPrefs = @prefs WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET BookmarkPrefs = @prefs WHERE Id = @id;");
         // The keys carry the user's own category names -> encrypt at rest, exactly like ComposerPrefs.
         cmd.AddParam("@prefs", (object?)await _cipher.EncryptNullableAsync(userId, prefsJson, ct) ?? DBNull.Value);
         cmd.AddParam("@id", userId);
@@ -118,27 +117,27 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     public async Task<UserWorkflowPrefs> GetWorkflowPrefsAsync(long userId, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
-        var favorites = await ReadWorkflowIdsAsync(conn, "dbo.UserFavoriteWorkflow", userId, ct);
-        var hidden = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenWorkflow", userId, ct);
-        var hiddenApi = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenApiWorkflow", userId, ct);
+        List<string> favorites = await ReadWorkflowIdsAsync(conn, "dbo.UserFavoriteWorkflow", userId, ct);
+        List<string> hidden = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenWorkflow", userId, ct);
+        List<string> hiddenApi = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenApiWorkflow", userId, ct);
 
         // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection.
-        var rawTags = new List<(string Workflow, string Tag)>();
-        await using (var cmd = conn.Command(
+        List<(string Workflow, string Tag)> rawTags = new List<(string Workflow, string Tag)>();
+        await using (DbCommand cmd = conn.Command(
             "SELECT WorkflowId, Tag FROM dbo.UserWorkflowTag WHERE UserId = @id ORDER BY WorkflowId;"))
         {
             cmd.AddParam("@id", userId);
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
                 rawTags.Add((reader.GetString(0), reader.GetString(1)));
         }
 
-        var tags = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var (workflow, tag) in rawTags)
+        Dictionary<string, List<string>> tags = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach ((string? workflow, string? tag) in rawTags)
         {
-            if (!tags.TryGetValue(workflow, out var list))
+            if (!tags.TryGetValue(workflow, out List<string>? list))
                 tags[workflow] = list = [];
             list.Add(await _cipher.DecryptDeterministicAsync(userId, tag, ct));
         }
@@ -163,30 +162,30 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         // Provision the key BEFORE the transaction: the cipher writes on its own connection the first time a
         // user encrypts anything, and SQLite allows one writer -- doing it inside would deadlock against us.
         await _cipher.EnsureKeyAsync(userId, ct);
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
         // Replace the whole set in one transaction: this is a "here is my labelling now" write, and a partial apply
         // would leave the user looking at labels they had just removed.
-        await using (var del = conn.Command("DELETE FROM dbo.UserWorkflowTag WHERE UserId = @id;", tx))
+        await using (DbCommand del = conn.Command("DELETE FROM dbo.UserWorkflowTag WHERE UserId = @id;", tx))
         {
             del.AddParam("@id", userId);
             await del.ExecuteNonQueryAsync(ct);
         }
 
-        foreach (var (workflowId, labels) in tags)
+        foreach ((string? workflowId, IReadOnlyList<string>? labels) in tags)
         {
             if (string.IsNullOrWhiteSpace(workflowId))
                 continue;
             // Deterministic, because a label is a set member: the primary key is what keeps it unique per workflow,
             // and that only works if equal text encrypts equally.
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var label in labels)
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string label in labels)
             {
                 if (string.IsNullOrWhiteSpace(label)) continue;
-                var cipherText = await _cipher.DeterministicAsync(userId, label, ct);
+                string cipherText = await _cipher.DeterministicAsync(userId, label, ct);
                 if (!seen.Add(cipherText)) continue;   // the same label twice is one row, not a key violation
-                await using var cmd = conn.Command(
+                await using DbCommand cmd = conn.Command(
                     "INSERT INTO dbo.UserWorkflowTag (UserId, WorkflowId, Tag) VALUES (@id, @wf, @tag);", tx);
                 cmd.AddParam("@id", userId);
                 cmd.AddParam("@wf", workflowId);
@@ -201,10 +200,10 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
     private async Task<List<string>> ReadWorkflowIdsAsync(
         DbConnection conn, string table, long userId, CancellationToken ct)
     {
-        var ids = new List<string>();
-        await using var cmd = conn.Command($"SELECT WorkflowId FROM {table} WHERE UserId = @id ORDER BY WorkflowId;");
+        List<string> ids = new List<string>();
+        await using DbCommand cmd = conn.Command($"SELECT WorkflowId FROM {table} WHERE UserId = @id ORDER BY WorkflowId;");
         cmd.AddParam("@id", userId);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
             ids.Add(reader.GetString(0));
         return ids;
@@ -215,18 +214,18 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
     private async Task ReplaceWorkflowIdsAsync(
         string table, long userId, IReadOnlyList<string> workflowIds, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
-        await using (var del = conn.Command($"DELETE FROM {table} WHERE UserId = @id;", tx))
+        await using (DbCommand del = conn.Command($"DELETE FROM {table} WHERE UserId = @id;", tx))
         {
             del.AddParam("@id", userId);
             await del.ExecuteNonQueryAsync(ct);
         }
 
-        foreach (var workflowId in workflowIds.Where(w => !string.IsNullOrWhiteSpace(w)).Distinct(StringComparer.Ordinal))
+        foreach (string? workflowId in workflowIds.Where(w => !string.IsNullOrWhiteSpace(w)).Distinct(StringComparer.Ordinal))
         {
-            await using var cmd = conn.Command(
+            await using DbCommand cmd = conn.Command(
                 $"INSERT INTO {table} (UserId, WorkflowId) VALUES (@id, @wf);", tx);
             cmd.AddParam("@id", userId);
             cmd.AddParam("@wf", workflowId);
@@ -238,8 +237,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     public async Task UpdateGenerationTagTypesAsync(long userId, string? typesJson, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command("UPDATE dbo.AppUser SET GenerationTagTypes = @types WHERE Id = @id;");
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET GenerationTagTypes = @types WHERE Id = @id;");
         cmd.AddParam("@types", (object?)typesJson ?? DBNull.Value);   // tag-type names — stored plain
         cmd.AddParam("@id", userId);
         await cmd.ExecuteNonQueryAsync(ct);
@@ -247,10 +246,10 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
     private async Task<User> MapUserAsync(DbDataReader r, CancellationToken ct)
     {
-        var userId = r.GetInt64(0);
-        var composerPrefs = r.IsDBNull(5) ? null : r.GetString(5);
-        var editPrefs = r.IsDBNull(6) ? null : r.GetString(6);
-        var bookmarkPrefs = r.IsDBNull(9) ? null : r.GetString(9);
+        long userId = r.GetInt64(0);
+        string? composerPrefs = r.IsDBNull(5) ? null : r.GetString(5);
+        string? editPrefs = r.IsDBNull(6) ? null : r.GetString(6);
+        string? bookmarkPrefs = r.IsDBNull(9) ? null : r.GetString(9);
         return new User
         {
             Id = userId,

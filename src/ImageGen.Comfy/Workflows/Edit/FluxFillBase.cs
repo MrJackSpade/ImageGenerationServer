@@ -138,7 +138,11 @@ public abstract class FluxFillBase : EditWorkflowBase
         wf[BlurredMask] = ComfyGraph.Node(ComfyNodeTypes.ImageToMask, new { image = ComfyGraph.Ref(BlurredMaskImage, 0), channel = "red" });
         wf[SoftMask] = ComfyGraph.Node(ComfyNodeTypes.MaskComposite, new
         {
-            destination = ComfyGraph.Ref(BlurredMask, 0), source = rawMask, x = 0, y = 0, operation = "add",
+            destination = ComfyGraph.Ref(BlurredMask, 0),
+            source = rawMask,
+            x = 0,
+            y = 0,
+            operation = "add",
         });
         return ComfyGraph.Ref(SoftMask, 0);
     }
@@ -169,12 +173,12 @@ public abstract class FluxFillBase : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // 4/5/6 + LoadImage "10"
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4/5/6 + LoadImage "10"
 
-        ResolveCanvas(wf, p, inputs, out var image, out var rawMask);
+        ResolveCanvas(wf, p, inputs, out object? image, out object? rawMask);
         ApplyCeiling(wf, p, CanvasSize(p, inputs), ref image, ref rawMask);
-        var softMask = SoftenMask(wf, p, rawMask);
+        object softMask = SoftenMask(wf, p, rawMask);
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });

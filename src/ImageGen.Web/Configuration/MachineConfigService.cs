@@ -53,15 +53,15 @@ public sealed class MachineConfigService(
     /// </summary>
     public async Task SetAsync(string key, string? value, CancellationToken ct)
     {
-        var spec = MachineSettingSpecs.Find(key)
+        MachineSettingSpec spec = MachineSettingSpecs.Find(key)
             ?? throw new ArgumentException($"'{key}' is not a machine setting.", nameof(key));
 
-        var stored = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        string? stored = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
         if (spec.Store == SettingStore.File) WriteToOverrideFile(spec.Key, stored);
         else
         {
-            var provider = _source.Provider
+            MachineSettingsConfigurationProvider provider = _source.Provider
                 ?? throw new InvalidOperationException("The machine settings provider has not been built yet.");
             await provider.WriteAsync(spec.Key, stored, ct);
         }
@@ -75,19 +75,19 @@ public sealed class MachineConfigService(
     /// </summary>
     private void WriteToOverrideFile(string key, string? value)
     {
-        var path = OverrideFilePath;
+        string path = OverrideFilePath;
         // Absent file: start fresh (the legitimate first-write state). Present file: it MUST already be a JSON object;
         // a valid-but-non-object root (an array, a scalar, the literal null) is not something to silently discard and
         // overwrite — that would lose whatever is in it — so refuse. (Invalid JSON throws in Parse, which is also right.)
-        var root = !File.Exists(path)
+        JsonObject root = !File.Exists(path)
             ? new JsonObject()
             : JsonNode.Parse(File.ReadAllText(path)) as JsonObject
               ?? throw new InvalidOperationException(
                   $"'{path}' exists but its root is not a JSON object; refusing to overwrite it. Fix or remove the file.");
 
-        var segments = key.Split(':');
-        var node = root;
-        for (var i = 0; i < segments.Length - 1; i++)
+        string[] segments = key.Split(':');
+        JsonObject node = root;
+        for (int i = 0; i < segments.Length - 1; i++)
         {
             if (node[segments[i]] is not JsonObject child)
             {
@@ -97,7 +97,7 @@ public sealed class MachineConfigService(
             node = child;
         }
 
-        var leaf = segments[^1];
+        string leaf = segments[^1];
         if (value is null) node.Remove(leaf); else node[leaf] = value;
 
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

@@ -1,6 +1,8 @@
-using ImageGen.Application.Services;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Services;
+using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 
 namespace ImageGen.Api.Endpoints;
@@ -17,23 +19,23 @@ public static class HistoryEndpoints
         api.MapPost(Routes.HistoryQuery, async (
             HistoryQueryRequest req, HttpContext context, HistoryService history, ImageViewService views) =>
         {
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             // An out-of-range page/window is REFUSED, not clamped — a silently clamped page comes back looking exactly
             // like a satisfied one (ask for a 10,000-row window and the 200 you get reads as "that's everything").
-            var page = req.Page ?? 1;
-            var pageSize = req.PageSize ?? 40;
+            int page = req.Page ?? 1;
+            int pageSize = req.PageSize ?? 40;
             if (page < HistoryQuery.MinPage)
                 return Results.BadRequest(new { error = $"page must be >= {HistoryQuery.MinPage}, got {page}" });
             if (pageSize is < HistoryQuery.MinPageSize or > HistoryQuery.MaxPageSize)
                 return Results.BadRequest(new { error = $"pageSize must be between {HistoryQuery.MinPageSize} and {HistoryQuery.MaxPageSize}, got {pageSize}" });
             // `search` is the history page's search box: space-separated terms, ALL of which must appear in the prompt.
-            var query = new HistoryQuery(
+            HistoryQuery query = new HistoryQuery(
                 userId, page, pageSize, req.Artist, req.Tag, req.Workflow, req.Search,
                 req.UnviewedOnly ?? false);
-            var result = await history.GetPageAsync(query, context.RequestAborted);
+            PagedResult<HistoryEntry> result = await history.GetPageAsync(query, context.RequestAborted);
             // One lookup for the page's ids: the grid outlines what this user hasn't opened, and only the server
             // knows that — it has to be the same answer on every device, and it outlives any browser.
-            var viewed = await views.ViewedAsync(userId, result.Items, context.RequestAborted);
+            IReadOnlySet<string> viewed = await views.ViewedAsync(userId, result.Items, context.RequestAborted);
             return Results.Ok(new HistoryPageResponse
             {
                 Items = result.Items.Select(e => e.ToContract(viewed)).ToList(),
@@ -48,7 +50,7 @@ public static class HistoryEndpoints
         // job table, not of whichever browser tab happened to watch the batch run. The client renders what comes back.
         api.MapGet(Routes.Recents, async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
         {
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             // An out-of-range `min` is REFUSED, not clamped. The response carries no window size (see
             // RecentsResponse), so a silently clamped request would come back looking exactly like a satisfied one:
             // ask for 500 and the 200 you get reads as "that is everything there is". The server still stretches
@@ -56,9 +58,9 @@ public static class HistoryEndpoints
             const int MaxRecents = 200;
             if (min is int requested && (requested < 1 || requested > MaxRecents))
                 return Results.BadRequest(new { error = $"min must be between 1 and {MaxRecents}, got {requested}" });
-            var minimum = min ?? 48;
-            var items = await history.GetRecentsAsync(userId, minimum, context.RequestAborted);
-            var viewed = await views.ViewedAsync(userId, items, context.RequestAborted);
+            int minimum = min ?? 48;
+            IReadOnlyList<HistoryEntry> items = await history.GetRecentsAsync(userId, minimum, context.RequestAborted);
+            IReadOnlySet<string> viewed = await views.ViewedAsync(userId, items, context.RequestAborted);
             return Results.Ok(new RecentsResponse { Items = items.Select(e => e.ToContract(viewed)).ToList() });
         });
 
@@ -66,8 +68,8 @@ public static class HistoryEndpoints
         // cleared one image at a time, which is not a thing anyone will do to a library.
         api.MapPost(Routes.HistoryViewed, async (HttpContext context, ImageViewService views) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var marked = await views.MarkAllViewedAsync(userId, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            int marked = await views.MarkAllViewedAsync(userId, context.RequestAborted);
             return Results.Ok(new { marked });
         });
 
@@ -78,8 +80,8 @@ public static class HistoryEndpoints
         // id carried in the query string (gateway ids may contain characters awkward in a path segment).
         api.MapDelete(Routes.History, async (HttpContext context, HistoryService history, string id) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var removed = await history.DeleteAsync(userId, id, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            bool removed = await history.DeleteAsync(userId, id, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
     }

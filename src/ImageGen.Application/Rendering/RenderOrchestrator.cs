@@ -1,4 +1,3 @@
-using System.Text.Json;
 using ImageGen.Application.Images;
 using ImageGen.Application.Media;
 using ImageGen.Application.Platform;
@@ -10,7 +9,7 @@ using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Logging;
 using ImageGen.Domain.Repositories;
-using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace ImageGen.Application.Rendering;
 
@@ -105,17 +104,17 @@ public sealed class RenderOrchestrator
     /// then make the slots schedulable and wake the worker. One item = a lone job; many = a batch.</summary>
     public async Task<RenderJob> EnqueueJobAsync(long owner, IReadOnlyList<RenderItem> items)
     {
-        var job = new RenderJob
+        RenderJob job = new RenderJob
         {
             JobId = Guid.NewGuid().ToString(GuidFormat),
             Owner = owner,
             MachineName = _machine,
             CreatedAt = DateTimeOffset.UtcNow,
         };
-        for (var i = 0; i < items.Count; i++)
+        for (int i = 0; i < items.Count; i++)
         {
-            var gen = items[i].Gen;
-            var edit = items[i].Edit;
+            GenerateSpec? gen = items[i].Gen;
+            EditSpec? edit = items[i].Edit;
             string? notice = null;
             // Pre-queue normalization: snap any out-of-range input onto a valid value NOW, so the worker builds the
             // corrected value and the notice reaches the slot before its placeholder renders.
@@ -128,12 +127,12 @@ public sealed class RenderOrchestrator
             // so throwing here abandons it cleanly and the caller gets the real error instead of a bad render later.
             if (edit is not null)
             {
-                var norm = _comfy.NormalizeForQueue(edit.Workflow, RenderKind.Edit, edit.Overrides);
+                QueueNormalizationResult norm = _comfy.NormalizeForQueue(edit.Workflow, RenderKind.Edit, edit.Overrides);
                 if (norm.Notice is not null) { edit = edit with { Overrides = AsDict(norm.Overrides) }; notice = norm.Notice; }
             }
             else if (gen is not null)
             {
-                var norm = _comfy.NormalizeForQueue(gen.Workflow, RenderKind.Generate, gen.Overrides);
+                QueueNormalizationResult norm = _comfy.NormalizeForQueue(gen.Workflow, RenderKind.Generate, gen.Overrides);
                 if (norm.Notice is not null) { gen = gen with { Overrides = AsDict(norm.Overrides) }; notice = norm.Notice; }
             }
             // Seed is a generation parameter decided at this boundary: fill a fresh one unless the caller pinned it, so
@@ -157,8 +156,8 @@ public sealed class RenderOrchestrator
 
         lock (_lock)
         {
-            if (!_byOwner.TryGetValue(owner, out var q)) { q = new Queue<RenderSlot>(); _byOwner[owner] = q; }
-            foreach (var s in job.Slots) q.Enqueue(s);
+            if (!_byOwner.TryGetValue(owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[owner] = q; }
+            foreach (RenderSlot s in job.Slots) q.Enqueue(s);
         }
         if (job.Slots.Count > 0) _signal.Release(job.Slots.Count);
         return job;
@@ -168,7 +167,7 @@ public sealed class RenderOrchestrator
     /// seed is decided here, persisted with the request, and single-sourced for the build.</summary>
     private static Dictionary<string, JsonElement> WithSeed(Dictionary<string, JsonElement>? overrides)
     {
-        var d = overrides is null ? new Dictionary<string, JsonElement>() : new Dictionary<string, JsonElement>(overrides);
+        Dictionary<string, JsonElement> d = overrides is null ? new Dictionary<string, JsonElement>() : new Dictionary<string, JsonElement>(overrides);
         if (!d.ContainsKey(SeedKey))
             d[SeedKey] = JsonSerializer.SerializeToElement(Random.Shared.NextInt64(1, long.MaxValue));
         return d;
@@ -204,8 +203,8 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            var active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
-            var waiting = active.SelectMany(j => j.Slots).Count(s => !s.Terminal && !ReferenceEquals(s, _running));
+            List<RenderJob> active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
+            int waiting = active.SelectMany(j => j.Slots).Count(s => !s.Terminal && !ReferenceEquals(s, _running));
             return new WorkloadSnapshot(
                 ActiveJobs: active.Count,
                 InFlightSlots: _running is null ? 0 : 1,
@@ -223,9 +222,9 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            var active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
-            var pending = active.SelectMany(j => j.Slots).Where(s => !s.Terminal).ToList();
-            var running = _running;
+            List<RenderJob> active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
+            List<RenderSlot> pending = active.SelectMany(j => j.Slots).Where(s => !s.Terminal).ToList();
+            RenderSlot? running = _running;
 
             // The in-flight slot is priced from its own measurement only once it HAS one — the expected time and start
             // instant are assigned at submit, so a slot the worker has picked but not yet submitted has neither. That
@@ -234,7 +233,7 @@ public sealed class RenderOrchestrator
             if (running is { ExpectedGenSeconds: { } expected, GenStartedAt: { } started })
                 runningRemaining = Math.Max(0, expected - (DateTimeOffset.UtcNow - started).TotalSeconds);
 
-            var waiting = pending
+            List<string> waiting = pending
                 .Where(s => runningRemaining is null || !ReferenceEquals(s, running))
                 .Select(s => s.Model)
                 .ToList();
@@ -247,14 +246,14 @@ public sealed class RenderOrchestrator
     public string? JobIdForComfy(string? comfyPromptId)
     {
         if (string.IsNullOrEmpty(comfyPromptId)) return null;
-        lock (_lock) return _comfyToSlot.TryGetValue(comfyPromptId, out var s) ? s.Job.JobId : null;
+        lock (_lock) return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? s) ? s.Job.JobId : null;
     }
 
     /// <summary>The user who owns the job behind a backend prompt id (or null) — lets /ws forward only own progress.</summary>
     public long? OwnerForComfy(string? comfyPromptId)
     {
         if (string.IsNullOrEmpty(comfyPromptId)) return null;
-        lock (_lock) return _comfyToSlot.TryGetValue(comfyPromptId, out var s) ? s.Job.Owner : (long?)null;
+        lock (_lock) return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? s) ? s.Job.Owner : (long?)null;
     }
 
     /// <summary>Approximate count of image slots that will run before this job's first queued slot.</summary>
@@ -266,7 +265,7 @@ public sealed class RenderOrchestrator
             // prepared, waiting in the backend's queue, or executing.
             if (_running is not null && ReferenceEquals(_running.Job, job)) return 0;
             if (!job.Slots.Exists(s => s.State == SlotState.Queued)) return 0;
-            var queuedAhead = _byOwner.Values.Sum(q => q.Count(s => s.Job.CreatedAt < job.CreatedAt));
+            int queuedAhead = _byOwner.Values.Sum(q => q.Count(s => s.Job.CreatedAt < job.CreatedAt));
             return queuedAhead + (_running is not null ? 1 : 0);
         }
     }
@@ -280,11 +279,11 @@ public sealed class RenderOrchestrator
     public bool Cancel(string jobId)
     {
         RenderJob? job;
-        var interrupt = false;
+        bool interrupt = false;
         lock (_lock)
         {
             if (!_jobs.TryGetValue(jobId, out job)) return false;
-            foreach (var s in job.Slots)
+            foreach (RenderSlot s in job.Slots)
             {
                 if (s.Terminal) continue;
                 // Whose slot it is, not what state it is in. The worker's slot may be mid-prompt-build or mid-submit
@@ -295,7 +294,7 @@ public sealed class RenderOrchestrator
                 if (ReferenceEquals(s, _running)) { s.CancelRequested = true; interrupt = s.Submitted; }
                 else { s.State = SlotState.Cancelled; s.Error = "cancelled"; }
             }
-            if (_byOwner.TryGetValue(job.Owner, out var q))
+            if (_byOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? q))
                 _byOwner[job.Owner] = new Queue<RenderSlot>(q.Where(s => s.State == SlotState.Queued));
         }
         if (interrupt)
@@ -320,7 +319,7 @@ public sealed class RenderOrchestrator
     public async Task<bool> CancelStrandedAsync(string jobId, CancellationToken ct)
     {
         lock (_lock) { if (_jobs.ContainsKey(jobId)) return false; }   // live here — not stranded
-        var rec = await _jobRepo.GetAsync(jobId, ct);
+        JobRecord? rec = await _jobRepo.GetAsync(jobId, ct);
         if (rec is null || rec.Status != JobStatus.Active) return false;
         if (!string.Equals(rec.MachineName, _machine, StringComparison.OrdinalIgnoreCase)) return false;
         await _jobRepo.CancelAsync(jobId, ct);
@@ -342,11 +341,11 @@ public sealed class RenderOrchestrator
     /// </summary>
     public async Task<int> CancelAllAsync(long? owner, CancellationToken ct)
     {
-        var live = owner is { } o ? ActiveForOwner(o) : AllActive();
-        var cancelled = live.Count(j => Cancel(j.JobId));
+        List<RenderJob> live = owner is { } o ? ActiveForOwner(o) : AllActive();
+        int cancelled = live.Count(j => Cancel(j.JobId));
 
-        var rows = await _jobRepo.ListActiveForMachineAsync(_machine, ct);
-        foreach (var rec in rows)
+        IReadOnlyList<JobRecord> rows = await _jobRepo.ListActiveForMachineAsync(_machine, ct);
+        foreach (JobRecord rec in rows)
         {
             if (owner is { } only && rec.UserId != only) continue;
             if (await CancelStrandedAsync(rec.JobId, ct)) cancelled++;   // re-checks live/owner/status itself
@@ -376,24 +375,24 @@ public sealed class RenderOrchestrator
         lock (_lock)
             if (_jobs.ContainsKey(jobId)) return new RequeueOutcome(RequeueStatus.StillActive);
 
-        var rec = await _jobRepo.GetAsync(jobId, ct);
+        JobRecord? rec = await _jobRepo.GetAsync(jobId, ct);
         if (rec is null) return new RequeueOutcome(RequeueStatus.UnknownJob);
         // Owner-checked, unlike /cancel/{id}. Cancel destroys work; requeue CREATES it, under an owner, and the
         // scheduler is fair round-robin per owner — so an unchecked requeue would let one user push work into
         // another's queue share.
         if (rec.UserId != owner) return new RequeueOutcome(RequeueStatus.NotOwner);
 
-        var missing = rec.Slots
+        List<JobSlotRecord> missing = rec.Slots
             .Where(s => s.ImageId is null && s.State is JobSlotState.Error or JobSlotState.Cancelled)
             .OrderBy(s => s.SlotIndex)
             .ToList();
         if (missing.Count == 0) return new RequeueOutcome(RequeueStatus.NothingMissing);
 
-        var items = new List<RenderItem>(missing.Count);
-        var edits = new List<EditSpec>();
-        foreach (var sr in missing)
+        List<RenderItem> items = new List<RenderItem>(missing.Count);
+        List<EditSpec> edits = new List<EditSpec>();
+        foreach (JobSlotRecord sr in missing)
         {
-            var which = $"image {sr.SlotIndex + 1}";
+            string which = $"image {sr.SlotIndex + 1}";
             // One check, on a real column: a column either has a workflow in it or it does not. Deserializing a blob
             // instead would force a second question — is the object usable? — because System.Text.Json ignores members
             // it doesn't recognise, so a request written under an older property name yields a spec with a null
@@ -404,7 +403,7 @@ public sealed class RenderOrchestrator
             {
                 if (sr.IsEdit)
                 {
-                    var edit = EditSpecOf(sr);
+                    EditSpec edit = EditSpecOf(sr);
                     edits.Add(edit);
                     items.Add(RenderItem.ForEdit(edit));
                 }
@@ -422,7 +421,7 @@ public sealed class RenderOrchestrator
         if (await FirstMissingEditInputAsync(edits, ct) is { } gone)
             return new RequeueOutcome(RequeueStatus.Unrunnable, Reason: gone);
 
-        var job = await EnqueueJobAsync(owner, items);
+        RenderJob job = await EnqueueJobAsync(owner, items);
         return new RequeueOutcome(RequeueStatus.Requeued, job.JobId, items.Count);
     }
 
@@ -433,21 +432,21 @@ public sealed class RenderOrchestrator
         if (edits.Count == 0) return null;
 
         // (id, what it is) in the order they're reported, so the message names the input the user recognises.
-        var inputs = new List<(string Id, string What)>();
-        foreach (var e in edits)
+        List<(string Id, string What)> inputs = new List<(string Id, string What)>();
+        foreach (EditSpec e in edits)
         {
             inputs.Add((e.ImageId, "source image"));
             if (!string.IsNullOrWhiteSpace(e.MaskImageId)) inputs.Add((e.MaskImageId, "inpaint mask"));
             if (!string.IsNullOrWhiteSpace(e.LastFrameImageId)) inputs.Add((e.LastFrameImageId, "end frame"));
-            foreach (var r in e.ReferenceImageIds ?? []) if (!string.IsNullOrWhiteSpace(r)) inputs.Add((r, "reference image"));
+            foreach (string r in e.ReferenceImageIds ?? []) if (!string.IsNullOrWhiteSpace(r)) inputs.Add((r, "reference image"));
         }
 
-        var unresolved = inputs.Where(i => _uploads.Get(i.Id) is null).Select(i => i.Id).Distinct(StringComparer.Ordinal).ToList();
-        var stored = unresolved.Count == 0
+        List<string> unresolved = inputs.Where(i => _uploads.Get(i.Id) is null).Select(i => i.Id).Distinct(StringComparer.Ordinal).ToList();
+        IReadOnlyDictionary<string, string> stored = unresolved.Count == 0
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : await _blobs.GetContentTypesAsync(unresolved, ct);
 
-        foreach (var (id, what) in inputs)
+        foreach ((string? id, string? what) in inputs)
             if (_uploads.Get(id) is null && !stored.ContainsKey(id))
                 return $"its {what} is gone — an uploaded input lives only in the process that received it and is never stored";
         return null;
@@ -493,7 +492,7 @@ public sealed class RenderOrchestrator
         // duplicate slots.
         _ = Task.Run(async () =>
         {
-            var delay = TimeSpan.FromSeconds(5);
+            TimeSpan delay = TimeSpan.FromSeconds(5);
             while (!ct.IsCancellationRequested && !await RehydrateAsync(ct))
             {
                 _log.LogWarning("Rehydrate will retry in {Delay}s.", delay.TotalSeconds);
@@ -504,7 +503,7 @@ public sealed class RenderOrchestrator
 
         while (!ct.IsCancellationRequested)
         {
-            var slot = PickNext();
+            RenderSlot? slot = PickNext();
             if (slot is null)
             {
                 try { await _signal.WaitAsync(ct); } catch (OperationCanceledException) { break; }
@@ -528,7 +527,7 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             if (slot.Terminal) return;
-            if (!_byOwner.TryGetValue(slot.Job.Owner, out var q)) { q = new Queue<RenderSlot>(); _byOwner[slot.Job.Owner] = q; }
+            if (!_byOwner.TryGetValue(slot.Job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[slot.Job.Owner] = q; }
             q.Enqueue(slot);
         }
         _signal.Release();
@@ -540,21 +539,21 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             long? best = null;
-            var bestTick = long.MaxValue;
-            var bestHead = DateTimeOffset.MaxValue;
-            foreach (var (owner, q) in _byOwner)
+            long bestTick = long.MaxValue;
+            DateTimeOffset bestHead = DateTimeOffset.MaxValue;
+            foreach ((long owner, Queue<RenderSlot>? q) in _byOwner)
             {
                 while (q.Count > 0 && q.Peek().State != SlotState.Queued) q.Dequeue();   // drop cancelled/stale heads
                 if (q.Count == 0) continue;
-                var tick = _lastServed.GetValueOrDefault(owner, 0L);
-                var head = q.Peek().Job.CreatedAt;
+                long tick = _lastServed.GetValueOrDefault(owner, 0L);
+                DateTimeOffset head = q.Peek().Job.CreatedAt;
                 if (tick < bestTick || (tick == bestTick && head < bestHead))
                 {
                     best = owner; bestTick = tick; bestHead = head;
                 }
             }
             if (best is null) return null;
-            var slot = _byOwner[best.Value].Dequeue();
+            RenderSlot slot = _byOwner[best.Value].Dequeue();
             _lastServed[best.Value] = ++_servedSeq;
             // Picked, NOT running: the prompt still has to be built (tag sampling, image fetches) and submitted, and
             // the backend still has to start executing it. The slot stays Queued until the backend says otherwise —
@@ -575,7 +574,7 @@ public sealed class RenderOrchestrator
 
             string promptId;
             byte[]? src = null;
-            var resuming = slot.Submitted;   // a rehydrated slot that was mid-render before a restart
+            bool resuming = slot.Submitted;   // a rehydrated slot that was mid-render before a restart
 
             if (resuming)
             {
@@ -584,11 +583,11 @@ public sealed class RenderOrchestrator
             }
             else if (slot.IsEdit)
             {
-                var edit = slot.RequireEdit();
+                EditSpec edit = slot.RequireEdit();
                 try { src = await GetImageBytesAsync(edit.ImageId, ct); }
                 catch (HttpRequestException) { FailSlot(slot, $"source image '{edit.ImageId}' not found"); return; }
-                var references = new List<byte[]>();
-                foreach (var refId in edit.ReferenceImageIds ?? new List<string>())
+                List<byte[]> references = new List<byte[]>();
+                foreach (string refId in edit.ReferenceImageIds ?? new List<string>())
                 {
                     try { references.Add(await GetImageBytesAsync(refId, ct)); }
                     catch (HttpRequestException) { FailSlot(slot, $"reference image '{refId}' not found"); return; }
@@ -607,8 +606,8 @@ public sealed class RenderOrchestrator
                 }
                 // Finalize the instruction for tag-speaking editors (inpaint), as the generate path does. Non-tag
                 // editors have no tagging block, so Finalize passes the instruction through unchanged.
-                var editInfo = _catalog.ResolveInfo(edit.Workflow);
-                var editFinal = PromptFinalizer.Finalize(edit.Instruction, editInfo?.Tagging);
+                WorkflowInfo? editInfo = _catalog.ResolveInfo(edit.Workflow);
+                FinalizedPrompt editFinal = PromptFinalizer.Finalize(edit.Instruction, editInfo?.Tagging);
                 // The instruction and its negative arrive in marker form and are stored verbatim, exactly as the generate
                 // path stores its raw prompt — so an edited image's prompt comes back to the box the way it was written.
                 slot.RawPrompt = edit.Instruction;
@@ -619,8 +618,8 @@ public sealed class RenderOrchestrator
                 // tag/artist autocomplete, so its text arrives carrying '#'/'@' markers (and underscores). Without this
                 // those markers leak raw into the negative conditioning and degrade output. Marks aren't kept (negatives
                 // aren't bookmarkable). Comfy then appends this onto the model's default negative (ComposeNegative).
-                var editNeg = PromptFinalizer.Finalize(edit.NegativePrompt, editInfo?.Tagging).Rendered;
-                var editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, maskBytes, lastFrameBytes, ct);
+                string editNeg = PromptFinalizer.Finalize(edit.NegativePrompt, editInfo?.Tagging).Rendered;
+                SubmitResult editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, maskBytes, lastFrameBytes, ct);
                 promptId = editSubmit.PromptId;
                 slot.EtaSignature = editSubmit.Eta;
             }
@@ -628,21 +627,21 @@ public sealed class RenderOrchestrator
             {
                 // Guard the discriminant once so the whole generate branch reads slot.Gen without re-asserting it.
                 if (slot.Gen is null) throw new InvalidOperationException("Slot is not a generate slot.");
-                var info = _catalog.ResolveInfo(slot.Gen.Workflow);
+                WorkflowInfo? info = _catalog.ResolveInfo(slot.Gen.Workflow);
                 // The RAW prompt is the source of truth. It is the marker-form string the user submitted ("#long_hair,
                 // @greg_rutkowski"), and the random samplers below APPEND TO IT in that same dialect — so after they run
                 // it still reads as something the user could have typed. The rendered prompt and the marks are then
                 // derived from it, once, by the finalizer. One direction of transform: nothing downstream ever has to
                 // invert a finalized prompt to guess back the markers and underscores it destroyed.
-                var raw = slot.Gen.Prompt;
+                string raw = slot.Gen.Prompt;
                 // What the user put in the NEGATIVE is a standing exclusion for the random samplers: a tag they negated
                 // must never be handed back to them as a randomly-chosen positive (same for a negated artist).
-                var negKeys = PromptFinalizer.NegativeKeys(slot.Gen.NegativePrompt);
+                (HashSet<string> Tags, HashSet<string> Artists) negKeys = PromptFinalizer.NegativeKeys(slot.Gen.NegativePrompt);
                 // The user's standing bans for THIS workflow, read from the store right here at render time. A ban is a
                 // server-side fact, so it is never taken from the request: a caller that omits it (an API-key client, a
                 // browser holding a stale ban cache, a job resumed from before the ban) must not be able to generate its
                 // way around one. Only fetched when a random sampler is actually going to run — bans bind auto-gen only.
-                var bans = slot.Gen.RandomPrompt == true || slot.Gen.RandomArtist == true
+                (HashSet<string> Tags, HashSet<string> Artists) bans = slot.Gen.RandomPrompt == true || slot.Gen.RandomArtist == true
                     ? await BannedKeysAsync(slot.Job.Owner, slot.Model, ct)
                     : (Tags: new HashSet<string>(StringComparer.Ordinal), Artists: new HashSet<string>(StringComparer.Ordinal));
                 // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed tags,
@@ -652,8 +651,8 @@ public sealed class RenderOrchestrator
                 // the user did not ask for and give no hint why.
                 if (slot.Gen.RandomPrompt == true && info?.Tagging is { Tags: true })
                 {
-                    var (seed, suppressKeys) = TagSeed(raw, info.Tagging);
-                    var bannedTags = bans.Tags;
+                    (string? seed, HashSet<string>? suppressKeys) = TagSeed(raw, info.Tagging);
+                    HashSet<string> bannedTags = bans.Tags;
                     bannedTags.UnionWith(negKeys.Tags);
                     // Inert ('!') and guide ('~') tags are both banned for this call. A tag hidden from the seed is one
                     // the predictor may freely sample ("!pig" would come back "!pig, ..., #pig"); a guide tag echoed
@@ -672,9 +671,9 @@ public sealed class RenderOrchestrator
                     // fresh here) because it is a composer control now — the chips under the Random prompt slider — so a
                     // queued batch renders under the mask it was submitted with, not whatever the chips say by the time
                     // it comes up. Bounds THIS path only — tag autocomplete is unaffected by it.
-                    var allowedTypes = await AllowedTagTypesAsync(slot.Job.Owner, slot.Gen.TagTypes, ct);
-                    var gen = await _tagModel.GenerateAsync(seed, slot.Gen.Temperature, bannedTags, allowedTypes, ct);
-                    var genOut = gen is null ? "(null)" : string.Join(ListSeparator, gen);
+                    IReadOnlyList<string> allowedTypes = await AllowedTagTypesAsync(slot.Job.Owner, slot.Gen.TagTypes, ct);
+                    IReadOnlyList<string>? gen = await _tagModel.GenerateAsync(seed, slot.Gen.Temperature, bannedTags, allowedTypes, ct);
+                    string genOut = gen is null ? "(null)" : string.Join(ListSeparator, gen);
                     // The predictor's in/out goes to the PER-USER ENCRYPTED log and nowhere else. Duplicating it to
                     // the plaintext app log would be one toggle away from writing prompts to disk permanently once a
                     // file sink exists — and the encrypted line below already carries the same content, so that
@@ -686,7 +685,7 @@ public sealed class RenderOrchestrator
                         // per the model's rules) and marks it, so the sampled names are chips exactly like the typed
                         // ones — '@' for the artist-type names, '#' for the rest, per the same catalog the chips take
                         // their category from.
-                        var additions = PromptFinalizer.MarkSampled(gen, bannedTags, _tags.IsArtist);
+                        List<string> additions = PromptFinalizer.MarkSampled(gen, bannedTags, _tags.IsArtist);
                         if (additions.Count > 0)
                             raw = PromptFinalizer.Append(raw, string.Join(ListSeparator, additions));
                     }
@@ -694,15 +693,15 @@ public sealed class RenderOrchestrator
                 // Random-artist: pick a fresh artist PER SLOT (so a batch gets a different one per image), model permitting.
                 if (slot.Gen.RandomArtist == true && info?.Tagging is { Artists: true })
                 {
-                    var bannedArtists = bans.Artists;
+                    HashSet<string> bannedArtists = bans.Artists;
                     bannedArtists.UnionWith(negKeys.Artists);
-                    var artist = _tags.RandomArtist(bannedArtists.Count > 0 ? bannedArtists : null);
+                    string? artist = _tags.RandomArtist(bannedArtists.Count > 0 ? bannedArtists : null);
                     if (!string.IsNullOrEmpty(artist))
                         raw = PromptFinalizer.Append(raw, PromptMarkers.ArtistMarker + PromptFinalizer.Normalize(artist));
                 }
                 // The single derivation: the prompt the model renders and the marks that describe it both come from the
                 // raw string we are about to store, so the three can never disagree.
-                var final = PromptFinalizer.Finalize(raw, info?.Tagging);
+                FinalizedPrompt final = PromptFinalizer.Finalize(raw, info?.Tagging);
                 slot.RawPrompt = raw;
                 // The negative is stored exactly as submitted. The random samplers never touch it (they only ever ADD a
                 // positive), so verbatim here is simply what the user typed — null when they typed nothing, which is
@@ -713,8 +712,8 @@ public sealed class RenderOrchestrator
                 await _userLog.LogAsync(slot.Job.Owner, LogCategorySubmit, final.Rendered, ct);
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
-                var genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
-                var submit = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
+                string genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
+                SubmitResult submit = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
                 promptId = submit.PromptId;
                 slot.EtaSignature = submit.Eta;
             }
@@ -724,7 +723,7 @@ public sealed class RenderOrchestrator
                 // The prompt is with the backend — our fair-queue wait is over. Stamp submit time + expected render
                 // seconds (this machine's recent average, or null the first time) for the ETA. This is not the same
                 // as the slot RUNNING: the backend decides when it starts executing, and says so on the next poll.
-                var startedAt = DateTimeOffset.UtcNow;
+                DateTimeOffset startedAt = DateTimeOffset.UtcNow;
                 double? expected = null;
                 try
                 {
@@ -755,7 +754,7 @@ public sealed class RenderOrchestrator
                 await Task.Delay(1500, ct);
                 img = await _comfy.PollResultAsync(promptId, ct);
                 if (img is not null) break;
-                var backend = await _comfy.GetQueueAsync(ct);
+                BackendQueue? backend = await _comfy.GetQueueAsync(ct);
                 if (backend is null) continue;                                // backend unreachable -> unknown, keep waiting
                 // The one place a slot becomes (or stops being) "running": the backend's own account of what its GPU
                 // is executing. A prompt merely sitting in its queue is still waiting, and says so.
@@ -783,8 +782,8 @@ public sealed class RenderOrchestrator
             // Success — record the actual render duration (submit -> image; queue wait excluded) for future ETAs.
             try
             {
-                var ms = (int)Math.Clamp((DateTimeOffset.UtcNow - (slot.GenStartedAt ?? DateTimeOffset.UtcNow)).TotalMilliseconds, 0, int.MaxValue);
-                var etaSig = slot.EtaSignature;
+                int ms = (int)Math.Clamp((DateTimeOffset.UtcNow - (slot.GenStartedAt ?? DateTimeOffset.UtcNow)).TotalMilliseconds, 0, int.MaxValue);
+                EtaSignature? etaSig = slot.EtaSignature;
                 await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, ms,
                     etaSig?.Width, etaSig?.Height, etaSig?.Steps, etaSig?.Frames), ct);
             }
@@ -801,16 +800,16 @@ public sealed class RenderOrchestrator
             // AUDIO track (webp can't carry audio; see MiniMaxH3Workflows -> SaveVideo). Content type follows the
             // container; it rides through the blob and the serve path (/image/{id}, /image/{id}/mp4 pass-through) with
             // the audio intact and never re-transcoded.
-            var isMp4 = img.Filename.EndsWith(Mp4Extension, StringComparison.OrdinalIgnoreCase);
-            var isVideo = isMp4 || img.Filename.EndsWith(WebpExtension, StringComparison.OrdinalIgnoreCase);
-            var contentType = isMp4 ? "video/mp4" : isVideo ? "image/webp" : "image/png";
+            bool isMp4 = img.Filename.EndsWith(Mp4Extension, StringComparison.OrdinalIgnoreCase);
+            bool isVideo = isMp4 || img.Filename.EndsWith(WebpExtension, StringComparison.OrdinalIgnoreCase);
+            string contentType = isMp4 ? "video/mp4" : isVideo ? "image/webp" : "image/png";
 
             // A workflow that DECLARES video must have produced a clip. SaveAnimatedWEBP writes a .webp whether it was
             // handed one frame or forty, so the extension says nothing — a single-frame still can come back from a
             // workflow that asked for many frames and still read as "done", surfacing only later as an unreadable
             // source in an editor that consumes clips. A render that did not make the thing it exists to make is a
             // failed render. An mp4 is a video container by construction (CreateVideo), so it counts as a clip.
-            var declared = _catalog.ResolveInfo(slot.IsEdit ? slot.RequireEdit().Workflow : slot.RequireGen().Workflow);
+            WorkflowInfo? declared = _catalog.ResolveInfo(slot.IsEdit ? slot.RequireEdit().Workflow : slot.RequireGen().Workflow);
             if (declared?.ProducesVideo == true && !(isMp4 || _media.IsAnimatedWebp(img.Png)))
                 throw new RenderValidationException(
                     "This is a video workflow and the render came back as a single frame, not a clip. "
@@ -819,8 +818,8 @@ public sealed class RenderOrchestrator
             // write a fabricated size into the blob row and into history, where nothing downstream could tell it from a
             // real measurement. Let it throw: the handler at the bottom of this method fails the slot with the real reason.
             // ImageSharp reads a still/webp; an mp4 needs the container's own box tree (ImageSharp can't read it).
-            var dims = isMp4 ? _media.IdentifyVideo(img.Png) : _media.Identify(img.Png);
-            var (w, h) = (dims.Width, dims.Height);
+            ImageDimensions dims = isMp4 ? _media.IdentifyVideo(img.Png) : _media.Identify(img.Png);
+            (int w, int h) = (dims.Width, dims.Height);
 
             if (slot.IsEdit && src is not null)
             {
@@ -833,13 +832,13 @@ public sealed class RenderOrchestrator
                 // diff is tiny BY DESIGN and would trip the no-change gate, so those workflows opt out.
                 bool preservesComposition = _catalog.ResolveInfo(slot.RequireEdit().Workflow)?.PreservesComposition ?? false;
                 if (!preservesComposition && diff < _media.NoChangeThreshold) { SlotEditNoChange(slot, Math.Round(diff, 3)); return; }
-                var editId = await StoreImageAsync(img.Png, contentType, w, h, ct);
+                string editId = await StoreImageAsync(img.Png, contentType, w, h, ct);
                 await PersistSpriteDataAsync(editId, img, ct);
                 await WriteHistoryAsync(slot, editId, ct);
                 SlotDone(slot, editId, w, h, changed: true, score: isVideo ? null : Math.Round(diff, 3));
                 return;
             }
-            var id = await StoreImageAsync(img.Png, contentType, w, h, ct);
+            string id = await StoreImageAsync(img.Png, contentType, w, h, ct);
             await PersistSpriteDataAsync(id, img, ct);
             await WriteHistoryAsync(slot, id, ct);
             SlotDone(slot, id, w, h);
@@ -947,11 +946,11 @@ public sealed class RenderOrchestrator
     /// drop it from the active maps (the DB holds the finalized record).</summary>
     private async Task AfterSlotAsync(RenderJob job)
     {
-        var finalize = false;
+        bool finalize = false;
         lock (_lock)
             if (job.AllTerminal && job.FinishedAt is null) { job.FinishedAt = DateTimeOffset.UtcNow; finalize = true; }
 
-        var persisted = await PersistAsync(job);
+        bool persisted = await PersistAsync(job);
 
         // Finalizing means dropping the job from memory next — so if the write failed, memory is about to become the
         // only place the outcome ever existed. Keep the job resident (it is terminal, so it renders nothing) and let a
@@ -972,7 +971,7 @@ public sealed class RenderOrchestrator
             lock (_lock)
             {
                 _jobs.Remove(job.JobId);
-                foreach (var s in job.Slots) if (s.ComfyPromptId is { } c) _comfyToSlot.Remove(c);
+                foreach (RenderSlot s in job.Slots) if (s.ComfyPromptId is { } c) _comfyToSlot.Remove(c);
             }
         }
     }
@@ -990,33 +989,33 @@ public sealed class RenderOrchestrator
     {
         try
         {
-            var modelId = slot.Model;
-            var friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
+            string modelId = slot.Model;
+            string friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
             // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
             // without going through RunSlotAsync's prompt build — the same fallback shape the EffectivePrompt line uses.
-            var raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
-            var rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
-            var prompt = slot.EffectivePrompt ?? raw;
+            string raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
+            string? rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
+            string prompt = slot.EffectivePrompt ?? raw;
             // What the user TYPED, which for a generate only the client knows (it resolves [a|b], {a|b} and the
             // artist lock before submitting) and so travels on the spec. An edit's instruction goes through no
             // sampler at all, so for those the submitted string IS the original.
-            var original = slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().OriginalPrompt;
+            string? original = slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().OriginalPrompt;
             // A generate that reached here rendered, and a render only happens once NormalizeAspect has accepted the
             // aspect at submit (it throws on anything but square/landscape/portrait) — so a null here is not a missing
             // value to fill with "square", it is a broken invariant. Edits carry no aspect: "" is their real value.
-            var aspect = slot.IsEdit ? "" : (slot.RequireGen().Aspect
+            string aspect = slot.IsEdit ? "" : (slot.RequireGen().Aspect
                 ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
                 : slot.Marks.Select(kv => new Mark(kv.Key, TokenKinds.Parse(kv.Value))).ToList();
             // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
             // and Reload reproduces the exact stack; empty for edits and for generations that used none.
-            var genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
+            IReadOnlyList<LoraSelection>? genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
             IReadOnlyList<HistoryLora> loras = genLoras is not { Count: > 0 }
                 ? Array.Empty<HistoryLora>()
                 : genLoras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
 
-            var entry = new HistoryEntry
+            HistoryEntry entry = new HistoryEntry
             {
                 UserId = slot.Job.Owner,
                 GatewayImageId = imageId,
@@ -1036,7 +1035,7 @@ public sealed class RenderOrchestrator
             // across every retry of a wait that can span the whole outage.
             await AwaitingDatabaseAsync(async c =>
             {
-                using var scope = _scopeFactory.CreateScope();
+                using IServiceScope scope = _scopeFactory.CreateScope();
                 await scope.ServiceProvider.GetRequiredService<IHistoryRepository>().AddAsync(entry, c);
             }, $"recording image {imageId} in history", ct);
         }
@@ -1085,8 +1084,8 @@ public sealed class RenderOrchestrator
     /// </summary>
     private async Task<T> AwaitingDatabaseAsync<T>(Func<CancellationToken, Task<T>> operation, string what, CancellationToken ct)
     {
-        var delay = TimeSpan.FromSeconds(5);
-        var since = DateTimeOffset.UtcNow;
+        TimeSpan delay = TimeSpan.FromSeconds(5);
+        DateTimeOffset since = DateTimeOffset.UtcNow;
         while (true)
         {
             try { return await operation(ct); }
@@ -1109,7 +1108,7 @@ public sealed class RenderOrchestrator
     /// Active until all terminal, then Done if anything was produced, else Error.</summary>
     private JobRecord ToRecord(RenderJob j)
     {
-        var rec = new JobRecord
+        JobRecord rec = new JobRecord
         {
             JobId = j.JobId,
             UserId = j.Owner,
@@ -1125,7 +1124,7 @@ public sealed class RenderOrchestrator
             CreatedAtUtc = j.CreatedAt.UtcDateTime,
             FinishedAtUtc = j.FinishedAt?.UtcDateTime,
         };
-        foreach (var s in j.Slots.OrderBy(s => s.Index))
+        foreach (RenderSlot? s in j.Slots.OrderBy(s => s.Index))
             rec.Slots.Add(new JobSlotRecord
             {
                 JobId = j.JobId,
@@ -1173,7 +1172,7 @@ public sealed class RenderOrchestrator
     /// by parameter name — not a relation to anything — so it stays JSON, and plain: none of it is protected.</summary>
     private static string? OverridesJsonOf(RenderSlot s)
     {
-        var overrides = s.IsEdit ? s.RequireEdit().Overrides : s.RequireGen().Overrides;
+        Dictionary<string, JsonElement>? overrides = s.IsEdit ? s.RequireEdit().Overrides : s.RequireGen().Overrides;
         return overrides is null ? null : JsonSerializer.Serialize(overrides);
     }
 
@@ -1182,7 +1181,7 @@ public sealed class RenderOrchestrator
     private static string? LorasJsonOf(RenderSlot s)
     {
         if (s.IsEdit) return null;
-        var loras = s.RequireGen().Loras;
+        IReadOnlyList<LoraSelection>? loras = s.RequireGen().Loras;
         return loras is not { Count: > 0 } ? null : JsonSerializer.Serialize(loras);
     }
 
@@ -1222,10 +1221,10 @@ public sealed class RenderOrchestrator
         catch (Exception ex) { _log.LogError(ex, "Job rehydrate failed; will retry."); return false; }
         if (active.Count == 0) return true;
 
-        var resumed = 0;
+        int resumed = 0;
         try
         {
-            foreach (var rec in active)
+            foreach (JobRecord rec in active)
             {
                 lock (_lock)
                 {
@@ -1259,7 +1258,7 @@ public sealed class RenderOrchestrator
                     lock (_lock)
                     {
                         _jobs.Remove(rec.JobId);
-                        if (_byOwner.TryGetValue(rec.UserId, out var q))
+                        if (_byOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? q))
                             _byOwner[rec.UserId] = new Queue<RenderSlot>(
                                 q.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
                     }
@@ -1283,15 +1282,15 @@ public sealed class RenderOrchestrator
     /// forever.</summary>
     private async Task<int> RehydrateJobAsync(JobRecord rec)
     {
-        var resumed = 0;
-        var job = new RenderJob
+        int resumed = 0;
+        RenderJob job = new RenderJob
         {
             JobId = rec.JobId,
             Owner = rec.UserId,
             MachineName = rec.MachineName,
             CreatedAt = new DateTimeOffset(DateTime.SpecifyKind(rec.CreatedAtUtc, DateTimeKind.Utc)),
         };
-        foreach (var sr in rec.Slots.OrderBy(s => s.SlotIndex))
+        foreach (JobSlotRecord? sr in rec.Slots.OrderBy(s => s.SlotIndex))
         {
             // The spec comes back from TYPED COLUMNS, so there is no request payload left to misparse and no
             // "deserialized into an object with a hole in it" to guard against — a missing column is a database
@@ -1316,11 +1315,11 @@ public sealed class RenderOrchestrator
                     rec.JobId, sr.SlotIndex, ex.LineNumber, ex.BytePositionInLine);
                 parseError = "unreadable stored request: " + ex.Message;
             }
-            var marks = sr.Marks.Count == 0
+            Dictionary<string, string>? marks = sr.Marks.Count == 0
                 ? null
                 : sr.Marks.ToDictionary(m => m.Token, m => m.Kind.ToWire(), StringComparer.Ordinal);
 
-            var slot = new RenderSlot
+            RenderSlot slot = new RenderSlot
             {
                 Job = job,
                 Index = sr.SlotIndex,
@@ -1347,8 +1346,8 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             _jobs[job.JobId] = job;
-            if (!_byOwner.TryGetValue(job.Owner, out var q)) { q = new Queue<RenderSlot>(); _byOwner[job.Owner] = q; }
-            foreach (var s in job.Slots)
+            if (!_byOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[job.Owner] = q; }
+            foreach (RenderSlot s in job.Slots)
             {
                 if (s.Terminal) continue;
                 if (s.Gen is null && s.Edit is null) { s.State = SlotState.Error; s.Error = "lost on restart"; continue; }
@@ -1356,7 +1355,7 @@ public sealed class RenderOrchestrator
                 // A slot with no workflow can never render, and left Queued it keeps its job Active forever, so it is
                 // failed here with a reason. The workflow is its own column, so this only fires for a row migrated
                 // without one.
-                var workflow = s.IsEdit ? s.Edit?.Workflow : s.Gen?.Workflow;
+                string? workflow = s.IsEdit ? s.Edit?.Workflow : s.Gen?.Workflow;
                 if (string.IsNullOrWhiteSpace(workflow))
                 {
                     s.State = SlotState.Error;
@@ -1391,9 +1390,9 @@ public sealed class RenderOrchestrator
         // Waits out an unreachable database. Rendering WITHOUT the ban list is not a degraded mode worth having —
         // it would put back exactly the tags the user asked never to see — and failing the slot for it throws away
         // queued work over a condition that resolves itself. A fresh scope per attempt (the repository is scoped).
-        var bans = await AwaitingDatabaseAsync(async c =>
+        IReadOnlyList<BannedToken> bans = await AwaitingDatabaseAsync(async c =>
         {
-            using var scope = _scopeFactory.CreateScope();
+            using IServiceScope scope = _scopeFactory.CreateScope();
             return await scope.ServiceProvider.GetRequiredService<IBannedTokenRepository>().GetForModelAsync(owner, model, c);
         }, "reading the ban list", ct);
         return BanKeys(bans);
@@ -1415,7 +1414,7 @@ public sealed class RenderOrchestrator
         {
             // Normalized rather than passed through: this canonicalises the order and rejects an unknown name, and the
             // wire list is what the tag model is told stays ALLOWED.
-            if (!GenerationTagTypes.TryNormalize(requested, out var types, out var error))
+            if (!GenerationTagTypes.TryNormalize(requested, out IReadOnlyList<string>? types, out string? error))
                 throw new InvalidOperationException($"Slot carries an invalid generation mask: {error}");
             return types;
         }
@@ -1423,9 +1422,9 @@ public sealed class RenderOrchestrator
         // Waits out an unreachable database, like the ban list: falling back to the default mask would silently
         // generate tag kinds the user switched off, and failing the slot would throw away queued work over an
         // outage. A fresh scope per attempt (the repository is scoped).
-        var user = await AwaitingDatabaseAsync(async c =>
+        User? user = await AwaitingDatabaseAsync(async c =>
         {
-            using var scope = _scopeFactory.CreateScope();
+            using IServiceScope scope = _scopeFactory.CreateScope();
             return await scope.ServiceProvider.GetRequiredService<IUserRepository>().GetByIdAsync(owner, c);
         }, "reading the generation mask", ct);
         return GenerationTagTypes.Resolve(user?.GenerationTagTypes);
@@ -1450,18 +1449,18 @@ public sealed class RenderOrchestrator
         // belong, and rewriting them in place keeps each in the position the user wrote it and in the same rendered
         // form as its neighbours — appending their keys to a finished seed would reorder the prompt and mix
         // underscored keys into a seed whose other tags had their underscores folded.
-        var typed = PromptFinalizer.Finalize(PromptMarkers.GuidesAsTags(raw), tagging);
-        var inertKeys = PromptMarkers.InertKeys(raw);
-        var guideKeys = PromptMarkers.GuideKeys(raw);
-        var hidden = typed.Marks.Where(kv => kv.Value == TokenKinds.Artist).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
+        FinalizedPrompt typed = PromptFinalizer.Finalize(PromptMarkers.GuidesAsTags(raw), tagging);
+        HashSet<string> inertKeys = PromptMarkers.InertKeys(raw);
+        HashSet<string> guideKeys = PromptMarkers.GuideKeys(raw);
+        HashSet<string> hidden = typed.Marks.Where(kv => kv.Value == TokenKinds.Artist).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
         hidden.UnionWith(inertKeys);
-        var seed = string.Join(ListSeparator, PromptMarkers.Segments(typed.Rendered)
+        string seed = string.Join(ListSeparator, PromptMarkers.Segments(typed.Rendered)
                                                  .Where(seg => !hidden.Contains(PromptMarkers.Key(seg))));
 
         // Both kinds must be banned for this call, for opposite reasons that land in the same place: an inert tag is
         // hidden from the seed, so the predictor may freely sample it back; a guide tag IS the seed, and anything it
         // echoed would be appended as a '#' tag and rendered — the one outcome '~' exists to prevent.
-        var suppress = new HashSet<string>(inertKeys, StringComparer.Ordinal);
+        HashSet<string> suppress = new HashSet<string>(inertKeys, StringComparer.Ordinal);
         suppress.UnionWith(guideKeys);
         return (seed, suppress);
     }
@@ -1472,11 +1471,11 @@ public sealed class RenderOrchestrator
     /// matches the "wet_shirt" the model would sample.</summary>
     internal static (HashSet<string> Tags, HashSet<string> Artists) BanKeys(IEnumerable<BannedToken> bans)
     {
-        var tags = new HashSet<string>(StringComparer.Ordinal);
-        var artists = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var b in bans)
+        HashSet<string> tags = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> artists = new HashSet<string>(StringComparer.Ordinal);
+        foreach (BannedToken b in bans)
         {
-            var key = PromptFinalizer.Normalize(b.Name).TrimStart('#', '@');
+            string key = PromptFinalizer.Normalize(b.Name).TrimStart('#', '@');
             if (key.Length == 0) continue;
             (b.Kind == TokenKind.Artist ? artists : tags).Add(key);
         }
@@ -1494,7 +1493,7 @@ public sealed class RenderOrchestrator
         // Waits out an unreachable database rather than reporting the source as missing. "Not found" and "could not
         // be looked up" are opposite facts, and only one of them is the user's to act on: failing the slot here would
         // tell them their source image doesn't exist because the server is out of range.
-        var blob = await AwaitingDatabaseAsync(c => _blobs.GetAsync(id, c), $"loading input image {id}", ct);
+        ImageBlob? blob = await AwaitingDatabaseAsync(c => _blobs.GetAsync(id, c), $"loading input image {id}", ct);
         if (blob is not null) return blob.Bytes;
         return await _comfy.FetchLegacyImageAsync(id, ct);
     }

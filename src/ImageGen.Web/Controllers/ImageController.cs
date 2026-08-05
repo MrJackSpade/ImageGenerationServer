@@ -1,7 +1,7 @@
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Domain;
-using ImageGen.Web.Auth;
+using ImageGen.Domain.Entities;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +21,7 @@ public sealed class ImageController(
     [HttpGet("/image/{id}")]
     public async Task<IActionResult> Detail(string id, CancellationToken ct)
     {
-        var vm = await BuildAsync(id, ct);
+        ImageDetailViewModel? vm = await BuildAsync(id, ct);
         return vm is null ? NotFound() : View(vm);
     }
 
@@ -29,14 +29,14 @@ public sealed class ImageController(
     [HttpGet("/image/{id}/card")]
     public async Task<IActionResult> Card(string id, CancellationToken ct)
     {
-        var vm = await BuildAsync(id, ct);
+        ImageDetailViewModel? vm = await BuildAsync(id, ct);
         return vm is null ? NotFound() : PartialView(Views.Card, vm);
     }
 
     private async Task<ImageDetailViewModel?> BuildAsync(string id, CancellationToken ct)
     {
-        var userId = User.GetRequiredUserId();
-        var entry = await _history.GetByImageIdAsync(userId, id, ct);
+        long userId = User.GetRequiredUserId();
+        HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is null)
             return null;
 
@@ -45,15 +45,15 @@ public sealed class ImageController(
         // the ownership check above, so it can only ever record an image this user actually has.
         await _views.MarkViewedAsync(userId, entry.GatewayImageId, ct);
 
-        var (newer, older) = await _history.GetNeighborsAsync(userId, id, ct);
-        var isBookmarked = await _bookmarks.IsImageBookmarkedAsync(userId, id, ct);
-        var bannedForModel = await _bans.GetForModelAsync(userId, entry.ModelId, ct);
-        var tokens = await _bookmarks.GetTokensAsync(userId, ct);
+        (string? newer, string? older) = await _history.GetNeighborsAsync(userId, id, ct);
+        bool isBookmarked = await _bookmarks.IsImageBookmarkedAsync(userId, id, ct);
+        IReadOnlyList<BannedToken> bannedForModel = await _bans.GetForModelAsync(userId, entry.ModelId, ct);
+        IReadOnlyList<TokenBookmark> tokens = await _bookmarks.GetTokensAsync(userId, ct);
 
         // Look up each tag token's booru category: it colors the chip border and orders the chips by type. Artists are
         // colored and ranked by kind, so skip them; tags the catalog doesn't know stay absent and count as general.
-        var tagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var m in entry.Marks)
+        Dictionary<string, int> tagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (Mark m in entry.Marks)
         {
             if (m.Kind != TokenKind.Tag)
                 continue;

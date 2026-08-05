@@ -1,3 +1,4 @@
+using ImageGen.Application.Services;
 using ImageGen.Domain;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
@@ -45,12 +46,12 @@ public sealed class PendingJobReconciler(
     {
         // An explicitly-configured value outside its range is a misconfiguration to surface, not to silently clamp.
         // An absent key keeps its default (the common case).
-        var pollSeconds = Ensure.Between(_config.GetValue(PollSecondsKey, DefaultPollSeconds), MinPollSeconds, MaxPollSeconds, PollSecondsKey);
-        var maxAge = TimeSpan.FromHours(
+        int pollSeconds = Ensure.Between(_config.GetValue(PollSecondsKey, DefaultPollSeconds), MinPollSeconds, MaxPollSeconds, PollSecondsKey);
+        TimeSpan maxAge = TimeSpan.FromHours(
             Ensure.Between(_config.GetValue(MaxAgeHoursKey, DefaultMaxAgeHours), MinMaxAgeHours, MaxMaxAgeHours, MaxAgeHoursKey));
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));
+        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));
         do
         {
             try { await ReconcileOnceAsync(maxAge, stoppingToken); }
@@ -62,16 +63,16 @@ public sealed class PendingJobReconciler(
 
     private async Task ReconcileOnceAsync(TimeSpan maxAge, CancellationToken ct)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var pending = scope.ServiceProvider.GetRequiredService<Application.Services.PendingJobService>();
-        var jobs = scope.ServiceProvider.GetRequiredService<IJobRepository>();
+        using IServiceScope scope = _scopeFactory.CreateScope();
+        PendingJobService pending = scope.ServiceProvider.GetRequiredService<Application.Services.PendingJobService>();
+        IJobRepository jobs = scope.ServiceProvider.GetRequiredService<IJobRepository>();
 
-        var rows = await pending.ListAllAsync(ct);
+        IReadOnlyList<PendingJob> rows = await pending.ListAllAsync(ct);
         if (rows.Count == 0)
             return;
 
-        var now = DateTime.UtcNow;
-        foreach (var pj in rows)
+        DateTime now = DateTime.UtcNow;
+        foreach (PendingJob pj in rows)
         {
             ct.ThrowIfCancellationRequested();
 
@@ -81,7 +82,7 @@ public sealed class PendingJobReconciler(
                 continue;
             }
 
-            var job = await jobs.GetAsync(pj.JobId, ct);
+            JobRecord? job = await jobs.GetAsync(pj.JobId, ct);
             if (job is null) continue;                       // not persisted yet (race) — next cycle
             if (job.MachineName != _machine) continue;       // another instance's job — leave it (invariant #4)
             if (job.Status == JobStatus.Active) continue;    // still rendering — leave it

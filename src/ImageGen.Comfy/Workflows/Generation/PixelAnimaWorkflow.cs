@@ -43,7 +43,7 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
     /// <summary>Patch the denoise model with the per-step pixel-manifold projection (the base's reserved patch node).</summary>
     protected override object PatchDenoiseModel(Dictionary<string, object> wf, object model, object vae, ParamValues p)
     {
-        var (gw, gh, palette, vres) = Pixel(p);
+        (int gw, int gh, string? palette, int vres) = Pixel(p);
         wf[Nodes.DenoisePatch] = PixelizeSchema.Projection(model, vae, gw, gh, palette, vres, p);
         return ComfyGraph.Ref(Nodes.DenoisePatch, 0);
     }
@@ -51,7 +51,7 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflowBase
     /// <summary>Render the authoritative crisp output with a final PixelQuantize (the base's reserved post-decode node).</summary>
     protected override object PostDecodeImage(Dictionary<string, object> wf, object image, ParamValues p)
     {
-        var (gw, gh, palette, vres) = Pixel(p);
+        (int gw, int gh, string? palette, int vres) = Pixel(p);
         wf[Nodes.PostDecode] = PixelizeSchema.FinalQuantize(image, gw, gh, palette, vres, p);
         return ComfyGraph.Ref(Nodes.PostDecode, 0);
     }

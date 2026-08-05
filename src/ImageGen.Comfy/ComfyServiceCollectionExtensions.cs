@@ -2,8 +2,6 @@ using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;
 using ImageGen.Application.Workflows;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace ImageGen.Comfy;
 

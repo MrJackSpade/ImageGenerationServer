@@ -1,10 +1,10 @@
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 
 namespace ImageGen.Analyzers;
 
@@ -102,16 +102,16 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     /// <summary>Flags <c>(int)(await cmd.ExecuteScalarAsync(ct))</c> and the synchronous <c>(int)cmd.ExecuteScalar()</c>.</summary>
     private static void AnalyzeCast(SyntaxNodeAnalysisContext context)
     {
-        var cast = (CastExpressionSyntax)context.Node;
+        CastExpressionSyntax cast = (CastExpressionSyntax)context.Node;
         // PredefinedTypeSyntax covers the keyword types (int, long, bool...); IdentifierNameSyntax covers the rest,
         // which is how (DateTime) gets seen at all.
-        var target = cast.Type switch
+        string? target = cast.Type switch
         {
             PredefinedTypeSyntax predefined => predefined.Keyword.ValueText,
             IdentifierNameSyntax named => named.Identifier.ValueText,
             _ => null,
         };
-        if (target is null || !ScalarReplacements.TryGetValue(target, out var replacement))
+        if (target is null || !ScalarReplacements.TryGetValue(target, out string? replacement))
             return;
 
         if (!MentionsExecuteScalar(cast.Expression))
@@ -133,12 +133,12 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
-        var invocation = (InvocationExpressionSyntax)context.Node;
+        InvocationExpressionSyntax invocation = (InvocationExpressionSyntax)context.Node;
         if (invocation.Expression is not MemberAccessExpressionSyntax member)
             return;
 
-        var name = member.Name.Identifier.ValueText;
-        if (!Replacements.TryGetValue(name, out var replacement))
+        string name = member.Name.Identifier.ValueText;
+        if (!Replacements.TryGetValue(name, out string? replacement))
             return;
 
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol method)
@@ -154,7 +154,7 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     /// <summary>True when <paramref name="type"/> is <c>DbDataReader</c> or derives from it (e.g. <c>SqlDataReader</c>).</summary>
     private static bool IsDbDataReader(INamedTypeSymbol? type)
     {
-        for (var t = type; t is not null; t = t.BaseType)
+        for (INamedTypeSymbol? t = type; t is not null; t = t.BaseType)
             if (t.ToDisplayString() == "System.Data.Common.DbDataReader")
                 return true;
         return false;

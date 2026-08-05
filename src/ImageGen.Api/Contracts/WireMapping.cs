@@ -69,15 +69,15 @@ public static class WireMapping
 
     public static RegisterPendingJobCommand ToRegisterPendingJobCommand(
         this PendingJobContract c, long userId, DateTime createdAtUtc) => new()
-    {
-        UserId = userId,
-        JobId = c.JobId,
-        Prompt = c.Prompt,
-        ModelFriendly = c.Model,
-        ModelId = c.ModelId,
-        Aspect = c.Aspect,
-        CreatedAtUtc = createdAtUtc,
-    };
+        {
+            UserId = userId,
+            JobId = c.JobId,
+            Prompt = c.Prompt,
+            ModelFriendly = c.Model,
+            ModelId = c.ModelId,
+            Aspect = c.Aspect,
+            CreatedAtUtc = createdAtUtc,
+        };
 
     public static PendingJobView ToView(this PendingJob e) => new()
     {

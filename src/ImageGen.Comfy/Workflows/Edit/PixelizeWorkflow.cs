@@ -1,6 +1,4 @@
-﻿using ImageGen.Application.Rendering;
-
-namespace ImageGen.Comfy;
+﻿namespace ImageGen.Comfy;
 
 /// <summary>
 /// Diffusion pixelizer — the quality half. Img2img at a partial denoise where the model (Flux-dev by default; the
@@ -78,18 +76,18 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
-        var src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (nodes 11-14)
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
+        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (nodes 11-14)
 
         int gw = p.IntReq(WorkflowParamKeys.GridW);
         int gh = p.IntReq(WorkflowParamKeys.GridH);
         int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
-        var palette = p.StrReq(WorkflowParamKeys.Palette);
+        string palette = p.StrReq(WorkflowParamKeys.Palette);
 
         // source image -> working resolution -> init latent. Default: preserve input aspect at a megapixel area
         // (snapped /16). When snapping is on, override with the clean k×VRES render size instead.
-        var snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
+        (int w, int h)? snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
         wf[WorkingScale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
             : ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = src, upscale_method = "lanczos", megapixels = p.DblReq(WorkflowParamKeys.Megapixels), resolution_steps = 16 });
@@ -97,7 +95,7 @@ public sealed class PixelizeWorkflow : EditWorkflowBase
 
         // conditioning: the harness's fixed style prompt (or the caller's instruction if it's blanked),
         // optional Flux guidance, empty negative (cfg 1 ignores it)
-        var prompt = p.Str(WorkflowParamKeys.StylePrompt);
+        string? prompt = p.Str(WorkflowParamKeys.StylePrompt);
         if (string.IsNullOrWhiteSpace(prompt)) prompt = inputs.Positive;
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prompt, clip = clip0 });
         object posSrc = ComfyGraph.Ref(Positive, 0);

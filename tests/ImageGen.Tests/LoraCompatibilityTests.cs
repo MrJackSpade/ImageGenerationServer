@@ -1,7 +1,7 @@
+using ImageGen.Comfy;
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
-using ImageGen.Comfy;
 
 namespace ImageGen.Tests;
 
@@ -25,16 +25,16 @@ public sealed class LoraCompatibilityTests : IDisposable
     public void A_matching_lora_is_compatible_and_a_mismatched_one_is_not_safetensors()
     {
         // Checkpoint carries layer dims {320, 1280, 2048}.
-        var ckpt = Safetensors("ckpt.safetensors", new()
+        string ckpt = Safetensors("ckpt.safetensors", new()
         {
             ["model.a.weight"] = [320, 2048],
             ["model.b.weight"] = [1280, 1280],
         });
-        var dims = LoraCompatibility.CheckpointDims(ckpt);
+        IReadOnlySet<long>? dims = LoraCompatibility.CheckpointDims(ckpt);
         Assert.NotNull(dims);
 
         // Matching LoRA: down [rank, 2048] and up [320, rank] → feature dims {2048, 320}, both present → compatible.
-        var ok = Safetensors("ok.safetensors", new()
+        string ok = Safetensors("ok.safetensors", new()
         {
             ["lora_unet_x.lora_down.weight"] = [16, 2048],
             ["lora_unet_x.lora_up.weight"] = [320, 16],
@@ -42,7 +42,7 @@ public sealed class LoraCompatibilityTests : IDisposable
         Assert.True(LoraCompatibility.Evaluate(ok, dims).Compatible);
 
         // Mismatched LoRA: feature dims {768, 320} — 768 is absent from the base → NOT compatible (all must be present).
-        var bad = Safetensors("bad.safetensors", new()
+        string bad = Safetensors("bad.safetensors", new()
         {
             ["lora_unet_x.lora_down.weight"] = [16, 768],
             ["lora_unet_x.lora_up.weight"] = [320, 16],
@@ -53,14 +53,14 @@ public sealed class LoraCompatibilityTests : IDisposable
     [Fact]
     public void Clip_capability_is_detected_from_text_encoder_keys()
     {
-        var modelOnly = Safetensors("mo.safetensors", new()
+        string modelOnly = Safetensors("mo.safetensors", new()
         {
             ["lora_unet_x.lora_down.weight"] = [16, 2048],
             ["lora_unet_x.lora_up.weight"] = [320, 16],
         });
         Assert.False(LoraCompatibility.Evaluate(modelOnly, null).ClipCapable);
 
-        var withClip = Safetensors("clip.safetensors", new()
+        string withClip = Safetensors("clip.safetensors", new()
         {
             ["lora_te_text_model_x.lora_down.weight"] = [16, 768],
             ["lora_te_text_model_x.lora_up.weight"] = [768, 16],
@@ -71,15 +71,15 @@ public sealed class LoraCompatibilityTests : IDisposable
     [Fact]
     public void A_gguf_checkpoint_header_yields_the_same_dimension_match()
     {
-        var ckpt = Gguf("ckpt.gguf", new()
+        string ckpt = Gguf("ckpt.gguf", new()
         {
             ["blk.0.attn.weight"] = [320, 2048],
             ["blk.1.ffn.weight"] = [1280, 1280],
         });
-        var dims = LoraCompatibility.CheckpointDims(ckpt);
+        IReadOnlySet<long>? dims = LoraCompatibility.CheckpointDims(ckpt);
         Assert.NotNull(dims);
 
-        var ok = Safetensors("ok2.safetensors", new()
+        string ok = Safetensors("ok2.safetensors", new()
         {
             ["lora_unet_x.lora_down.weight"] = [16, 2048],
             ["lora_unet_x.lora_up.weight"] = [1280, 16],
@@ -91,20 +91,20 @@ public sealed class LoraCompatibilityTests : IDisposable
     /// reads the header alone).</summary>
     private string Safetensors(string file, Dictionary<string, long[]> tensors)
     {
-        var header = new Dictionary<string, object>();
+        Dictionary<string, object> header = new Dictionary<string, object>();
         long offset = 0;
-        foreach (var (name, shape) in tensors)
+        foreach ((string? name, long[]? shape) in tensors)
         {
             long numel = 1;
-            foreach (var d in shape) numel *= d;
-            var bytes = numel * 4;
+            foreach (long d in shape) numel *= d;
+            long bytes = numel * 4;
             header[name] = new { dtype = "F32", shape, data_offsets = new[] { offset, offset + bytes } };
             offset += bytes;
         }
-        var json = JsonSerializer.SerializeToUtf8Bytes(header);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(header);
 
-        var path = Path.Combine(_dir, file);
-        using var fs = File.Create(path);
+        string path = Path.Combine(_dir, file);
+        using FileStream fs = File.Create(path);
         Span<byte> len = stackalloc byte[8];
         BinaryPrimitives.WriteUInt64LittleEndian(len, (ulong)json.Length);
         fs.Write(len);
@@ -115,20 +115,20 @@ public sealed class LoraCompatibilityTests : IDisposable
     /// <summary>Write a minimal GGUF file: magic, version, counts, no metadata KVs, then the tensor infos.</summary>
     private string Gguf(string file, Dictionary<string, long[]> tensors)
     {
-        var path = Path.Combine(_dir, file);
-        using var fs = File.Create(path);
-        using var bw = new BinaryWriter(fs);
+        string path = Path.Combine(_dir, file);
+        using FileStream fs = File.Create(path);
+        using BinaryWriter bw = new BinaryWriter(fs);
         bw.Write(0x46554747u);          // "GGUF"
         bw.Write(3u);                   // version
         bw.Write((ulong)tensors.Count); // tensor count
         bw.Write(0ul);                  // metadata KV count (none, for simplicity)
-        foreach (var (name, shape) in tensors)
+        foreach ((string? name, long[]? shape) in tensors)
         {
-            var nb = Encoding.UTF8.GetBytes(name);
+            byte[] nb = Encoding.UTF8.GetBytes(name);
             bw.Write((ulong)nb.Length);
             bw.Write(nb);
             bw.Write((uint)shape.Length);
-            foreach (var d in shape) bw.Write((ulong)d);
+            foreach (long d in shape) bw.Write((ulong)d);
             bw.Write(0u);   // ggml type
             bw.Write(0ul);  // data offset
         }

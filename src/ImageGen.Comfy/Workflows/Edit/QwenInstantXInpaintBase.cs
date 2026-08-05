@@ -148,7 +148,11 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // source pixels.
         wf[SoftenComposite] = ComfyGraph.Node(ComfyNodeTypes.MaskComposite, new
         {
-            destination = ComfyGraph.Ref(SoftenMaskBack, 0), source = rawMask, x = 0, y = 0, operation = "add",
+            destination = ComfyGraph.Ref(SoftenMaskBack, 0),
+            source = rawMask,
+            x = 0,
+            y = 0,
+            operation = "add",
         });
         return ComfyGraph.Ref(SoftenComposite, 0);
     }
@@ -171,7 +175,11 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
 
         wf[CeilingImageScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
         {
-            image, upscale_method = "lanczos", width = w, height = h, crop = "disabled",
+            image,
+            upscale_method = "lanczos",
+            width = w,
+            height = h,
+            crop = "disabled",
         });
         // The mask has to make the same trip; MASK has no scale node, so round-trip it through IMAGE.
         wf[CeilingMaskImage] = ComfyGraph.Node(ComfyNodeTypes.MaskToImage, new { mask = rawMask });
@@ -180,7 +188,11 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
         // canvas that trips the ceiling.
         wf[CeilingMaskScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
         {
-            image = ComfyGraph.Ref(CeilingMaskImage, 0), upscale_method = "nearest-exact", width = w, height = h, crop = "disabled",
+            image = ComfyGraph.Ref(CeilingMaskImage, 0),
+            upscale_method = "nearest-exact",
+            width = w,
+            height = h,
+            crop = "disabled",
         });
         wf[CeilingMaskBack] = ComfyGraph.Node(ComfyNodeTypes.ImageToMask, new { image = ComfyGraph.Ref(CeilingMaskScale, 0), channel = "red" });
 
@@ -213,17 +225,17 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
 
     public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        var wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        Dictionary<string, object> wf = new Dictionary<string, object>();
+        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        ResolveCanvas(wf, p, inputs, out var image, out var rawMask);
+        ResolveCanvas(wf, p, inputs, out object? image, out object? rawMask);
         ApplyCeiling(wf, p, inputs, CanvasSize(p, inputs), ref image, ref rawMask);
 
-        var softMask = SoftenMask(wf, p, rawMask);
+        object softMask = SoftenMask(wf, p, rawMask);
 
         // Base Qwen-Image is txt2img: a plain CLIPTextEncode, NOT TextEncodeQwenImageEdit(Plus).
         // The negative runs at CFG ~2.5 and must not be empty — Comfy's own template ships a single space.
-        var neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
+        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
         if (string.IsNullOrWhiteSpace(neg)) neg = " ";
         wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
         wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });

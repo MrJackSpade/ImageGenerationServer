@@ -62,7 +62,7 @@ internal static class DbValueExtensions
     /// </summary>
     internal static async Task<int> ScalarInt32Async(this DbCommand cmd, CancellationToken ct)
     {
-        var value = await cmd.ExecuteScalarAsync(ct);
+        object? value = await cmd.ExecuteScalarAsync(ct);
         return value is null or DBNull ? 0 : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }
 
@@ -72,7 +72,7 @@ internal static class DbValueExtensions
     /// </summary>
     internal static async Task<long?> ScalarNullableInt64Async(this DbCommand cmd, CancellationToken ct)
     {
-        var value = await cmd.ExecuteScalarAsync(ct);
+        object? value = await cmd.ExecuteScalarAsync(ct);
         return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture);
     }
 }

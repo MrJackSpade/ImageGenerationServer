@@ -90,8 +90,8 @@ public abstract class EditWorkflowBase : IWorkflow
     protected static void LoadModel(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req, WorkflowInputs inputs,
         out object model0, out object clip0, out object vae0)
     {
-        var file = req.RequiredCheckpoint();
-        var loader = p.Loader();
+        string file = req.RequiredCheckpoint();
+        LoaderKind loader = p.Loader();
         if (loader == LoaderKind.Checkpoint)                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
         {
             wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = file });
@@ -136,15 +136,23 @@ public abstract class EditWorkflowBase : IWorkflow
         {
             >= 4 => ComfyGraph.Node(ComfyNodeTypes.QuadrupleCLIPLoader, new
             {
-                clip_name1 = At(0), clip_name2 = At(1), clip_name3 = At(2), clip_name4 = At(3),
+                clip_name1 = At(0),
+                clip_name2 = At(1),
+                clip_name3 = At(2),
+                clip_name4 = At(3),
             }),
             3 => ComfyGraph.Node(ComfyNodeTypes.TripleCLIPLoader, new
             {
-                clip_name1 = At(0), clip_name2 = At(1), clip_name3 = At(2),
+                clip_name1 = At(0),
+                clip_name2 = At(1),
+                clip_name3 = At(2),
             }),
             2 => ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new
             {
-                clip_name1 = At(0), clip_name2 = At(1), type = clipType, device = "default",
+                clip_name1 = At(0),
+                clip_name2 = At(1),
+                type = clipType,
+                device = "default",
             }),
             _ => ComfyGraph.IsGguf(At(0))
                 ? ComfyGraph.Node(ComfyNodeTypes.CLIPLoaderGGUF, new { clip_name = At(0), type = clipType })

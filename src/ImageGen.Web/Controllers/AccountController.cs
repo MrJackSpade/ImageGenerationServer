@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using ImageGen.Application.Services;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
@@ -8,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace ImageGen.Web.Controllers;
 
@@ -35,18 +35,18 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(CancellationToken ct)
     {
-        var form = Request.Form;
-        var username = form[FormFields.Username].ToString().Trim();
-        var password = form[FormFields.Password].ToString();
-        var returnUrl = form[FormFields.ReturnUrl].ToString();
-        var vm = new LoginViewModel { Username = username, ReturnUrl = returnUrl };
+        IFormCollection form = Request.Form;
+        string username = form[FormFields.Username].ToString().Trim();
+        string password = form[FormFields.Password].ToString();
+        string returnUrl = form[FormFields.ReturnUrl].ToString();
+        LoginViewModel vm = new LoginViewModel { Username = username, ReturnUrl = returnUrl };
 
         if (username.Length == 0 || password.Length == 0)
         {
             vm.Error = "Username and password are required.";
             return View(vm);
         }
-        var user = await _users.AuthenticateAsync(username, password, ct);
+        User? user = await _users.AuthenticateAsync(username, password, ct);
         if (user is null)
         {
             vm.Error = "Wrong username or password.";
@@ -73,13 +73,13 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Register(CancellationToken ct)
     {
-        var form = Request.Form;
-        var username = form[FormFields.Username].ToString().Trim();
-        var password = form[FormFields.Password].ToString();
-        var displayName = form[FormFields.DisplayName].ToString().Trim();
-        var code = form[FormFields.Code].ToString();
-        var returnUrl = form[FormFields.ReturnUrl].ToString();
-        var vm = new RegisterViewModel
+        IFormCollection form = Request.Form;
+        string username = form[FormFields.Username].ToString().Trim();
+        string password = form[FormFields.Password].ToString();
+        string displayName = form[FormFields.DisplayName].ToString().Trim();
+        string code = form[FormFields.Code].ToString();
+        string returnUrl = form[FormFields.ReturnUrl].ToString();
+        RegisterViewModel vm = new RegisterViewModel
         {
             Username = username,
             DisplayName = displayName,
@@ -94,7 +94,7 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         if (_auth.RegistrationRequiresCode && code != _auth.RegistrationCode)
             return Fail(vm, "Invalid registration code.");
 
-        var user = await _users.RegisterAsync(username, password, displayName, ct);
+        User? user = await _users.RegisterAsync(username, password, displayName, ct);
         if (user is null)
             return Fail(vm, "That username is taken.");
 
@@ -117,7 +117,7 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
 
     private Task SignInAsync(User user)
     {
-        var identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
+        ClaimsIdentity identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
         identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.Name, user.DisplayName));
         return HttpContext.SignInAsync(

@@ -37,7 +37,7 @@ public static class TagModelServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddTagModel(this IServiceCollection services)
     {
-        var bundle = TagModelBundle.Load(ArtifactsDirectory);
+        TagModelBundle bundle = TagModelBundle.Load(ArtifactsDirectory);
 
         services.AddSingleton(bundle);
         services.AddSingleton(bundle.Vocab);

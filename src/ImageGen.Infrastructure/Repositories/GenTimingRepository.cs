@@ -1,8 +1,7 @@
-using System.Data.Common;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Repositories;
 using ImageGen.Infrastructure.Database;
-using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace ImageGen.Infrastructure.Repositories;
 
@@ -20,8 +19,8 @@ public sealed class GenTimingRepository(IDbConnectionFactory connectionFactory, 
 
     public async Task AddAsync(GenTimingEntry entry, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(@"
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(@"
 INSERT INTO dbo.GenTiming (MachineName, ConfigId, IsEdit, DurationMs, RenderWidth, RenderHeight, Steps, Frames)
 VALUES (@m, @c, @edit, @ms, @rw, @rh, @steps, @frames);");
         cmd.AddParam("@m", entry.MachineName);
@@ -37,12 +36,12 @@ VALUES (@m, @c, @edit, @ms, @rw, @rh, @steps, @frames);");
 
     public async Task<double?> EtaAverageMsAsync(string machineName, string configId, EtaSignature current, int take, CancellationToken ct)
     {
-        await using var conn = await _connectionFactory.OpenAsync(ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         // Only signature-bearing rows (RenderWidth captured) — a machine/config with none yields null, and the caller
         // shows NO ETA (there is no fall-back to a param-blind average). Unit-cost: scale each sample's time by how the
         // CURRENT request's pixels×steps×frames compares to that sample's, then average — so an unseen param combo still
         // gets a scaled estimate, and a config whose params never vary returns ~the plain average (every ratio ≈ 1).
-        await using var cmd = conn.Command($@"
+        await using DbCommand cmd = conn.Command($@"
 SELECT {_dialect.TopPrefix("@take")}DurationMs, RenderWidth, RenderHeight, Steps, Frames
 FROM dbo.GenTiming
 WHERE MachineName = @m AND ConfigId = @c AND RenderWidth IS NOT NULL
@@ -52,7 +51,7 @@ ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
         cmd.AddParam("@c", configId);
         double currentWork = current.Work();
         double sum = 0; int n = 0;
-        await using var rd = await cmd.ExecuteReaderAsync(ct);
+        await using DbDataReader rd = await cmd.ExecuteReaderAsync(ct);
         while (await rd.ReadAsync(ct))
         {
             double ms = rd.AsDouble(0);
@@ -70,8 +69,8 @@ ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
     public async Task<IReadOnlyDictionary<string, double>> RecentAveragesMsAsync(string machineName, int take, CancellationToken ct)
     {
         // One round-trip for the whole catalog: average the last @take durations PER ConfigId on this machine.
-        await using var conn = await _connectionFactory.OpenAsync(ct);
-        await using var cmd = conn.Command(@"
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(@"
 SELECT ConfigId, AVG(CAST(DurationMs AS FLOAT)) AS AvgMs
 FROM (
     SELECT ConfigId, DurationMs,
@@ -83,8 +82,8 @@ WHERE rn <= @take
 GROUP BY ConfigId;");
         cmd.AddParam("@m", machineName);
         cmd.AddParam("@take", take);
-        var map = new Dictionary<string, double>(StringComparer.Ordinal);
-        await using var rd = await cmd.ExecuteReaderAsync(ct);
+        Dictionary<string, double> map = new Dictionary<string, double>(StringComparer.Ordinal);
+        await using DbDataReader rd = await cmd.ExecuteReaderAsync(ct);
         while (await rd.ReadAsync(ct))
             map[rd.GetString(0)] = rd.AsDouble(1);
         return map;

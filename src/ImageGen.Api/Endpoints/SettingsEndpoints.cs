@@ -1,7 +1,8 @@
-using ImageGen.Application.Services;
-using ImageGen.Application.Tags;
 using ImageGen.Api.Auth;
 using ImageGen.Api.Contracts;
+using ImageGen.Application.Services;
+using ImageGen.Application.Tags;
+using ImageGen.Domain.Entities;
 
 namespace ImageGen.Api.Endpoints;
 
@@ -14,30 +15,37 @@ public static class SettingsEndpoints
         // own column, so one autosave can never clobber another's.
         api.MapGet(Routes.Settings, async (HttpContext context, UserService users) =>
         {
-            var userId = context.User.GetRequiredUserId();
-            var user = await users.GetByIdAsync(userId, context.RequestAborted);
+            long userId = context.User.GetRequiredUserId();
+            User? user = await users.GetByIdAsync(userId, context.RequestAborted);
             // An authenticated request whose user row is gone is a stale session, not an empty account: 401 sends the
             // caller to re-authenticate, where returning blank settings would instead read as a real (empty) account.
             if (user is null) return Results.Unauthorized();
             // The workflow relations are read separately — they are rows, not columns on the user, and are wanted
             // here and nowhere else. They go out as real arrays/maps; the client no longer parses a string.
-            var workflows = await users.GetWorkflowPrefsAsync(userId, context.RequestAborted);
-            return Results.Ok(new { composerPrefs = user.ComposerPrefs, editPrefs = user.EditPrefs, bookmarkPrefs = user.BookmarkPrefs,
-                favoriteWorkflowIds = workflows.Favorites, customWorkflowTags = workflows.Tags,
-                hiddenWorkflowIds = workflows.Hidden, hiddenApiWorkflowIds = workflows.HiddenApi,
+            UserWorkflowPrefs workflows = await users.GetWorkflowPrefsAsync(userId, context.RequestAborted);
+            return Results.Ok(new
+            {
+                composerPrefs = user.ComposerPrefs,
+                editPrefs = user.EditPrefs,
+                bookmarkPrefs = user.BookmarkPrefs,
+                favoriteWorkflowIds = workflows.Favorites,
+                customWorkflowTags = workflows.Tags,
+                hiddenWorkflowIds = workflows.Hidden,
+                hiddenApiWorkflowIds = workflows.HiddenApi,
                 // The generation mask, RESOLVED (an unset column reads as the default) plus the switchable types, so the
                 // settings page renders the real choices from the model's own list instead of hardcoding a copy of it.
                 generationTagTypes = GenerationTagTypes.Resolve(user.GenerationTagTypes),
-                generationTagTypeOptions = GenerationTagTypes.Selectable });
+                generationTagTypeOptions = GenerationTagTypes.Selectable
+            });
         });
 
         // Composer state (one PUT, one column).
         api.MapPut(Routes.Composer, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<ComposerPrefsRequest>(context);
+            ComposerPrefsRequest? request = await Json.ReadAsync<ComposerPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetComposerPrefsAsync(userId, request.ComposerPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -46,10 +54,10 @@ public static class SettingsEndpoints
         // so the editor autosave can't clobber the composer's and vice versa.
         api.MapPut(Routes.EditPrefs, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<EditPrefsRequest>(context);
+            EditPrefsRequest? request = await Json.ReadAsync<EditPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetEditPrefsAsync(userId, request.EditPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -57,10 +65,10 @@ public static class SettingsEndpoints
         // The bookmarks page's folded sections, on its own route and column like the two above.
         api.MapPut(Routes.Bookmarks, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<BookmarkPrefsRequest>(context);
+            BookmarkPrefsRequest? request = await Json.ReadAsync<BookmarkPrefsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetBookmarkPrefsAsync(userId, request.BookmarkPrefs, context.RequestAborted);
             return Results.NoContent();
         });
@@ -68,10 +76,10 @@ public static class SettingsEndpoints
         // Favorited workflow ids (opaque JSON array) — one PUT, one column.
         api.MapPut(Routes.Favorites, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<FavoriteWorkflowsRequest>(context);
+            FavoriteWorkflowsRequest? request = await Json.ReadAsync<FavoriteWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetFavoriteWorkflowsAsync(userId, request.FavoriteWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -79,10 +87,10 @@ public static class SettingsEndpoints
         // Custom per-workflow tags (opaque JSON map, encrypted at rest) — one PUT, one column.
         api.MapPut(Routes.WorkflowTags, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<WorkflowTagsRequest>(context);
+            WorkflowTagsRequest? request = await Json.ReadAsync<WorkflowTagsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetWorkflowTagsAsync(userId, request.CustomWorkflowTags, context.RequestAborted);
             return Results.NoContent();
         });
@@ -90,10 +98,10 @@ public static class SettingsEndpoints
         // Workflows hidden from the UI picker (opaque JSON array) — one PUT, one column.
         api.MapPut(Routes.Hidden, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<HiddenWorkflowsRequest>(context);
+            HiddenWorkflowsRequest? request = await Json.ReadAsync<HiddenWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetHiddenWorkflowsAsync(userId, request.HiddenWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -101,10 +109,10 @@ public static class SettingsEndpoints
         // Workflows hidden from the API workflow list (opaque JSON array) — separate from the UI-picker set above.
         api.MapPut(Routes.HiddenApi, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<HiddenApiWorkflowsRequest>(context);
+            HiddenApiWorkflowsRequest? request = await Json.ReadAsync<HiddenApiWorkflowsRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             await users.SetHiddenApiWorkflowsAsync(userId, request.HiddenApiWorkflowIds, context.RequestAborted);
             return Results.NoContent();
         });
@@ -113,13 +121,13 @@ public static class SettingsEndpoints
         // random-prompt generation; tag autocomplete keeps ranking every type regardless of what is set here.
         api.MapPut(Routes.GenerationTagTypes, async (HttpContext context, UserService users) =>
         {
-            var request = await Json.ReadAsync<GenerationTagTypesRequest>(context);
+            GenerationTagTypesRequest? request = await Json.ReadAsync<GenerationTagTypesRequest>(context);
             if (request is null) return Results.BadRequest();
 
-            var userId = context.User.GetRequiredUserId();
+            long userId = context.User.GetRequiredUserId();
             // An unknown type name is rejected, not dropped: a dropped name would read as "switched off" and quietly
             // change what the model generates.
-            var error = await users.SetGenerationTagTypesAsync(userId, request.GenerationTagTypes, context.RequestAborted);
+            string? error = await users.SetGenerationTagTypesAsync(userId, request.GenerationTagTypes, context.RequestAborted);
             return error is null ? Results.NoContent() : Results.BadRequest(new { error });
         });
     }
