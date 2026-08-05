@@ -621,9 +621,10 @@ public sealed class WorkflowGraphTests
         WorkflowInputs noDims = new WorkflowInputs { SourceImageName = "s.png" };
         Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(4), new ResolvedRequirements(), noDims));
 
-        // The node caps resolution at 16384 and rejects the WHOLE prompt above it — clamp instead of emitting a 400.
+        // A computed target above the node's 16384 ceiling is REFUSED, not clamped to it — a silent clamp hands back a
+        // smaller upscale than the scale asked for. 5000 short edge * 4 = 20000 > 16384.
         WorkflowInputs huge = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 9000, SourceHeight = 5000 };
-        Assert.Contains("\"resolution\":16384", Json(P(4), huge));
+        Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(4), new ResolvedRequirements(), huge));
 
         // A scale below 1 is REFUSED, not floored to 1 — a 0x upscale is the caller's mistake to see, not to have
         // silently turned into a 1x copy.

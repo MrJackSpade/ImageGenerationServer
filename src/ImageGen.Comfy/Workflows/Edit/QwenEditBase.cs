@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
@@ -119,7 +120,12 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         g[KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(Nodes.Source) };
 
         string[] qInputs = p.ReferenceInputs ?? Array.Empty<string>();
-        int qn = Math.Min(refNames.Count, Math.Min(p.ReferenceMax ?? 0, qInputs.Length));
+        // Capacity is the smaller of the model's reference_max and the graph's available image slots — both hard
+        // structural limits. More references than that is REFUSED, not silently truncated to fit.
+        int refCapacity = Math.Min(p.ReferenceMax ?? 0, qInputs.Length);
+        if (refNames.Count > refCapacity)
+            throw new RenderValidationException($"This configuration accepts at most {refCapacity} reference image(s); got {refNames.Count}.");
+        int qn = refNames.Count;
         Dictionary<string, object> encRefs = new Dictionary<string, object>();
         for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
         {

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -37,7 +38,12 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
         g[RefLatent] = new ReferenceLatent { Conditioning = FluxGuidance.Out(Guidance), Latent = VAEEncode.Out(Encode) };
         Output<Slot.Conditioning> cond = ReferenceLatent.Out(RefLatent);
-        int fn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;
+        // The model's reference capacity. Supplying MORE references than it accepts is REFUSED, not silently
+        // truncated to the first rm — dropping the caller's extra references without a word is the anti-pattern.
+        int rm = p.ReferenceMax ?? 0;
+        if (refNames.Count > rm)
+            throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        int fn = refNames.Count;
         for (int i = 0; i < fn; i++)
         {
             string load = $"{40 + i}", scale = $"{50 + i}", enc = $"{60 + i}", rl = $"{70 + i}";

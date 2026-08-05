@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -35,7 +36,12 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         Dictionary<string, object> refs = new Dictionary<string, object>();
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        int rn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;   // no reference_max declared → no extra refs
+        // No reference_max declared → no extra refs (capacity 0). Supplying more references than the capacity is
+        // REFUSED, not silently truncated.
+        int rm = p.ReferenceMax ?? 0;
+        if (refNames.Count > rm)
+            throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        int rn = refNames.Count;
         for (int i = 0; i < rn; i++)
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";

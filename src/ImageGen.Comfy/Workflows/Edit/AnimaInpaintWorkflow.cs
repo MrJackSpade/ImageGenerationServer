@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -84,7 +85,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
             maskSrc = LoadImageMask.Out(MaskImage);
         }
         else maskSrc = LoadImage.MaskOut(Nodes.Source);
-        int grow = p.MaskGrow;
+        int grow = Ensure.NotNegative(p.MaskGrow, WorkflowParamKeys.MaskGrow);
         if (grow > 0)
         {
             g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };

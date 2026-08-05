@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -32,7 +33,12 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(Nodes.Source) };
         g[SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(SourceScale), Vae = vae0 };
-        int fn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;   // no reference_max declared → this editor takes no refs
+        // No reference_max declared → this editor takes no refs (capacity 0). Supplying references anyway is REFUSED,
+        // not silently ignored.
+        int rm = p.ReferenceMax ?? 0;
+        if (refNames.Count > rm)
+            throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        int fn = refNames.Count;
         Output<Slot.Latent> refLatent;
         if (fn > 0)
         {

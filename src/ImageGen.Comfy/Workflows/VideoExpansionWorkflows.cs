@@ -140,7 +140,9 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
     /// </summary>
     private static (int W, int H, int X, int Y)? PadGeom(int pctL, int pctR, int pctT, int pctB, int sw, int sh)
     {
-        pctL = Math.Max(0, pctL); pctR = Math.Max(0, pctR); pctT = Math.Max(0, pctT); pctB = Math.Max(0, pctB);
+        // A negative side-percentage is meaningless geometry (you cannot add negative whitespace) — REFUSED, not
+        // floored to zero, which would silently drop the offending side.
+        Ensure.NotNegative(pctL); Ensure.NotNegative(pctR); Ensure.NotNegative(pctT); Ensure.NotNegative(pctB);
         if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no padding
         int addL = sw * pctL / 100, addR = sw * pctR / 100, addT = sh * pctT / 100, addB = sh * pctB / 100;
         return (sw + addL + addR, sh + addT + addB, addL, addT);

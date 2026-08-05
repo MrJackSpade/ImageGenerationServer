@@ -117,7 +117,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
         g[Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Pad), Vae = vae0 };
         Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Pad);
-        int grow = p.MaskGrow;
+        int grow = Ensure.NotNegative(p.MaskGrow, WorkflowParamKeys.MaskGrow);
         if (grow > 0)
         {
             g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };

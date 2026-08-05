@@ -126,17 +126,17 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         long seed = (long)(unchecked((ulong)ComfyGraph.Seed(p.Seed)) % (SeedVr2SeedMax + 1UL));
 
         // The node sizes by TARGET SHORT EDGE, not by a multiplier, so turn the scale the UI offers into one:
-        // short_edge(source) * scale, aspect preserved by the node. Snapped to even (the node's step).
-        // The node's own declared bounds for `resolution` (16..16384, even). Exceeding them is not a soft failure --
-        // ComfyUI rejects the entire prompt at validation -- so clamp to the ceiling rather than emit a certain 400.
-        // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
+        // short_edge(source) * scale, aspect preserved by the node, snapped to even (the node's required step).
         const int NodeResMin = 16, NodeResMax = 16384;
-        int scale = p.Scale;
-        Ensure.GreaterThanZero(scale);
+        int scale = Ensure.GreaterThanZero(p.Scale);
         // The source is a still, so its dimensions are ALWAYS measured — a zero is a broken source to refuse, not a
         // state to substitute a fixed short edge for.
         int sw = Ensure.GreaterThanZero(inputs.SourceWidth), sh = Ensure.GreaterThanZero(inputs.SourceHeight);
-        int resolution = Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax);
+        // A computed target outside the node's declared [16, 16384] is REFUSED, not clamped: silently returning 16384
+        // hands back a smaller upscale than the scale asked for, and the caller can lower the scale (or feed a smaller
+        // source) to make a valid request. The even snap above is the node's step, not an adjustment of intent.
+        int resolution = (Math.Min(sw, sh) * scale + 1) / 2 * 2;
+        Ensure.Between(resolution, NodeResMin, NodeResMax);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
         g[Upscale] = new SeedVR2VideoUpscaler
