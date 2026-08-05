@@ -127,7 +127,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     private Output<Slot.Mask> SoftenMask(ComfyWorkflowGraph g, QwenInpaintParams p, Output<Slot.Mask> rawMask)
     {
         Output<Slot.Mask> m = rawMask;
-        int grow = p.MaskGrow is int mg ? Ensure.NotNegative(mg, WorkflowParamKeys.MaskGrow) : 0;
+        int grow = p.MaskGrow;   // 0 = no grow; range enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
             g[GrowMaskNode] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
@@ -165,8 +165,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     private static void ApplyCeiling(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         (int W, int H) canvas, ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
-        int cap = p.MaxDimension;
-        Ensure.NotNegative(cap);   // 0 = off (no ceiling); a negative is out of range, not a second spelling of "off"
+        int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
         int longEdge = Math.Max(canvas.W, canvas.H);
         if (cap == 0 || longEdge <= cap) return;   // native: ceiling off, or under it (CanvasSize guarantees real dims)
 
@@ -352,7 +351,7 @@ public abstract record QwenInpaintParams
     [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
     [Range(0, 4096)]                                   public required int MaxDimension { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
-    [Range(0, 64)]                                     public int? MaskGrow { get; init; }
+    [Range(0, 64)]                                     public int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
     [Range(0, 4096)]                                   public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]

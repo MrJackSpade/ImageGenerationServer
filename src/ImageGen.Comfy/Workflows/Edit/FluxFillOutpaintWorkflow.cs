@@ -23,8 +23,8 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     {
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
-        return (inputs.SourceWidth + Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
-                inputs.SourceHeight + Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom));
+        return (inputs.SourceWidth + p.PadLeft + p.PadRight,
+                inputs.SourceHeight + p.PadTop + p.PadBottom);
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -45,10 +45,10 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
         g[Pad] = new ImagePadForOutpaint
         {
             Image = LoadImage.ImageOut(Nodes.Source),
-            Left = Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft),
-            Top = Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop),
-            Right = Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
-            Bottom = Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom),
+            Left = p.PadLeft,
+            Top = p.PadTop,
+            Right = p.PadRight,
+            Bottom = p.PadBottom,
             // Softening happens once, in SoftenMask — the node's own feathering would stack with it.
             Feathering = 0,
         };

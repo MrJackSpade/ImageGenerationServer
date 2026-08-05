@@ -35,8 +35,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
     {
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
-        return (inputs.SourceWidth + Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
-                inputs.SourceHeight + Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom));
+        return (inputs.SourceWidth + p.PadLeft + p.PadRight,
+                inputs.SourceHeight + p.PadTop + p.PadBottom);
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -65,8 +65,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
     protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        int pl = Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft), pt = Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop);
-        int pr = Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight), pb = Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom);
+        int pl = p.PadLeft, pt = p.PadTop;
+        int pr = p.PadRight, pb = p.PadBottom;
 
         g[Pad] = new ImagePadForOutpaint
         {

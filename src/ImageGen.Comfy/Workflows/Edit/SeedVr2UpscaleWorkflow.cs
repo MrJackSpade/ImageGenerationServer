@@ -129,7 +129,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         // The node sizes by TARGET SHORT EDGE, not by a multiplier, so turn the scale the UI offers into one:
         // short_edge(source) * scale, aspect preserved by the node, snapped to even (the node's required step).
         const int NodeResMin = 16, NodeResMax = 16384;
-        int scale = Ensure.GreaterThanZero(p.Scale);
+        int scale = p.Scale;   // range enforced by the DTO's [Range(1,4)] at the ParamsCodec boundary
         // The source is a still, so its dimensions are ALWAYS measured — a zero is a broken source to refuse, not a
         // state to substitute a fixed short edge for.
         int sw = Ensure.GreaterThanZero(inputs.SourceWidth), sh = Ensure.GreaterThanZero(inputs.SourceHeight);

@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -84,16 +83,14 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 
         // Pad the source on each side — the enlarged canvas (slot 0) + the added-border mask (slot 1). Feathering
         // softens the mask edge so the generated margin blends into the original instead of leaving a hard seam.
-        static int PadPx(int? v, string name) => v is int px ? Ensure.NotNegative(px, name) : 0;   // per-side extend px, absent = 0 (no pad on that side)
-        int feather = Ensure.NotNegative(p.Feather, WorkflowParamKeys.Feather);
         g[Pad] = new ImagePadForOutpaint
         {
             Image = LoadImage.ImageOut(Nodes.Source),
-            Left = PadPx(p.PadLeft, WorkflowParamKeys.PadLeft),
-            Top = PadPx(p.PadTop, WorkflowParamKeys.PadTop),
-            Right = PadPx(p.PadRight, WorkflowParamKeys.PadRight),
-            Bottom = PadPx(p.PadBottom, WorkflowParamKeys.PadBottom),
-            Feathering = feather,
+            Left = p.PadLeft,
+            Top = p.PadTop,
+            Right = p.PadRight,
+            Bottom = p.PadBottom,
+            Feathering = p.Feather,
         };
 
         // The fill-conditioning that a base checkpoint lacks: patch the Anima model with the 4-channel inpainting
@@ -118,7 +115,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
         g[Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Pad), Vae = vae0 };
         Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Pad);
-        int grow = Ensure.NotNegative(p.MaskGrow, WorkflowParamKeys.MaskGrow);
+        int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
             g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
@@ -165,13 +162,13 @@ public sealed record AnimaOutpaintParams
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
     [Range(0.5, 1.0)]                                    public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
-    [Range(0, 4096)]                                     public int? PadLeft { get; init; }
+    [Range(0, 4096)]                                     public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]
-    [Range(0, 4096)]                                     public int? PadTop { get; init; }
+    [Range(0, 4096)]                                     public int PadTop { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadRight)]
-    [Range(0, 4096)]                                     public int? PadRight { get; init; }
+    [Range(0, 4096)]                                     public int PadRight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottom)]
-    [Range(0, 4096)]                                     public int? PadBottom { get; init; }
+    [Range(0, 4096)]                                     public int PadBottom { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Feather)]
     [Range(0, 256)]                                      public required int Feather { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]

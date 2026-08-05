@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -86,7 +85,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
             maskSrc = LoadImageMask.Out(MaskImage);
         }
         else maskSrc = LoadImage.MaskOut(Nodes.Source);
-        int grow = Ensure.NotNegative(p.MaskGrow, WorkflowParamKeys.MaskGrow);
+        int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
             g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
