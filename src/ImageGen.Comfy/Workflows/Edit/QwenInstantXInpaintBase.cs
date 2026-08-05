@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+﻿using ImageGen.Domain;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// INPAINT / OUTPAINT on base <b>Qwen-Image</b> using the InstantX inpainting ControlNet
@@ -119,7 +121,7 @@ public abstract class QwenInstantXInpaintBase : EditWorkflowBase
     private object SoftenMask(Dictionary<string, object> wf, ParamValues p, object rawMask)
     {
         object m = rawMask;
-        int grow = p.Has(WorkflowParamKeys.MaskGrow) ? Math.Max(0, p.IntReq(WorkflowParamKeys.MaskGrow)) : 0;
+        int grow = p.Has(WorkflowParamKeys.MaskGrow) ? Ensure.NotNegative(p.IntReq(WorkflowParamKeys.MaskGrow), WorkflowParamKeys.MaskGrow) : 0;
         if (grow > 0)
         {
             wf[GrowMask] = ComfyGraph.Node(ComfyNodeTypes.GrowMask, new { mask = m, expand = grow, tapered_corners = true });

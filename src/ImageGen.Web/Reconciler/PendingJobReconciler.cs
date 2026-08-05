@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 
@@ -44,15 +45,9 @@ public sealed class PendingJobReconciler(
     {
         // An explicitly-configured value outside its range is a misconfiguration to surface, not to silently clamp.
         // An absent key keeps its default (the common case).
-        var pollSeconds = _config.GetValue(PollSecondsKey, DefaultPollSeconds);
-        if (pollSeconds is < MinPollSeconds or > MaxPollSeconds)
-            throw new InvalidOperationException(
-                $"{PollSecondsKey} must be between {MinPollSeconds} and {MaxPollSeconds} seconds, but was {pollSeconds}.");
-        var maxAgeHours = _config.GetValue(MaxAgeHoursKey, DefaultMaxAgeHours);
-        if (maxAgeHours is < MinMaxAgeHours or > MaxMaxAgeHours)
-            throw new InvalidOperationException(
-                $"{MaxAgeHoursKey} must be between {MinMaxAgeHours} and {MaxMaxAgeHours} hours, but was {maxAgeHours}.");
-        var maxAge = TimeSpan.FromHours(maxAgeHours);
+        var pollSeconds = Ensure.Between(_config.GetValue(PollSecondsKey, DefaultPollSeconds), MinPollSeconds, MaxPollSeconds, PollSecondsKey);
+        var maxAge = TimeSpan.FromHours(
+            Ensure.Between(_config.GetValue(MaxAgeHoursKey, DefaultMaxAgeHours), MinMaxAgeHours, MaxMaxAgeHours, MaxAgeHoursKey));
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));

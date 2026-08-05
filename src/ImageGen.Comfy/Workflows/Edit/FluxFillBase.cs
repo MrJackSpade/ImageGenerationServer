@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+﻿using ImageGen.Domain;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// INPAINT / OUTPAINT on <b>FLUX.1 Fill [dev]</b> — a model TRAINED for filling, not a txt2img base with a fill
@@ -117,7 +119,7 @@ public abstract class FluxFillBase : EditWorkflowBase
     private static object SoftenMask(Dictionary<string, object> wf, ParamValues p, object rawMask)
     {
         object m = rawMask;
-        int grow = p.Has(WorkflowParamKeys.MaskGrow) ? Math.Max(0, p.IntReq(WorkflowParamKeys.MaskGrow)) : 0;
+        int grow = p.Has(WorkflowParamKeys.MaskGrow) ? Ensure.NotNegative(p.IntReq(WorkflowParamKeys.MaskGrow), WorkflowParamKeys.MaskGrow) : 0;
         if (grow > 0)
         {
             wf[Grow] = ComfyGraph.Node(ComfyNodeTypes.GrowMask, new { mask = m, expand = grow, tapered_corners = true });

@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -80,8 +82,8 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
 
         // Pad the source on each side — the enlarged canvas (slot 0) + the added-border mask (slot 1). Feathering
         // softens the mask edge so the generated margin blends into the original instead of leaving a hard seam.
-        int PadPx(string k) => p.Has(k) ? Math.Max(0, p.IntReq(k)) : 0;   // per-side extend px, absent = 0 (no pad on that side)
-        int feather = Math.Max(0, p.IntReq(WorkflowParamKeys.Feather));
+        int PadPx(string k) => p.Has(k) ? Ensure.NotNegative(p.IntReq(k), k) : 0;   // per-side extend px, absent = 0 (no pad on that side)
+        int feather = Ensure.NotNegative(p.IntReq(WorkflowParamKeys.Feather), WorkflowParamKeys.Feather);
         wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
         {
             image = ComfyGraph.Ref(Nodes.Source, 0),

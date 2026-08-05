@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -133,8 +134,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         const int NodeResMin = 16, NodeResMax = 16384;
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
         int scale = p.IntReq(WorkflowParamKeys.Scale);
-        if (scale < 1)
-            throw new RenderValidationException($"scale must be at least 1, but was {scale}.");
+        Ensure.GreaterThanZero(scale);
         int resolution = (sw > 0 && sh > 0)
             ? Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax)
             : p.IntReq(WorkflowParamKeys.FallbackShortEdge);

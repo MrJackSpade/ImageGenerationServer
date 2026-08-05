@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ImageGen.Application.Security;
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
@@ -42,8 +43,7 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
     {
         // An out-of-range limit is REFUSED, not clamped — silently returning 1,000 for a request of a million reads
         // to the caller as "that's all there is".
-        if (limit is < MinLimit or > MaxLimit)
-            throw new ArgumentOutOfRangeException(nameof(limit), limit, $"limit must be between {MinLimit} and {MaxLimit}.");
+        Ensure.Between(limit, MinLimit, MaxLimit);
         await using var conn = await _connectionFactory.OpenAsync(ct);
         await using var cmd = conn.Command(
             $"SELECT {_dialect.TopPrefix("@limit")}Id, UserId, Category, Payload, CreatedAtUtc FROM dbo.UserLog "

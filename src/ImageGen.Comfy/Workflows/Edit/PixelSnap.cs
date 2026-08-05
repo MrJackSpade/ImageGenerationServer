@@ -1,4 +1,5 @@
 ﻿using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -63,7 +64,16 @@ internal static class PixelSnap
     /// <summary>The shared <c>reference</c> %% knob -> KSampler denoise. 0 = full denoise (generate fresh, no source
     /// reference); 100 = no denoise (copy the source, then just pixel-quantize it). Clamped to (0,1] so the sampler
     /// always runs at least minimally.</summary>
-    public static double Denoise(ParamValues p, int dflt) => Math.Clamp(1.0 - p.Int(WorkflowParamKeys.Reference, dflt) / 100.0, 0.01, 1.0);
+    public static double Denoise(ParamValues p, int dflt)
+    {
+        // reference is a percentage: an out-of-range value is REFUSED, not silently clamped through the denoise math.
+        // The [0.01, 1.0] floor below is the sampler-must-run-minimally decision (see #104), not input correction.
+        int reference = Ensure.Between(p.Int(WorkflowParamKeys.Reference, dflt), PctMin, PctMax, WorkflowParamKeys.Reference);
+        return Math.Clamp(1.0 - reference / 100.0, 0.01, 1.0);
+    }
+
+    /// <summary>The <c>reference</c> knob is a percentage: 0 = full denoise (generate fresh), 100 = no denoise (copy source).</summary>
+    private const int PctMin = 0, PctMax = 100;
 
     public static (int w, int h) Compute(int vres, int reqW, int reqH, int minSide, int maxSide, int step)
     {

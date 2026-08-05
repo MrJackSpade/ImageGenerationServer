@@ -1,5 +1,5 @@
-using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;
+using ImageGen.Domain;
 
 namespace ImageGen.TagModel;
 
@@ -47,8 +47,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         {
             // A limit below 1 is refused, not floored to 1 — an empty ask is the caller's mistake to see, not to have
             // silently turned into a one-result response (the /tags endpoint already rejects it before we get here).
-            if (limit < 1)
-                throw new ArgumentOutOfRangeException(nameof(limit), limit, "limit must be at least 1.");
+            Ensure.GreaterThanZero(limit);
             var result = _suggest.Query(contextTags, fragment, limit);
             if (result.Results.Count == 0)
                 return null;   // "no match" is a non-failure, and the port says null for it
@@ -83,13 +82,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
 
         // A present temperature outside the slider's [0, 5] is REFUSED, not clamped — a quietly clamped value would
         // render at a temperature the user did not choose. Null legitimately means "unspecified": the model's natural 1.0.
-        double temp;
-        if (temperature is null)
-            temp = 1.0;
-        else if (temperature.Value is < TempMin or > TempMax)
-            throw new RenderValidationException($"temperature must be between {TempMin} and {TempMax}, but was {temperature.Value}.");
-        else
-            temp = temperature.Value;
+        double temp = temperature is null ? 1.0 : Ensure.Between(temperature.Value, TempMin, TempMax, nameof(temperature));
 
         await _gate.WaitAsync(ct);
         try

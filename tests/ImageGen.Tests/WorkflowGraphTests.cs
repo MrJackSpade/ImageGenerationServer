@@ -1,5 +1,4 @@
 using System.Text.Json;
-using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -586,7 +585,7 @@ public sealed class WorkflowGraphTests
 
         // A scale below 1 is REFUSED, not floored to 1 — a 0x upscale is the caller's mistake to see, not to have
         // silently turned into a 1x copy.
-        Assert.Throws<RenderValidationException>(() => wf.Build(P(0), new ResolvedRequirements(), Edit));
+        Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(0), new ResolvedRequirements(), Edit));
     }
 
     [Fact]

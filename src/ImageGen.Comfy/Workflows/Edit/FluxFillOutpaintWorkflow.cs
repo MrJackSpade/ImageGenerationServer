@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+﻿using ImageGen.Domain;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// OUTPAINT on FLUX.1 Fill [dev]. <c>ImagePadForOutpaint</c> supplies the enlarged canvas and the border mask.
@@ -20,8 +22,8 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
     {
         if (inputs.SourceWidth <= 0 || inputs.SourceHeight <= 0) return (0, 0);
-        return (inputs.SourceWidth + Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)) + Math.Max(0, p.Int(WorkflowParamKeys.PadRight)),
-                inputs.SourceHeight + Math.Max(0, p.Int(WorkflowParamKeys.PadTop)) + Math.Max(0, p.Int(WorkflowParamKeys.PadBottom)));
+        return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
+                inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -42,10 +44,10 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
         wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
         {
             image = ComfyGraph.Ref(Nodes.Source, 0),
-            left = Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)),
-            top = Math.Max(0, p.Int(WorkflowParamKeys.PadTop)),
-            right = Math.Max(0, p.Int(WorkflowParamKeys.PadRight)),
-            bottom = Math.Max(0, p.Int(WorkflowParamKeys.PadBottom)),
+            left = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft),
+            top = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop),
+            right = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
+            bottom = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom),
             // Softening happens once, in SoftenMask — the node's own feathering would stack with it.
             feathering = 0,
         });

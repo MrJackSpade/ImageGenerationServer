@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+﻿using ImageGen.Domain;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// OUTPAINT on base Qwen-Image + the InstantX inpainting ControlNet. <c>ImagePadForOutpaint</c> extends the canvas by
@@ -22,8 +24,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
     {
         if (inputs.SourceWidth <= 0 || inputs.SourceHeight <= 0) return (0, 0);
-        return (inputs.SourceWidth + Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)) + Math.Max(0, p.Int(WorkflowParamKeys.PadRight)),
-                inputs.SourceHeight + Math.Max(0, p.Int(WorkflowParamKeys.PadTop)) + Math.Max(0, p.Int(WorkflowParamKeys.PadBottom)));
+        return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
+                inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -52,8 +54,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
         out object image, out object rawMask)
     {
-        int pl = Math.Max(0, p.Int(WorkflowParamKeys.PadLeft)), pt = Math.Max(0, p.Int(WorkflowParamKeys.PadTop));
-        int pr = Math.Max(0, p.Int(WorkflowParamKeys.PadRight)), pb = Math.Max(0, p.Int(WorkflowParamKeys.PadBottom));
+        int pl = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft), pt = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop);
+        int pr = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight), pb = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom);
 
         wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
         {

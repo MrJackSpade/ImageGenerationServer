@@ -93,4 +93,11 @@ public sealed class PixelSnapTests
         Assert.Equal(0.30, PixelSnap.Denoise(PV(), 70), 3);   // Flux default 70 -> denoise 0.3
         Assert.Equal(1.00, PixelSnap.Denoise(PV(), 0), 3);    // QIE/Kontext default 0 -> denoise 1.0
     }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(101)]
+    [InlineData(250)]
+    public void Reference_outside_the_percentage_range_is_refused(int reference) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => PixelSnap.Denoise(PV(("reference", reference)), 0));
 }
