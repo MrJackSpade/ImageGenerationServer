@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data.Common;
 using System.Linq;
 
 namespace ImageGen.Analyzers;
@@ -75,16 +76,16 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
         ["byte"] = "ScalarInt32Async",
         ["bool"] = "ScalarInt32Async",
         ["double"] = "ScalarInt32Async",
-        ["DateTime"] = "Convert.ToDateTime",
+        [nameof(System.DateTime)] = "Convert.ToDateTime",
     };
 
     /// <summary>The provider-typed getters, mapped to the <c>DbValueExtensions</c> member that replaces each.</summary>
     private static readonly Dictionary<string, string> Replacements = new()
     {
-        ["GetByte"] = "AsByte",
-        ["GetBoolean"] = "AsBool",
-        ["GetDouble"] = "AsDouble",
-        ["GetInt32"] = "AsInt32",
+        [nameof(DbDataReader.GetByte)] = "AsByte",
+        [nameof(DbDataReader.GetBoolean)] = "AsBool",
+        [nameof(DbDataReader.GetDouble)] = "AsDouble",
+        [nameof(DbDataReader.GetInt32)] = "AsInt32",
     };
 
     /// <inheritdoc />
@@ -129,7 +130,7 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
             .OfType<InvocationExpressionSyntax>()
             .Select(i => i.Expression)
             .OfType<MemberAccessExpressionSyntax>()
-            .Any(m => m.Name.Identifier.ValueText is "ExecuteScalar" or "ExecuteScalarAsync");
+            .Any(m => m.Name.Identifier.ValueText is nameof(DbCommand.ExecuteScalar) or nameof(DbCommand.ExecuteScalarAsync));
 
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
@@ -155,7 +156,7 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     private static bool IsDbDataReader(INamedTypeSymbol? type)
     {
         for (INamedTypeSymbol? t = type; t is not null; t = t.BaseType)
-            if (t.ToDisplayString() == "System.Data.Common.DbDataReader")
+            if (t.ToDisplayString() == typeof(DbDataReader).FullName)
                 return true;
         return false;
     }

@@ -131,7 +131,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         IMethodSymbol? method = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
         AnalyzeArguments(context, method, invocation.ArgumentList.Arguments);
 
-        if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Equals" } member)
+        if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: nameof(object.Equals) } member)
             ReportIfLiteral(context, member.Expression);
     }
 
@@ -205,7 +205,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
                 || method.ContainingType?.ToDisplayString() == "Microsoft.Extensions.Logging.LoggerExtensions",
             ("sql", _) => true,
             ("name", "AddParam") => true,
-            ("format", "ToString" or "ParseExact" or "TryParseExact") => true,
+            ("format", nameof(object.ToString) or nameof(System.DateTime.ParseExact) or nameof(System.DateTime.TryParseExact)) => true,
             _ => false,
         };
 
@@ -213,7 +213,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static bool DerivesFromException(ITypeSymbol? type)
     {
         for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
-            if (current.ToDisplayString() == "System.Exception")
+            if (current.ToDisplayString() == typeof(System.Exception).FullName)
                 return true;
         return false;
     }
