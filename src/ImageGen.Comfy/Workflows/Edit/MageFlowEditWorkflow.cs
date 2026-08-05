@@ -17,10 +17,13 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 {
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 512, MinH = 512, MaxW = 2048, MaxH = 2048, Step = 16 };
 
-    /// <summary>Own node ids (source LoadImage is the inherited <c>Nodes.Source</c>).</summary>
+    /// <summary>Own node ids (source LoadImage is the inherited <c>Nodes.Source</c>). These must NOT reuse the
+    /// inherited loader-head ids — <c>Nodes.Clip</c> ("5") / <c>Nodes.Vae</c> ("6") carry the live CLIP/VAE loaders
+    /// that <c>clip0</c>/<c>vae0</c> point at; the split-loader path keeps them, so reusing "5"/"6" here would
+    /// overwrite the loaders and leave the clip/vae edges dangling into this node's own outputs.</summary>
     private const string ScaledSource = "11";
-    private const string Encode = "5";
-    private const string Sampler = "6";
+    private const string Encode = "7";
+    private const string Sampler = "12";
     private const string Decode = "8";
     private const string Save = "9";
 

@@ -288,6 +288,39 @@ public sealed class WorkflowGraphTests
         Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }
 
+    /// <summary>
+    /// Mage-Flow-Edit's Encode/Sampler must NOT reuse the inherited loader-head ids ("5" = CLIPLoader, "6" =
+    /// VAELoader). If they do, the last write per id wins and the two loaders vanish, leaving the encode's clip/vae
+    /// and the decode's vae pointing at the encode/sampler nodes' own outputs — an invalid graph ComfyUI rejects
+    /// (CONDITIONING/LATENT where a CLIP/VAE is required). This asserts both loaders survive with their own ids and
+    /// that the clip/vae edges resolve to them, not to the encode/sampler nodes.
+    /// </summary>
+    [Fact]
+    public void MageFlowEdit_keeps_the_clip_and_vae_loaders_and_wires_the_encode_decode_to_them()
+    {
+        string json = BuildJson("mage-flow-edit", Edit);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+
+        // The split-loader head survives: node "5" is the CLIP loader, node "6" the VAE loader — NOT overwritten by
+        // the encode/sampler.
+        Assert.Equal("CLIPLoader", root.GetProperty("5").GetProperty("class_type").GetString());
+        Assert.Equal("VAELoader", root.GetProperty("6").GetProperty("class_type").GetString());
+
+        // The unified encode node (on its OWN id, not "5") reads the real CLIP loader ("5") and VAE loader ("6").
+        JsonElement encode = root.EnumerateObject().Single(p => p.Value.GetProperty("class_type").GetString() == "TextEncodeMageFlowEdit").Value;
+        Assert.Equal("5", encode.GetProperty("inputs").GetProperty("clip")[0].GetString());
+        Assert.Equal("6", encode.GetProperty("inputs").GetProperty("vae")[0].GetString());
+
+        // The decode reads the same VAE loader ("6"), and its samples come from the KSampler (on its OWN id, not "6").
+        JsonElement decode = root.EnumerateObject().Single(p => p.Value.GetProperty("class_type").GetString() == "VAEDecode").Value;
+        Assert.Equal("6", decode.GetProperty("inputs").GetProperty("vae")[0].GetString());
+        string? samplerId = decode.GetProperty("inputs").GetProperty("samples")[0].GetString();
+        Assert.NotNull(samplerId);
+        Assert.Equal("KSampler", root.GetProperty(samplerId).GetProperty("class_type").GetString());
+        Assert.NotEqual("6", samplerId);
+    }
+
     [Fact]
     public void PixelAnima_is_a_generate_workflow_txt2img_under_projection_plus_final_quantize()
     {
