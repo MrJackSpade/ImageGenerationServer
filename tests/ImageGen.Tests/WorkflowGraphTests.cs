@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -582,6 +583,10 @@ public sealed class WorkflowGraphTests
         // The node caps resolution at 16384 and rejects the WHOLE prompt above it — clamp instead of emitting a 400.
         var huge = new WorkflowInputs { SourceImageName = "s.png", SourceWidth = 9000, SourceHeight = 5000 };
         Assert.Contains("\"resolution\":16384", Json(P(4), huge));
+
+        // A scale below 1 is REFUSED, not floored to 1 — a 0x upscale is the caller's mistake to see, not to have
+        // silently turned into a 1x copy.
+        Assert.Throws<RenderValidationException>(() => wf.Build(P(0), new ResolvedRequirements(), Edit));
     }
 
     [Fact]

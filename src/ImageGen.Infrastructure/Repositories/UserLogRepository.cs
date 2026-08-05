@@ -34,9 +34,16 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>Row-count bounds for a recent-log read: at least one, and a hard ceiling the SQL TOP/LIMIT is bound to.</summary>
+    private const int MinLimit = 1;
+    private const int MaxLimit = 1000;
+
     public async Task<IReadOnlyList<UserLogEntry>> GetRecentAsync(long userId, int limit, CancellationToken ct)
     {
-        limit = Math.Clamp(limit, 1, 1000);
+        // An out-of-range limit is REFUSED, not clamped — silently returning 1,000 for a request of a million reads
+        // to the caller as "that's all there is".
+        if (limit is < MinLimit or > MaxLimit)
+            throw new ArgumentOutOfRangeException(nameof(limit), limit, $"limit must be between {MinLimit} and {MaxLimit}.");
         await using var conn = await _connectionFactory.OpenAsync(ct);
         await using var cmd = conn.Command(
             $"SELECT {_dialect.TopPrefix("@limit")}Id, UserId, Category, Payload, CreatedAtUtc FROM dbo.UserLog "

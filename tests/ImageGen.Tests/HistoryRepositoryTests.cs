@@ -30,6 +30,16 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task GetPage_refuses_an_out_of_range_window_rather_than_clamping()
+    {
+        var user = await fixture.NewUserAsync("hist-badwindow");
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, HistoryQuery.MaxPageSize + 1), Ct));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => fixture.History.GetPageAsync(new HistoryQuery(user.Id, 0, 40), Ct));
+    }
+
+    [Fact]
     public async Task The_raw_prompt_survives_the_round_trip_verbatim()
     {
         // The whole point of the column: what comes back out is byte-for-byte what went in — markers, underscores and

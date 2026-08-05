@@ -30,4 +30,24 @@ public sealed record HistoryQuery(
     string? Tag = null,
     string? Model = null,
     string? Search = null,
-    bool UnviewedOnly = false);
+    bool UnviewedOnly = false)
+{
+    /// <summary>Smallest valid 1-based page number.</summary>
+    public const int MinPage = 1;
+
+    /// <summary>The page-window bounds: at least one row, at most a capped page. The cap is the same value the SQL
+    /// TOP/LIMIT is bound to, so it lives here once rather than being re-typed at each call site.</summary>
+    public const int MinPageSize = 1;
+    public const int MaxPageSize = 200;
+
+    /// <summary>Reject an out-of-range page or window rather than silently clamping it. A clamped page reads to the
+    /// caller exactly like a satisfied one — ask for page 0, or a 10,000-row window, and a quietly-corrected reply
+    /// looks deliberate. Every construction site is validated the same way, so no layer downstream has to re-guess.</summary>
+    public void Validate()
+    {
+        if (Page < MinPage)
+            throw new ArgumentOutOfRangeException(nameof(Page), Page, $"Page must be >= {MinPage}.");
+        if (PageSize is < MinPageSize or > MaxPageSize)
+            throw new ArgumentOutOfRangeException(nameof(PageSize), PageSize, $"PageSize must be between {MinPageSize} and {MaxPageSize}.");
+    }
+}

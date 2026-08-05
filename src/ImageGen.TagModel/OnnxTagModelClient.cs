@@ -1,3 +1,4 @@
+using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;
 
 namespace ImageGen.TagModel;
@@ -17,6 +18,9 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
     private readonly SuggestEngine _suggest;
     private readonly GenerateEngine _generate;
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    /// <summary>The UI slider's temperature range: 0 (greedy) to 5 (wildest). A value outside it is refused, not clamped.</summary>
+    private const double TempMin = 0, TempMax = 5;
 
     /// <summary>Wrap an already-loaded bundle.</summary>
     public OnnxTagModelClient(TagModelBundle bundle)
@@ -41,7 +45,11 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         await _gate.WaitAsync(ct);
         try
         {
-            var result = _suggest.Query(contextTags, fragment, Math.Max(1, limit));
+            // A limit below 1 is refused, not floored to 1 — an empty ask is the caller's mistake to see, not to have
+            // silently turned into a one-result response (the /tags endpoint already rejects it before we get here).
+            if (limit < 1)
+                throw new ArgumentOutOfRangeException(nameof(limit), limit, "limit must be at least 1.");
+            var result = _suggest.Query(contextTags, fragment, limit);
             if (result.Results.Count == 0)
                 return null;   // "no match" is a non-failure, and the port says null for it
 
@@ -73,8 +81,15 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         // generation to [highres, original].
         var typeMask = TypeMask.FromAllowedNames(allowedTypes);
 
-        // Clamped to the slider's [0, 5] range, so the range means the same thing at the sampler as on the UI.
-        var temp = temperature is null ? 1.0 : Math.Clamp(temperature.Value, 0, 5);
+        // A present temperature outside the slider's [0, 5] is REFUSED, not clamped — a quietly clamped value would
+        // render at a temperature the user did not choose. Null legitimately means "unspecified": the model's natural 1.0.
+        double temp;
+        if (temperature is null)
+            temp = 1.0;
+        else if (temperature.Value is < TempMin or > TempMax)
+            throw new RenderValidationException($"temperature must be between {TempMin} and {TempMax}, but was {temperature.Value}.");
+        else
+            temp = temperature.Value;
 
         await _gate.WaitAsync(ct);
         try

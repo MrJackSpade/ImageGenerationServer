@@ -18,9 +18,17 @@ public static class HistoryEndpoints
             HistoryQueryRequest req, HttpContext context, HistoryService history, ImageViewService views) =>
         {
             var userId = context.User.GetRequiredUserId();
+            // An out-of-range page/window is REFUSED, not clamped — a silently clamped page comes back looking exactly
+            // like a satisfied one (ask for a 10,000-row window and the 200 you get reads as "that's everything").
+            var page = req.Page ?? 1;
+            var pageSize = req.PageSize ?? 40;
+            if (page < HistoryQuery.MinPage)
+                return Results.BadRequest(new { error = $"page must be >= {HistoryQuery.MinPage}, got {page}" });
+            if (pageSize is < HistoryQuery.MinPageSize or > HistoryQuery.MaxPageSize)
+                return Results.BadRequest(new { error = $"pageSize must be between {HistoryQuery.MinPageSize} and {HistoryQuery.MaxPageSize}, got {pageSize}" });
             // `search` is the history page's search box: space-separated terms, ALL of which must appear in the prompt.
             var query = new HistoryQuery(
-                userId, req.Page ?? 1, req.PageSize ?? 40, req.Artist, req.Tag, req.Workflow, req.Search,
+                userId, page, pageSize, req.Artist, req.Tag, req.Workflow, req.Search,
                 req.UnviewedOnly ?? false);
             var result = await history.GetPageAsync(query, context.RequestAborted);
             // One lookup for the page's ids: the grid outlines what this user hasn't opened, and only the server

@@ -30,9 +30,10 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
 
     public async Task<PagedResult<HistoryEntry>> GetPageAsync(HistoryQuery query, CancellationToken ct)
     {
+        query.Validate();   // an out-of-range page/window is REFUSED, never clamped (see HistoryQuery.Validate)
         var (userId, _, _, artist, tag, model, search, unviewedOnly) = query;
-        var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var page = query.Page;
+        var pageSize = query.PageSize;
 
         // Tokens are deterministically encrypted at rest, so an equality filter must compare against the ciphertext.
         var artistEnc = string.IsNullOrWhiteSpace(artist) ? null : await _cipher.DeterministicAsync(userId, artist, ct);

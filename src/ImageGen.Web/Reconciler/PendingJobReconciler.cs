@@ -27,6 +27,14 @@ public sealed class PendingJobReconciler(
     /// <summary>Configuration key for the reconciler's maximum pending-row age in hours.</summary>
     private const string MaxAgeHoursKey = "Reconciler:MaxAgeHours";
 
+    /// <summary>Poll-interval bounds (seconds): the default used when the key is unset, and the accepted range for an
+    /// explicit override. An out-of-range override is refused, not clamped.</summary>
+    private const int DefaultPollSeconds = 15, MinPollSeconds = 3, MaxPollSeconds = 600;
+
+    /// <summary>Pending-row max-age bounds (hours): the default used when the key is unset, and the accepted range for an
+    /// explicit override. An out-of-range override is refused, not clamped.</summary>
+    private const double DefaultMaxAgeHours = 3.0, MinMaxAgeHours = 0.1, MaxMaxAgeHours = 24.0;
+
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IConfiguration _config = config;
     private readonly ILogger<PendingJobReconciler> _logger = logger;
@@ -34,8 +42,17 @@ public sealed class PendingJobReconciler(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var pollSeconds = Math.Clamp(_config.GetValue(PollSecondsKey, 15), 3, 600);
-        var maxAge = TimeSpan.FromHours(Math.Clamp(_config.GetValue(MaxAgeHoursKey, 3.0), 0.1, 24.0));
+        // An explicitly-configured value outside its range is a misconfiguration to surface, not to silently clamp.
+        // An absent key keeps its default (the common case).
+        var pollSeconds = _config.GetValue(PollSecondsKey, DefaultPollSeconds);
+        if (pollSeconds is < MinPollSeconds or > MaxPollSeconds)
+            throw new InvalidOperationException(
+                $"{PollSecondsKey} must be between {MinPollSeconds} and {MaxPollSeconds} seconds, but was {pollSeconds}.");
+        var maxAgeHours = _config.GetValue(MaxAgeHoursKey, DefaultMaxAgeHours);
+        if (maxAgeHours is < MinMaxAgeHours or > MaxMaxAgeHours)
+            throw new InvalidOperationException(
+                $"{MaxAgeHoursKey} must be between {MinMaxAgeHours} and {MaxMaxAgeHours} hours, but was {maxAgeHours}.");
+        var maxAge = TimeSpan.FromHours(maxAgeHours);
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));

@@ -132,7 +132,9 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
         const int NodeResMin = 16, NodeResMax = 16384;
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        int scale = Math.Max(1, p.IntReq(WorkflowParamKeys.Scale));
+        int scale = p.IntReq(WorkflowParamKeys.Scale);
+        if (scale < 1)
+            throw new RenderValidationException($"scale must be at least 1, but was {scale}.");
         int resolution = (sw > 0 && sh > 0)
             ? Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax)
             : p.IntReq(WorkflowParamKeys.FallbackShortEdge);
