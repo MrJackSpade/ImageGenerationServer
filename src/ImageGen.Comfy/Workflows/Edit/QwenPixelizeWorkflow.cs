@@ -23,8 +23,8 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps" },
-        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = 1, Max = 30, Label = "CFG scale" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Shift,     Type = ParamType.Double },   // ModelSamplingAuraFlow shift (2511)

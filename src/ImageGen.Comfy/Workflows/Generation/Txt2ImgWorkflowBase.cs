@@ -20,8 +20,8 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.Auraflow,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.ClipSkip, Type = ParamType.Int },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = 1,  Max = 100, Label = "Steps", EtaVariable = true },
-        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = 1,  Max = 30,  Label = "CFG scale" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
+        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin,   Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String, Label = "Sampler" },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Width,     Type = ParamType.Int },
@@ -37,7 +37,7 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.NegativeSupported,  Type = ParamType.Bool },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
-        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = 0.0, Max = 2.0, Label = "LoRA strength" },
+        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.GenLoraStrengthMin, Max = ParamBounds.GenLoraStrengthMax, Label = "LoRA strength" },
     };
 
     /// <summary>The <c>latent</c> param's kind values — which empty-latent node the topology emits. Written once so

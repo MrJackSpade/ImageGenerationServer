@@ -121,14 +121,10 @@ public sealed partial class WorkflowCatalogService
             if (aspect.Value.ValueKind != System.Text.Json.JsonValueKind.Array || aspect.Value.GetArrayLength() < 2) continue;
             int w = aspect.Value[0].GetInt32(), h = aspect.Value[1].GetInt32();
 
-            if (w < env.MinW || w > env.MaxW || h < env.MinH || h > env.MaxH)
-                throw new ArgumentException(
-                    $"{aspect.Name} is {w}x{h}, outside what {name} supports "
-                    + $"({env.MinW}-{env.MaxW} wide, {env.MinH}-{env.MaxH} tall).");
-
-            if (env.Step > 0 && (w % env.Step != 0 || h % env.Step != 0))
-                throw new ArgumentException(
-                    $"{aspect.Name} is {w}x{h}; {name} needs both sides to be a multiple of {env.Step}.");
+            // Same envelope check the submit path runs (ResolutionGuard) — the write path just throws the type the
+            // settings API maps to a 400 and names the model in the subject.
+            if (ResolutionGuard.Violation(env, w, h, $"{aspect.Name} ({name})") is { } msg)
+                throw new ArgumentException(msg + ".");
         }
     }
 

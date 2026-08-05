@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -20,7 +21,8 @@ public record Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.LoraStrength)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
+    [Range(ParamBounds.GenLoraStrengthMin, ParamBounds.GenLoraStrengthMax)] public double LoraStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Width)]        public int? Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)]       public int? Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)]       public Dictionary<string, int[]>? Aspect { get; init; }

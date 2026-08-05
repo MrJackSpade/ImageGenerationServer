@@ -15,8 +15,8 @@ internal static class EditWorkflowBase
         new() { Key = WorkflowParamKeys.WeightDtype, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = 1, Max = 100, Label = "Steps", EtaVariable = true },
-        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = 1, Max = 30,  Label = "CFG scale" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
+        new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin,   Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
@@ -36,7 +36,7 @@ internal static class EditWorkflowBase
         new() { Key = WorkflowParamKeys.ClipVision, Type = ParamType.String, IsModelRef = true },
         // SDXL AnimateDiff img2img: how far frames drift from the source. Low = stays put (little motion); high =
         // more motion but loses the source. Exposed for tuning the motion/fidelity tradeoff.
-        new() { Key = WorkflowParamKeys.Denoise,   Type = ParamType.Double, Min = 0.1, Max = 1.0, Label = "Denoise (source ↔ motion)" },
+        new() { Key = WorkflowParamKeys.Denoise,   Type = ParamType.Double, Min = ParamBounds.DenoiseMin, Max = ParamBounds.DenoiseMax, Label = "Denoise (source ↔ motion)" },
         // AnimateDiff only (ADE_UseEvolvedSampling). The WRONG schedule is what turns these into color-smear/no-motion
         // garbage, so it's a per-module setting, not an artistic one — exposed for iterative testing, to be locked
         // down once dialed in. No schema default: each AnimateDiff workflow falls back to its module's correct value.
@@ -50,6 +50,6 @@ internal static class EditWorkflowBase
         // Optional style/quality LoRA applied on top of the base model — lets a config be a "base + anime LoRA"
         // variant (e.g. WAN i2v + Flat Color) with no new graph code.
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
-        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
+        new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.EditLoraStrengthMin, Max = ParamBounds.EditLoraStrengthMax, Label = "LoRA strength" },
     };
 }

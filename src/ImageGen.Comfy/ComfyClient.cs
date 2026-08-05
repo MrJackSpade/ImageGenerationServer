@@ -467,11 +467,16 @@ public sealed class ComfyClient : IComfyClient
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
-        WorkflowInputs inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect), Loras = loraStack };
+        string normAspect = ComfyGraph.NormalizeAspect(aspect);
+        WorkflowInputs inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
+        // The aspect-RESOLVED render size (exactly what Build sizes the latent to). Refuse one outside the model's
+        // documented envelope HERE, before the graph is built — the submit-path twin of the settings-write guard —
+        // so an out-of-range width/height sent past the UI fails fast with the model's own numbers.
+        (int ew, int eh) = common.Dims(normAspect);
+        ResolutionGuard.EnsureWithin(resolved.Resolution ?? wf.ResolutionEnvelope, ew, eh);
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
-        // ETA signature: the aspect-RESOLVED render size (exactly what Build sizes the latent to) + the EtaVariable
-        // time drivers, taken from the same merged/normalized values the graph was built from.
-        (int ew, int eh) = common.Dims(ComfyGraph.NormalizeAspect(aspect));
+        // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
+        // values the graph was built from.
         EtaSignature eta = new EtaSignature(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }

@@ -1,4 +1,7 @@
 ﻿using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -158,10 +161,50 @@ public static class ParamsCodec
 
     /// <summary>Deserialize the merged parameters into a strongly-typed params DTO in ONE System.Text.Json pass — STJ
     /// does the <see cref="JsonElement"/>→typed coercion and honours the DTO's <c>[JsonPropertyName]</c>s / <c>required</c>
-    /// members, so a workflow never touches a string key or a loose accessor.</summary>
-    public static T Deserialize<T>(IReadOnlyDictionary<string, object?> bag) =>
-        JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(bag), ParamsJsonOptions)
-        ?? throw new RenderValidationException($"The merged parameters could not be read as {typeof(T).Name}.");
+    /// members, so a workflow never touches a string key or a loose accessor — then enforce the DTO's declared value
+    /// bounds (<see cref="ValidateBounds"/>) before the typed object is handed back. A value outside a declared
+    /// <c>[Range]</c> (steps, cfg, …) is refused HERE, at the single typed boundary every submission crosses, rather
+    /// than reaching the graph — so a <c>steps: 5000</c> sent past the UI slider fails fast, naming the value and its
+    /// bound.</summary>
+    public static T Deserialize<T>(IReadOnlyDictionary<string, object?> bag)
+    {
+        T dto = JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(bag), ParamsJsonOptions)
+            ?? throw new RenderValidationException($"The merged parameters could not be read as {typeof(T).Name}.");
+        ValidateBounds(dto);
+        return dto;
+    }
+
+    /// <summary>Enforce the DataAnnotations bounds declared on a params DTO's members (<c>[Range]</c> and friends),
+    /// reflectively — the enforcement half of the "declare the bound once, on the typed model" design: the bound lives
+    /// as an attribute next to the property it constrains, and this runs it. A nullable member with no supplied value
+    /// is skipped (an absent optional param is "unspecified", not out of range). Every violation is collected and
+    /// reported together, each naming the wire key, the offending value, and the permitted range.</summary>
+    [AllowMagicStrings("human-readable out-of-range parameter refusal message")]
+    private static void ValidateBounds(object dto)
+    {
+        List<ValidationResult> results = new List<ValidationResult>();
+        if (Validator.TryValidateObject(dto, new ValidationContext(dto), results, validateAllProperties: true))
+            return;
+
+        Type t = dto.GetType();
+        List<string> problems = new List<string>();
+        foreach (ValidationResult r in results)
+        {
+            IEnumerable<string> members = r.MemberNames.Any() ? r.MemberNames : new[] { string.Empty };
+            foreach (string member in members)
+            {
+                PropertyInfo? prop = member.Length > 0 ? t.GetProperty(member) : null;
+                string key = prop?.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? (member.Length > 0 ? member : t.Name);
+                RangeAttribute? range = prop?.GetCustomAttribute<RangeAttribute>();
+                if (prop is not null && range is not null)
+                    problems.Add($"'{key}' must be between {range.Minimum} and {range.Maximum}, but was {prop.GetValue(dto)}");
+                else
+                    problems.Add($"'{key}': {r.ErrorMessage}");
+            }
+        }
+        throw new RenderValidationException(
+            $"This request has out-of-range parameter value(s): {string.Join("; ", problems)}.");
+    }
 
     /// <summary>Coerce a raw param value (a CLR primitive or a parsed <see cref="JsonElement"/>) to an int — for the
     /// pre-DTO normalization pass (<see cref="IWorkflow.Normalize"/>), which mutates the loose bag BEFORE it is
@@ -185,13 +228,15 @@ public static class ParamsCodec
 /// typed values instead of loose accessors — the same keys a workflow's own DTO also reads for the graph.</summary>
 public sealed record SubmissionCommon
 {
-    [JsonPropertyName(WorkflowParamKeys.Steps)]             public int? Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]     public int? Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]            public int? Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)]            public Dictionary<string, int[]>? Aspect { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)]   public string? RequiredPrefix { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]              public double? Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]        public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.Negative)]         public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SnapResolution)]   public bool SnapResolution { get; init; }
