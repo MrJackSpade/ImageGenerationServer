@@ -18,6 +18,9 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     /// <summary>MIME type of the still JPEG thumbnail.</summary>
     private const string JpegMimeType = "image/jpeg";
 
+    /// <summary>MIME type of the only stored clip ImageSharp can't identify (the MiniMax-H3 mp4).</summary>
+    private const string Mp4MimeType = "video/mp4";
+
     /// <inheritdoc/>
     /// <remarks>Measured: silent declines &lt;= 0.039, smallest real edit (glasses) 0.047 — 0.043 splits them.</remarks>
     public double NoChangeThreshold => 0.043;
@@ -26,14 +29,18 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     public ImageDimensions Identify(byte[] bytes)
     {
         ImageInfo info = Image.Identify(bytes);
-        return new ImageDimensions(info.Width, info.Height);
+        // DecodedImageFormat is set by the decoder that just read the header. If it is somehow absent the format is
+        // genuinely undeterminable — refuse rather than fabricate a MIME the caller would serve as truth.
+        string mime = info.Metadata.DecodedImageFormat?.DefaultMimeType
+            ?? throw new InvalidOperationException("The image format could not be determined from its bytes.");
+        return new ImageDimensions(info.Width, info.Height, mime);
     }
 
     /// <inheritdoc/>
     public ImageDimensions IdentifyVideo(byte[] bytes)
     {
         (int w, int h) = Mp4Probe.GetDimensions(bytes);
-        return new ImageDimensions(w, h);
+        return new ImageDimensions(w, h, Mp4MimeType);
     }
 
     /// <inheritdoc/>

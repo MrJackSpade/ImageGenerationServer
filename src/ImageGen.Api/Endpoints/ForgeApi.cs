@@ -1019,8 +1019,10 @@ public static class ForgeApi
             try { dims = media.Identify(bytes); }
             catch (Exception ex) { return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" }); }
             int? w = dims.Width, h = dims.Height;
-            string contentType = string.IsNullOrWhiteSpace(file.ContentType) ? ContentTypes.ImagePng : file.ContentType;
-            string id = uploads.Add(new UploadedImage(bytes, contentType, w, h));
+            // The content-type is derived from the bytes, not the client-declared file.ContentType: the latter is an
+            // untrusted claim (a client can send image/png for webp bytes), and Identify already decoded the true
+            // format from the header. Deriving unconditionally makes the stored/served MIME always match the content.
+            string id = uploads.Add(new UploadedImage(bytes, dims.MimeType, w, h));
             return Results.Ok(new { id });
         });
 

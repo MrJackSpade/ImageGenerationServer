@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ImageGen.Domain\ImageGen.Domain.csproj" />
     <ProjectReference Include="..\..\src\ImageGen.Application\ImageGen.Application.csproj" />
+    <ProjectReference Include="..\..\src\ImageGen.Media\ImageGen.Media.csproj" />
     <ProjectReference Include="..\..\src\ImageGen.Infrastructure\ImageGen.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\ImageGen.Comfy\ImageGen.Comfy.csproj" />
     <ProjectReference Include="..\..\src\ImageGen.Web\ImageGen.Web.csproj" />

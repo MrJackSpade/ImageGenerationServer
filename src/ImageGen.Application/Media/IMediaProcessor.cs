@@ -12,7 +12,9 @@ public interface IMediaProcessor
     /// new image is stored. See <see cref="Difference"/>.</summary>
     double NoChangeThreshold { get; }
 
-    /// <summary>Read an image's pixel dimensions from its bytes without fully decoding the pixels.</summary>
+    /// <summary>Read an image's pixel dimensions and its true MIME type from its bytes without fully decoding the
+    /// pixels. The MIME comes from the decoded file header, not a client-declared claim, so it is authoritative;
+    /// throws if the format cannot be determined.</summary>
     ImageDimensions Identify(byte[] bytes);
 
     /// <summary>Read an MP4 clip's coded pixel dimensions from its container boxes (ImageSharp cannot read an mp4 — the
