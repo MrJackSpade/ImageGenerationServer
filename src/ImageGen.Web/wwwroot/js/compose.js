@@ -237,10 +237,8 @@ const genCount = attachCountPicker($generate, {
 
 
 // --- batch --------------------------------------------------------------------------------------
-const BATCH_KEY = "makeapicture_batch";
-function saveBatch(o) { try { localStorage.setItem(BATCH_KEY, JSON.stringify(o)); } catch (e) { console.debug("saveBatch failed:", e); } }
-function loadBatch() { try { return JSON.parse(localStorage.getItem(BATCH_KEY) || "null"); } catch (e) { console.debug("loadBatch failed:", e); return null; } }
-function clearBatch() { try { localStorage.removeItem(BATCH_KEY); } catch (e) { console.debug("clearBatch failed:", e); } }
+// Batch state is held in-memory for the life of one trackBatch() call (below), never in web storage. Reload/
+// cross-device pickup is the server-sourced liveSync's job (see :227), so there is nothing here to persist.
 // Single entry for the composer's Generate (and the count picker): fan the prompt across every checked model,
 // n images PER model. One checked model is the classic path (runGeneration for n=1, single-model batch for n>1,
 // honoring its param overrides + random-artist/prompt + autocomplete). Two-or-more checked goes through the
@@ -297,9 +295,9 @@ async function submitItems(items, meta) {
     // ONE job with N slots now — track the single jobId and diff its imageIds[].
     const resp = await r.json(); const jobId = resp.jobId, total = resp.total || n;
     if (!jobId) throw new Error("The queue accepted no jobs.");
-    saveBatch({ jobId, total, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, recorded: [], slotModels: meta.slotModels || null, slotAspects: meta.slotAspects || null });
+    const batch = { jobId, total, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, slotModels: meta.slotModels || null, slotAspects: meta.slotAspects || null };
     postPending({ jobId, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, aspect: meta.aspect }).catch(e => console.debug("record pending job failed:", e));
-    await trackBatch();
+    await trackBatch(batch);
   } catch (e) { if (cancelRequested || (e && e.name === "AbortError")) setStatus("Cancelled."); else setStatus(friendlyError(e), { error: true }); hideBar(); }
   finally { setBusy(false); }
 }
@@ -352,21 +350,19 @@ async function generateMulti(prompt, models, n) {
 }
 // Track ONE multi-slot job: poll /jobs, record each slot as its image lands (diffing on slot id), and finish when the
 // job leaves the active feed — its disappearance IS "finalized", after which /forge/job/{id} gives the final array.
-function trackBatch() {
-  const b = loadBatch();
-  if (!b || !b.jobId) { clearBatch(); return Promise.resolve(); }
-  const jobId = b.jobId, N = b.total || 1, recorded = new Set(b.recorded || []);   // recorded = image ids done
+function trackBatch(b) {
+  if (!b || !b.jobId) return Promise.resolve();
+  const jobId = b.jobId, N = b.total || 1, recorded = new Set();   // recorded = image ids done (this run only)
   activeGen = { cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } } };
   return new Promise((resolve) => {
     let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
     const prog = newBatchProgress();
     const drawBar = () => showBar(prog.value(N));
-    const finish = () => { if (settled) return; settled = true; if (timer) clearInterval(timer); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } document.removeEventListener("visibilitychange", onVis); activeGen = null; clearBatch(); resolve(); };
+    const finish = () => { if (settled) return; settled = true; if (timer) clearInterval(timer); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } document.removeEventListener("visibilitychange", onVis); activeGen = null; resolve(); };
     function recordSlot(s) {
       if (!s || !s.id || recorded.has(s.id)) return;
       recorded.add(s.id);
       recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, b.prompt || "", b.model || "", b.modelId || "", (b.slotAspects && b.slotAspects[s.index]) || "");
-      const cur = loadBatch(); if (cur) { cur.recorded = [...recorded]; saveBatch(cur); }
     }
     function openWs() {
       if (settled || ws) return;
