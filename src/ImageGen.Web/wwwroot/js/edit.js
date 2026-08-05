@@ -445,18 +445,41 @@ function outpaintNegFor(model) { const t = $outpaintNeg ? $outpaintNeg.value.tri
 function renderSrc() {
   $editSrc.innerHTML = "";
   if (!editCurrent) { $editSrc.appendChild(selectFileButton("Select a file to edit")); return; }
+  let media;
   if (srcIsVideo) {
     // A clip source: play it looping (the mp4 endpoint transcodes our animated-webp clips and passes real containers through).
-    const v = document.createElement("video");
-    v.src = `${GATEWAY}/image/${encodeURIComponent(imageId(editCurrent))}/mp4`;
-    v.loop = true; v.muted = true; v.autoplay = true; v.playsInline = true; v.controls = true;
-    v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
-    $editSrc.appendChild(v);
-    return;
+    media = document.createElement("video");
+    media.src = `${GATEWAY}/image/${encodeURIComponent(imageId(editCurrent))}/mp4`;
+    media.loop = true; media.muted = true; media.autoplay = true; media.playsInline = true; media.controls = true;
+    media.setAttribute("muted", ""); media.setAttribute("playsinline", "");
+  } else {
+    media = document.createElement("img"); media.src = viewUrl(editCurrent); media.alt = "image being edited";
+    media.addEventListener("click", () => openImage(imageId(editCurrent)));
   }
-  const im = document.createElement("img"); im.src = viewUrl(editCurrent); im.alt = "image being edited";
-  im.addEventListener("click", () => openImage(imageId(editCurrent)));
-  $editSrc.appendChild(im);
+  $editSrc.appendChild(media);
+  $editSrc.appendChild(srcClearButton());
+}
+// A small "×" overlay on a source preview that clears the source. Upload sets ONE source for every mode
+// (editCurrent + inpaintBase + outpaintBase together, :481), so clearing drops all of them — consistent with how
+// they're set — returning every stage to its empty "Select a file" picker.
+function srcClearButton() {
+  const x = document.createElement("button");
+  x.type = "button"; x.className = "src-clear"; x.textContent = "×"; x.title = "Clear source";
+  x.addEventListener("click", e => { e.stopPropagation(); clearSource(); });
+  return x;
+}
+// Mirror the upload reset at :481-484, but to null: drop the shared source and every source-tied piece of state
+// (end frame, video-ness, staged bases), then re-render whichever stage is active so its empty picker returns.
+function clearSource() {
+  editCurrent = null; inpaintBase = null; outpaintBase = null;
+  stagedBase = null; outStagedBase = null;
+  lastFrameId = null;                                     // the end frame was tied to the old source
+  srcIsVideo = false;                                     // no clip source anymore
+  renderSrc(); renderEditLastFrame();
+  applySourceMediaUi();
+  if (activeMode === "video") setMode("edit");            // leave V2V-only mode — there's no clip to quantize now
+  else if (activeMode === "inpaint") setupMaskStage();
+  else if (activeMode === "outpaint") setupOutpaintStage();
 }
 // Empty-state control shown in the image area when the editor is opened with no source (the rail's Edit button).
 // Picking a file uploads it to the input store and makes it the source for EVERY mode.
@@ -764,6 +787,7 @@ function setupMaskStage() {
   img.onload = () => { canvas.width = img.naturalWidth || 1024; canvas.height = img.naturalHeight || 1024; maskCtx = canvas.getContext("2d"); };
   img.src = viewUrl(inpaintBase);
   $maskStage.appendChild(img); $maskStage.appendChild(canvas);
+  $maskStage.appendChild(srcClearButton());
   maskCanvas = canvas; bindPaint(canvas);
 }
 function bindPaint(canvas) {
@@ -1037,6 +1061,7 @@ function setupOutpaintStage() {
   // Mount + publish the frame BEFORE the src is set: outLayout() bails on a null outFrame, and a cached image can
   // fire onload on the very next task — before a trailing `outFrame = frame` would have run.
   $outpaintStage.appendChild(frame);
+  $outpaintStage.appendChild(srcClearButton());
   outFrame = frame; bindOutHandles(frame);
   img.onload = () => { outSrcW = img.naturalWidth || 1024; outSrcH = img.naturalHeight || 1024; outLayout(); syncPadInputs(); updateOutSize(); };
   img.src = viewUrl(outpaintBase);

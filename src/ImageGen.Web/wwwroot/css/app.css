@@ -547,7 +547,11 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .edit-grid{grid-template-columns:minmax(220px,380px) 1fr}
 @media (max-width:680px){.edit-grid{grid-template-columns:1fr}}
 .edit-src-pane{min-width:0}
-.edit-src{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--elev);line-height:0;min-height:120px}
+.edit-src{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--elev);line-height:0;min-height:120px}
+/* Clear-source "×" pinned to the top-right of a source preview (chat/animate .edit-src, inpaint .mask-stage,
+   outpaint .op-stage). z-index clears the inpaint paint canvas and the outpaint drag handles so it stays clickable. */
+.src-clear{position:absolute;top:6px;right:6px;z-index:3;width:24px;height:24px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:24px;text-align:center;cursor:pointer;padding:0}
+.src-clear:hover{background:rgba(0,0,0,.82)}
 .edit-src img{display:block;width:100%;height:auto;cursor:pointer}
 /* A clip source plays as a <video>; contain it to the pane like the image so a genuinely-wide clip can't overflow
    (defensive — the primary fix is that a still webp is no longer classified as a clip and rendered here at all). */
