@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
@@ -165,13 +166,15 @@ public sealed record SeedVr2Params
 {
     [JsonPropertyName(WorkflowParamKeys.DitModel)]        public required string DitModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VaeModel)]        public required string VaeModel { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scale)]           public required int Scale { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scale)]
+    [Range(1, 4)]                                         public required int Scale { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaxResolution)]   public required int MaxResolution { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ColorCorrection)] public required string ColorCorrection { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Device)]          public required string Device { get; init; }
     [JsonPropertyName(WorkflowParamKeys.OffloadDevice)]   public required string OffloadDevice { get; init; }
     [JsonPropertyName(WorkflowParamKeys.AttentionMode)]   public required string AttentionMode { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.BlocksToSwap)]    public required int BlocksToSwap { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BlocksToSwap)]
+    [Range(0, 36)]                                        public required int BlocksToSwap { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SwapIoComponents)] public bool SwapIoComponents { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CacheModel)]      public bool CacheModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VaeTiled)]        public bool VaeTiled { get; init; }

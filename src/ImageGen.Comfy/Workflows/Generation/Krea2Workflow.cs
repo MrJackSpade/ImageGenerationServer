@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
@@ -7,7 +8,8 @@ namespace ImageGen.Comfy;
 /// single-pass <see cref="Krea2Workflow"/> and the two-stage <see cref="Krea2RefineWorkflow"/> both read these.</summary>
 public record Krea2Params : Txt2ImgParams
 {
-    [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)] public required double Multiplier { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)]
+    [Range(1.0, 8.0)] public required double Multiplier { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)]     public required string PerLayerWeights { get; init; }
 }
 

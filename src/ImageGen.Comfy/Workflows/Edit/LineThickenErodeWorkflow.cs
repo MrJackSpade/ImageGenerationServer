@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -47,5 +48,6 @@ public sealed class LineThickenErodeWorkflow : EditWorkflow<LineThickenErodePara
 /// (the declarative form of the previous <c>IntReq</c> read).</summary>
 public sealed record LineThickenErodeParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Thickness)] public required int Thickness { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thickness)]
+    [Range(0, 32)]                                  public required int Thickness { get; init; }
 }

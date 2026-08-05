@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
@@ -69,8 +70,10 @@ public sealed record AnimateDiffSd15Params
     [JsonPropertyName(WorkflowParamKeys.MotionModel)]   public required string MotionModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.BetaSchedule)]  public required string BetaSchedule { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SparsectrlName)] public required string SparsectrlName { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]         public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]           public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]     public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]       public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]     public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]          public long Seed { get; init; }

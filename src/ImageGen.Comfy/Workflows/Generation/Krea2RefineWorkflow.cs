@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
@@ -7,9 +8,12 @@ namespace ImageGen.Comfy;
 /// optional sampler/scheduler override (null → reuse the base pass's).</summary>
 public sealed record Krea2RefineParams : Krea2Params
 {
-    [JsonPropertyName(WorkflowParamKeys.PolishDenoise)]    public required double PolishDenoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)]     public required int RefinerSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RefinerCfg)]       public required double RefinerCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PolishDenoise)]
+    [Range(0.1, 0.9)] public required double PolishDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)]
+    [Range(1, 30)] public required int RefinerSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefinerCfg)]
+    [Range(1.0, 4.0)] public required double RefinerCfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefinerSampler)]   public string? RefinerSampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefinerScheduler)] public string? RefinerScheduler { get; init; }
 }

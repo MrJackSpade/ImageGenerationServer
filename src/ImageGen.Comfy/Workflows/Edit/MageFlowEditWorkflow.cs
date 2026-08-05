@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -91,8 +92,10 @@ public sealed record MageFlowEditParams
     [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }

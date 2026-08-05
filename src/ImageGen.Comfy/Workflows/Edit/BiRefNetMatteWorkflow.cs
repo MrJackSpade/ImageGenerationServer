@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -64,5 +65,6 @@ public sealed class BiRefNetMatteWorkflow : Workflow<MatteParams>
 /// declarative form of the previous <c>DblReq</c> read).</summary>
 public sealed record MatteParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Threshold)] public required double Threshold { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Threshold)]
+    [Range(0.0, 1.0)] public required double Threshold { get; init; }
 }

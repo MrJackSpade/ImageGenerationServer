@@ -1,6 +1,16 @@
-﻿using ImageGen.Domain;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
+
+/// <summary>Outpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0.5 (the border has nothing
+/// under it to preserve, so a lower floor only smears the pre-fill scaffold back).</summary>
+public sealed record QwenImageOutpaintParams : QwenInpaintParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]
+    [Range(0.5, 1.0)] public override required double Denoise { get; init; }
+}
 
 /// <summary>
 /// OUTPAINT on base Qwen-Image + the InstantX inpainting ControlNet. <c>ImagePadForOutpaint</c> extends the canvas by
@@ -8,7 +18,7 @@ namespace ImageGen.Comfy;
 /// the ControlNet then conditions the fill on the known pixels so the border continues the existing structure.
 /// Pads are the only override the outpaint UI sends (see <c>edit.js</c>).
 /// </summary>
-public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
+public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImageOutpaintParams>
 {
     public override string Name => "qwen-image-outpaint";
 

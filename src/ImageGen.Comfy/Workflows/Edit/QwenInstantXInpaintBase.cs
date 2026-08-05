@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Domain;
 
@@ -50,7 +51,7 @@ namespace ImageGen.Comfy;
 /// cell and decodes as a hard 1px line — with a ramp wide enough to span several latent cells
 /// (<see cref="MaskBlurSigma"/>), held at a hard 1 over the fill region itself (<c>SoftenMask</c>).</para>
 /// </summary>
-public abstract class QwenInstantXInpaintBase : EditWorkflow<QwenInpaintParams>
+public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> where TParams : QwenInpaintParams
 {
     /// <summary>Prompt describes the whole resulting picture (a generation-style prompt), not an edit instruction —
     /// base Qwen-Image is a txt2img model with a plain CLIPTextEncode, not an instruction editor.</summary>
@@ -224,7 +225,7 @@ public abstract class QwenInstantXInpaintBase : EditWorkflow<QwenInpaintParams>
     protected const string Composite = "126";
     protected const string Save = "9";
 
-    protected override ComfyWorkflowGraph Build(QwenInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
@@ -323,27 +324,42 @@ public abstract class QwenInstantXInpaintBase : EditWorkflow<QwenInpaintParams>
 /// are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c>/<c>negative</c> are nullable strings; <c>mask_grow</c> is
 /// a Has-guarded nullable int; the <c>pad_*</c> reads are plain <c>p.Int</c> (absent = 0); <c>seed</c> is the app's
 /// single-sourced seed (defaulted).</summary>
-public sealed record QwenInpaintParams
+public abstract record QwenInpaintParams
 {
     [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Denoise)]      public required double Denoise { get; init; }
+    /// <summary>Change amount / fill strength — declared here without a range because the valid floor differs per
+    /// direction (inpaint 0.2, outpaint 0.5); each concrete record overrides it with its own <c>[Range]</c>.</summary>
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]      public virtual required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)]     public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Auraflow)]     public required double Auraflow { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.CnStrength)]   public required double CnStrength { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.CnStart)]      public required double CnStart { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.CnEnd)]        public required double CnEnd { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskBlur)]     public required int MaskBlur { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaxDimension)] public required int MaxDimension { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]     public int? MaskGrow { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadLeft)]      public int PadLeft { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadTop)]       public int PadTop { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadRight)]     public int PadRight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadBottom)]    public int PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Auraflow)]
+    [Range(0.0, 10.0)]                                 public required double Auraflow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CnStrength)]
+    [Range(0.0, 2.0)]                                  public required double CnStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CnStart)]
+    [Range(0.0, 1.0)]                                  public required double CnStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CnEnd)]
+    [Range(0.0, 1.0)]                                  public required double CnEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskBlur)]
+    [Range(0, 31)]                                     public required int MaskBlur { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
+    [Range(0, 4096)]                                   public required int MaxDimension { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
+    [Range(0, 64)]                                     public int? MaskGrow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadLeft)]
+    [Range(0, 4096)]                                   public int PadLeft { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadTop)]
+    [Range(0, 4096)]                                   public int PadTop { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadRight)]
+    [Range(0, 4096)]                                   public int PadRight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadBottom)]
+    [Range(0, 4096)]                                   public int PadBottom { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

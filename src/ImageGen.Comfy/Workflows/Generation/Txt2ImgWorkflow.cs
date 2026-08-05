@@ -15,8 +15,10 @@ public record Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.Auraflow)]     public double? Auraflow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Guidance)]     public double? Guidance { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]     public int? ClipSkip { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public double? Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }

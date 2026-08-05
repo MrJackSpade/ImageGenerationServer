@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
@@ -281,7 +282,8 @@ public sealed record WanA14bI2VParams
 {
     [JsonPropertyName(WorkflowParamKeys.UnetLow)]         public required string UnetLow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Shift)]           public required double Shift { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]           public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]   public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Boundary)]        public required int Boundary { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CfgHigh)]         public required double CfgHigh { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CfgLow)]          public required double CfgLow { get; init; }
@@ -291,11 +293,16 @@ public sealed record WanA14bI2VParams
     [JsonPropertyName(WorkflowParamKeys.Height)]          public required int Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]          public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)]             public required double Fps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)]    public int? RefinerSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadLeftPct)]      public int? PadLeftPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadRightPct)]     public int? PadRightPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadTopPct)]       public int? PadTopPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadBottomPct)]    public int? PadBottomPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefinerSteps)]
+    [Range(0, 40)]                                        public int? RefinerSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadLeftPct)]
+    [Range(0, 2000)]                                      public int? PadLeftPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadRightPct)]
+    [Range(0, 2000)]                                      public int? PadRightPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadTopPct)]
+    [Range(0, 2000)]                                      public int? PadTopPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadBottomPct)]
+    [Range(0, 2000)]                                      public int? PadBottomPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.EndPadLeftPct)]   public int? EndPadLeftPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.EndPadRightPct)]  public int? EndPadRightPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.EndPadTopPct)]    public int? EndPadTopPct { get; init; }
@@ -428,11 +435,16 @@ public sealed record HunyuanVideo15T2VParams : Txt2ImgParams, IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.SrUpsampler)] public string? SrUpsampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrWidth)]     public int? SrWidth { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrHeight)]    public int? SrHeight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrSteps)]     public int? SrSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]   public double? SrDenoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]  public double? SrNoiseAug { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrCfg)]       public double? SrCfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrShift)]     public double? SrShift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
+    [Range(1, 50)]                                    public int? SrSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public double? SrDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
+    [Range(0.0, 1.0)]                                 public double? SrNoiseAug { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
+    [Range(1.0, 12.0)]                                public double? SrCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrShift)]
+    [Range(1.0, 12.0)]                                public double? SrShift { get; init; }
 }
 
 /// <summary>Original HunyuanVideo 13B text→video. The diffusion loader follows the bound file; the LLaVA-Llama3/CLIP-L DualCLIPLoader

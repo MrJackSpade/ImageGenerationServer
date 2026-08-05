@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -55,6 +56,8 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflow<LineThickenSke
 /// (the declarative form of the previous <c>IntReq</c>/<c>DblReq</c> reads).</summary>
 public sealed record LineThickenSketchKerasParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Thickness)] public required int Thickness { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Threshold)] public required double Threshold { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thickness)]
+    [Range(0, 32)]                                  public required int Thickness { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Threshold)]
+    [Range(0.0, 1.0)]                               public required double Threshold { get; init; }
 }

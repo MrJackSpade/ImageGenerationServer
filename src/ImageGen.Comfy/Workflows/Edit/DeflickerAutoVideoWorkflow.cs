@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -80,8 +81,12 @@ public sealed class DeflickerAutoVideoWorkflow : Workflow<DeflickerAutoParams>
 /// previous <c>DblReq</c> reads).</summary>
 public sealed record DeflickerAutoParams
 {
-    [JsonPropertyName(WorkflowParamKeys.MadK)]      public required double MadK { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MinDev)]    public required double MinDev { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.AlphaCut)]  public required double AlphaCut { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.TimeSigma)] public required double TimeSigma { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MadK)]
+    [Range(0.5, 20.0)]                              public required double MadK { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MinDev)]
+    [Range(0.0, 16.0)]                              public required double MinDev { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.AlphaCut)]
+    [Range(0.0, 1.0)]                               public required double AlphaCut { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.TimeSigma)]
+    [Range(0.1, 32.0)]                              public required double TimeSigma { get; init; }
 }

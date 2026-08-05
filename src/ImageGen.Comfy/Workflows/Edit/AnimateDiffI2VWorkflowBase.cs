@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -151,9 +152,12 @@ public sealed record AnimateDiffI2VParams
     [JsonPropertyName(WorkflowParamKeys.SparsectrlStrength)] public required double SparsectrlStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SparsectrlEnd)]      public required double SparsectrlEnd { get; init; }
     [JsonPropertyName(WorkflowParamKeys.IpadapterPreset)]    public required string IpadapterPreset { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.IpadapterWeight)]    public required double IpadapterWeight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]              public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]                public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.IpadapterWeight)]
+    [Range(0.0, 1.5)]                                        public required double IpadapterWeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]      public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]          public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]               public long Seed { get; init; }

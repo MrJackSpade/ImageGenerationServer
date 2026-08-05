@@ -1,11 +1,22 @@
-﻿namespace ImageGen.Comfy;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
+
+/// <summary>Inpaint params: the shared InstantX knobs with <c>denoise</c> floored at 0.2 (a trace of the masked
+/// region may be preserved).</summary>
+public sealed record QwenImageInpaintParams : QwenInpaintParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]
+    [Range(0.2, 1.0)] public override required double Denoise { get; init; }
+}
 
 /// <summary>
 /// Masked INPAINT on base Qwen-Image + the InstantX inpainting ControlNet. The region to regenerate arrives as a
 /// separate white-on-black mask upload (<c>inputs.MaskImageName</c>, painted in the edit UI), falling back to the
 /// source image's alpha when none was supplied — same contract as <see cref="AnimaInpaintWorkflow"/>.
 /// </summary>
-public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase
+public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImageInpaintParams>
 {
     public override string Name => "qwen-image-inpaint";
 

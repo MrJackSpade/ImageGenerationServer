@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -96,27 +97,36 @@ public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public double? Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Shift)]        public required double Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]
+    [Range(1.0, 12.0)]                                 public required double Shift { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipVision)]   public required string ClipVision { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.LoraStrength)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
+    [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sr)]           public bool Sr { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrModel)]      public string? SrModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrUpsampler)]  public string? SrUpsampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrWidth)]      public int? SrWidth { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SrHeight)]     public int? SrHeight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrSteps)]      public int? SrSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]    public double? SrDenoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]   public double? SrNoiseAug { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrCfg)]        public double? SrCfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrShift)]      public double? SrShift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
+    [Range(1, 50)]                                     public int? SrSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public double? SrDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
+    [Range(0.0, 1.0)]                                  public double? SrNoiseAug { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
+    [Range(1.0, 12.0)]                                 public double? SrCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrShift)]
+    [Range(1.0, 12.0)]                                 public double? SrShift { get; init; }
 
     /// <summary>CFG, required by this graph's real-CFG guider — the base's nullable <c>cfg</c>, or a refusal naming it
     /// (the typed form of <c>DblReq(cfg)</c>).</summary>

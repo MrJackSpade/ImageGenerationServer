@@ -1,3 +1,4 @@
+using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -627,8 +628,9 @@ public sealed class WorkflowGraphTests
         Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(4), new ResolvedRequirements(), huge));
 
         // A scale below 1 is REFUSED, not floored to 1 — a 0x upscale is the caller's mistake to see, not to have
-        // silently turned into a 1x copy.
-        Assert.Throws<ArgumentOutOfRangeException>(() => wf.Build(P(0), new ResolvedRequirements(), Edit));
+        // silently turned into a 1x copy. Now caught by the scale param's declared [Range] at the ParamsCodec boundary
+        // (before the graph is built), so the refusal is the canonical RenderValidationException naming the value.
+        Assert.Throws<RenderValidationException>(() => wf.Build(P(0), new ResolvedRequirements(), Edit));
     }
 
     [Fact]
@@ -1319,21 +1321,39 @@ public sealed class WorkflowGraphTests
     [Theory]
     [InlineData(60, 60, 0, 0)]     // opposing margins leave no width
     [InlineData(0, 0, 50, 50)]     // opposing margins leave no height
-    [InlineData(0, 0, 120, 0)]     // out of range
     public void QwenImageEdit_rejects_a_degenerate_mask(int l, int r, int t, int b)
     {
-        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
-        WorkflowConfiguration? cfg = catalog.FindConfig("qwen-image-edit");
-        Assert.NotNull(cfg);
-        IWorkflow? wf = registry.Find(cfg.WorkflowName);
-        Assert.NotNull(wf);
+        Dictionary<string, object?> v = QwenEditMask(out IWorkflow wf, out WorkflowConfiguration cfg, out WorkflowCatalog catalog);
+        v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
+        // In-range percentages whose geometry collapses to no region: the workflow's own degenerate-mask guard refuses.
+        Assert.ThrowsAny<ArgumentException>(() => wf.Build(v, catalog.Resolve(cfg), Edit));
+    }
+
+    [Fact]
+    public void QwenImageEdit_rejects_an_out_of_range_mask_margin()
+    {
+        Dictionary<string, object?> v = QwenEditMask(out IWorkflow wf, out WorkflowConfiguration cfg, out WorkflowCatalog catalog);
+        v["mask_top_pct"] = 120;   // past the margin's declared [Range] — refused at the ParamsCodec boundary
+        Assert.Throws<RenderValidationException>(() => wf.Build(v, catalog.Resolve(cfg), Edit));
+    }
+
+    /// <summary>The qwen-image-edit merged param bag (schema defaults + config + machine overrides), mirroring
+    /// <c>ComfyClient.MergeParamsDict</c>, for the mask-margin refusal tests to overlay a bad margin onto.</summary>
+    private static Dictionary<string, object?> QwenEditMask(out IWorkflow wf, out WorkflowConfiguration cfg, out WorkflowCatalog catalog)
+    {
+        (WorkflowCatalog? cat, WorkflowRegistry? registry) = Build();
+        catalog = cat;
+        WorkflowConfiguration? found = catalog.FindConfig("qwen-image-edit");
+        Assert.NotNull(found);
+        cfg = found;
+        IWorkflow? found2 = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(found2);
+        wf = found2;
         Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
         foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
-        // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
-        v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
-        Assert.ThrowsAny<ArgumentException>(() => wf.Build(v, catalog.Resolve(cfg), Edit));
+        return v;
     }
 
     [Fact]

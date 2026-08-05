@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
@@ -226,15 +227,21 @@ public sealed record QwenEditParams
     [JsonPropertyName(WorkflowParamKeys.Loader)]          public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]     public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)]        public string? ClipType { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]           public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]             public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]   public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]       public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]         public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]       public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]    public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceInputs)] public string[]? ReferenceInputs { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]     public int? MaskLeftPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskRightPct)]    public int? MaskRightPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskTopPct)]      public int? MaskTopPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskBottomPct)]   public int? MaskBottomPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskLeftPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskRightPct)]
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskRightPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskTopPct)]
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskTopPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskBottomPct)]
+    [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]     public int? MaskBottomPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]            public long Seed { get; init; }
 }

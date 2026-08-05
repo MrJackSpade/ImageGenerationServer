@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -70,6 +71,8 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
 /// (the declarative form of the previous <c>IntReq</c> reads).</summary>
 public sealed record LineThickenAnime2SketchParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Thickness)]  public required int Thickness { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Resolution)] public required int Resolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thickness)]
+    [Range(0, 32)]                                   public required int Thickness { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Resolution)]
+    [Range(256, 2048)]                               public required int Resolution { get; init; }
 }

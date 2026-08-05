@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Domain;
 
@@ -254,19 +255,29 @@ public sealed record FluxFillParams
     [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskBlur)]     public required int MaskBlur { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]
+    [Range(1.0, 60.0)]                                 public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskBlur)]
+    [Range(0, 31)]                                     public required int MaskBlur { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Diffdiff)]     public bool Diffdiff { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ColorCorrect)] public bool ColorCorrect { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaxDimension)] public required int MaxDimension { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]     public int? MaskGrow { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadLeft)]      public int PadLeft { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadTop)]       public int PadTop { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadRight)]     public int PadRight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PadBottom)]    public int PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
+    [Range(0, 4096)]                                   public required int MaxDimension { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
+    [Range(0, 64)]                                     public int? MaskGrow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadLeft)]
+    [Range(0, 4096)]                                   public int PadLeft { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadTop)]
+    [Range(0, 4096)]                                   public int PadTop { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadRight)]
+    [Range(0, 4096)]                                   public int PadRight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadBottom)]
+    [Range(0, 4096)]                                   public int PadBottom { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

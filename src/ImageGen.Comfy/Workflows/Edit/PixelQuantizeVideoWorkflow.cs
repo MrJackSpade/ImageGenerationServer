@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
@@ -157,19 +158,30 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
 /// branch with <c>QuantizeGuards.Req</c> (the old <c>*Req</c> throw); <c>key_background</c> is a defaulted bool.</summary>
 public sealed record PixelQuantizeVideoParams
 {
-    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Fps)]               public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
+    [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]
+    [Range(0, 4096)]                                        public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]
+    [Range(0, 4096)]                                        public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]
+    [Range(0.0, 60.0)]                                      public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Engine)]            public required string Engine { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
     [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Thicken)]           public double? Thicken { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Tau)]               public double? Tau { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Lam)]               public double? Lam { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.K)]                 public int? K { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Beta)]              public double? Beta { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Step)]              public double? Step { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thicken)]
+    [Range(0.0, 8.0)]                                       public double? Thicken { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]
+    [Range(0.0, 2.0)]                                       public double? Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lam)]
+    [Range(0.001, 0.2)]                                     public double? Lam { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]
+    [Range(2, 128)]                                         public int? K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Beta)]
+    [Range(0.0, 4.0)]                                       public double? Beta { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step)]
+    [Range(1.0, 20.0)]                                      public double? Step { get; init; }
     [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]    public double? MatteThreshold { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]
+    [Range(0.0, 1.0)]                                       public double? MatteThreshold { get; init; }
 }
