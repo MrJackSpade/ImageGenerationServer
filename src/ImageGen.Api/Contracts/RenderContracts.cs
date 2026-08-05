@@ -14,6 +14,10 @@ namespace ImageGen.Api.Contracts;
 /// Optional: the prompt as the user typed it, before the CALLER resolved its own syntax into <c>Prompt</c>. Recorded
 /// with the image and never rendered from. Omit it when the caller does no such resolution — nothing is inferred.
 /// </param>
+/// <param name="Background">
+/// Optional: enqueue as a BACKGROUND (idle-time) job. It runs only once the queue has been idle of foreground work for
+/// the configured delay, and a foreground submission preempts it. Omit/false for an ordinary foreground render.
+/// </param>
 public sealed record GenerateRequest(
     string Workflow, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     bool? RandomArtist = null, bool? RandomPrompt = null,
@@ -21,7 +25,8 @@ public sealed record GenerateRequest(
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
-    List<LoraSelection>? Loras = null);
+    List<LoraSelection>? Loras = null,
+    bool? Background = null);
 
 /// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.
 /// Both are non-nullable and non-optional, so the serializer rejects a payload that omits or nulls either. Required
@@ -31,7 +36,8 @@ public sealed record EditRequest(
     List<string>? ReferenceImageIds = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
-    string? LastFrameImageId = null);
+    string? LastFrameImageId = null,
+    bool? Background = null);
 
 /// <summary>One item of a batch enqueue (Edit=true marks an edit item). <c>Workflow</c> is non-nullable and required for
 /// both item kinds; <c>ImageId</c> stays nullable because a generate item legitimately omits it — its presence is the
@@ -45,7 +51,8 @@ public sealed record EnqueueItem(
     string? LastFrameImageId = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
-    List<LoraSelection>? Loras = null);
+    List<LoraSelection>? Loras = null,
+    bool? Background = null);
 
 /// <summary>Batch enqueue payload: a mixed list of generate and edit items.</summary>
 public sealed record EnqueueRequest(List<EnqueueItem>? Jobs = null);
@@ -72,10 +79,10 @@ public static class RenderContractMapping
         {
             if (string.IsNullOrWhiteSpace(it.Workflow) || string.IsNullOrWhiteSpace(it.ImageId)) return null;
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
-                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId));
+                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId), it.Background == true);
         }
         if (string.IsNullOrWhiteSpace(it.Workflow)) return null;   // empty prompt allowed
         return RenderItem.ForGenerate(new GenerateSpec(it.Workflow, it.Prompt ?? "", it.NegativePrompt, it.Aspect,
-            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras));
+            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras), it.Background == true);
     }
 }

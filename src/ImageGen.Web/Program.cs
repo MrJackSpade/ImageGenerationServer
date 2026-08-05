@@ -151,7 +151,16 @@ ComfyOptions comfyOptions = new ComfyOptions
 // configure. The defaults pick Cisco's OpenH264 from the LGPL runtime -- see MediaOptions for why x264 is not the
 // default despite being the better encoder.
 MediaOptions mediaOptions = new MediaOptions();
-RenderOptions renderOptions = new RenderOptions();
+// The foreground-idle delay before background (idle-time) jobs run. Read LIVE on every scheduling decision (the
+// settings page can change it while the app runs), exactly like the memory floor below — so it is a delegate over
+// IConfiguration, not a captured value. Only the STORED value is live; the fallback is the constant declared on the
+// setting's spec (so the settings page and this reader cannot disagree about an unset box), resolved once here.
+double backgroundIdleDefault = double.Parse(
+    MachineSettingSpecs.DefaultOf(MachineSettingSpecs.BackgroundIdleMinutes)
+        ?? throw new InvalidOperationException($"{MachineSettingSpecs.BackgroundIdleMinutes} declares no default."),
+    System.Globalization.CultureInfo.InvariantCulture);
+RenderOptions renderOptions = new RenderOptions(() =>
+    TimeSpan.FromMinutes(config.GetValue(MachineSettingSpecs.BackgroundIdleMinutes, backgroundIdleDefault)));
 
 // --- DI (composition root) -----------------------------------------------------------------------
 builder.Services.AddSingleton<AuthOptions>();          // reads Auth:RegistrationCode live

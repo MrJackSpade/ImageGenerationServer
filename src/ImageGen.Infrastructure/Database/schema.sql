@@ -641,6 +641,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'LorasJson' AND Object_ID 
     ALTER TABLE dbo.JobSlot ADD LorasJson NVARCHAR(MAX) NULL;
 GO
 
+-- Background (idle-time) slots: a slot marked background runs only once the queue has been foreground-idle for the
+-- configured delay, and a foreground submission preempts it (halting and requeuing it, never failing it). Plain, not
+-- protected — it names scheduling policy, not user content. NOT NULL with a constant default so existing rows adopt
+-- "foreground" without a backfill and anything already queued keeps running as before.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'IsBackground' AND Object_ID = Object_ID('dbo.JobSlot'))
+    ALTER TABLE dbo.JobSlot ADD IsBackground BIT NOT NULL CONSTRAINT DF_JobSlot_IsBackground DEFAULT 0;
+GO
+
 -- The edit's reference images: an ordered many-to-many, so a real child table rather than an array inside a blob.
 -- Ordinal is load-bearing -- reference images are positional to the workflow.
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JobSlotReference' AND schema_id = SCHEMA_ID('dbo'))

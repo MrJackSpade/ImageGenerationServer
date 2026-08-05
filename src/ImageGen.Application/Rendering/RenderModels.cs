@@ -116,4 +116,9 @@ public sealed class RenderStorageException(string message) : Exception(message);
 /// written to disk permanently. The same content already goes to the per-user ENCRYPTED log
 /// (Logging:AuditUserPrompts), which is the channel that exists for it.</para>
 /// </summary>
-public sealed record RenderOptions();
+/// <param name="BackgroundIdleDelay">
+/// How long the queue must be idle of FOREGROUND work before background (idle-time) slots become schedulable. Read
+/// LIVE on every scheduling decision — it is a machine setting the settings page can change while the app runs — so it
+/// is a delegate, not a captured value (the same live-read shape <c>SubmissionMemoryGate</c>'s floor uses).
+/// </param>
+public sealed record RenderOptions(Func<TimeSpan> BackgroundIdleDelay);

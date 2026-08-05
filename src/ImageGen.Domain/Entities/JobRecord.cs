@@ -66,6 +66,10 @@ public sealed class JobSlotRecord
     public required string JobId { get; init; }
     public required int SlotIndex { get; init; }
     public bool IsEdit { get; set; }
+    /// <summary>Background (idle-time) work: the slot runs only once the queue has been foreground-idle for the
+    /// configured delay, and a foreground submission preempts it. Persisted so it survives a restart and re-gates the
+    /// slot; NOT protected — it names scheduling policy, not user content.</summary>
+    public bool IsBackground { get; set; }
     public JobSlotState State { get; set; } = JobSlotState.Queued;
     /// <summary>ComfyUI prompt id — internal; the liveness key, never exposed.</summary>
     public string? ComfyPromptId { get; set; }

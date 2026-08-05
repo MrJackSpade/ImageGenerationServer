@@ -37,7 +37,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
         "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
         "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
         "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
-        "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson";
+        "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground";
 
     public async Task UpsertAsync(JobRecord job, CancellationToken ct)
     {
@@ -74,6 +74,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             cmd.AddParam("@jobId", slot.JobId);
             cmd.AddParam("@idx", slot.SlotIndex);
             cmd.AddParam("@isEdit", slot.IsEdit);
+            cmd.AddParam("@isBackground", slot.IsBackground);
             cmd.AddParam("@state", (byte)slot.State);
             cmd.AddParam("@comfy", (object?)slot.ComfyPromptId ?? DBNull.Value);
             cmd.AddParam("@imageId", (object?)slot.ImageId ?? DBNull.Value);
@@ -553,5 +554,6 @@ WHERE JobId = @jobId
         MaskImageId = r.IsDBNull(26) ? null : r.GetString(26),
         LastFrameImageId = r.IsDBNull(27) ? null : r.GetString(27),
         LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
+        IsBackground = r.AsBool(29),
     };
 }

@@ -47,9 +47,23 @@ public sealed class RenderOrchestrator
 
     private readonly object _lock = new();
     private readonly Dictionary<string, RenderJob> _jobs = new(StringComparer.Ordinal);
+    /// <summary>The FOREGROUND tier: per-owner fair round-robin, served exactly as before background work existed.</summary>
     private readonly Dictionary<long, Queue<RenderSlot>> _byOwner = new();
+    /// <summary>The BACKGROUND (idle-time) tier: per-owner fair round-robin, drawn from only once the queue has been
+    /// foreground-idle for the configured delay. A separate map — rather than one mixed queue filtered at pick time —
+    /// is what makes "foreground first" structural: a background slot can never sit in front of foreground work.</summary>
+    private readonly Dictionary<long, Queue<RenderSlot>> _bgByOwner = new();
+    /// <summary>Least-recently-served tick per owner in the foreground tier.</summary>
     private readonly Dictionary<long, long> _lastServed = new();
+    /// <summary>Least-recently-served tick per owner in the background tier (kept apart so the two tiers' fairness is
+    /// independent).</summary>
+    private readonly Dictionary<long, long> _bgLastServed = new();
+    /// <summary>Monotonic service counter shared by both tiers' round-robin bookkeeping.</summary>
     private long _servedSeq;
+    /// <summary>The last moment foreground work was submitted or resolved. Background slots become eligible only once
+    /// <c>now - this &gt;= the idle delay</c>. Background running is NOT activity (it must not keep resetting its own
+    /// timer), so this is stamped by foreground enqueues and finishing foreground slots only. Starts fresh at boot.</summary>
+    private DateTimeOffset _lastForegroundActivityUtc = DateTimeOffset.UtcNow;
     private readonly Dictionary<string, RenderSlot> _comfyToSlot = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _signal = new(0);
     private readonly string _machine = Environment.MachineName;
@@ -139,7 +153,7 @@ public sealed class RenderOrchestrator
             // the exact seed is persisted with the request and is what the workflow builds with.
             if (gen is not null) gen = gen with { Overrides = WithSeed(gen.Overrides) };
             if (edit is not null) edit = edit with { Overrides = WithSeed(edit.Overrides) };
-            job.Slots.Add(new RenderSlot { Job = job, Index = i, Gen = gen, Edit = edit, Notice = notice });
+            job.Slots.Add(new RenderSlot { Job = job, Index = i, Gen = gen, Edit = edit, Notice = notice, IsBackground = items[i].Background });
         }
 
         lock (_lock) _jobs[job.JobId] = job;   // visible to Get()/owner lookups now; NOT yet schedulable
@@ -154,10 +168,46 @@ public sealed class RenderOrchestrator
             throw new RenderStorageException("This generation could not be recorded, so it was not started.");
         }
 
+        // A foreground submission is what preemption and the idle clock hinge on, so decide it up front. A batch is
+        // homogeneous in practice, but check every slot so a mixed one still counts a single foreground slot as
+        // foreground work.
+        bool anyForeground = job.Slots.Exists(s => !s.IsBackground);
+        RenderSlot? preempt = null;
         lock (_lock)
         {
-            if (!_byOwner.TryGetValue(owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[owner] = q; }
-            foreach (RenderSlot s in job.Slots) q.Enqueue(s);
+            foreach (RenderSlot s in job.Slots)
+            {
+                Dictionary<long, Queue<RenderSlot>> tier = s.IsBackground ? _bgByOwner : _byOwner;
+                if (!tier.TryGetValue(owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); tier[owner] = q; }
+                q.Enqueue(s);
+            }
+            if (anyForeground)
+            {
+                // Restart the idle clock: any foreground submission means the queue is no longer idle, so background
+                // work waits out a fresh window from here.
+                _lastForegroundActivityUtc = DateTimeOffset.UtcNow;
+                // Preempt a background slot the worker is running RIGHT NOW. The worker sees the flag on its next poll
+                // and returns the slot non-terminal to the background tier; the interrupt below stops the GPU at once
+                // so the foreground job does not wait for the background render to finish. Only interrupt if the
+                // background prompt is actually out there — firing one with nothing of ours in flight would kill
+                // whatever else is on that GPU.
+                if (_running is { IsBackground: true } bg && !bg.Terminal)
+                {
+                    bg.PreemptRequested = true;
+                    if (bg.Submitted) preempt = bg;
+                }
+            }
+        }
+        if (preempt is not null)
+        {
+            // As in Cancel: the slot is already flagged, so a failed interrupt does not undo the preemption — but the
+            // GPU is then still on the background render, and that must be recorded rather than dropped. This is a
+            // SYNCHRONOUS interrupt of the backend's single in-flight prompt (ours), and it returns before this method
+            // does — long before the worker can notice the preempt (next 1.5s poll), requeue, pick, build and submit the
+            // foreground slot — so it cannot land on that later foreground render. The same bounded stale-interrupt
+            // window the Cancel path has carried; there is no interrupt-by-prompt-id on the backend to tighten it.
+            try { _comfy.InterruptAsync(CancellationToken.None).GetAwaiter().GetResult(); }
+            catch (Exception ex) { _log.LogError(ex, "Foreground submit preempted a background slot but the backend interrupt failed; its render may still be running."); }
         }
         if (job.Slots.Count > 0) _signal.Release(job.Slots.Count);
         return job;
@@ -223,8 +273,15 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             List<RenderJob> active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
-            List<RenderSlot> pending = active.SelectMany(j => j.Slots).Where(s => !s.Terminal).ToList();
             RenderSlot? running = _running;
+            // "What's left" is IMMINENT work: parked background slots may not run for the whole idle delay (or ever,
+            // while foreground traffic continues), so pricing them into the header ETA would overstate near-term load
+            // by an arbitrary amount. A background slot that is actually ON the GPU right now is imminent and counts.
+            // (The job/owner counts below still come from `active`, so a background-only queue still lights up its
+            // Cancel buttons — only the image count and ETA drop the parked background work.)
+            List<RenderSlot> pending = active.SelectMany(j => j.Slots)
+                .Where(s => !s.Terminal && (!s.IsBackground || ReferenceEquals(s, running)))
+                .ToList();
 
             // The in-flight slot is priced from its own measurement only once it HAS one — the expected time and start
             // instant are assigned at submit, so a slot the worker has picked but not yet submitted has neither. That
@@ -294,8 +351,13 @@ public sealed class RenderOrchestrator
                 if (ReferenceEquals(s, _running)) { s.CancelRequested = true; interrupt = s.Submitted; }
                 else { s.State = SlotState.Cancelled; s.Error = "cancelled"; }
             }
-            if (_byOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? q))
-                _byOwner[job.Owner] = new Queue<RenderSlot>(q.Where(s => s.State == SlotState.Queued));
+            // Drop the just-cancelled slots from BOTH tiers' owner queues (a job is homogeneous, but a cancel touches
+            // whichever tier its slots sit in). PickFromTier would drop them lazily too, but rebuilding here keeps the
+            // queues — and the counts read off them — honest immediately.
+            if (_byOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? fgQ))
+                _byOwner[job.Owner] = new Queue<RenderSlot>(fgQ.Where(s => s.State == SlotState.Queued));
+            if (_bgByOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? bgQ))
+                _bgByOwner[job.Owner] = new Queue<RenderSlot>(bgQ.Where(s => s.State == SlotState.Queued));
         }
         if (interrupt)
         {
@@ -401,15 +463,17 @@ public sealed class RenderOrchestrator
                 return new RequeueOutcome(RequeueStatus.Unrunnable, Reason: $"{which} didn't record the workflow that would remake it");
             try
             {
+                // Carry the slot's scheduling class through: a background job's missing images re-run as background,
+                // not silently promoted to foreground.
                 if (sr.IsEdit)
                 {
                     EditSpec edit = EditSpecOf(sr);
                     edits.Add(edit);
-                    items.Add(RenderItem.ForEdit(edit));
+                    items.Add(RenderItem.ForEdit(edit, sr.IsBackground));
                 }
                 else
                 {
-                    items.Add(RenderItem.ForGenerate(GenerateSpecOf(sr)));
+                    items.Add(RenderItem.ForGenerate(GenerateSpecOf(sr), sr.IsBackground));
                 }
             }
             catch (JsonException ex)
@@ -506,62 +570,124 @@ public sealed class RenderOrchestrator
             RenderSlot? slot = PickNext();
             if (slot is null)
             {
-                try { await _signal.WaitAsync(ct); } catch (OperationCanceledException) { break; }
-                continue;   // drained on the next PickNext
+                // Nothing schedulable right now. Drain any stale wake tokens so the wait below actually blocks — a
+                // background enqueue releases the semaphore even though its slot is not eligible until the idle delay
+                // elapses, and without draining those leftover tokens would spin the loop. Re-check once after the
+                // drain for work enqueued just before it; a token released AFTER the drain still unblocks the wait, so
+                // no wake is lost.
+                while (_signal.Wait(0)) { }
+                slot = PickNext();
+                if (slot is null)
+                {
+                    // If background work is waiting ONLY on the idle timer, wake when it will elapse; otherwise wait for
+                    // the next enqueue. The bound is the operator's configured idle delay, not an invented timeout — it
+                    // is the mechanism by which idle-time work starts, exactly as the feature specifies.
+                    TimeSpan? until = NextBackgroundWaitDelay();
+                    try
+                    {
+                        if (until is TimeSpan d) await _signal.WaitAsync(d, ct);
+                        else await _signal.WaitAsync(ct);
+                    }
+                    catch (OperationCanceledException) { break; }
+                    continue;
+                }
             }
             await RunSlotAsync(slot, ct);
+            bool wasForeground = !slot.IsBackground;
             lock (_lock) _running = null;
-            // A slot that comes back NON-terminal was held, not finished — the database was out of reach. It is
-            // accepted work and its job is still Active, so it goes back on the queue rather than being stranded in
-            // memory with nothing that will ever pick it up again. The wait lives inside the next attempt's first
-            // database call, so this cannot spin.
+            // A slot that comes back NON-terminal was held (database out of reach) or PREEMPTED (a foreground submit
+            // stopped it) — not finished. It is accepted work and its job is still Active, so it goes back on its tier's
+            // queue rather than being stranded in memory. Requeue routes by IsBackground, so a preempted background slot
+            // returns to the background tier and re-gates on the next idle window.
             if (!slot.Terminal && !ct.IsCancellationRequested) Requeue(slot);
+            // A foreground slot leaving the GPU (finished, failed, or held) is foreground activity: restart the idle
+            // clock so background work waits out a fresh idle window rather than starting the instant this slot resolves.
+            if (wasForeground) lock (_lock) _lastForegroundActivityUtc = DateTimeOffset.UtcNow;
             await AfterSlotAsync(slot.Job);   // persist this slot's result; finalize the job if all slots are terminal
         }
     }
 
-    /// <summary>Put a held slot back on its owner's queue and wake the worker. Its position is the back of that
-    /// owner's line, which is the fair place for work that could not be done right now.</summary>
+    /// <summary>Put a held or preempted slot back on ITS TIER's owner queue and wake the worker. Routing by
+    /// <see cref="RenderSlot.IsBackground"/> is what returns a preempted background slot to the background tier, so it
+    /// re-gates on the next idle window rather than jumping ahead of foreground work. Its position is the back of that
+    /// owner's line, the fair place for work that could not be done right now.</summary>
     private void Requeue(RenderSlot slot)
     {
         lock (_lock)
         {
             if (slot.Terminal) return;
-            if (!_byOwner.TryGetValue(slot.Job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[slot.Job.Owner] = q; }
+            Dictionary<long, Queue<RenderSlot>> tier = slot.IsBackground ? _bgByOwner : _byOwner;
+            if (!tier.TryGetValue(slot.Job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); tier[slot.Job.Owner] = q; }
             q.Enqueue(slot);
         }
         _signal.Release();
     }
 
-    /// <summary>Fair round-robin via LEAST-RECENTLY-SERVED owner; ties break to the oldest queued slot's job.</summary>
+    /// <summary>
+    /// The next slot to run: FOREGROUND first, then BACKGROUND only once the queue has been foreground-idle for the
+    /// configured delay. Foreground is served exactly as before — nothing about idle-time work changes it. Background is
+    /// considered only when no foreground slot is pickable AND <c>now - lastForegroundActivity &gt;= delay</c>; the worker
+    /// running a background slot is not itself activity, so it does not reset that clock.
+    /// </summary>
     private RenderSlot? PickNext()
     {
         lock (_lock)
         {
-            long? best = null;
-            long bestTick = long.MaxValue;
-            DateTimeOffset bestHead = DateTimeOffset.MaxValue;
-            foreach ((long owner, Queue<RenderSlot>? q) in _byOwner)
-            {
-                while (q.Count > 0 && q.Peek().State != SlotState.Queued) q.Dequeue();   // drop cancelled/stale heads
-                if (q.Count == 0) continue;
-                long tick = _lastServed.GetValueOrDefault(owner, 0L);
-                DateTimeOffset head = q.Peek().Job.CreatedAt;
-                if (tick < bestTick || (tick == bestTick && head < bestHead))
-                {
-                    best = owner; bestTick = tick; bestHead = head;
-                }
-            }
-            if (best is null) return null;
-            RenderSlot slot = _byOwner[best.Value].Dequeue();
-            _lastServed[best.Value] = ++_servedSeq;
-            // Picked, NOT running: the prompt still has to be built (tag sampling, image fetches) and submitted, and
-            // the backend still has to start executing it. The slot stays Queued until the backend says otherwise —
-            // see ObserveExecuting. What being picked does mean is that this slot is now the worker's.
-            _running = slot;
-            return slot;
+            RenderSlot? foreground = PickFromTier(_byOwner, _lastServed);
+            if (foreground is not null) return foreground;
+            // No foreground work waiting. Idle-time work runs only after the foreground-idle delay has elapsed.
+            if (DateTimeOffset.UtcNow - _lastForegroundActivityUtc >= IdleDelay())
+                return PickFromTier(_bgByOwner, _bgLastServed);
+            return null;
         }
     }
+
+    /// <summary>Fair round-robin within one tier via LEAST-RECENTLY-SERVED owner; ties break to the oldest queued
+    /// slot's job. Sets <see cref="_running"/> to the picked slot. Call under <see cref="_lock"/>.</summary>
+    private RenderSlot? PickFromTier(Dictionary<long, Queue<RenderSlot>> tier, Dictionary<long, long> lastServed)
+    {
+        long? best = null;
+        long bestTick = long.MaxValue;
+        DateTimeOffset bestHead = DateTimeOffset.MaxValue;
+        foreach ((long owner, Queue<RenderSlot>? q) in tier)
+        {
+            while (q.Count > 0 && q.Peek().State != SlotState.Queued) q.Dequeue();   // drop cancelled/stale heads
+            if (q.Count == 0) continue;
+            long tick = lastServed.GetValueOrDefault(owner, 0L);
+            DateTimeOffset head = q.Peek().Job.CreatedAt;
+            if (tick < bestTick || (tick == bestTick && head < bestHead))
+            {
+                best = owner; bestTick = tick; bestHead = head;
+            }
+        }
+        if (best is null) return null;
+        RenderSlot slot = tier[best.Value].Dequeue();
+        lastServed[best.Value] = ++_servedSeq;
+        // Picked, NOT running: the prompt still has to be built (tag sampling, image fetches) and submitted, and
+        // the backend still has to start executing it. The slot stays Queued until the backend says otherwise —
+        // see ObserveExecuting. What being picked does mean is that this slot is now the worker's.
+        _running = slot;
+        return slot;
+    }
+
+    /// <summary>How long the worker should sleep before background work MIGHT become schedulable, or null when there is
+    /// no background work waiting on the idle timer (so the worker waits for the next enqueue instead). Only meaningful
+    /// after <see cref="PickNext"/> has returned null — i.e. no foreground slot is pickable — so the only thing gating
+    /// the background tier is the idle delay. Zero means it is eligible now (a race the next PickNext resolves).</summary>
+    private TimeSpan? NextBackgroundWaitDelay()
+    {
+        lock (_lock)
+        {
+            bool anyBackground = _bgByOwner.Values.Any(q => q.Any(s => s.State == SlotState.Queued));
+            if (!anyBackground) return null;
+            TimeSpan remaining = (_lastForegroundActivityUtc + IdleDelay()) - DateTimeOffset.UtcNow;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    /// <summary>The configured foreground-idle delay before background work runs, read LIVE (it is a machine setting the
+    /// settings page can change while the app runs). Exposed so the queue view can show "waiting for idle (Nm)".</summary>
+    public TimeSpan IdleDelay() => _options.BackgroundIdleDelay();
 
     private async Task RunSlotAsync(RenderSlot slot, CancellationToken ct)
     {
@@ -571,6 +697,10 @@ public sealed class RenderOrchestrator
             // image fetches), and Cancel cannot mark the worker's slot terminal itself. Honour it BEFORE handing
             // anything to the backend, so a cancelled slot never becomes a render nobody is waiting for.
             if (slot.CancelRequested) { CancelSlot(slot); return; }
+            // A foreground submit can preempt this background slot before it has been handed to the backend. Return it
+            // non-terminal and unsubmitted so the worker requeues it to the background tier — nothing was submitted, so
+            // there is nothing to interrupt.
+            if (slot.PreemptRequested) { PreemptSlot(slot); return; }
 
             string promptId;
             byte[]? src = null;
@@ -750,7 +880,7 @@ public sealed class RenderOrchestrator
             GeneratedImage? img = null;
             while (!ct.IsCancellationRequested)
             {
-                if (slot.CancelRequested) break;
+                if (slot.CancelRequested || slot.PreemptRequested) break;
                 await Task.Delay(1500, ct);
                 img = await _comfy.PollResultAsync(promptId, ct);
                 if (img is not null) break;
@@ -765,6 +895,23 @@ public sealed class RenderOrchestrator
             }
             if (img is null)
             {
+                // Preempted by a foreground submit (and not also cancelled — a user cancel is terminal and wins): stop
+                // the GPU and return the slot NON-terminal and FRESH, so it re-renders from scratch on the next idle
+                // window. It is never marked Cancelled/Error — a preempted background render was not stopped because
+                // anything went wrong, and the requeue routes it back to the background tier.
+                if (slot.PreemptRequested && !slot.CancelRequested)
+                {
+                    if (slot.Submitted)
+                    {
+                        // The enqueue that preempted this fired the interrupt already; fire it again defensively in case
+                        // the slot only reached the backend afterwards. Idempotent: the foreground slot is submitted
+                        // only after this method returns, so nothing else of ours is on the GPU to disturb.
+                        try { await _comfy.InterruptAsync(CancellationToken.None); }
+                        catch (Exception ex) { _log.LogError(ex, "Preempt for slot {Index}: the backend interrupt failed; its render may still be running.", slot.Index); }
+                    }
+                    PreemptSlot(slot);
+                    return;
+                }
                 // Cancelled in the window between the pre-submit check and the prompt reaching the backend: Cancel saw
                 // nothing to interrupt, so stop the render we went on to start rather than leave it running for nobody.
                 // Guarded on the user's cancel, not on `ct` — a shutdown leaves the prompt alone so a restart resumes it.
@@ -940,6 +1087,29 @@ public sealed class RenderOrchestrator
     private void CancelSlot(RenderSlot slot)
     {
         lock (_lock) { if (slot.Terminal) return; slot.Error = "cancelled"; slot.State = SlotState.Cancelled; }
+    }
+
+    /// <summary>
+    /// Return a preempted background slot to a fresh, NON-terminal <see cref="SlotState.Queued"/> state — the whole
+    /// point of the halt/requeue: the partial in-flight render is discarded, the slot's submission state is cleared so
+    /// it renders from scratch next time (a null <c>ComfyPromptId</c> makes <see cref="RenderSlot.Submitted"/> false),
+    /// and the worker loop then requeues it to the background tier. Distinct from <see cref="CancelSlot"/>, which is
+    /// terminal: a preempted slot has not failed and was not cancelled — it is simply waiting for the next idle window.
+    /// </summary>
+    private void PreemptSlot(RenderSlot slot)
+    {
+        lock (_lock)
+        {
+            if (slot.Terminal) return;
+            if (slot.ComfyPromptId is { } c) _comfyToSlot.Remove(c);
+            slot.ComfyPromptId = null;
+            slot.GenStartedAt = null;
+            slot.ExpectedGenSeconds = null;
+            slot.EtaSignature = null;
+            slot.MissedLivenessChecks = 0;
+            slot.PreemptRequested = false;
+            slot.State = SlotState.Queued;
+        }
     }
 
     /// <summary>After a slot resolves: write the job through, and if every slot is now terminal, finalize the job and
@@ -1130,6 +1300,7 @@ public sealed class RenderOrchestrator
                 JobId = j.JobId,
                 SlotIndex = s.Index,
                 IsEdit = s.IsEdit,
+                IsBackground = s.IsBackground,
                 // A running slot persists as Queued. "Running" is a live fact about a GPU that this row cannot keep
                 // true past the process's life, and writing it anyway would leave every crashed or orphaned job
                 // claiming to render forever. Resuming needs no more than what's already here: non-terminal, plus the
@@ -1254,13 +1425,18 @@ public sealed class RenderOrchestrator
                     _log.LogError(ex, "Job {JobId} could not be resumed; marking it failed.", rec.JobId);
                     await _jobRepo.FailAsync(rec.JobId, "could not be resumed after restart", ct);
                     // The throw may have landed after the job was published to the maps, so drop it AND any slots of
-                    // it already queued — the row now says failed, and no worker may pick it up.
+                    // it already queued — from BOTH tiers (a background job's slots resume onto _bgByOwner). The row now
+                    // says failed, and a slot left in either queue is still Queued, so PickFromTier's lazy-drop would
+                    // NOT skip it — it would render work the database has already failed and that Cancel no longer knows.
                     lock (_lock)
                     {
                         _jobs.Remove(rec.JobId);
-                        if (_byOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? q))
+                        if (_byOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? fgQ))
                             _byOwner[rec.UserId] = new Queue<RenderSlot>(
-                                q.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
+                                fgQ.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
+                        if (_bgByOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? bgQ))
+                            _bgByOwner[rec.UserId] = new Queue<RenderSlot>(
+                                bgQ.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
                     }
                 }
             }
@@ -1319,13 +1495,21 @@ public sealed class RenderOrchestrator
                 ? null
                 : sr.Marks.ToDictionary(m => m.Token, m => m.Kind.ToWire(), StringComparer.Ordinal);
 
+            // A background slot that was mid-render at a crash comes back FRESH, not resuming: the renderer very likely
+            // restarted too, so its old prompt id is gone, and a background render is cheap to redo on the next idle
+            // window. Dropping the prompt id here makes it re-render rather than resume-poll a prompt the backend lost
+            // (which would fail the slot). Foreground slots still resume — after a graceful restart the backend may
+            // still hold their prompt, and their work is what a user is actively waiting on.
+            string? comfyPromptId = sr.IsBackground ? null : sr.ComfyPromptId;
+
             RenderSlot slot = new RenderSlot
             {
                 Job = job,
                 Index = sr.SlotIndex,
                 Gen = gen,
                 Edit = edit,
-                ComfyPromptId = sr.ComfyPromptId,
+                IsBackground = sr.IsBackground,
+                ComfyPromptId = comfyPromptId,
                 ImageId = sr.ImageId,
                 Width = sr.Width ?? 0,
                 Height = sr.Height ?? 0,
@@ -1346,7 +1530,6 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             _jobs[job.JobId] = job;
-            if (!_byOwner.TryGetValue(job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); _byOwner[job.Owner] = q; }
             foreach (RenderSlot s in job.Slots)
             {
                 if (s.Terminal) continue;
@@ -1362,6 +1545,10 @@ public sealed class RenderOrchestrator
                     s.Error = "unrunnable: this slot recorded no workflow";
                     continue;
                 }
+                // Resume onto the slot's OWN tier: a background slot rehydrates to the background queue and re-gates on
+                // the idle delay (the boot clock starts fresh), rather than jumping the foreground line.
+                Dictionary<long, Queue<RenderSlot>> tier = s.IsBackground ? _bgByOwner : _byOwner;
+                if (!tier.TryGetValue(job.Owner, out Queue<RenderSlot>? q)) { q = new Queue<RenderSlot>(); tier[job.Owner] = q; }
                 q.Enqueue(s);
                 resumed++;
             }

@@ -646,7 +646,7 @@ public static class ForgeApi
             if (gate.Refusal() is { } full) return LowMemory(full);
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec()) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec(), req.Background == true) });
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -658,7 +658,7 @@ public static class ForgeApi
             if (gate.Refusal() is { } full) return LowMemory(full);
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec()) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec(), req.Background == true) });
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -741,6 +741,8 @@ public static class ForgeApi
                 page = p,
                 pageSize = size,
                 total = pr.Total,
+                // For the "waiting for idle (Nm)" label on background rows — the live, operator-set delay.
+                backgroundIdleMinutes = (int)Math.Round(queue.IdleDelay().TotalMinutes),
                 outstanding = await OutstandingViewAsync(queue, timings, me, ct),
             });
         });
@@ -888,6 +890,7 @@ public static class ForgeApi
             progress = j.Progress,
             produced = j.Produced,
             status,
+            background = j.IsBackground,
             jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
@@ -912,6 +915,10 @@ public static class ForgeApi
             produced = j.Produced,
             status,
             active = true,
+            // A background (idle-time) job the client renders as "waiting for idle" rather than "queued". A preempted
+            // background slot is requeued as Queued (non-terminal), so it reads here as a waiting background row — never
+            // cancelled/failed.
+            background = j.IsBackground,
             jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds ?? j.Slots.FirstOrDefault()?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
@@ -953,6 +960,9 @@ public static class ForgeApi
             // "Still open", not "live in memory": a non-terminal row has not finished, so the client keeps offering
             // Cancel on it rather than styling it as a completed generation.
             active = r.Status == JobStatus.Active,
+            // Not carried on the lightweight page read (and a background job that is actually waiting is live in memory,
+            // so it comes through QueueRowOf, not here); kept for row-shape parity with the live rows.
+            background = false,
             jobsAhead = 0,
             expectedSeconds = (double?)null,
             startedAt = (DateTimeOffset?)null,

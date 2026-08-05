@@ -44,6 +44,11 @@ public sealed class RenderSlot
     /// <summary>True when this slot is an edit.</summary>
     public bool IsEdit => Edit is not null;
 
+    /// <summary>True when this is a BACKGROUND (idle-time) slot: it becomes schedulable only once the queue has been
+    /// foreground-idle for the configured delay, and a foreground submission preempts it (halting and requeuing it,
+    /// never failing it). Persisted (dbo.JobSlot.IsBackground) so it survives a restart and re-gates the slot.</summary>
+    public bool IsBackground { get; init; }
+
     /// <summary>The edit spec, guaranteed non-null. Throws if this is a generate slot — the discriminant
     /// (<see cref="IsEdit"/>) already tells the caller which spec is present, so reaching the wrong one is a bug.</summary>
     [AllowMagicStrings("exception message")]
@@ -57,6 +62,11 @@ public sealed class RenderSlot
     public SlotState State = SlotState.Queued;
     /// <summary>Set when a cancel has been requested for the running slot.</summary>
     public bool CancelRequested;
+    /// <summary>Set when a foreground submission has preempted this running BACKGROUND slot. Unlike
+    /// <see cref="CancelRequested"/> it is NON-terminal: the worker stops the in-flight render, clears the slot's
+    /// submission state, and returns it to the queue to render fresh on the next idle window — it is never marked
+    /// Cancelled/Error. Only ever set on a background slot.</summary>
+    public bool PreemptRequested;
     /// <summary>The backend's upstream prompt id — internal; the liveness key, never exposed.</summary>
     public string? ComfyPromptId;
     /// <summary>The produced image id, once it lands.</summary>
@@ -142,6 +152,8 @@ public sealed class RenderJob
 
     /// <summary>Whether the job is an edit (read from slot 0; a batch is homogeneous in practice).</summary>
     public bool IsEdit => Slots.Count > 0 && Slots[0].IsEdit;
+    /// <summary>Whether the job is background (idle-time) work (read from slot 0; a batch is homogeneous).</summary>
+    public bool IsBackground => Slots.Count > 0 && Slots[0].IsBackground;
     /// <summary>The job's configuration id (from slot 0).</summary>
     public string Model => Slots.Count > 0 ? Slots[0].Model : "";
     /// <summary>The job's summary prompt/instruction (from slot 0).</summary>

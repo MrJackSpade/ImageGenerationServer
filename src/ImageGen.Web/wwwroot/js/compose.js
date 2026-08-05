@@ -290,7 +290,10 @@ async function submitItems(items, meta) {
   const n = items.length;
   setStatus(`Sending ${n} ${n === 1 ? "picture" : "pictures"} to the queue…`); showBar(0.02);
   try {
-    const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
+    // Background is a submission-wide choice, stamped on every slot here so the one toggle governs the whole job
+    // regardless of which submit path (batch, multi-model fan-out, reload) built the items.
+    const background = bgOn();
+    const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items.map(it => ({ ...it, background })) }) });
     if (!r.ok) throw new Error(await gwError(r));
     // ONE job with N slots now — track the single jobId and diff its imageIds[].
     const resp = await r.json(); const jobId = resp.jobId, total = resp.total || n;
@@ -426,7 +429,7 @@ async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, 
   try {
     // The mask goes only with a random-prompt render: Reload passes randomPrompt=false and must reproduce the picture
     // as it was made, not re-mask it.
-    const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides(), loras }) });
+    const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides(), loras, background: bgOn() }) });
     if (!r.ok) throw new Error(await gwError(r));
     const promptId = (await r.json()).promptId;
     postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect }).catch(e => console.debug("record pending job failed:", e));
@@ -531,6 +534,10 @@ function wantsRandomArtist(model) {
 }
 // The slider IS the on/off switch: 0 means don't randomize at all, so there's no separate checkbox to consult.
 function wantsRandomPrompt(model) { const tg = model && model.tagging; return !!(tg && tg.tags && promptTempValue() > 0); }
+
+// Background (idle-time) submit: the whole composer submission runs only once the box has been idle of foreground
+// work for the configured delay. A single toggle governs every submit path from this composer.
+function bgOn() { const el = document.getElementById("bgToggle"); return !!(el && el.checked); }
 
 // --- optional negative prompt -------------------------------------------------------------------
 // The negative prompt is offered only for models whose card declares support (negativeSupported). The field

@@ -83,6 +83,9 @@ public static class MachineSettingSpecs
     /// <summary>Free-physical-memory floor, in MB, below which submissions are refused.</summary>
     public const string MinAvailableMemoryMB = "Uploads:MinAvailableMemoryMB";
 
+    /// <summary>Minutes the queue must be idle of foreground work before background (idle-time) jobs start.</summary>
+    public const string BackgroundIdleMinutes = "Rendering:BackgroundIdleMinutes";
+
     /// <summary>Whether the box asks GitHub once per start whether a newer release exists.</summary>
     public const string UpdatesEnabled = "Updates:Enabled";
 
@@ -119,6 +122,9 @@ public static class MachineSettingSpecs
     /// <summary>The value a <see cref="SettingKind.Bool"/> setting's <see cref="MachineSettingSpec.Default"/> uses to mean on.</summary>
     private const string BoolTrue = "true";
 
+    /// <summary>Default minutes the queue must be foreground-idle before background jobs run (see <see cref="BackgroundIdleMinutes"/>).</summary>
+    private const string BackgroundIdleMinutesDefault = "30";
+
     public static readonly IReadOnlyList<MachineSettingSpec> All =
     [
         new(ComfyBaseUrl, "Renderer address",
@@ -151,6 +157,11 @@ public static class MachineSettingSpecs
             + "inputs stay resident until their job runs and are never evicted, so admission control is the only "
             + "point at which saying no costs the caller nothing.",
             SettingKind.Number, SettingStore.Database, SettingApply.Live),
+
+        new(BackgroundIdleMinutes, "Background idle delay (min)",
+            "How long the queue must be idle of foreground work before background (idle-time) jobs start running. A "
+            + "foreground submission preempts any running background job and restarts this timer. Read live.",
+            SettingKind.Number, SettingStore.Database, SettingApply.Live, Default: BackgroundIdleMinutesDefault),
 
         new(UpdatesEnabled, "Check for updates",
             "Asks github.com once per start whether a newer release exists, and shows a banner if so. Turn it "

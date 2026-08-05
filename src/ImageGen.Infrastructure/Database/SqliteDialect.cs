@@ -37,16 +37,16 @@ ON CONFLICT (JobId) DO UPDATE SET
     /// <inheritdoc />
     public string UpsertJobSlot => @"
 INSERT INTO dbo.JobSlot
-    (JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, Error,
+    (JobId, SlotIndex, IsEdit, IsBackground, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, Error,
      EffectivePrompt, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
      Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson,
      OverridesJson, LorasJson, SourceImageId, MaskImageId, LastFrameImageId)
-VALUES (@jobId, @idx, @isEdit, @state, @comfy, @imageId, @width, @height, @changed, @score, @error,
+VALUES (@jobId, @idx, @isEdit, @isBackground, @state, @comfy, @imageId, @width, @height, @changed, @score, @error,
         @effective, @raw, @rawNeg, @started, @expected,
         @workflow, @specPrompt, @specNegative, @aspect, @randomArtist, @randomPrompt, @temperature, @tagTypes,
         @overrides, @loras, @source, @mask, @lastFrame)
 ON CONFLICT (JobId, SlotIndex) DO UPDATE SET
-    IsEdit = @isEdit, State = @state, ComfyPromptId = @comfy, ImageId = @imageId, Width = @width, Height = @height,
+    IsEdit = @isEdit, IsBackground = @isBackground, State = @state, ComfyPromptId = @comfy, ImageId = @imageId, Width = @width, Height = @height,
     Changed = @changed, ChangeScore = @score, Error = @error, EffectivePrompt = @effective, RawPrompt = @raw,
     RawNegativePrompt = @rawNeg, GenStartedAtUtc = @started, ExpectedGenSeconds = @expected,
     Workflow = @workflow, Prompt = @specPrompt, NegativePrompt = @specNegative, Aspect = @aspect,

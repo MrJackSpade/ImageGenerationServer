@@ -214,6 +214,25 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         Assert.Equal(2, after.Slots.Count);
     }
 
+    /// <summary>A slot's background (idle-time) flag survives the write-through and comes back per slot, so a job
+    /// resumed after a restart re-gates its background work on the idle delay instead of jumping the foreground line.</summary>
+    [Fact]
+    public async Task Background_flag_round_trips_per_slot()
+    {
+        User user = await fixture.NewUserAsync("job-bg");
+        string jobId = Guid.NewGuid().ToString("N");
+        await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
+        [
+            new JobSlotRecord { JobId = jobId, SlotIndex = 0, State = JobSlotState.Queued, Workflow = "test-workflow", IsBackground = true },
+            new JobSlotRecord { JobId = jobId, SlotIndex = 1, State = JobSlotState.Queued, Workflow = "test-workflow", IsBackground = false },
+        ]), Ct);
+
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(after);
+        Assert.True(after.Slots.Single(s => s.SlotIndex == 0).IsBackground);
+        Assert.False(after.Slots.Single(s => s.SlotIndex == 1).IsBackground);
+    }
+
     private static JobRecord Job(long userId, string jobId, string machine = "BOX-A", List<JobSlotRecord>? slots = null) => new()
     {
         JobId = jobId,

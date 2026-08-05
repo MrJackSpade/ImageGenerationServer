@@ -16,6 +16,9 @@
   const nameOf = id => (catalog[id] && catalog[id].name) || id;
 
   let page = 1, total = 0, pollTimer = null;
+  // The operator-set foreground-idle delay (minutes) before background jobs run — carried on each /queue response so a
+  // background row can read "waiting for idle (Nm)". 0 until the first response lands.
+  let bgIdleMinutes = 0;
 
   // Names only — a failure here degrades the queue to raw config ids, which is visible and harmless. It is logged
   // rather than swallowed so "why is the queue showing ids instead of names" has an answer.
@@ -52,6 +55,7 @@
     catch (e) { console.error(`[queue] /queue?page=${p} THREW after ${Math.round(performance.now() - t)}ms:`, e); return; }
     if (!data) { console.warn(`[queue] /queue?page=${p} returned no data (response not ok)`); return; }
     page = data.page || p; total = data.total || 0;
+    bgIdleMinutes = data.backgroundIdleMinutes || 0;
     if (!live) lastSig = null;
     const tr = performance.now();
     render(data.jobs || []);
@@ -108,6 +112,9 @@
 
   function statusText(j) {
     if (j.status === "running") return j.total > 1 ? `running ${Math.min(j.progress + 1, j.total)}/${j.total}` : "running";
+    // A background (idle-time) job isn't "queued behind N" — it's waiting for the queue to fall idle. Say so, with the
+    // configured delay when known. (A preempted background slot is requeued as queued, so it lands here too.)
+    if (j.status === "queued" && j.background) return bgIdleMinutes ? `waiting for idle (${bgIdleMinutes}m)` : "waiting for idle";
     if (j.status === "queued") return j.jobsAhead ? `queued · ${j.jobsAhead} ahead` : "queued";
     if (j.status === "done") return j.total > 1 ? `done · ${j.produced}/${j.total}` : "done";
     // You stopped it — say so, and keep the count: a batch of 10 cancelled after 3 landed made 3 of the 10 asked for.

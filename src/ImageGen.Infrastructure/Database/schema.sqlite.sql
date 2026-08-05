@@ -534,3 +534,13 @@ ALTER TABLE dbo.GenTiming ADD COLUMN Frames INTEGER NULL;
 -- column would never arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = off, so
 -- autocomplete is unchanged until the user turns it on, and existing rows adopt "off" without a backfill.
 ALTER TABLE dbo.AppUser ADD COLUMN PinBookmarkSuggestions INTEGER NOT NULL DEFAULT 0;
+
+
+-- --- 0.13.0 -----------------------------------------------------------------------------------------------------
+
+-- Background (idle-time) slots: a slot marked background runs only once the queue has been foreground-idle for the
+-- configured delay, and a foreground submission preempts it (halting and requeuing it, never failing it). New column on
+-- the pre-existing JobSlot table, so it MUST be an ALTER (an existing database skips the 0.9.0 CREATE, so an inlined
+-- column would never arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = foreground,
+-- so existing rows adopt "foreground" without a backfill and anything already queued keeps running as before.
+ALTER TABLE dbo.JobSlot ADD COLUMN IsBackground INTEGER NOT NULL DEFAULT 0;

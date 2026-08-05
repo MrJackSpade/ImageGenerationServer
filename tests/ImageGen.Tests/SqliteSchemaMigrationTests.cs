@@ -63,6 +63,7 @@ public sealed class SqliteSchemaMigrationTests
             await InitAsync(factory);   // second startup: every IF NOT EXISTS and the ADD COLUMN must no-op, not throw
 
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));
+            Assert.Contains("IsBackground", await ColumnsAsync(factory, "JobSlot"));   // 0.13.0 ADD COLUMN
         }
         finally { Cleanup(path); }
     }
@@ -104,6 +105,7 @@ public sealed class SqliteSchemaMigrationTests
             await InitAsync(factory);
 
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));   // the 0.9.1 ADD COLUMN reached it
+            Assert.Contains("IsBackground", await ColumnsAsync(factory, "JobSlot"));   // the 0.13.0 ADD COLUMN reached the pre-existing JobSlot
             Assert.NotEmpty(await ColumnsAsync(factory, "LoraDisplay"));            // and every later-version table exists
             Assert.NotEmpty(await ColumnsAsync(factory, "TagDisplay"));            // 0.9.2
             Assert.NotEmpty(await ColumnsAsync(factory, "LoraPreview"));           // 0.9.3

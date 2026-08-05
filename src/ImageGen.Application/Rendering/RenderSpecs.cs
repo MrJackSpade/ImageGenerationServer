@@ -67,7 +67,7 @@ public sealed record EditSpec(
 /// </summary>
 public sealed class RenderItem
 {
-    private RenderItem(GenerateSpec? gen, EditSpec? edit) { Gen = gen; Edit = edit; }
+    private RenderItem(GenerateSpec? gen, EditSpec? edit, bool background) { Gen = gen; Edit = edit; Background = background; }
 
     /// <summary>The generate spec, or null when this is an edit item.</summary>
     public GenerateSpec? Gen { get; }
@@ -75,9 +75,14 @@ public sealed class RenderItem
     /// <summary>The edit spec, or null when this is a generate item.</summary>
     public EditSpec? Edit { get; }
 
-    /// <summary>A generate item.</summary>
-    public static RenderItem ForGenerate(GenerateSpec spec) => new(spec, null);
+    /// <summary>When true, this is a BACKGROUND (idle-time) render: it runs only once the queue has been idle of
+    /// foreground work for the configured delay, and a foreground submission preempts it. A scheduling property of the
+    /// slot, not part of the render spec — it changes WHEN the slot runs, never WHAT it renders.</summary>
+    public bool Background { get; }
 
-    /// <summary>An edit item.</summary>
-    public static RenderItem ForEdit(EditSpec spec) => new(null, spec);
+    /// <summary>A generate item. <paramref name="background"/> marks it as idle-time work (see <see cref="Background"/>).</summary>
+    public static RenderItem ForGenerate(GenerateSpec spec, bool background = false) => new(spec, null, background);
+
+    /// <summary>An edit item. <paramref name="background"/> marks it as idle-time work (see <see cref="Background"/>).</summary>
+    public static RenderItem ForEdit(EditSpec spec, bool background = false) => new(null, spec, background);
 }
