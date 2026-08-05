@@ -52,7 +52,7 @@ public sealed class ImageDetailViewModel
     public IReadOnlySet<string> BookmarkedArtists { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>Canonical tag token → raw booru category id (see <see cref="TagCategory"/>), for coloring the chip
-    /// border. Tags the catalog doesn't know are absent and treated as general.</summary>
+    /// border and ordering the chips by type. Tags the catalog doesn't know are absent and treated as general.</summary>
     public IReadOnlyDictionary<string, int> TagTypeByToken { get; init; } =
         new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -62,12 +62,15 @@ public sealed class ImageDetailViewModel
     public IReadOnlyDictionary<string, string> MarksMap => Entry.Marks;
 
     /// <summary>
-    /// The prompt as display chips, IN THE ORDER THE USER TYPED IT. A comma segment whose canonical key is in the marks
-    /// map is a bookmarkable tag/artist and becomes its own interactive chip; everything else is plain natural-language
-    /// text, preserved BYTE-FOR-BYTE — consecutive plain segments stay ONE chip (their commas and spacing intact), never
-    /// split into a chip per comma and never reordered. A chip's bookmark / ban / category only STYLE it; they no longer
-    /// move it. Comma-segment management is a booru-tag operation and must never reflow a prompt's prose — the same rule
-    /// the finalizer follows for a non-tag model (see PromptFinalizerGatingTests).
+    /// The prompt as display chips. A comma segment whose canonical key is in the marks map is a bookmarkable tag/artist
+    /// and becomes its own interactive chip; everything else is plain natural-language text, preserved BYTE-FOR-BYTE —
+    /// consecutive plain segments stay ONE chip (their commas and spacing intact), never split into a chip per comma and
+    /// never reordered among themselves.
+    /// <para>The <b>chips</b> are grouped ahead of the plain prose and ordered by state (bookmarked, untouched, banned),
+    /// then by type (artist, meta, copyright, character, general, deprecated), then by name — so the same tag lands in the
+    /// same place on every card. That ordering is a booru-tag operation and applies ONLY to chips: the plain prose is
+    /// never split, alphabetized, or interleaved with the tags — it is emitted verbatim as the final group, in the order
+    /// its runs were written (the finalizer's non-tag rule; see PromptFinalizerGatingTests).</para>
     /// </summary>
     public IReadOnlyList<PromptChip> Chips
     {
@@ -77,16 +80,16 @@ public sealed class ImageDetailViewModel
                 return [new PromptChip(NoPromptText, null, string.Empty)];
 
             IReadOnlyDictionary<string, string> marks = Entry.Marks;
-            List<PromptChip> chips = new List<PromptChip>();
+            List<(PromptChip Chip, int TypeRank)> chips = new List<(PromptChip, int)>();
             List<string> plain = new List<string>();
 
             void FlushPlain()
             {
                 if (plain.Count == 0) return;
                 // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
-                // the run's outer edges are trimmed for display.
+                // the run's outer edges are trimmed for display. Plain runs carry no type rank; they group last by Kind.
                 string text = string.Join(SegmentDelimiter, plain).Trim();
-                if (text.Length > 0) chips.Add(new PromptChip(text, null, string.Empty));
+                if (text.Length > 0) chips.Add((new PromptChip(text, null, string.Empty), 0));
                 plain.Clear();
             }
 
@@ -99,8 +102,9 @@ public sealed class ImageDetailViewModel
                     bool isArtist = kind == TokenKinds.Artist;
                     bool banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
                     bool bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
-                    string? category = isArtist ? null : TagCategory.Slug(TagTypeByToken.GetValueOrDefault(key));
-                    chips.Add(new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category));
+                    int type = isArtist ? TagCategory.ArtistType : TagTypeByToken.GetValueOrDefault(key);
+                    string? category = isArtist ? null : TagCategory.Slug(type);
+                    chips.Add((new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
                 }
                 else
                 {
@@ -109,9 +113,28 @@ public sealed class ImageDetailViewModel
             }
             FlushPlain();
 
-            return chips.Count > 0 ? chips : [new PromptChip(NoPromptText, null, string.Empty)];
+            if (chips.Count == 0)
+                return [new PromptChip(NoPromptText, null, string.Empty)];
+
+            // Chips (Kind non-null) first, plain prose (Kind null) last; within the chips: state, then type, then name.
+            // OrderBy is stable, so plain runs keep the order they were written in — prose is grouped, never reordered.
+            return chips
+                .OrderBy(c => c.Chip.Kind is null ? 1 : 0)
+                .ThenBy(c => StateRank(c.Chip))
+                .ThenBy(c => c.TypeRank)
+                .ThenBy(c => c.Chip.Key, StringComparer.Ordinal)
+                .Select(c => c.Chip)
+                .ToList();
         }
     }
+
+    /// <summary>
+    /// Chip display order within the tag group: bookmarked, untouched, banned. A banned token is one the user has
+    /// deliberately pushed out of auto-gen, so it trails the untouched tags — but it is still a chip and stays ahead of
+    /// the plain prose. Bookmarked wins when a token is somehow both: the chip's click cycle makes the two exclusive, but
+    /// the bookmark and ban stores are independent and nothing stops a token being written to both.
+    /// </summary>
+    private static int StateRank(PromptChip chip) => chip.Bookmarked ? 0 : chip.Banned ? 2 : 1;
 }
 
 public sealed record PromptChip(
@@ -121,11 +144,26 @@ public sealed record PromptChip(
 /// deprecated (6), and anything unknown return null (neutral border). Artists are colored by kind, not this.</summary>
 public static class TagCategory
 {
+    /// <summary>The synthetic category id used for artist chips — they aren't booru tags but still order first.</summary>
+    public const int ArtistType = 1;
+
     public static string? Slug(int type) => type switch
     {
         3 => "copyright",
         4 => "character",
         5 => "meta",
         _ => null,
+    };
+
+    /// <summary>Display order of a tag type within the chip group: artist, meta, copyright, character, general,
+    /// deprecated.</summary>
+    public static int DisplayRank(int type) => type switch
+    {
+        ArtistType => 0,  // artist
+        5 => 1,           // meta
+        3 => 2,           // copyright
+        4 => 3,           // character
+        6 => 5,           // deprecated
+        _ => 4,           // general / unknown
     };
 }

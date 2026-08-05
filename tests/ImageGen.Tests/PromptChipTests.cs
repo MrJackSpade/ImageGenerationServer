@@ -4,10 +4,11 @@ namespace ImageGen.Tests;
 
 /// <summary>
 /// The card's prompt chips. A marked tag/artist becomes an interactive chip whose Key is the canonical underscored name
-/// the bookmark/ban store keys on and whose Kind is exactly "tag"/"artist". Everything else is plain natural-language
-/// text, kept VERBATIM: chips render in prompt order, consecutive plain segments stay one chip (never split on their
-/// commas, never alphabetized, never pushed past the tags), and a bookmark/ban/category only STYLES a chip rather than
-/// moving it. (The marker-form prompt copy/Reload submit rides the record blob, not the chips.)
+/// the bookmark/ban store keys on and whose Kind is exactly "tag"/"artist"; everything else is plain natural-language
+/// text. The tag chips are GROUPED ahead of the prose and ordered by state (bookmarked, untouched, banned), then type
+/// (artist, meta, copyright, character, general, deprecated), then name — so a tag lands in the same place on every card.
+/// That ordering is tag-only: the plain prose is kept VERBATIM (consecutive plain segments stay one chip, never split on
+/// their commas, never alphabetized) and emitted as the final group, in the order its runs were written.
 /// </summary>
 public sealed class PromptChipTests
 {
@@ -19,18 +20,18 @@ public sealed class PromptChipTests
         IsBookmarked = false,
     };
 
-    /// <summary>A marked chip shows its display text and keys on the canonical token; chips stay in prompt order and the
-    /// trailing prose is its own plain chip.</summary>
+    /// <summary>A marked chip shows its display text and keys on the canonical token. Chips group ahead of the prose and
+    /// order by type (artist before general), and the trailing prose is its own plain chip, last.</summary>
     [Fact]
-    public void A_marked_chip_shows_display_text_keys_on_canonical_token_and_holds_prompt_order()
+    public void A_marked_chip_shows_display_text_keys_on_canonical_token_and_groups_before_prose()
     {
         IReadOnlyList<PromptChip> chips = Card("bad anatomy, some artist, a plain phrase", ("bad_anatomy", "tag"), ("some_artist", "artist")).Chips;
 
         Assert.Equal(3, chips.Count);
-        Assert.Equal(("bad anatomy", "tag", "bad_anatomy"), (chips[0].Text, chips[0].Kind, chips[0].Key));
-        Assert.Equal(("some artist", "artist", "some_artist"), (chips[1].Text, chips[1].Kind, chips[1].Key));
+        Assert.Equal(("some artist", "artist", "some_artist"), (chips[0].Text, chips[0].Kind, chips[0].Key));   // artist type sorts first
+        Assert.Equal(("bad anatomy", "tag", "bad_anatomy"), (chips[1].Text, chips[1].Kind, chips[1].Key));      // then the general tag
         Assert.Equal("a plain phrase", chips[2].Text);
-        Assert.Null(chips[2].Kind);   // plain text: not a token, nothing to bookmark or ban
+        Assert.Null(chips[2].Kind);   // plain text: not a token, and it groups last
     }
 
     /// <summary>Models with keep_artist_marker leave '@' in the stored prompt; the key must not carry it.</summary>
@@ -43,7 +44,7 @@ public sealed class PromptChipTests
         Assert.Equal("artist", chips[0].Kind);
     }
 
-    /// <summary>score_ tags keep the underscores the finalizer preserved; the trailing plain word is its own chip.</summary>
+    /// <summary>score_ tags keep the underscores the finalizer preserved; the trailing plain word is its own chip, last.</summary>
     [Fact]
     public void Score_tags_keep_the_underscores_the_finalizer_preserved()
     {
@@ -53,10 +54,10 @@ public sealed class PromptChipTests
         Assert.Null(chips[1].Kind);
     }
 
-    /// <summary>A ban / bookmark lands on the chip whose canonical key matches — and only STYLES it, leaving the chip in
-    /// its written position rather than moving it to the front or back.</summary>
+    /// <summary>State orders the chips: a bookmarked chip leads and a banned chip trails the untouched tags — but both are
+    /// still chips and stay ahead of any prose.</summary>
     [Fact]
-    public void Bans_and_bookmarks_style_the_matching_chip_without_moving_it()
+    public void Bookmarked_leads_and_banned_trails_within_the_chip_group()
     {
         ImageDetailViewModel vm = new ImageDetailViewModel
         {
@@ -69,18 +70,40 @@ public sealed class PromptChipTests
         };
 
         IReadOnlyList<PromptChip> chips = vm.Chips;
-        Assert.Equal("bad_anatomy", chips[0].Key);   // prompt order: the banned tag stays first
-        Assert.True(chips[0].Banned);
-        Assert.False(chips[0].Bookmarked);
-        Assert.Equal("greg_rutkowski", chips[1].Key);
-        Assert.True(chips[1].Bookmarked);
-        Assert.False(chips[1].Banned);
+        Assert.Equal("greg_rutkowski", chips[0].Key);   // bookmarked leads
+        Assert.True(chips[0].Bookmarked);
+        Assert.False(chips[0].Banned);
+        Assert.Equal("bad_anatomy", chips[1].Key);      // banned trails
+        Assert.True(chips[1].Banned);
+        Assert.False(chips[1].Bookmarked);
     }
 
-    /// <summary>Chips render in the order the prompt was written — not reordered by state or type. Plain text at the
-    /// FRONT stays at the front (not pushed behind the tags), and a bookmarked tag does not jump to the head.</summary>
+    /// <summary>The #100 regression: a banned tag and a plain phrase together — the banned chip is still a chip and
+    /// precedes the plain-text chip, which groups last. (Before, banned sorted into a state past the NL text.)</summary>
     [Fact]
-    public void Chips_render_in_prompt_order_with_plain_text_kept_in_place()
+    public void A_banned_tag_precedes_the_plain_text_chip()
+    {
+        ImageDetailViewModel vm = new ImageDetailViewModel
+        {
+            Entry = new ImageDetailView("img1", "bad anatomy, a plain phrase", "Anima", "anima", "square", DateTime.UtcNow,
+                new Dictionary<string, string> { ["bad_anatomy"] = "tag" }),
+            MarkerPrompt = "",
+            IsBookmarked = false,
+            BannedTags = new HashSet<string>(StringComparer.Ordinal) { "bad_anatomy" },
+        };
+
+        IReadOnlyList<PromptChip> chips = vm.Chips;
+        Assert.Equal(2, chips.Count);
+        Assert.Equal("bad_anatomy", chips[0].Key);   // the banned chip comes first
+        Assert.True(chips[0].Banned);
+        Assert.Equal("a plain phrase", chips[1].Text);
+        Assert.Null(chips[1].Kind);                   // the NL prose is last
+    }
+
+    /// <summary>Chips order by state then type, and the prose is grouped LAST regardless of where it was typed: leading
+    /// plain text is pushed behind the tags, and a bookmarked tag jumps to the head.</summary>
+    [Fact]
+    public void Chips_group_before_prose_and_order_by_state_then_type()
     {
         ImageDetailViewModel vm = new ImageDetailViewModel
         {
@@ -101,27 +124,29 @@ public sealed class PromptChipTests
             IsBookmarked = false,
             TagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal)
             {
-                ["old_tag"] = 6,
-                ["smile"] = 0,
-                ["some_girl"] = 4,
-                ["some_show"] = 3,
-                ["absurdres"] = 5,
-                ["starred_tag"] = 0,
+                ["old_tag"] = 6,       // deprecated
+                ["smile"] = 0,         // general
+                ["some_girl"] = 4,     // character
+                ["some_show"] = 3,     // copyright
+                ["absurdres"] = 5,     // meta
+                ["starred_tag"] = 0,   // general
             },
             BookmarkedTags = new HashSet<string>(StringComparer.Ordinal) { "starred_tag" },
         };
 
         Assert.Equal(
-            ["a plain phrase", "old tag", "smile", "some girl", "some show", "absurdres", "some artist", "starred tag"],
+            // bookmarked first (starred tag); then untouched by type: artist, meta, copyright, character, general,
+            // deprecated; then the prose last.
+            ["starred tag", "some artist", "absurdres", "some show", "some girl", "smile", "old tag", "a plain phrase"],
             vm.Chips.Select(c => c.Text));
-        Assert.Null(vm.Chips[0].Kind);          // the leading prose is one plain chip, still at the front
-        Assert.True(vm.Chips[^1].Bookmarked);   // bookmarked only styles; it does not move to the head
+        Assert.True(vm.Chips[0].Bookmarked);   // bookmarked jumps to the head
+        Assert.Null(vm.Chips[^1].Kind);        // the leading prose is pushed to the very end
     }
 
-    /// <summary>A ban / bookmark styles a chip but never reorders it: the banned tokens keep their written place instead
-    /// of sinking to the end, and the plain phrase stays in the MIDDLE where it was typed.</summary>
+    /// <summary>Banned tags trail the untouched tags but still lead the prose, and prose typed in the MIDDLE is pulled out
+    /// to the end as its own verbatim chip.</summary>
     [Fact]
-    public void Banned_and_bookmarked_chips_keep_their_written_place()
+    public void Banned_chips_trail_the_tags_and_prose_is_pulled_to_the_end()
     {
         ImageDetailViewModel vm = new ImageDetailViewModel
         {
@@ -138,9 +163,9 @@ public sealed class PromptChipTests
             IsBookmarked = false,
             TagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal)
             {
-                ["smile"] = 0,
-                ["banned_meta"] = 5,
-                ["starred_tag"] = 0,
+                ["smile"] = 0,         // general
+                ["banned_meta"] = 5,   // meta
+                ["starred_tag"] = 0,   // general
             },
             BannedArtists = new HashSet<string>(StringComparer.Ordinal) { "banned_artist" },
             BannedTags = new HashSet<string>(StringComparer.Ordinal) { "banned_meta" },
@@ -148,17 +173,19 @@ public sealed class PromptChipTests
         };
 
         Assert.Equal(
-            ["banned artist", "smile", "a plain phrase", "banned meta", "starred tag"],
+            // bookmarked (starred tag); untouched general (smile); then banned by type (artist before meta); prose last.
+            ["starred tag", "smile", "banned artist", "banned meta", "a plain phrase"],
             vm.Chips.Select(c => c.Text));
-        Assert.True(vm.Chips[0].Banned);     // banned artist stays first, not sunk to the end
-        Assert.Null(vm.Chips[2].Kind);       // plain text stays in the middle, not pushed past the tags
+        Assert.True(vm.Chips[0].Bookmarked);
+        Assert.True(vm.Chips[2].Banned);   // banned artist trails the untouched tag
         Assert.True(vm.Chips[3].Banned);
-        Assert.True(vm.Chips[4].Bookmarked);
+        Assert.Null(vm.Chips[^1].Kind);    // the middle prose is pulled to the end
     }
 
-    /// <summary>Chips of the same type are NOT alphabetized — they hold the order the prompt was written in.</summary>
+    /// <summary>Chips of the same type ARE alphabetized by canonical name — the ordering is a property of the token, so a
+    /// tag sits in the same spot on every card.</summary>
     [Fact]
-    public void Chips_are_not_alphabetized()
+    public void Chips_of_the_same_type_are_ordered_by_name()
     {
         ImageDetailViewModel vm = new ImageDetailViewModel
         {
@@ -183,7 +210,8 @@ public sealed class PromptChipTests
         };
 
         Assert.Equal(
-            ["zebra print", "smile", "apron", "zoe artist", "alice artist"],
+            // artists first (by name), then the general tags (by name)
+            ["alice artist", "zoe artist", "apron", "smile", "zebra print"],
             vm.Chips.Select(c => c.Text));
     }
 
@@ -207,18 +235,17 @@ public sealed class PromptChipTests
         Assert.Equal("a wide shot, at dusk, dramatic lighting", chip.Text);
     }
 
-    /// <summary>Plain prose mixed INTO a booru prompt is preserved verbatim and in place: the run before a tag is one
-    /// chip (commas intact), the tag is its own chip, and the run after is its own chip — none split, none alphabetized,
-    /// none pushed to the end.</summary>
+    /// <summary>Plain prose runs mixed INTO a booru prompt stay verbatim (commas intact, never split, never alphabetized)
+    /// and group after the tag; separate runs keep the order they were written in.</summary>
     [Fact]
-    public void Plain_prose_inside_a_tag_prompt_stays_verbatim_and_in_place()
+    public void Plain_prose_runs_stay_verbatim_and_group_after_the_tags()
     {
         IReadOnlyList<PromptChip> chips = Card("a knight in the rain, holding a sword, long hair, at night", ("long_hair", "tag")).Chips;
 
         Assert.Equal(3, chips.Count);
-        Assert.Equal(("a knight in the rain, holding a sword", (string?)null), (chips[0].Text, chips[0].Kind));
-        Assert.Equal(("long hair", "tag"), (chips[1].Text, chips[1].Kind));
-        Assert.Equal(("at night", (string?)null), (chips[2].Text, chips[2].Kind));
+        Assert.Equal(("long hair", "tag"), (chips[0].Text, chips[0].Kind));                                       // the tag leads
+        Assert.Equal(("a knight in the rain, holding a sword", (string?)null), (chips[1].Text, chips[1].Kind));   // first prose run, verbatim
+        Assert.Equal(("at night", (string?)null), (chips[2].Text, chips[2].Kind));                                // second prose run, in written order
     }
 
     /// <summary>A blank prompt renders the single "(no prompt)" placeholder chip.</summary>
