@@ -87,7 +87,7 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
     protected override ComfyWorkflowGraph Build(Krea2RedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);                                 // optional style/quality LoRA
 
         g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };

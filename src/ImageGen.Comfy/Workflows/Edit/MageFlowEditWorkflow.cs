@@ -30,7 +30,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
     protected override ComfyWorkflowGraph Build(MageFlowEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
 
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training

@@ -45,7 +45,7 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
     protected override ComfyWorkflowGraph Build(LineThickenControlNetParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
         string prompt = p.StylePrompt is { } sp && !string.IsNullOrWhiteSpace(sp) ? sp : inputs.Positive;

@@ -34,7 +34,7 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
     protected override ComfyWorkflowGraph Build(WanI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
         g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
         model0 = ModelSamplingSD3.Out(ModelSampling);

@@ -43,7 +43,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime LoRA on the Hunyuan model
         g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
         Output<Slot.Model> modelS = ModelSamplingSD3.Out(ModelSampling);

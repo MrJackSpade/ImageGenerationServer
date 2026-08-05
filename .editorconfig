@@ -4,3 +4,14 @@ root = true
 # IMGDOC001: declaration-level // and /* */ comments must be XML doc comments (///).
 # Enforced by src/ImageGen.Analyzers. Default is error; change to 'warning' or 'none' to dial down.
 dotnet_diagnostic.IMGDOC001.severity = error
+
+# IDE0059: unnecessary assignment of a value (assigned but never read). Build error via
+# EnforceCodeStyleInBuild (set in Directory.Build.props).
+dotnet_diagnostic.IDE0059.severity = error
+
+# IDE0008: use explicit type instead of 'var'. Only fires when the csharp_style_var_* preferences
+# below say "prefer explicit" (= false); with the defaults ('var' preferred) it never reports.
+csharp_style_var_for_built_in_types = false
+csharp_style_var_when_type_is_apparent = false
+csharp_style_var_elsewhere = false
+dotnet_diagnostic.IDE0008.severity = error

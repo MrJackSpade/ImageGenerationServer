@@ -37,7 +37,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
     protected override ComfyWorkflowGraph Build(ChronoEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4=unet,5=clip(wan),6=vae(wan2.1),10=LoadImage
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);               // distilled LoRA (fast 20-step path)
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;                                                            // ChronoEdit's short trajectory

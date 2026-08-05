@@ -227,9 +227,9 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        ResolveCanvas(g, p, inputs, out var image, out var rawMask);
+        ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
         ApplyCeiling(g, p, inputs, CanvasSize(p, inputs), ref image, ref rawMask);
 
         Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);

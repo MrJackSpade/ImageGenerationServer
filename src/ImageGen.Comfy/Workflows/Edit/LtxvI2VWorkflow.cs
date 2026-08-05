@@ -29,7 +29,7 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
     protected override ComfyWorkflowGraph Build(LtxvI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out _, out var vae0);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out _, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA on the LTX model
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;

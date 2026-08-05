@@ -109,7 +109,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     protected override ComfyWorkflowGraph Build(QwenEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new ComfyWorkflowGraph();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         string instruction = inputs.Positive;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
@@ -173,7 +173,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
                             inputs.SourceWidth, inputs.SourceHeight);
 
         Output<Slot.Latent> sampleLatent = VAEEncode.Out(SourceEncode);
-        if (rect is (int rx, int ry, int rw, int rh))
+        if (rect is (int, int, int rw, int rh))
         {
             // Sample at the rectangle, aligned down to the VAE/patch stride; a blank white canvas is the starting
             // latent because denoise is 1.0, so only its SHAPE matters, not its content.

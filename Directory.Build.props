@@ -11,6 +11,15 @@
   </PropertyGroup>
 
   <!--
+    Run the IDExxxx code-style analyzers during 'dotnet build'/CI, not just in the IDE. Without this
+    a '.editorconfig' severity line is IDE-only and the build still passes. Escalated to error in the
+    root .editorconfig: IDE0059 (unnecessary value assignment) and IDE0008 (explicit type over var).
+  -->
+  <PropertyGroup>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
     Attach the ImageGen.Analyzers Roslyn analyzer to every project in the solution.
     The condition excludes the analyzer project itself (it cannot reference itself).
     ReferenceOutputAssembly=false: we want the analyzer, not a runtime dependency.
