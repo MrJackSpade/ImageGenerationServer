@@ -86,9 +86,8 @@ public interface IWorkflow
     /// at ENQUEUE with <see cref="NormalizeContext.Empty"/> (params only — the frame-count snap, whose notice reaches
     /// the placeholder card before the render starts), and again at SUBMIT with the source dims + resolved
     /// requirements (<see cref="NormalizeContext.AtSubmit"/>) for snaps that need them. May MUTATE <paramref name="p"/>
-    /// in place; returns one human-readable notice per USER-VISIBLE change (yellow text on the cards). Deliberate,
-    /// user-toggled normalizations (the pixel-art render-size snap) mutate silently and return no notice. Snapping
-    /// rather than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing.</summary>
+    /// in place; returns one human-readable notice per USER-VISIBLE change (yellow text on the cards). Snapping rather
+    /// than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing.</summary>
     IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
     {
         List<string> notices = new List<string>();
@@ -97,7 +96,7 @@ public interface IWorkflow
         // is a no-op once enqueue has already snapped. This is the one that produces a user notice.
         if (FrameRule is { } fr && p.TryGetValue(WorkflowParamKeys.Length, out object? raw) && raw is not null)
         {
-            int req = ParamValues.AsInt(raw);
+            int req = ParamsCodec.AsInt(raw);
             if (req > 0)
             {
                 int snapped = fr.Snap(req);
@@ -109,18 +108,15 @@ public interface IWorkflow
             }
         }
 
-        // Pixel-art render-resolution snap (models exposing snap_resolution). Needs source dims + the model's
-        // resolution envelope, so it's SUBMIT-only. Deliberate (the snap_resolution toggle) → silent, no notice.
-        if (ctx.AtSubmit && p.ContainsKey(WorkflowParamKeys.SnapResolution))
-            PixelSnap.WriteRenderSize(p, ctx.Requirements?.Resolution ?? ResolutionEnvelope, ctx.SourceWidth, ctx.SourceHeight);
-
         return notices;
     }
 
 
 
-    /// <summary>Build the ComfyUI API-format graph (node-id → { class_type, inputs }). <paramref name="p"/> is the
-    /// merged parameter values, <paramref name="req"/> the resolved requirement filenames, <paramref name="inputs"/>
-    /// the runtime prompt/aspect/image data.</summary>
-    Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs);
+    /// <summary>Build the ComfyUI graph as a typed <see cref="ComfyWorkflowGraph"/> (node-id → typed node). It stays
+    /// typed until the renderer serializes it to <c>/prompt</c>. <paramref name="p"/> is the merged parameter bag —
+    /// the implementation deserializes it into its own typed params DTO at the <see cref="ParamsCodec"/> boundary
+    /// before building; <paramref name="req"/> the resolved requirement filenames, <paramref name="inputs"/> the
+    /// runtime prompt/aspect/image data.</summary>
+    ComfyWorkflowGraph Build(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, WorkflowInputs inputs);
 }

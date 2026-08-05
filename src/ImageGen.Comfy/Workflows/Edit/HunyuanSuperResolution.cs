@@ -1,4 +1,34 @@
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
+
+/// <summary>The typed view of the SR knobs a HunyuanVideo 1.5 i2v/t2v params record exposes for the super-resolution
+/// second pass. The values are nullable because SR is optional — a config that leaves <c>sr</c> off supplies none of
+/// them; the typed <see cref="HunyuanSr.Refine"/> reads them (with a fail-fast refusal on an absent value) only once
+/// <see cref="HunyuanSr.Enabled(IHunyuanSrParams)"/> is true.</summary>
+public interface IHunyuanSrParams
+{
+    /// <summary>The SR on/off toggle.</summary>
+    bool Sr { get; }
+    /// <summary>The SR distilled UNet filename (resolved model ref); null/blank means SR is not actually wired.</summary>
+    string? SrModel { get; }
+    /// <summary>The latent upsampler filename (resolved model ref).</summary>
+    string? SrUpsampler { get; }
+    /// <summary>The SR latent-upscale target width.</summary>
+    int? SrWidth { get; }
+    /// <summary>The SR latent-upscale target height.</summary>
+    int? SrHeight { get; }
+    /// <summary>The SR refine step count.</summary>
+    int? SrSteps { get; }
+    /// <summary>The SR refine denoise fraction.</summary>
+    double? SrDenoise { get; }
+    /// <summary>The SR noise-augmentation amount fed to the SR conditioning node.</summary>
+    double? SrNoiseAug { get; }
+    /// <summary>The SR real-CFG scale.</summary>
+    double? SrCfg { get; }
+    /// <summary>The SR model's flow shift.</summary>
+    double? SrShift { get; }
+}
 
 /// <summary>
 /// HunyuanVideo 1.5 super-resolution second pass — the optional latent-space upscale-and-refine stage from the
@@ -35,19 +65,6 @@ internal static class HunyuanSr
         public const string Sampler = "79";
     }
 
-    /// <summary>The HunyuanVideo15SuperResolution node's input-field names (the srInputs-dict keys). Values are the
-    /// ComfyUI input names, preserved exactly.</summary>
-    private static class Inputs
-    {
-        public const string Positive = "positive";
-        public const string Negative = "negative";
-        public const string Latent = "latent";
-        public const string NoiseAugmentation = "noise_augmentation";
-        public const string Vae = "vae";
-        public const string StartImage = "start_image";
-        public const string ClipVisionOutput = "clip_vision_output";
-    }
-
     /// <summary>SR knobs, appended to the HunyuanVideo 1.5 i2v/t2v schemas. <c>sr</c> is the on/off toggle; the rest
     /// carry the SR file names (literal, like the MoE <c>unet_low</c>) and the refine settings.</summary>
     public static readonly ParamSpec[] Schema =
@@ -65,49 +82,66 @@ internal static class HunyuanSr
     };
 
     /// <summary>True when the config asked for SR and supplied an SR model file.</summary>
-    public static bool Enabled(ParamValues p) => p.Bool(WorkflowParamKeys.Sr) && !string.IsNullOrWhiteSpace(p.Str(WorkflowParamKeys.SrModel));
+    public static bool Enabled(IHunyuanSrParams p) => p.Sr && !string.IsNullOrWhiteSpace(p.SrModel);
 
-    /// <summary>Append the SR pass and return its refined latent; returns <paramref name="baseLatent"/> unchanged
-    /// when SR is off. <paramref name="positive"/>/<paramref name="negative"/> are the raw text-encode conditioning;
-    /// <paramref name="startImage"/>/<paramref name="clipVisionOutput"/> are optional (null for t2v).</summary>
-    public static object Refine(Dictionary<string, object> wf, ParamValues p, object baseLatent,
-        object positive, object negative, object vae, object? startImage, object? clipVisionOutput, long seed)
+    /// <summary>Append the SR pass over a typed <see cref="ComfyWorkflowGraph"/> and return its refined latent; returns
+    /// <paramref name="baseLatent"/> unchanged when SR is off.
+    /// <paramref name="positive"/>/<paramref name="negative"/> are the raw text-encode conditioning;
+    /// <paramref name="startImage"/>/<paramref name="clipVisionOutput"/> are optional (null for t2v — omitted from the SR
+    /// node). <paramref name="sampler"/>/<paramref name="scheduler"/> are the ALREADY-MAPPED ComfyUI names.</summary>
+    public static Output<Slot.Latent> Refine(ComfyWorkflowGraph g, IHunyuanSrParams p, Output<Slot.Latent> baseLatent,
+        Output<Slot.Conditioning> positive, Output<Slot.Conditioning> negative, Output<Slot.Vae> vae,
+        Output<Slot.Image>? startImage, Output<Slot.ClipVision>? clipVisionOutput, string sampler, string scheduler, long seed)
     {
         if (!Enabled(p)) return baseLatent;
 
-        wf[Nodes.UpsamplerLoader] = ComfyGraph.Node(ComfyNodeTypes.LatentUpscaleModelLoader, new { model_name = p.Model(WorkflowParamKeys.SrUpsampler) });
-        wf[Nodes.LatentUpscale] = ComfyGraph.Node(ComfyNodeTypes.HunyuanVideo15LatentUpscaleWithModel, new
+        g[Nodes.UpsamplerLoader] = new LatentUpscaleModelLoader { ModelName = Req(p.SrUpsampler, WorkflowParamKeys.SrUpsampler) };
+        g[Nodes.LatentUpscale] = new HunyuanVideo15LatentUpscaleWithModel
         {
-            model = ComfyGraph.Ref(Nodes.UpsamplerLoader, 0),
-            samples = baseLatent,
-            upscale_method = "bilinear",
-            width = p.IntReq(WorkflowParamKeys.SrWidth),
-            height = p.IntReq(WorkflowParamKeys.SrHeight),
-            crop = "disabled",
-        });
-
-        // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
-        // Required: positive/negative/latent/noise_augmentation; optional: vae/start_image/clip_vision_output.
-        Dictionary<string, object> srInputs = new Dictionary<string, object>
-        {
-            [Inputs.Positive] = positive,
-            [Inputs.Negative] = negative,
-            [Inputs.Latent] = ComfyGraph.Ref(Nodes.LatentUpscale, 0),
-            [Inputs.NoiseAugmentation] = p.DblReq(WorkflowParamKeys.SrNoiseAug),
-            [Inputs.Vae] = vae,
+            Model = LatentUpscaleModelLoader.Out(Nodes.UpsamplerLoader),
+            Samples = baseLatent,
+            UpscaleMethod = "bilinear",
+            Width = Req(p.SrWidth, WorkflowParamKeys.SrWidth),
+            Height = Req(p.SrHeight, WorkflowParamKeys.SrHeight),
+            Crop = "disabled",
         };
-        if (startImage is not null) srInputs[Inputs.StartImage] = startImage;
-        if (clipVisionOutput is not null) srInputs[Inputs.ClipVisionOutput] = clipVisionOutput;
-        wf[Nodes.SuperResolution] = ComfyGraph.Node(ComfyNodeTypes.HunyuanVideo15SuperResolution, srInputs);
+        // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
+        // start_image/clip_vision_output ride the i2v path only; null here omits them, byte-identical to the old conditional dict.
+        g[Nodes.SuperResolution] = new HunyuanVideo15SuperResolution
+        {
+            Positive = positive,
+            Negative = negative,
+            Latent = HunyuanVideo15LatentUpscaleWithModel.Out(Nodes.LatentUpscale),
+            NoiseAugmentation = Req(p.SrNoiseAug, WorkflowParamKeys.SrNoiseAug),
+            Vae = vae,
+            StartImage = startImage,
+            ClipVisionOutput = clipVisionOutput,
+        };
 
-        wf[Nodes.SrModel] = ComfyGraph.DiffusionLoader(p.Model(WorkflowParamKeys.SrModel));
-        wf[Nodes.ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.SrModel, 0), shift = p.DblReq(WorkflowParamKeys.SrShift) });
-        object srModel = ComfyGraph.Ref(Nodes.ModelSampling, 0);
-        wf[Nodes.Scheduler] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model = srModel, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.SrSteps), denoise = p.DblReq(WorkflowParamKeys.SrDenoise) });
-        wf[Nodes.SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Nodes.Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = seed });
-        wf[Nodes.Guider] = ComfyGraph.Node(ComfyNodeTypes.CFGGuider, new { model = srModel, positive = ComfyGraph.Ref(Nodes.SuperResolution, 0), negative = ComfyGraph.Ref(Nodes.SuperResolution, 1), cfg = p.DblReq(WorkflowParamKeys.SrCfg) });
-        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Nodes.Noise, 0), guider = ComfyGraph.Ref(Nodes.Guider, 0), sampler = ComfyGraph.Ref(Nodes.SamplerSelect, 0), sigmas = ComfyGraph.Ref(Nodes.Scheduler, 0), latent_image = ComfyGraph.Ref(Nodes.SuperResolution, 2) });
-        return ComfyGraph.Ref(Nodes.Sampler, 0);
+        g[Nodes.SrModel] = ComfyGraph.DiffusionLoaderNode(Req(p.SrModel, WorkflowParamKeys.SrModel));
+        g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.SrModel), Shift = Req(p.SrShift, WorkflowParamKeys.SrShift) };
+        Output<Slot.Model> srModel = ModelSamplingSD3.Out(Nodes.ModelSampling);
+        g[Nodes.Scheduler] = new BasicScheduler { Model = srModel, Scheduler = scheduler, Steps = Req(p.SrSteps, WorkflowParamKeys.SrSteps), Denoise = Req(p.SrDenoise, WorkflowParamKeys.SrDenoise) };
+        g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = sampler };
+        g[Nodes.Noise] = new RandomNoise { NoiseSeed = seed };
+        g[Nodes.Guider] = new CFGGuider { Model = srModel, Positive = HunyuanVideo15SuperResolution.PositiveOut(Nodes.SuperResolution), Negative = HunyuanVideo15SuperResolution.NegativeOut(Nodes.SuperResolution), Cfg = Req(p.SrCfg, WorkflowParamKeys.SrCfg) };
+        g[Nodes.Sampler] = new SamplerCustomAdvanced
+        {
+            Noise = RandomNoise.Out(Nodes.Noise),
+            Guider = CFGGuider.Out(Nodes.Guider),
+            Sampler = KSamplerSelect.Out(Nodes.SamplerSelect),
+            Sigmas = BasicScheduler.Out(Nodes.Scheduler),
+            LatentImage = HunyuanVideo15SuperResolution.LatentOut(Nodes.SuperResolution),
+        };
+        return SamplerCustomAdvanced.Out(Nodes.Sampler);
     }
+
+    /// <summary>A required SR scalar: present, or the render is REFUSED (SR configs always supply these; an absent one
+    /// is a broken config, never a silent default).</summary>
+    private static T Req<T>(T? value, string key) where T : struct =>
+        value ?? throw new RenderValidationException($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
+
+    /// <summary>A required SR filename (resolved model ref): present, or the render is REFUSED.</summary>
+    private static string Req(string? value, string key) =>
+        !string.IsNullOrWhiteSpace(value) ? value : throw new RenderValidationException($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
 }

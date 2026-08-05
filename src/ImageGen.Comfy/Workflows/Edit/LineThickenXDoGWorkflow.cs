@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -9,7 +10,7 @@ namespace ImageGen.Comfy;
 /// dark-lines-on-white, <c>LineThicken</c> boldens that line layer, and a multiply <c>ImageBlend</c>
 /// composites it over the source so flat-colour interiors stay clean. No model, no VRAM. API-only.
 /// </summary>
-public sealed class LineThickenXDoGWorkflow : EditWorkflowBase
+public sealed class LineThickenXDoGWorkflow : EditWorkflow<LineThickenXDoGParams>
 {
     public override string Name => "line-thicken-xdog";
     public override bool PreservesComposition => true;
@@ -32,34 +33,47 @@ public sealed class LineThickenXDoGWorkflow : EditWorkflowBase
     private const string Blend = "22";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(LineThickenXDoGParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = source },
         };
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
         // Extract the existing outlines as dark-lines-on-white...
-        wf[Lineart] = ComfyGraph.Node(ComfyNodeTypes.XDoGLines, new
+        g[Lineart] = new XDoGLines
         {
-            image = src,
-            sigma = p.DblReq(WorkflowParamKeys.Sigma),
-            k = p.DblReq(WorkflowParamKeys.K),
-            tau = p.DblReq(WorkflowParamKeys.Tau),
-            epsilon = p.DblReq(WorkflowParamKeys.Epsilon),
-            phi = p.DblReq(WorkflowParamKeys.Phi),
-        });
+            Image = src,
+            Sigma = p.Sigma,
+            K = p.K,
+            Tau = p.Tau,
+            Epsilon = p.Epsilon,
+            Phi = p.Phi,
+        };
         // ...bolden that line layer...
-        wf[Thicken] = ComfyGraph.Node(ComfyNodeTypes.LineThicken, new { image = ComfyGraph.Ref(Lineart, 0), thickness = p.IntReq(WorkflowParamKeys.Thickness) });
+        g[Thicken] = new LineThicken { Image = XDoGLines.Out(Lineart), Thickness = p.Thickness };
         // ...and multiply it back over the source so only the outlines darken (flat regions = white = unchanged).
-        wf[Blend] = ComfyGraph.Node(ComfyNodeTypes.ImageBlend, new
+        g[Blend] = new ImageBlend
         {
-            image1 = src,
-            image2 = ComfyGraph.Ref(Thicken, 0),
-            blend_factor = 1.0,
-            blend_mode = "multiply",
-        });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Blend, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Image1 = src,
+            Image2 = LineThicken.Out(Thicken),
+            BlendFactor = 1.0,
+            BlendMode = "multiply",
+        };
+        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>The XDoG outline thickener's parameters. <c>required</c> so an absent value throws at the deserializer
+/// (the declarative form of the previous <c>IntReq</c>/<c>DblReq</c> reads).</summary>
+public sealed record LineThickenXDoGParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Thickness)] public required int Thickness { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sigma)]     public required double Sigma { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]         public required double K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]       public required double Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Epsilon)]   public required double Epsilon { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Phi)]       public required double Phi { get; init; }
 }

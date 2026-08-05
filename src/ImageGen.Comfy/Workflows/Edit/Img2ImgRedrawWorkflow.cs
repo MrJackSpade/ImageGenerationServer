@@ -1,10 +1,11 @@
+using System.Text.Json.Serialization;
 using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
 /// <summary>
 /// Whole-image img2img REDRAW driven by a standard generation checkpoint. Reuses the edit rails: the source image is
-/// uploaded and loaded via <c>LoadImage</c> (node "10", emitted by <see cref="EditWorkflowBase.LoadModel"/>), VAE-
+/// uploaded and loaded via <c>LoadImage</c> (node "10", emitted by <see cref="EditWorkflow{TParams}.LoadModel"/>), VAE-
 /// encoded to a latent, and re-sampled at a PARTIAL denoise with NO mask — so the whole frame is regenerated from the
 /// source's own structure ("the noise thing"). The target use: take an off-model edit (e.g. a qwen-image-edit pose)
 /// and reinterpret it through the checkpoint's prior + the prompt, keeping the composition but restoring the look.
@@ -22,7 +23,7 @@ namespace ImageGen.Comfy;
 /// (<c>required_prefix</c>) and composes the negative as the config default with the UI negative merged in (see
 /// <see cref="ComfyGraph.ComposeNegative"/>).
 /// </summary>
-public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
+public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
 {
     public override string Name => "img2img-redraw";
 
@@ -37,7 +38,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
     /// strength, plus the prompt-prefix/negative/clip-skip knobs the edit path doesn't supply and the model's native
     /// pixel budget.</summary>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
-    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.2, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
@@ -66,46 +67,46 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(Img2ImgRedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage Nodes.Source
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage Nodes.Source
 
-        if (p.Loader() == LoaderKind.Checkpoint && p.Has(WorkflowParamKeys.ClipSkip) && p.IntReq(WorkflowParamKeys.ClipSkip) is int clipSkip && clipSkip > 0)
+        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            wf[ClipSkip] = ComfyGraph.Node(ComfyNodeTypes.CLIPSetLastLayer, new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
-            clip0 = ComfyGraph.Ref(ClipSkip, 0);
+            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
         }
 
         // Chroma prompts through T5-XXL with min-padding disabled — its official graph puts a T5TokenizerOptions in
         // front of the encodes, and without it the padded conditioning degrades the render (see ChromaWorkflow).
-        if (string.Equals(p.Str(WorkflowParamKeys.ClipType), ChromaClipType, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(p.ClipType, ChromaClipType, StringComparison.OrdinalIgnoreCase))
         {
-            wf[TokenizerOptions] = ComfyGraph.Node(ComfyNodeTypes.T5TokenizerOptions, new { clip = clip0, min_padding = 0, min_length = 0 });
-            clip0 = ComfyGraph.Ref(TokenizerOptions, 0);
+            g[TokenizerOptions] = new T5TokenizerOptions { Clip = clip0, MinPadding = 0, MinLength = 0 };
+            clip0 = T5TokenizerOptions.Out(TokenizerOptions);
         }
 
         // Positive = quality prefix + the user's full prompt; negative = the config default with the UI negative
         // (inputs.Negative) merged in — never replaced (see ComfyGraph.ComposeNegative).
-        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
+        string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
-        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prefix + inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
+        string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
+        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // A guidance-distilled model (FLUX.1-dev/Krea, FLUX.2) takes its guidance in the conditioning, not as real CFG
         // — the same `guidance` param the txt2img/pixelize graphs use. Unset (Anima, schnell, Chroma) = omit the node.
-        object posSrc = ComfyGraph.Ref(Positive, 0);
-        if (p.DblOrNull(WorkflowParamKeys.Guidance) is double g)
+        Output<Slot.Conditioning> posSrc = CLIPTextEncode.Out(Positive);
+        if (p.Guidance is double guidance)
         {
-            wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(Positive, 0), guidance = g });
-            posSrc = ComfyGraph.Ref(Guidance, 0);
+            g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = guidance };
+            posSrc = FluxGuidance.Out(Guidance);
         }
         // Flow-shift, when the model declares one (Chroma runs at shift 1.0).
-        if (p.DblOrNull(WorkflowParamKeys.Shift) is double shift)
+        if (p.Shift is double shift)
         {
-            wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift });
-            model0 = ComfyGraph.Ref(ModelSampling, 0);
+            g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = shift };
+            model0 = ModelSamplingAuraFlow.Out(ModelSampling);
         }
 
         // Run at the model's NATIVE resolution. The source pose comes from another editor at its own size (often over
@@ -116,9 +117,9 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
         // re-render; no point up-scaling it back). Only downscales. No budget declared → the source is sampled at its
         // own resolution; a budget with a broken (zero-dimension) source is refused, not silently sampled at raw scale.
         static int Snap16(int v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
-        long budget = p.Has(WorkflowParamKeys.NativePixels) ? p.IntReq(WorkflowParamKeys.NativePixels) : 0;   // no budget declared → sample the source at its own resolution
+        long budget = p.NativePixels ?? 0;   // no budget declared → sample the source at its own resolution
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        object encPixels = ComfyGraph.Ref(Nodes.Source, 0);
+        Output<Slot.Image> encPixels = LoadImage.ImageOut(Nodes.Source);
         if (budget > 0)
         {
             // A budget is declared, so downscale to it. The source is a still with measured dims — refuse a zero
@@ -128,38 +129,62 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflowBase
             double f = Math.Sqrt(budget / ((double)sw * sh));
             if (f < 0.98)   // meaningfully over budget → downscale to native
             {
-                wf[SourceScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
+                g[SourceScale] = new ImageScale
                 {
-                    image = ComfyGraph.Ref(Nodes.Source, 0),
-                    upscale_method = "lanczos",
-                    width = Snap16((int)Math.Round(sw * f)),
-                    height = Snap16((int)Math.Round(sh * f)),
-                    crop = "disabled",
-                });
-                encPixels = ComfyGraph.Ref(SourceScale, 0);
+                    Image = LoadImage.ImageOut(Nodes.Source),
+                    UpscaleMethod = "lanczos",
+                    Width = Snap16((int)Math.Round(sw * f)),
+                    Height = Snap16((int)Math.Round(sh * f)),
+                    Crop = "disabled",
+                };
+                encPixels = ImageScale.Out(SourceScale);
             }
         }
 
         // Encode the (native-res) source straight to a latent — NO mask, so the whole image is re-sampled. At denoise
         // < 1 the source's own structure survives; the prompt + the checkpoint's prior restyle it.
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = encPixels, vae = vae0 });
+        g[Encode] = new VAEEncode { Pixels = encPixels, Vae = vae0 };
 
-        double dn = p.DblReq(WorkflowParamKeys.Denoise);
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        double dn = p.Denoise;
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = dn,
-            model = model0,
-            positive = posSrc,
-            negative = ComfyGraph.Ref(Negative, 0),
-            latent_image = ComfyGraph.Ref(Encode, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = dn,
+            Model = model0,
+            Positive = posSrc,
+            Negative = CLIPTextEncode.Out(Negative),
+            LatentImage = VAEEncode.Out(Encode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Img2img-redraw parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>
+/// for the typed <c>LoadModel</c>), the sampler settings and the redraw <c>denoise</c> strength (all <c>required</c>),
+/// and the optional per-model knobs: <c>required_prefix</c>/<c>negative</c> (nullable strings), <c>clip_skip</c>/
+/// <c>native_pixels</c> (Has-guarded nullable ints), and <c>guidance</c>/<c>shift</c> (nullable doubles — the node they
+/// drive is emitted only when set). <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record Img2ImgRedrawParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]         public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]    public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]       public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]          public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]            public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]        public required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]       public double? Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]          public double? Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.NativePixels)]   public int? NativePixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
 }

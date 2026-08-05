@@ -42,26 +42,21 @@ public static class Krea2Rebalance
     /// sampler when either knob is non-neutral; otherwise return <paramref name="positive"/> untouched (no node
     /// emitted). The caller owns <paramref name="nodeId"/> because the surrounding topologies differ: the txt2img
     /// base reserves "13", while the edit graphs already use "13"/"14" for their text-encodes.</summary>
-    public static object Apply(Dictionary<string, object> wf, object positive, ParamValues p, string nodeId)
+    public static Output<Slot.Conditioning> Apply(ComfyWorkflowGraph g, Output<Slot.Conditioning> positive,
+        double multiplier, string perLayerWeights, string nodeId)
     {
-        if (!IsActive(p)) return positive;
-        wf[nodeId] = ComfyGraph.Node(ComfyNodeTypes.ConditioningKrea2Rebalance, new
-        {
-            conditioning = positive,
-            multiplier = p.DblReq(WorkflowParamKeys.RebalanceMultiplier),
-            per_layer_weights = p.StrReq(WorkflowParamKeys.PerLayerWeights),
-        });
-        return ComfyGraph.Ref(nodeId, 0);
+        if (!IsActive(multiplier, perLayerWeights)) return positive;
+        g[nodeId] = new ConditioningKrea2Rebalance { Conditioning = positive, Multiplier = multiplier, PerLayerWeights = perLayerWeights };
+        return ConditioningKrea2Rebalance.Out(nodeId);
     }
 
     /// <summary>Live when the user has moved either knob off neutral: multiplier ≠ 1.0, or any per-layer weight ≠ 1.0.
     /// Both neutral (the schema defaults) keeps the emitted graph byte-identical to plain Krea 2.</summary>
-    public static bool IsActive(ParamValues p)
+    public static bool IsActive(double multiplier, string perLayerWeights)
     {
-        if (Math.Abs(p.DblReq(WorkflowParamKeys.RebalanceMultiplier) - 1.0) > 1e-6) return true;
-        string w = p.StrReq(WorkflowParamKeys.PerLayerWeights);
-        if (!string.IsNullOrWhiteSpace(w))
-            foreach (string part in w.Split(','))
+        if (Math.Abs(multiplier - 1.0) > 1e-6) return true;
+        if (!string.IsNullOrWhiteSpace(perLayerWeights))
+            foreach (string part in perLayerWeights.Split(','))
                 if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double d)
                     && Math.Abs(d - 1.0) > 1e-6) return true;
         return false;

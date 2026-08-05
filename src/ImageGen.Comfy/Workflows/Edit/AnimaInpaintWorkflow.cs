@@ -1,9 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
 /// Masked img2img INPAINT using a standard generation checkpoint (Anima). Reuses the edit rails: the source image is
 /// uploaded with the region-to-regenerate painted into its ALPHA channel, so ComfyUI's <c>LoadImage</c> (node "10",
-/// emitted by <see cref="EditWorkflowBase.LoadModel"/>) yields BOTH the RGB pixels (IMAGE, slot 0) and the mask
+/// emitted by <see cref="EditWorkflow{TParams}.LoadModel"/>) yields BOTH the RGB pixels (IMAGE, slot 0) and the mask
 /// (MASK, slot 1) from one upload — no separate mask file or request field. Only the masked region is denoised
 /// (<c>SetLatentNoiseMask</c>) at a PARTIAL denoise, so the character's identity/structure is preserved while the
 /// prompt drives the change (the target use: same character, new facial expression).
@@ -13,7 +15,7 @@ namespace ImageGen.Comfy;
 /// prefix comes from <c>required_prefix</c>, and the negative is the config default (<c>negative</c>) with the UI
 /// negative (<c>inputs.Negative</c>) appended — never replaced (see <see cref="ComfyGraph.ComposeNegative"/>).
 /// </summary>
-public sealed class AnimaInpaintWorkflow : EditWorkflowBase
+public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
 {
     public override string Name => "anima-inpaint";
 
@@ -27,7 +29,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
     /// "Denoise (source ↔ motion)" is wrong here) and re-add it as "Change amount", plus the inpaint-specific knobs.
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> InpaintSchema = SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> InpaintSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
         // Step 0.01, not the UI's 0.1 default for doubles: how far the masked region drifts is the knob you tune most
         // finely here, and 0.1 is too coarse to land between (e.g.) 0.55 and 0.65.
@@ -38,7 +40,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
         new() { Key = WorkflowParamKeys.MaskGrow,       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     }).ToArray();
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflowBase.Nodes).</summary>
+    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
     private const string ClipSkip = "19";
     private const string Positive = "13";
     private const string Negative = "14";
@@ -50,62 +52,83 @@ public sealed class AnimaInpaintWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
         // clip-skip applies only to a checkpoint's baked CLIP (Anima loads split → no-op there; kept for parity).
-        if (p.Loader() == LoaderKind.Checkpoint && p.Has(WorkflowParamKeys.ClipSkip) && p.IntReq(WorkflowParamKeys.ClipSkip) is int clipSkip && clipSkip > 0)
+        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            wf[ClipSkip] = ComfyGraph.Node(ComfyNodeTypes.CLIPSetLastLayer, new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
-            clip0 = ComfyGraph.Ref(ClipSkip, 0);
+            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
         }
 
         // Positive = quality prefix + the user's full prompt; negative = the config default with the UI negative
         // (inputs.Negative) appended — never replaced (see ComfyGraph.ComposeNegative).
-        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
+        string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
-        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prefix + inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
+        string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
+        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // Source RGB (LoadImage IMAGE, node "10") stays PRISTINE → latent, so the region outside the mask is preserved
         // and the masked region has the real pixels to partially-denoise from (identity kept, expression changed).
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(Nodes.Source, 0), vae = vae0 });
+        g[Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(Nodes.Source), Vae = vae0 };
         // Mask: a SEPARATE white-on-black image via LoadImageMask (red channel). Fallback to the source alpha only if
         // no mask image was supplied. SetLatentNoiseMask confines denoising to the masked (white) region.
-        object maskSrc;
+        Output<Slot.Mask> maskSrc;
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            wf[MaskImage] = ComfyGraph.Node(ComfyNodeTypes.LoadImageMask, new { image = inputs.MaskImageName, channel = "red" });
-            maskSrc = ComfyGraph.Ref(MaskImage, 0);
+            g[MaskImage] = new LoadImageMask { Image = inputs.MaskImageName, Channel = "red" };
+            maskSrc = LoadImageMask.Out(MaskImage);
         }
-        else maskSrc = ComfyGraph.Ref(Nodes.Source, 1);
-        int grow = p.IntReq(WorkflowParamKeys.MaskGrow);
+        else maskSrc = LoadImage.MaskOut(Nodes.Source);
+        int grow = p.MaskGrow;
         if (grow > 0)
         {
-            wf[GrowMaskNode] = ComfyGraph.Node(ComfyNodeTypes.GrowMask, new { mask = maskSrc, expand = grow, tapered_corners = true });
-            maskSrc = ComfyGraph.Ref(GrowMaskNode, 0);
+            g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
+            maskSrc = GrowMask.Out(GrowMaskNode);
         }
-        wf[NoiseMask] = ComfyGraph.Node(ComfyNodeTypes.SetLatentNoiseMask, new { samples = ComfyGraph.Ref(Encode, 0), mask = maskSrc });
+        g[NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Encode), Mask = maskSrc };
 
-        double dn = p.DblReq(WorkflowParamKeys.Denoise);
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        double dn = p.Denoise;
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = dn,
-            model = model0,
-            positive = ComfyGraph.Ref(Positive, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            latent_image = ComfyGraph.Ref(NoiseMask, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = dn,
+            Model = model0,
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            LatentImage = SetLatentNoiseMask.Out(NoiseMask),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Anima masked-inpaint parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings and the masked-region <c>denoise</c> (all
+/// <c>required</c>), the required mask grow, and the optional prefix/negative (nullable strings) + Has-guarded
+/// <c>clip_skip</c>. <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record AnimaInpaintParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]         public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]    public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]       public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]          public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]            public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]        public required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]       public required int MaskGrow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
 }

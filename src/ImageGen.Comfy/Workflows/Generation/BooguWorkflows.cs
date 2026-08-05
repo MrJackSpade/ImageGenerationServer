@@ -8,7 +8,7 @@ namespace ImageGen.Comfy;
 /// ModelSamplingAuraFlow node is wired; its configuration simply leaves the "auraflow" param unset. JSON-only model
 /// aside from this name binding.
 /// </summary>
-public sealed class BooguBaseWorkflow : Txt2ImgWorkflowBase
+public sealed class BooguBaseWorkflow : Txt2ImgWorkflow<Txt2ImgParams>
 {
     public override string Name => "boogu-base";
 }

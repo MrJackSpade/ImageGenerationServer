@@ -50,7 +50,7 @@ public sealed class WorkflowGraphTests
     /// <para>The duplication is a known wart — this has to stay in step with <c>MergeParamsDict</c> by hand, and
     /// falling out of step lets a rule like model-ref resolution be present there and missing here.</para>
     /// </summary>
-    private static ParamValues Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
+    private static IReadOnlyDictionary<string, object?> Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
     {
         Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
@@ -60,7 +60,7 @@ public sealed class WorkflowGraphTests
         // The real thing, not a copy of it. Duplicating this loop here would let it fall out of step with the
         // renderer — which is precisely how a resolution rule can be right in the tests and wrong live.
         catalog.ResolveModelRefs(wf, cfg.Id, v);
-        return new ParamValues(v);
+        return v;
     }
 
     private static string BuildJson(string configId, WorkflowInputs inputs)
@@ -70,14 +70,33 @@ public sealed class WorkflowGraphTests
         Assert.NotNull(cfg);
         IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
-        Dictionary<string, object> graph = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
-        Assert.NotEmpty(graph);
+        ComfyWorkflowGraph graph = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
+        Assert.NotEmpty(graph.Raw);
         return JsonSerializer.Serialize(graph);
     }
 
     private static WorkflowInputs Gen => new() { Positive = "a cat", Negative = "blurry", Aspect = "square" };
     private static WorkflowInputs Edit => new() { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
     private static WorkflowInputs EditMasked => new() { Positive = "make it red", SourceImageName = "src.png", MaskImageName = "mask.png", SourceWidth = 1216, SourceHeight = 832 };
+
+    [Fact]
+    public void DeflickerAuto_emits_the_typed_video_correction_graph()
+    {
+        // First workflow on the typed-graph rails (Build returns a ComfyWorkflowGraph of typed nodes). Locks the
+        // emitted JSON byte-for-byte against the hand-built graph it replaced: node ids, class_type-before-inputs,
+        // the slot-typed edges, and the literal save settings.
+        string json = BuildJson("deflicker-auto", new WorkflowInputs { SourceVideoName = "clip.webm" });
+
+        Assert.Contains("\"10\":{\"class_type\":\"LoadVideo\",\"inputs\":{\"file\":\"clip.webm\"}}", json);
+        Assert.Contains("\"11\":{\"class_type\":\"GetVideoComponents\",\"inputs\":{\"video\":[\"10\",0]}}", json);
+        // DeflickerAuto: frames from GetVideoComponents out 0, then the four robust thresholds (order preserved).
+        Assert.Contains("\"20\":{\"class_type\":\"DeflickerAuto\",\"inputs\":{\"image\":[\"11\",0],\"mad_k\":", json);
+        Assert.Contains("\"min_dev\":", json);
+        Assert.Contains("\"alpha_cut\":", json);
+        Assert.Contains("\"time_sigma\":", json);
+        // Save: images from DeflickerAuto out 0, fps from GetVideoComponents out 2 (a wired input, not a literal).
+        Assert.Contains("\"class_type\":\"SaveAnimatedWEBP\",\"inputs\":{\"images\":[\"20\",0],\"filename_prefix\":\"forgemcp_edit\",\"fps\":[\"11\",2],\"lossless\":true,\"quality\":100,\"method\":\"default\"}", json);
+    }
 
     [Fact]
     public void Catalog_loads_all_configurations()
@@ -278,7 +297,7 @@ public sealed class WorkflowGraphTests
             ["grid_w"] = 384,
             ["grid_h"] = 256,   // grid carries no schema default now — the config supplies it
         };
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), inputs));
 
         // Same V2V scaffolding, but the quantize node is the feature-preserving one (not PixelQuantize).
         Assert.Contains("\"LoadVideo\"", json);
@@ -573,7 +592,7 @@ public sealed class WorkflowGraphTests
     public void SeedVr2_scale_converts_to_a_short_edge_target_and_falls_back_without_source_dims()
     {
         SeedVr2UpscaleWorkflow wf = new SeedVr2UpscaleWorkflow();
-        ParamValues P(int scale) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object?> P(int scale) => new(StringComparer.OrdinalIgnoreCase)
         {
             ["dit_model"] = "d.gguf",
             ["vae_model"] = "v.safetensors",
@@ -587,8 +606,8 @@ public sealed class WorkflowGraphTests
             ["blocks_to_swap"] = 32,
             ["attention_mode"] = "sdpa",
             ["color_correction"] = "lab",
-        });
-        string Json(ParamValues p, WorkflowInputs i) => JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), i));
+        };
+        string Json(IReadOnlyDictionary<string, object?> p, WorkflowInputs i) => JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), i));
 
         // Portrait source: the SHORT edge drives it (832), not the long one.
         Assert.Contains("\"resolution\":832", Json(P(1), Edit));
@@ -617,7 +636,7 @@ public sealed class WorkflowGraphTests
         // The upstream node caps seed at 2^32-1, unlike ComfyUI's samplers. Passing the app's 64-bit seed straight
         // through makes ComfyUI reject the whole prompt: "Value 2709052392662243722 bigger than max of 4294967295".
         SeedVr2UpscaleWorkflow wf = new SeedVr2UpscaleWorkflow();
-        ParamValues P(long seed) => new(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object?> P(long seed) => new(StringComparer.OrdinalIgnoreCase)
         {
             ["dit_model"] = "d.gguf",
             ["vae_model"] = "v.safetensors",
@@ -632,12 +651,12 @@ public sealed class WorkflowGraphTests
             ["blocks_to_swap"] = 32,
             ["attention_mode"] = "sdpa",
             ["color_correction"] = "lab",
-        });
+        };
         long SeedOf(long s)
         {
-            Dictionary<string, object> graph = wf.Build(P(s), new ResolvedRequirements(), Edit);
-            JsonElement inputs = JsonSerializer.SerializeToElement(((Dictionary<string, object>)graph["32"])["inputs"]);
-            return inputs.GetProperty("seed").GetInt64();
+            ComfyWorkflowGraph graph = wf.Build(P(s), new ResolvedRequirements(), Edit);
+            using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
+            return doc.RootElement.GetProperty("32").GetProperty("inputs").GetProperty("seed").GetInt64();
         }
 
         // The seed that overflows the cap, and the extremes.
@@ -749,13 +768,13 @@ public sealed class WorkflowGraphTests
         // Guards the ratio arithmetic in both directions: a 2x net asked for 4x must resample UP by 2.0 after the
         // SR pass (not silently clamp, and not skip the node as if it were native).
         UpscaleWorkflow wf = new UpscaleWorkflow();
-        ParamValues p = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object?> p = new(StringComparer.OrdinalIgnoreCase)
         {
             ["upscale_model"] = "anime-sharp-v2-rplksr-sharp-2x.safetensors",
             ["model_scale"] = 2.0,
             ["scale"] = 4,
             ["resample"] = "lanczos",
-        });
+        };
         string json = JsonSerializer.Serialize(wf.Build(p, new ResolvedRequirements(), Edit));
         Assert.Contains("\"ImageScaleBy\"", json);
         Assert.Contains("\"scale_by\":2", json);
@@ -814,27 +833,18 @@ public sealed class WorkflowGraphTests
         // Neutral knobs emit no node at all — the graph stays byte-identical to plain Krea 2. Guards the shared helper
         // now that the txt2img base, the refiner, and the Turbo redraw all route through it.
         Krea2RedrawWorkflow wf = new Krea2RedrawWorkflow();
-        ParamValues neutral = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["rebalance_multiplier"] = 1.0,
-            ["per_layer_weights"] = Krea2Rebalance.NeutralWeights,
-        });
-        Assert.False(Krea2Rebalance.IsActive(neutral));
+        Assert.False(Krea2Rebalance.IsActive(1.0, Krea2Rebalance.NeutralWeights));
 
-        Dictionary<string, object> graph = new Dictionary<string, object>();
-        object positive = ComfyGraph.Ref("13", 0);
-        Assert.Same(positive, Krea2Rebalance.Apply(graph, positive, neutral, "15"));
-        Assert.Empty(graph);
+        ComfyWorkflowGraph graph = new ComfyWorkflowGraph();
+        Output<Slot.Conditioning> positive = new Output<Slot.Conditioning>("13", 0);
+        Assert.Equal(positive, Krea2Rebalance.Apply(graph, positive, 1.0, Krea2Rebalance.NeutralWeights, "15"));
+        Assert.Empty(graph.Raw);
 
         // ...and a single non-neutral layer weight is enough to switch it on.
-        ParamValues oneLayerHot = new ParamValues(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["rebalance_multiplier"] = 1.0,
-            ["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0",
-        });
-        Assert.True(Krea2Rebalance.IsActive(oneLayerHot));
-        Assert.NotSame(positive, Krea2Rebalance.Apply(graph, positive, oneLayerHot, "15"));
-        Assert.True(graph.ContainsKey("15"));
+        const string oneLayerHot = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.0,1.0,1.0,1.0";
+        Assert.True(Krea2Rebalance.IsActive(1.0, oneLayerHot));
+        Assert.NotEqual(positive, Krea2Rebalance.Apply(graph, positive, 1.0, oneLayerHot, "15"));
+        Assert.True(graph.Raw.ContainsKey("15"));
         Assert.Contains("denoise", wf.Schema.Select(s => s.Key));
     }
 
@@ -929,7 +939,7 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left"] = 256; v["pad_right"] = 256;
         WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), inputs));
 
         Assert.Contains("\"ImagePadForOutpaint\"", json);
         Assert.Contains("\"feathering\":0", json);       // softening happens once, in the mask chain
@@ -1024,32 +1034,36 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left"] = 256; v["pad_right"] = 256;
         WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1024, SourceHeight = 1024 };
-        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs);
+        ComfyWorkflowGraph graph = wf.Build(v, catalog.Resolve(cfg), inputs);
         string json = JsonSerializer.Serialize(graph);
+        using JsonDocument gdoc = JsonDocument.Parse(json);
+        string? ClassType(string id) => gdoc.RootElement.GetProperty(id).GetProperty("class_type").GetString();
+        // A node's inputs, serialized by its RUNTIME record type (graph.Raw[id] is statically ComfyNode).
+        string Node(string id) => JsonSerializer.Serialize(graph.Raw[id], graph.Raw[id].GetType());
 
         Assert.DoesNotContain("FeatherMask", json);              // the node that would cause it
         Assert.Contains("\"ImageBlur\"", json);                  // blur the mask's own boundary instead
 
         // The pad node must not ALSO feather, or the softening stacks into a wide partial-denoise band (mushy seam).
-        Assert.Contains("\"feathering\":0", JsonSerializer.Serialize(graph["20"]));
+        Assert.Contains("\"feathering\":0", Node("20"));
 
         // Every consumer of the CANVAS takes the pre-filled scene-tone one (node 23), never ImagePadForOutpaint's
         // grey canvas (node 20 output 0, kept only for its mask): the VAE encode, the ControlNet apply's control
         // image, and the composite's destination. Grey under any soft mask edge = the halo.
-        Assert.Contains("\"23\"", JsonSerializer.Serialize(graph["12"]));   // VAEEncode
-        Assert.Contains("\"23\"", JsonSerializer.Serialize(graph["108"]));  // ControlNet control image
-        Assert.Contains("\"23\"", JsonSerializer.Serialize(graph["126"])); // composite destination
+        Assert.Contains("\"23\"", Node("12"));   // VAEEncode
+        Assert.Contains("\"23\"", Node("108"));  // ControlNet control image
+        Assert.Contains("\"23\"", Node("126")); // composite destination
         // The scaffold: stretch to the padded size, blur, paste the original back at its pad offset.
-        Assert.Contains("\"ImageScale\"", JsonSerializer.Serialize(graph["21"]));
-        Assert.Contains("\"ImageBlur\"", JsonSerializer.Serialize(graph["22"]));
-        Assert.Contains("\"x\":256", JsonSerializer.Serialize(graph["23"])); // original pasted back at its pad offset
+        Assert.Equal("ImageScale", ClassType("21"));
+        Assert.Equal("ImageBlur", ClassType("22"));
+        Assert.Contains("\"x\":256", Node("23")); // original pasted back at its pad offset
 
         // Outpaint's ramp: sigma 8 (not the template's 1) keeps SetLatentNoiseMask's latent-space blend from landing
         // inside a single 8px cell and decoding as a hard 1px line along the frame-spanning join (measured: a lone
         // ~63 gradient column with a near-binary mask). Grow 16 = 2σ places the 50% blend point 16px inside the
         // original with the descent starting right at the pad boundary.
-        Assert.Contains("\"expand\":16", JsonSerializer.Serialize(graph["30"]));
-        string blurNode = JsonSerializer.Serialize(graph["33"]);
+        Assert.Contains("\"expand\":16", Node("30"));
+        string blurNode = Node("33");
         Assert.Contains("\"blur_radius\":31", blurNode);
         Assert.Contains("\"sigma\":8", blurNode);
 
@@ -1057,22 +1071,22 @@ public sealed class WorkflowGraphTests
         // ImagePadForOutpaint mask). ANY deficit below 1 over the grey pad leaks 0.5-grey into that column through
         // the latent re-injection and the composite: measured seam columns of 51/34/10 as the unclamped gaussian's
         // boundary value went 0.933/0.977/0.9987, seam-free only with a hard 1 there.
-        string clamp = JsonSerializer.Serialize(graph["35"]);
-        Assert.Contains("\"MaskComposite\"", clamp);
+        string clamp = Node("35");
+        Assert.Equal("MaskComposite", ClassType("35"));
         Assert.Contains("\"add\"", clamp);
         Assert.Contains("\"20\"", clamp);                                   // clamped against the RAW pad mask
 
         // Every mask consumer takes the SAME softened+clamped mask: the ControlNet apply, SetLatentNoiseMask and the
         // composite. Splitting any of them off fails: a raw mask to the ControlNet dirties the seam; a raw mask to the
         // composite hard-switches on pixels the ControlNet is blind to, so the extension doesn't line up.
-        Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["108"]));  // ControlNet gets the SOFTENED mask
-        Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["31"]));   // latent noise mask: same softened mask
-        Assert.Contains("\"35\"", JsonSerializer.Serialize(graph["126"])); // composite: same softened mask
+        Assert.Contains("\"35\"", Node("108"));  // ControlNet gets the SOFTENED mask
+        Assert.Contains("\"35\"", Node("31"));   // latent noise mask: same softened mask
+        Assert.Contains("\"35\"", Node("126")); // composite: same softened mask
 
         // The sampler goes through SetLatentNoiseMask — the exposure anchor. Without it (template outpaint branch,
         // VAEEncode straight in) the ControlNet anchors structure but not tone, and the measured side panels come
         // out ~15 RGB brighter than the frame they extend (the "color balance" halo).
-        Assert.Contains("\"31\"", JsonSerializer.Serialize(graph["3"]));
+        Assert.Contains("\"31\"", Node("3"));
     }
 
     [Fact]
@@ -1121,7 +1135,7 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
         v["pad_left"] = 600; v["pad_right"] = 600;
         WorkflowInputs inputs = new WorkflowInputs { Positive = "wider", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), inputs));
         // 1216 + 600 + 600 = 2416 wide > 1536, so it scales even though the SOURCE alone was under the ceiling.
         Assert.Contains("\"ImageScale\"", json);
         Assert.Contains("\"width\":1536", json);
@@ -1267,7 +1281,7 @@ public sealed class WorkflowGraphTests
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
-        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
+        ComfyWorkflowGraph graph = wf.Build(v, catalog.Resolve(cfg), Edit);   // Edit = 1216×832
 
         using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
         JsonElement root = doc.RootElement;
@@ -1318,7 +1332,7 @@ public sealed class WorkflowGraphTests
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["mask_left_pct"] = l; v["mask_right_pct"] = r; v["mask_top_pct"] = t; v["mask_bottom_pct"] = b;
-        Assert.ThrowsAny<ArgumentException>(() => wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit));
+        Assert.ThrowsAny<ArgumentException>(() => wf.Build(v, catalog.Resolve(cfg), Edit));
     }
 
     [Fact]
@@ -1519,7 +1533,7 @@ public sealed class WorkflowGraphTests
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["pad_left_pct"] = l; v["pad_right_pct"] = r; v["pad_top_pct"] = t; v["pad_bottom_pct"] = b;
-        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Edit);   // Edit = 1216×832
+        ComfyWorkflowGraph graph = wf.Build(v, catalog.Resolve(cfg), Edit);   // Edit = 1216×832
 
         using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
         JsonElement root = doc.RootElement;
@@ -1610,7 +1624,7 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 1.0;
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0";
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), Gen));
         Assert.Contains("\"type\":\"krea2\"", json);
         Assert.Contains("krea2-turbo.safetensors", json);
         Assert.DoesNotContain("ConditioningKrea2Rebalance", json);
@@ -1649,7 +1663,7 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 2.0;
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0";
-        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen);
+        ComfyWorkflowGraph graph = wf.Build(v, catalog.Resolve(cfg), Gen);
 
         using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
         JsonElement root = doc.RootElement;
@@ -1680,7 +1694,7 @@ public sealed class WorkflowGraphTests
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["rebalance_multiplier"] = 1.0;   // force neutral multiplier (the config now bakes 4.0) to isolate weights-only
         v["per_layer_weights"] = "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0";
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), Gen));
         Assert.Contains("ConditioningKrea2Rebalance", json);
         Assert.Contains("\"multiplier\":1", json);
     }
@@ -1731,7 +1745,7 @@ public sealed class WorkflowGraphTests
         // Mirrors ComfyClient.MergeParamsDict: this machine's settings sit over the shipped configuration.
         foreach (KeyValuePair<string, JsonElement> kv in catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
         v["steps"] = 42;   // an override
-        string json = JsonSerializer.Serialize(wf.Build(new ParamValues(v), catalog.Resolve(cfg), Gen));
+        string json = JsonSerializer.Serialize(wf.Build(v, catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":42", json);
     }
 
@@ -1759,9 +1773,8 @@ public sealed class WorkflowGraphTests
         v["width"] = 0; v["height"] = 0;
         v["reference"] = 80; v["virtual_resolution"] = 256; v["snap_resolution"] = true;
         v["loader"] = "unet_gguf"; v["grid_w"] = 384; v["grid_h"] = 256;                 // grid_w/h carry no schema default
-        ParamValues pv = new ParamValues(v);
         WorkflowInputs inputs = new WorkflowInputs { SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 };
-        Dictionary<string, object> graph = wf.Build(pv, req, inputs);
+        ComfyWorkflowGraph graph = wf.Build(v, req, inputs);
 
         using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(graph));
         JsonElement root = doc.RootElement;

@@ -67,7 +67,7 @@ public sealed class LiveComfySmokeTests
             Aspect = "square",
             SourceImageName = srcName,
         };
-        Dictionary<string, object> graph = wf.Build(new ParamValues(v), catalog.Resolve(cfg), inputs);
+        ComfyWorkflowGraph graph = wf.Build(v, catalog.Resolve(cfg), inputs);
 
         string body = JsonSerializer.Serialize(new { prompt = graph, client_id = "smoke-" + id });
         HttpResponseMessage resp = await http.PostAsync("/prompt", new StringContent(body, Encoding.UTF8, "application/json"));

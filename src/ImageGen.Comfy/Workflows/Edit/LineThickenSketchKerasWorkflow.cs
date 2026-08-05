@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -8,7 +9,7 @@ namespace ImageGen.Comfy;
 /// the input size; the lines are boldened with <c>LineThicken</c> and multiplied over the source so
 /// only the extracted lines darken. No diffusion checkpoint.
 /// </summary>
-public sealed class LineThickenSketchKerasWorkflow : EditWorkflowBase
+public sealed class LineThickenSketchKerasWorkflow : EditWorkflow<LineThickenSketchKerasParams>
 {
     public override string Name => "line-thicken-sketchkeras";
     public override bool PreservesComposition => true;
@@ -27,24 +28,33 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflowBase
     private const string Blend = "22";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(LineThickenSketchKerasParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = source },
         };
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
         // Extract lines as dark-on-white (already at input size), bolden, multiply over the source.
-        wf[Lineart] = ComfyGraph.Node(ComfyNodeTypes.SketchKerasLines, new { image = src, threshold = p.DblReq(WorkflowParamKeys.Threshold) });
-        wf[Thicken] = ComfyGraph.Node(ComfyNodeTypes.LineThicken, new { image = ComfyGraph.Ref(Lineart, 0), thickness = p.IntReq(WorkflowParamKeys.Thickness) });
-        wf[Blend] = ComfyGraph.Node(ComfyNodeTypes.ImageBlend, new
+        g[Lineart] = new SketchKerasLines { Image = src, Threshold = p.Threshold };
+        g[Thicken] = new LineThicken { Image = SketchKerasLines.Out(Lineart), Thickness = p.Thickness };
+        g[Blend] = new ImageBlend
         {
-            image1 = src,
-            image2 = ComfyGraph.Ref(Thicken, 0),
-            blend_factor = 1.0,
-            blend_mode = "multiply",
-        });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Blend, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Image1 = src,
+            Image2 = LineThicken.Out(Thicken),
+            BlendFactor = 1.0,
+            BlendMode = "multiply",
+        };
+        g[Save] = new SaveImage { Images = ImageBlend.Out(Blend), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>The sketchKeras thickener's parameters. <c>required</c> so an absent value throws at the deserializer
+/// (the declarative form of the previous <c>IntReq</c>/<c>DblReq</c> reads).</summary>
+public sealed record LineThickenSketchKerasParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Thickness)] public required int Thickness { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Threshold)] public required double Threshold { get; init; }
 }

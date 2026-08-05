@@ -1,4 +1,27 @@
+using System.Text.Json.Serialization;
+
 namespace ImageGen.Comfy;
+
+/// <summary>Krea 2 redraw parameters: the shared edit loader-head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings and the polish <c>denoise</c> strength (all
+/// <c>required</c>), Krea 2's per-layer conditioning rebalance (<c>rebalance_multiplier</c> + <c>per_layer_weights</c>),
+/// the optional base-model <c>lora</c>, and the app's single-sourced <c>seed</c>.</summary>
+public sealed record Krea2RedrawParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]             public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]        public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]           public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]              public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]                public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]            public required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)] public required double Multiplier { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)]    public required string PerLayerWeights { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lora)]              public string? Lora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)]      public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]              public long Seed { get; init; }
+}
 
 /// <summary>
 /// Whole-image "polish / redraw" on <b>Krea 2 Turbo</b>: take ANY existing image — typically one another model
@@ -8,7 +31,7 @@ namespace ImageGen.Comfy;
 /// This is the second stage of <see cref="Krea2RefineWorkflow"/> lifted onto the edit rails. There, stage 1 renders a
 /// latent on the Krea 2 RAW base and passes it straight to Turbo (no VAE round-trip, both share the Qwen-Image/Wan2.1
 /// VAE). Here the source image REPLACES that base render: it is uploaded and loaded via <c>LoadImage</c> (node "10",
-/// emitted by <see cref="EditWorkflowBase.LoadModel"/>), VAE-encoded to a latent, and re-sampled with NO mask — so
+/// emitted by <see cref="EditWorkflow{TParams}.LoadModel"/>), VAE-encoded to a latent, and re-sampled with NO mask — so
 /// the whole frame is polished, from the source's own structure, at whatever model produced it. Only the Turbo weight
 /// is loaded (no RAW base), so this is the cheap single-pass member of the Krea 2 family.
 ///
@@ -23,7 +46,7 @@ namespace ImageGen.Comfy;
 /// holds up to 2K, and a polish pass whose whole purpose is to preserve the incoming image has no business resampling
 /// it. Equivalently: that workflow's <c>native_pixels</c> budget is 0 here.
 /// </summary>
-public sealed class Krea2RedrawWorkflow : EditWorkflowBase
+public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
 {
     public override string Name => "krea2-redraw";
 
@@ -36,7 +59,7 @@ public sealed class Krea2RedrawWorkflow : EditWorkflowBase
     /// <summary>Drop the shared <c>denoise</c> (its "source ↔ motion" label and 0 default are wrong here) and re-add it
     /// as the polish strength, plus Krea 2's rebalance knobs. Step 0.01 so the 0.35 default is reachable.</summary>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
-    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.1, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
@@ -45,7 +68,7 @@ public sealed class Krea2RedrawWorkflow : EditWorkflowBase
                      + "than the source)." },
     }).Concat(Krea2Rebalance.Schema).ToArray();
 
-    /// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses EditWorkflowBase.Nodes.</summary>
+    /// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses <see cref="EditWorkflow{TParams}.Nodes"/>.</summary>
     private const string Encode = "12";
     private const string Positive = "13";
     private const string Negative = "14";
@@ -54,36 +77,36 @@ public sealed class Krea2RedrawWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(Krea2RedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
-        model0 = ComfyGraph.ApplyLora(wf, model0, p);                                 // optional style/quality LoRA
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
+        model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);                                 // optional style/quality LoRA
 
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clip0 });
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
         // Node ids 13/14 are the text-encodes on the edit rails, so the rebalance splices in at "15".
-        object posSrc = Krea2Rebalance.Apply(wf, ComfyGraph.Ref(Positive, 0), p, Rebalance);
+        Output<Slot.Conditioning> posSrc = Krea2Rebalance.Apply(g, CLIPTextEncode.Out(Positive), p.Multiplier, p.PerLayerWeights, Rebalance);
 
         // Source RGB → latent at its native resolution. NO mask, so the whole frame is re-sampled; at denoise < 1 the
         // source's own structure survives and Turbo reworks the texture over it.
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(Nodes.Source, 0), vae = vae0 });
+        g[Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(Nodes.Source), Vae = vae0 };
 
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = p.DblReq(WorkflowParamKeys.Denoise),
-            model = model0,
-            positive = posSrc,
-            negative = ComfyGraph.Ref(Negative, 0),
-            latent_image = ComfyGraph.Ref(Encode, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = p.Denoise,
+            Model = model0,
+            Positive = posSrc,
+            Negative = CLIPTextEncode.Out(Negative),
+            LatentImage = VAEEncode.Out(Encode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
 }

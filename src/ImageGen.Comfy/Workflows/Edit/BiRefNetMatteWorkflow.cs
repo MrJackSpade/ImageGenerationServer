@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -9,9 +10,12 @@ namespace ImageGen.Comfy;
 /// <c>LoadImage → BiRefNetMatte → SaveImage</c>; the RGBA output saves as PNG so the alpha survives. No checkpoint
 /// (the node loads its own model), so it must not be hidden by the catalog's no-model guard. Composition-preserving.
 /// </summary>
-public sealed class BiRefNetMatteWorkflow : EditWorkflowBase
+public sealed class BiRefNetMatteWorkflow : Workflow<MatteParams>
 {
     public override string Name => "birefnet-matte";
+    public override WorkflowKind Kind => WorkflowKind.Edit;
+    public override WorkflowMedia Media => WorkflowMedia.Image;
+    public override bool PromptDirectsMotion => true;
     public override bool PreservesComposition => true;
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => MatteSchema;
@@ -21,19 +25,44 @@ public sealed class BiRefNetMatteWorkflow : EditWorkflowBase
         new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
     };
 
-    /// <summary>This workflow's own nodes (Source "10" comes from EditWorkflowBase.Nodes).</summary>
-    private const string Matte = "20";
-    private const string Save = "9";
+    /// <summary>This graph's node ids, named by role. Values are the graph-local keys, preserved exactly so the
+    /// emitted graph stays byte-identical.</summary>
+    private static class Nodes
+    {
+        public const string Source = "10";
+        public const string Matte = "20";
+        public const string Save = "9";
+    }
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(MatteParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // No flatten-on-white: the matte wants the source verbatim (mirrors the video matte, which feeds frames as-is).
-        return new Dictionary<string, object>
+        return new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The matte needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage
+            {
+                Image = inputs.SourceImageName ?? throw new RenderValidationException("The matte needs a source image, but none was provided."),
+            },
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha); SaveImage writes PNG, which keeps the alpha.
-            [Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Source, 0), threshold = p.DblReq(WorkflowParamKeys.Threshold) }),
-            [Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Matte, 0), filename_prefix = "forgemcp_edit" }),
+            [Nodes.Matte] = new BiRefNetMatte
+            {
+                Image = LoadImage.ImageOut(Nodes.Source),
+                Threshold = p.Threshold,
+            },
+            [Nodes.Save] = new SaveImage
+            {
+                Images = BiRefNetMatte.Out(Nodes.Matte),
+                FilenamePrefix = "forgemcp_edit",
+            },
         };
     }
+}
+
+/// <summary>The BiRefNet matte's parameters, deserialized from the merged bag before <c>Build</c> — just the alpha
+/// cutoff. Shared by the still (<see cref="BiRefNetMatteWorkflow"/>) and video (<see cref="BiRefNetMatteVideoWorkflow"/>)
+/// mattes, which take the same one input. <c>required</c> so an absent value throws at the deserializer (the
+/// declarative form of the previous <c>DblReq</c> read).</summary>
+public sealed record MatteParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Threshold)] public required double Threshold { get; init; }
 }

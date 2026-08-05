@@ -23,15 +23,15 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
 
     private const string Mask = "11";
 
-    protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
-        out object image, out object rawMask)
+    protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
+        out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        image = ComfyGraph.Ref(Nodes.Source, 0);
+        image = LoadImage.ImageOut(Nodes.Source);
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            wf[Mask] = ComfyGraph.Node(ComfyNodeTypes.LoadImageMask, new { image = inputs.MaskImageName, channel = "red" });
-            rawMask = ComfyGraph.Ref(Mask, 0);
+            g[Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = "red" };
+            rawMask = LoadImageMask.Out(Mask);
         }
-        else rawMask = ComfyGraph.Ref(Nodes.Source, 1);   // source alpha
+        else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha
     }
 }

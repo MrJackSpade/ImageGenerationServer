@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
 
@@ -23,7 +24,7 @@ namespace ImageGen.Comfy;
 /// DiT offloading to system RAM, and tiled VAE encode/decode. Those are memory-fit settings, not quality caps —
 /// every one of them is a locked config param, not a hard-coded constant, and none of them bound the output size.
 /// </summary>
-public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
+public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
 {
     public override string Name => "seedvr2-upscale";
 
@@ -78,50 +79,51 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
     private const string Upscale = "32";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(SeedVr2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        string device = p.StrReq(WorkflowParamKeys.Device);
-        string offload = p.StrReq(WorkflowParamKeys.OffloadDevice);
-        bool tiled = p.Bool(WorkflowParamKeys.VaeTiled);
-        int tile = p.IntReq(WorkflowParamKeys.VaeTileSize);
-        int overlap = p.IntReq(WorkflowParamKeys.VaeTileOverlap);
+        string device = p.Device;
+        string offload = p.OffloadDevice;
+        bool tiled = p.VaeTiled;
+        int tile = p.VaeTileSize;
+        int overlap = p.VaeTileOverlap;
 
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = source },
 
             // The DiT, with BlockSwap parked on the offload device so the 3B weights don't have to sit in VRAM whole.
-            [Dit] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2LoadDiTModel, new
+            [Dit] = new SeedVR2LoadDiTModel
             {
-                model = p.Model(WorkflowParamKeys.DitModel),
-                device,
-                blocks_to_swap = p.IntReq(WorkflowParamKeys.BlocksToSwap),
-                swap_io_components = p.Bool(WorkflowParamKeys.SwapIoComponents),
-                offload_device = offload,
-                cache_model = p.Bool(WorkflowParamKeys.CacheModel),
-                attention_mode = p.StrReq(WorkflowParamKeys.AttentionMode),
-            }),
+                Model = p.DitModel,
+                Device = device,
+                BlocksToSwap = p.BlocksToSwap,
+                SwapIoComponents = p.SwapIoComponents,
+                OffloadDevice = offload,
+                CacheModel = p.CacheModel,
+                AttentionMode = p.AttentionMode,
+            },
 
             // The VAE, tiled on both ends: a full-frame encode/decode is its own VRAM spike, independent of the DiT.
-            [Vae] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2LoadVAEModel, new
+            [Vae] = new SeedVR2LoadVAEModel
             {
-                model = p.Model(WorkflowParamKeys.VaeModel),
-                device,
-                encode_tiled = tiled,
-                encode_tile_size = tile,
-                encode_tile_overlap = overlap,
-                decode_tiled = tiled,
-                decode_tile_size = tile,
-                decode_tile_overlap = overlap,
-                offload_device = offload,
-                cache_model = p.Bool(WorkflowParamKeys.CacheModel),
-            }),
+                Model = p.VaeModel,
+                Device = device,
+                EncodeTiled = tiled,
+                EncodeTileSize = tile,
+                EncodeTileOverlap = overlap,
+                DecodeTiled = tiled,
+                DecodeTileSize = tile,
+                DecodeTileOverlap = overlap,
+                OffloadDevice = offload,
+                CacheModel = p.CacheModel,
+            },
         };
 
         // SeedVR2's seed input is a UINT32 (max 4294967295); the app's single-sourced seed is 64-bit, so passing it
         // straight through makes ComfyUI reject the whole prompt with value_bigger_than_max. Fold it into range
         // deterministically -- the same image seed always yields the same SeedVR2 seed, so a re-run reproduces.
-        long seed = (long)(unchecked((ulong)ComfyGraph.Seed(p)) % (SeedVr2SeedMax + 1UL));
+        long seed = (long)(unchecked((ulong)ComfyGraph.Seed(p.Seed)) % (SeedVr2SeedMax + 1UL));
 
         // The node sizes by TARGET SHORT EDGE, not by a multiplier, so turn the scale the UI offers into one:
         // short_edge(source) * scale, aspect preserved by the node. Snapped to even (the node's step).
@@ -129,7 +131,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         // ComfyUI rejects the entire prompt at validation -- so clamp to the ceiling rather than emit a certain 400.
         // Unreachable in practice: it takes a >4096px short edge at 4x to get there.
         const int NodeResMin = 16, NodeResMax = 16384;
-        int scale = p.IntReq(WorkflowParamKeys.Scale);
+        int scale = p.Scale;
         Ensure.GreaterThanZero(scale);
         // The source is a still, so its dimensions are ALWAYS measured — a zero is a broken source to refuse, not a
         // state to substitute a fixed short edge for.
@@ -137,21 +139,44 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflowBase
         int resolution = Math.Clamp((Math.Min(sw, sh) * scale + 1) / 2 * 2, NodeResMin, NodeResMax);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
-        wf[Upscale] = ComfyGraph.Node(ComfyNodeTypes.SeedVR2VideoUpscaler, new
+        g[Upscale] = new SeedVR2VideoUpscaler
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            dit = ComfyGraph.Ref(Dit, 0),
-            vae = ComfyGraph.Ref(Vae, 0),
-            seed,
-            resolution,
-            max_resolution = p.IntReq(WorkflowParamKeys.MaxResolution),
-            batch_size = p.IntReq(WorkflowParamKeys.BatchSize),
-            uniform_batch_size = false,
-            color_correction = p.StrReq(WorkflowParamKeys.ColorCorrection),
-            offload_device = offload,
-        });
+            Image = LoadImage.ImageOut(Nodes.Source),
+            Dit = SeedVR2LoadDiTModel.Out(Dit),
+            Vae = SeedVR2LoadVAEModel.Out(Vae),
+            Seed = seed,
+            Resolution = resolution,
+            MaxResolution = p.MaxResolution,
+            BatchSize = p.BatchSize,
+            UniformBatchSize = false,
+            ColorCorrection = p.ColorCorrection,
+            OffloadDevice = offload,
+        };
 
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Upscale, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+        g[Save] = new SaveImage { Images = SeedVR2VideoUpscaler.Out(Upscale), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>SeedVR2 restore/upscale parameters — the DiT/VAE model refs, sizing, colour match, and memory-fit knobs.
+/// The <c>*Req</c>-read values are <c>required</c>; the three boolean toggles keep their false default; <c>seed</c> is
+/// the app's single-sourced generation seed (folded into the node's uint32 range in Build).</summary>
+public sealed record SeedVr2Params
+{
+    [JsonPropertyName(WorkflowParamKeys.DitModel)]        public required string DitModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VaeModel)]        public required string VaeModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scale)]           public required int Scale { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxResolution)]   public required int MaxResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ColorCorrection)] public required string ColorCorrection { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Device)]          public required string Device { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.OffloadDevice)]   public required string OffloadDevice { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.AttentionMode)]   public required string AttentionMode { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BlocksToSwap)]    public required int BlocksToSwap { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SwapIoComponents)] public bool SwapIoComponents { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CacheModel)]      public bool CacheModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VaeTiled)]        public bool VaeTiled { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VaeTileSize)]     public required int VaeTileSize { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VaeTileOverlap)]  public required int VaeTileOverlap { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BatchSize)]       public required int BatchSize { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]            public long Seed { get; init; }
 }

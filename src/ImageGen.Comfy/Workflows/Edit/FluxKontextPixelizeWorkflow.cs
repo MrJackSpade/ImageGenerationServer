@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Pixelizer on FLUX.1-Kontext. Mirrors the Kontext edit graph (CLIP encode → ReferenceLatent on the
@@ -7,7 +9,7 @@
 /// and renders the authoritative output with a final <c>PixelQuantize</c>. Virtual resolution sets the
 /// sprite's pixel count independent of Kontext's render bucket.
 /// </summary>
-public sealed class FluxKontextPixelizeWorkflow : EditWorkflowBase
+public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixelizeParams>
 {
     public override string Name => "pixelize-kontext";
     public override bool PreservesComposition => true;
@@ -27,46 +29,79 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflowBase
     private const string Quantize = "36";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(FluxKontextPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4/5/6 + LoadImage 10
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // 4/5/6 + LoadImage 10
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
-        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
-        if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
-        int gw = p.IntReq(WorkflowParamKeys.GridW);
-        int gh = p.IntReq(WorkflowParamKeys.GridH);
-        string palette = p.StrReq(WorkflowParamKeys.Palette);
-        int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
+        string instruction = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
+        int gw = p.GridW;
+        int gh = p.GridH;
+        string palette = p.Palette;
+        int vres = p.VirtualResolution;
 
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = instruction, clip = clip0 });
-        (int w, int h)? snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
-        wf[Scale] = snap is { } s
+        g[Positive] = new CLIPTextEncode { Text = instruction, Clip = clip0 };
+        (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);   // override the Kontext bucket with the clean k×VRES size when on
+        g[Scale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = src });
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(Scale, 0), vae = vae0 });
-        wf[RefLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Positive, 0), latent = ComfyGraph.Ref(Encode, 0) });
-        wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(RefLatent, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
-        wf[NegativeZero] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = ComfyGraph.Ref(Positive, 0) });
+            : new FluxKontextImageScale { Image = src };
+        g[Encode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Scale), Vae = vae0 };
+        g[RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Positive), Latent = VAEEncode.Out(Encode) };
+        g[Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(RefLatent), Guidance = p.Guidance };
+        g[NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
 
-        wf[Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p);
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Projection] = PixelizeSchema.Projection(model0, vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = PixelSnap.Denoise(p, 0),   // reference% -> denoise; 0 (default) == 1.0 == regenerate from the source ref
-            model = ComfyGraph.Ref(Projection, 0),
-            positive = ComfyGraph.Ref(Guidance, 0),
-            negative = ComfyGraph.Ref(NegativeZero, 0),
-            latent_image = ComfyGraph.Ref(Encode, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Quantize] = PixelizeSchema.FinalQuantize(ComfyGraph.Ref(Decode, 0), gw, gh, palette, vres, p);
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Quantize, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = PixelSnap.Denoise(p.Reference, 0),   // reference% -> denoise; 0 (default) == 1.0 == regenerate from the source ref
+            Model = PixelManifoldProjection.Out(Projection),
+            Positive = FluxGuidance.Out(Guidance),
+            Negative = ConditioningZeroOut.Out(NegativeZero),
+            LatentImage = VAEEncode.Out(Encode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Quantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Flux.1-Kontext pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings + distilled <c>guidance</c>, the
+/// grid/palette/virtual-resolution + the projection ramp. <c>weight_dtype</c>/<c>clip_type</c>/<c>style_prompt</c> are
+/// nullable strings; <c>reference</c>/<c>width</c>/<c>height</c> are defaulted ints (reference read via the denoise
+/// map, not <c>required</c>), <c>snap_resolution</c> a defaulted bool; <c>seed</c> is the app's single-sourced seed.</summary>
+public sealed record FluxKontextPixelizeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]            public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]       public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]          public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]             public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]               public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]          public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]           public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]         public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Reference)]         public int? Reference { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SnapResolution)]    public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjMethod)]        public required string ProjMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public required string FinalMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WStart)]            public required double WStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WEnd)]              public required double WEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StartPercent)]      public required double StartPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPercent)]        public required double EndPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]      public required int ProjectEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]              public long Seed { get; init; }
 }

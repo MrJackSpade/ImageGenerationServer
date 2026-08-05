@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -10,7 +11,7 @@ namespace ImageGen.Comfy;
 /// <c>PixelManifoldProjection</c>, via PixelHarness <c>quant</c>). A final <c>PixelQuantize</c> renders the
 /// authoritative output. <see cref="RequiresModel"/> = false (the pipeline loads its own weights).
 /// </summary>
-public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
+public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2PixelizeParams>
 {
     public override string Name => "pixelize-dreamomni2";
     public override bool PreservesComposition => true;
@@ -20,66 +21,93 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflowBase
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.DreamOmniLike(PixelizeSchema.DefaultPixelPrompt);
 
-    /// <summary>This subclass's own node ids (the source LoadImage reuses EditWorkflowBase.Nodes.Source).</summary>
+    /// <summary>This subclass's own node ids (the source LoadImage reuses <c>Nodes.Source</c>).</summary>
     private const string Reference = "11";
     private const string Pipeline = "1";
     private const string Editor = "2";
     private const string FinalQuantize = "36";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(DreamOmni2PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
-        object refImg;
+        Output<Slot.Image> refImg;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        if (refNames.Count > 0) { wf[Reference] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[0] }); refImg = ComfyGraph.Ref(Reference, 0); }
-        else refImg = ComfyGraph.Ref(Nodes.Source, 0);   // Editor requires a reference; the source doubles as its own.
+        if (refNames.Count > 0) { g[Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Reference); }
+        else refImg = LoadImage.ImageOut(Nodes.Source);   // Editor requires a reference; the source doubles as its own.
 
-        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
-        if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
-        int gw = p.IntReq(WorkflowParamKeys.GridW);
-        int gh = p.IntReq(WorkflowParamKeys.GridH);
-        string palette = p.StrReq(WorkflowParamKeys.Palette);
-        int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
+        string instruction = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
+        int gw = p.GridW;
+        int gh = p.GridH;
+        string palette = p.Palette;
+        int vres = p.VirtualResolution;
 
         // The config links no checkpoint (the editor loads its own int8 weights), so there's no resolved Resolution.
         // DreamOmni2 is a FLUX.1-Kontext-class pipeline, so snap against the Kontext envelope (256-1440, /16). The
         // render size is fed to the editor as render_width/height, overriding its internal aspect-bucket resize.
-        (int w, int h)? snap = PixelSnap.Target(p, new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, inputs.SourceWidth, inputs.SourceHeight);
+        (int w, int h)? snap = PixelSnap.Target(new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
 
-        wf[Pipeline] = ComfyGraph.Node(ComfyNodeTypes.RunningHubDreamOmni2EditPipeline, new { });
-        wf[Editor] = ComfyGraph.Node(ComfyNodeTypes.RunningHubDreamOmni2Editor, new
+        g[Pipeline] = new RunningHubDreamOmni2EditPipeline();
+        g[Editor] = new RunningHubDreamOmni2PixelizeEditor
         {
-            pipeline = ComfyGraph.Ref(Pipeline, 0),
-            src_image = ComfyGraph.Ref(Nodes.Source, 0),
-            ref_image = refImg,
-            prompt = instruction,
-            num_inference_steps = p.IntReq(WorkflowParamKeys.Steps),
-            guidance_scale = p.DblReq(WorkflowParamKeys.Cfg),
-            seed = ComfyGraph.Seed(p),
+            Pipeline = RunningHubDreamOmni2EditPipeline.Out(Pipeline),
+            SrcImage = LoadImage.ImageOut(Nodes.Source),
+            RefImage = refImg,
+            Prompt = instruction,
+            NumInferenceSteps = p.Steps,
+            GuidanceScale = p.Cfg,
+            Seed = ComfyGraph.Seed(p.Seed),
             // per-step pixel-art projection inside the pipeline (the node modification)
-            pixel_art = true,
-            grid_w = gw,
-            grid_h = gh,
-            palette,
-            proj_method = p.StrReq(WorkflowParamKeys.ProjMethod),
-            virtual_resolution = vres,
-            w_start = p.DblReq(WorkflowParamKeys.WStart),
-            w_end = p.DblReq(WorkflowParamKeys.WEnd),
-            proj_start = p.DblReq(WorkflowParamKeys.StartPercent),
-            proj_end = p.DblReq(WorkflowParamKeys.EndPercent),
-            project_every = p.IntReq(WorkflowParamKeys.ProjectEvery),
+            PixelArt = true,
+            GridW = gw,
+            GridH = gh,
+            Palette = palette,
+            ProjMethod = p.ProjMethod,
+            VirtualResolution = vres,
+            WStart = p.WStart,
+            WEnd = p.WEnd,
+            ProjStart = p.StartPercent,
+            ProjEnd = p.EndPercent,
+            ProjectEvery = p.ProjectEvery,
             // 0 when snapping is off / no width+height given -> the node keeps its own aspect-bucket size
-            render_width = snap?.w ?? 0,
-            render_height = snap?.h ?? 0,
+            RenderWidth = snap?.w ?? 0,
+            RenderHeight = snap?.h ?? 0,
             // reference% -> img2img strength inside the pipeline; 1.0 (reference 0, default) == full generation
-            strength = PixelSnap.Denoise(p, 0),
-        });
-        wf[FinalQuantize] = PixelizeSchema.FinalQuantize(ComfyGraph.Ref(Editor, 0), gw, gh, palette, vres, p);
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(FinalQuantize, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Strength = PixelSnap.Denoise(p.Reference, 0),
+        };
+        g[FinalQuantize] = PixelizeSchema.FinalQuantize(RunningHubDreamOmni2PixelizeEditor.Out(Editor), gw, gh, palette, vres, p.FinalMethod);
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>DreamOmni2 pixelizer parameters — the two diffusion knobs the self-contained editor consumes
+/// (<c>steps</c>/<c>cfg</c>, both <c>required</c>), the grid/palette/virtual-resolution + the projection ramp it runs
+/// internally, and the <c>reference</c> %% (read via the img2img-strength map, so a defaulted int). <c>style_prompt</c>
+/// is a nullable string; <c>width</c>/<c>height</c> are defaulted ints, <c>snap_resolution</c> a defaulted bool;
+/// <c>seed</c> is the app's single-sourced seed (there is no <c>LoadModel</c> head — the editor loads its own weights).</summary>
+public sealed record DreamOmni2PixelizeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Steps)]             public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]               public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Reference)]         public int? Reference { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SnapResolution)]    public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjMethod)]        public required string ProjMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public required string FinalMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WStart)]            public required double WStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WEnd)]              public required double WEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StartPercent)]      public required double StartPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPercent)]        public required double EndPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]      public required int ProjectEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]              public long Seed { get; init; }
 }

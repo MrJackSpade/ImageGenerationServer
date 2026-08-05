@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -13,7 +14,7 @@ namespace ImageGen.Comfy;
 /// no animated-WEBP re-encode. All frames must share one resolution (they do — the caller upscales every frame to the
 /// export's native budget before submit). API-only; the orchestrator submits it by id with the frames as source + refs.
 /// </summary>
-public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
+public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatchParams>
 {
     public override string Name => "pixel-quantize-batch";
     /// <summary>Restyle to grid+palette — exempt from the no-change gate.</summary>
@@ -53,67 +54,91 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflowBase
     /// <summary>The <c>engine</c> param's feature-preserving value — routes to <c>PixelQuantizeFP</c>.</summary>
     private const string FpEngine = "fp";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(PixelQuantizeBatchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Batch = the source frame + every reference frame, IN ORDER, stacked into one (N,H,W,3) tensor via a chain of
         // core ImageBatch nodes (image1 accumulates, image2 is the next frame). The batch order is the order the caller
         // uploaded them (source, ref0, ref1, …), which the caller keeps == frame order, so the emitted lossless_frames
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
-        object batch = ComfyGraph.Ref(Nodes.Source, 0);
+        Output<Slot.Image> batch = LoadImage.ImageOut(Nodes.Source);
         int node = 100;
         foreach (string refName in inputs.ReferenceImageNames)
         {
             string loadId = (node++).ToString();
-            wf[loadId] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refName });
+            g[loadId] = new LoadImage { Image = refName };
             string batchId = (node++).ToString();
-            wf[batchId] = ComfyGraph.Node(ComfyNodeTypes.ImageBatch, new { image1 = batch, image2 = ComfyGraph.Ref(loadId, 0) });
-            batch = ComfyGraph.Ref(batchId, 0);
+            g[batchId] = new ImageBatch { Image1 = batch, Image2 = LoadImage.ImageOut(loadId) };
+            batch = ImageBatch.Out(batchId);
         }
         // key_background: matte the whole batch first, feed the RGBA (subject + alpha) into the quantizer at full res.
         // BiRefNetMatte processes the batched tensor (same node the video matte runs per frame); output 0 = RGBA.
-        if (p.Bool(WorkflowParamKeys.KeyBackground))
+        if (p.KeyBackground)
         {
-            wf[Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = batch, threshold = p.DblReq(WorkflowParamKeys.MatteThreshold) });
-            batch = ComfyGraph.Ref(Matte, 0);
+            g[Matte] = new BiRefNetMatte { Image = batch, Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
+            batch = BiRefNetMatte.Out(Matte);
         }
 
-        int gw = p.IntReq(WorkflowParamKeys.GridW);
-        int gh = p.IntReq(WorkflowParamKeys.GridH);
-        if (p.StrReq(WorkflowParamKeys.Engine) == FpEngine)
+        int gw = p.GridW;
+        int gh = p.GridH;
+        if (p.Engine == FpEngine)
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
             // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
-            wf[Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantizeFP, new
+            g[Quantize] = new PixelQuantizeFP
             {
-                image = batch,
-                grid_w = gw,
-                grid_h = gh,
-                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
-                thicken = p.DblReq(WorkflowParamKeys.Thicken),
-                tau = p.DblReq(WorkflowParamKeys.Tau),
-                lam = p.DblReq(WorkflowParamKeys.Lam),
-                k = p.IntReq(WorkflowParamKeys.K),
-                beta = p.DblReq(WorkflowParamKeys.Beta),
-                step = p.DblReq(WorkflowParamKeys.Step),
-            });
+                Image = batch,
+                GridW = gw,
+                GridH = gh,
+                VirtualResolution = p.VirtualResolution,
+                Thicken = QuantizeGuards.Req(p.Thicken, WorkflowParamKeys.Thicken),
+                Tau = QuantizeGuards.Req(p.Tau, WorkflowParamKeys.Tau),
+                Lam = QuantizeGuards.Req(p.Lam, WorkflowParamKeys.Lam),
+                K = QuantizeGuards.Req(p.K, WorkflowParamKeys.K),
+                Beta = QuantizeGuards.Req(p.Beta, WorkflowParamKeys.Beta),
+                Step = QuantizeGuards.Req(p.Step, WorkflowParamKeys.Step),
+            };
         }
         else
         {
-            wf[Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
+            g[Quantize] = new PixelQuantize
             {
-                image = batch,
-                grid_w = gw,
-                grid_h = gh,
-                palette = p.StrReq(WorkflowParamKeys.Palette),
-                method = p.StrReq(WorkflowParamKeys.FinalMethod),
-                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
-            });
+                Image = batch,
+                GridW = gw,
+                GridH = gh,
+                Palette = QuantizeGuards.Req(p.Palette, WorkflowParamKeys.Palette),
+                Method = QuantizeGuards.Req(p.FinalMethod, WorkflowParamKeys.FinalMethod),
+                VirtualResolution = p.VirtualResolution,
+            };
         }
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Quantize, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(Quantize), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Batch pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the
+/// feature-preserving engine knobs (this is the batch derivation pass, so there are no fp replay globals). The
+/// always-read values (<c>virtual_resolution</c>/<c>grid_w</c>/<c>grid_h</c>/<c>engine</c>) are <c>required</c>; the
+/// branch-only knobs (<c>palette</c>/<c>final_method</c> for median, <c>thicken</c>…<c>step</c> for fp,
+/// <c>matte_threshold</c> for keying) are nullable and guarded in their branch with <c>QuantizeGuards.Req</c> (the old
+/// <c>*Req</c> throw); <c>key_background</c> is a defaulted bool.</summary>
+public sealed record PixelQuantizeBatchParams
+{
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Engine)]            public required string Engine { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thicken)]           public double? Thicken { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]               public double? Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lam)]               public double? Lam { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]                 public int? K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Beta)]              public double? Beta { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step)]              public double? Step { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]    public double? MatteThreshold { get; init; }
 }

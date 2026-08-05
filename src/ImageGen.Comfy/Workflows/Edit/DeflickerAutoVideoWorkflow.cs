@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+﻿using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -14,16 +15,16 @@ namespace ImageGen.Comfy;
 /// Composition-preserving. Output is a lossless animated WEBP at the source frame rate so downstream stages see the
 /// corrected clip verbatim.
 /// </summary>
-public sealed class DeflickerAutoVideoWorkflow : IWorkflow
+public sealed class DeflickerAutoVideoWorkflow : Workflow<DeflickerAutoParams>
 {
-    public string Name => "deflicker-auto";
-    public WorkflowKind Kind => WorkflowKind.Edit;
-    public WorkflowMedia Media => WorkflowMedia.Video;
-    public WorkflowMedia SourceMedia => WorkflowMedia.Video;
-    public bool PromptDirectsMotion => false;
-    public bool PreservesComposition => true;
-    public bool RequiresModel => false;
-    public IReadOnlyList<ParamSpec> Schema => DeflickerSchema;
+    public override string Name => "deflicker-auto";
+    public override WorkflowKind Kind => WorkflowKind.Edit;
+    public override WorkflowMedia Media => WorkflowMedia.Video;
+    public override WorkflowMedia SourceMedia => WorkflowMedia.Video;
+    public override bool PromptDirectsMotion => false;
+    public override bool PreservesComposition => true;
+    public override bool RequiresModel => false;
+    public override IReadOnlyList<ParamSpec> Schema => DeflickerSchema;
 
     /// <summary>This graph's node ids, named by role. Values are the graph-local keys, preserved exactly so the
     /// emitted graph stays byte-identical.</summary>
@@ -43,24 +44,44 @@ public sealed class DeflickerAutoVideoWorkflow : IWorkflow
         new() { Key = WorkflowParamKeys.TimeSigma, Type = ParamType.Double, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
     };
 
-    public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(DeflickerAutoParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceVideoName
+            ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.");
+        return new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The deflicker pass needs a source clip, but none was provided.") }),
-            [Nodes.Components] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
-            [Nodes.Deflicker] = ComfyGraph.Node(ComfyNodeTypes.DeflickerAuto, new
+            [Nodes.Source] = new LoadVideo { File = source },
+            [Nodes.Components] = new GetVideoComponents { Video = LoadVideo.VideoOut(Nodes.Source) },
+            [Nodes.Deflicker] = new DeflickerAuto
             {
-                image = ComfyGraph.Ref(Nodes.Components, 0),
-                mad_k = p.DblReq(WorkflowParamKeys.MadK),
-                min_dev = p.DblReq(WorkflowParamKeys.MinDev),
-                alpha_cut = p.DblReq(WorkflowParamKeys.AlphaCut),
-                time_sigma = p.DblReq(WorkflowParamKeys.TimeSigma),
-            }),
+                Image = GetVideoComponents.ImagesOut(Nodes.Components),
+                MadK = p.MadK,
+                MinDev = p.MinDev,
+                AlphaCut = p.AlphaCut,
+                TimeSigma = p.TimeSigma,
+            },
+            // Keep the source clip's frame rate (GetVideoComponents output 2). lossless so downstream stages see the
+            // corrected frames verbatim (this is a preprocessing pass, not the final sprite).
+            [Nodes.Save] = new SaveAnimatedWEBP
+            {
+                Images = DeflickerAuto.ImageOut(Nodes.Deflicker),
+                FilenamePrefix = "forgemcp_edit",
+                Fps = GetVideoComponents.FpsOut(Nodes.Components),
+                Lossless = true,
+                Quality = 100,
+                Method = "default",
+            },
         };
-        // Keep the source clip's frame rate (GetVideoComponents output 2). lossless so downstream stages see the
-        // corrected frames verbatim (this is a preprocessing pass, not the final sprite).
-        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Deflicker, 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref(Nodes.Components, 2), lossless = true, quality = 100, method = "default" });
-        return wf;
     }
+}
+
+/// <summary>The deflicker pass's parameters, deserialized from the merged bag before <c>Build</c> — all four the robust
+/// flag/correct thresholds. <c>required</c> so an absent value throws at the deserializer (the declarative form of the
+/// previous <c>DblReq</c> reads).</summary>
+public sealed record DeflickerAutoParams
+{
+    [JsonPropertyName(WorkflowParamKeys.MadK)]      public required double MadK { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MinDev)]    public required double MinDev { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.AlphaCut)]  public required double AlphaCut { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.TimeSigma)] public required double TimeSigma { get; init; }
 }

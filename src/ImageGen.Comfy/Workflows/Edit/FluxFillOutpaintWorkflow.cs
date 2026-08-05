@@ -19,12 +19,12 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;
 
     /// <summary>The ceiling applies to the PADDED canvas — outpainting is what actually grows the frame.</summary>
-    protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
+    protected override (int W, int H) CanvasSize(FluxFillParams p, WorkflowInputs inputs)
     {
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
-        return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
-                inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
+        return (inputs.SourceWidth + Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
+                inputs.SourceHeight + Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom));
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -39,20 +39,20 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
 
     private const string Pad = "20";
 
-    protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
-        out object image, out object rawMask)
+    protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
+        out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
+        g[Pad] = new ImagePadForOutpaint
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            left = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft),
-            top = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop),
-            right = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
-            bottom = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom),
+            Image = LoadImage.ImageOut(Nodes.Source),
+            Left = Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft),
+            Top = Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop),
+            Right = Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
+            Bottom = Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom),
             // Softening happens once, in SoftenMask — the node's own feathering would stack with it.
-            feathering = 0,
-        });
-        image = ComfyGraph.Ref(Pad, 0);
-        rawMask = ComfyGraph.Ref(Pad, 1);
+            Feathering = 0,
+        };
+        image = ImagePadForOutpaint.ImageOut(Pad);
+        rawMask = ImagePadForOutpaint.MaskOut(Pad);
     }
 }

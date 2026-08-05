@@ -464,23 +464,24 @@ public sealed class ComfyClient : IComfyClient
         Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
         wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
-        ParamValues values = new ParamValues(dict);
-        (string? pos, string? neg) = ApplyGenPromptRules(values, prompt, negativePrompt);
+        SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
+        (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
         WorkflowInputs inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = ComfyGraph.NormalizeAspect(aspect), Loras = loraStack };
-        Dictionary<string, object> graph = wf.Build(values, resolved, inputs);
+        ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the aspect-RESOLVED render size (exactly what Build sizes the latent to) + the EtaVariable
         // time drivers, taken from the same merged/normalized values the graph was built from.
-        (int ew, int eh) = values.Dims(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(aspect), values.Int(WorkflowParamKeys.Width, 0), values.Int(WorkflowParamKeys.Height, 0));
-        EtaSignature eta = new EtaSignature(ew, eh, EtaInt(wf, values, WorkflowParamKeys.Steps), EtaInt(wf, values, WorkflowParamKeys.Length));
+        (int ew, int eh) = common.Dims(ComfyGraph.NormalizeAspect(aspect));
+        EtaSignature eta = new EtaSignature(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
     /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
     /// this workflow does NOT declare the key a time driver — so an unmarked workflow contributes no param signature and
-    /// its ETA falls back to the flat per-model average.</summary>
-    private static int? EtaInt(IWorkflow wf, ParamValues values, string key) =>
-        wf.Schema.Any(s => s.Key == key && s.EtaVariable) ? values.Int(key, 0) : null;
+    /// its ETA falls back to the flat per-model average. <paramref name="value"/> is the typed value off
+    /// <see cref="SubmissionCommon"/> (null → 0, matching the old absent-key default when the key IS a driver).</summary>
+    private static int? EtaInt(IWorkflow wf, int? value, string key) =>
+        wf.Schema.Any(s => s.Key == key && s.EtaVariable) ? (value ?? 0) : null;
 
     /// <summary>Validate a user LoRA stack against the LoRAs ComfyUI actually offers, failing fast on any unknown name
     /// (never silently dropping one). Skips the backend probe entirely when the stack is empty — the common case.</summary>
@@ -518,12 +519,12 @@ public sealed class ComfyClient : IComfyClient
             Dictionary<string, object?> dict0 = MergeParamsDict(wf, cfg, overrides);
             ResolvedRequirements resolved0 = _catalog.Resolve(cfg);
             wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
-            ParamValues values0 = new ParamValues(dict0);
+            SubmissionCommon common0 = ParamsCodec.Deserialize<SubmissionCommon>(dict0);
             WorkflowInputs inputs0 = new WorkflowInputs { Positive = instruction, SourceVideoName = videoName };
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
-            EtaSignature eta0 = new EtaSignature(0, 0, EtaInt(wf, values0, WorkflowParamKeys.Steps), EtaInt(wf, values0, WorkflowParamKeys.Length));
-            return new SubmitResult(await SubmitAsync(wf.Build(values0, resolved0, inputs0), ct), eta0);
+            EtaSignature eta0 = new EtaSignature(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
+            return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0);
         }
 
         // Distinct filename per role — a fixed name for every upload would make source and references clobber each
@@ -550,14 +551,14 @@ public sealed class ComfyClient : IComfyClient
         // Submit-pass normalization: snap the render resolution onto a clean ×VRES multiple (deliberate, no notice) now,
         // so Build reads the cached size rather than recomputing it. Source dims + the model's envelope live here.
         wf.Normalize(dict, new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
-        ParamValues values = new ParamValues(dict);
-        if (values.Bool(WorkflowParamKeys.SnapResolution, false))
+        SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
+        if (common.SnapResolution)
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
         WorkflowInputs inputs = new WorkflowInputs { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
-        Dictionary<string, object> graph = wf.Build(values, resolved, inputs);
+        ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
         // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.
-        EtaSignature eta = new EtaSignature(srcW, srcH, EtaInt(wf, values, WorkflowParamKeys.Steps), EtaInt(wf, values, WorkflowParamKeys.Length));
+        EtaSignature eta = new EtaSignature(srcW, srcH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
@@ -588,7 +589,7 @@ public sealed class ComfyClient : IComfyClient
     }
 
     /// <summary>Overlay the configuration's settings layer (then any request overrides) on the workflow's schema
-    /// defaults into a mutable bag (so a normalization pass can clamp values before it's frozen into <see cref="ParamValues"/>).</summary>
+    /// defaults into a mutable bag (so a normalization pass can clamp values before it's deserialized to a typed DTO).</summary>
     private Dictionary<string, object?> MergeParamsDict(IWorkflow wf, WorkflowConfiguration cfg, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
         Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -645,15 +646,14 @@ public sealed class ComfyClient : IComfyClient
 
     /// Generation prompt rules: prepend the model's required tag prefix,
     /// and suppress the negative for distilled models (cfg<=1) or models declaring no negative support.
-    private static (string pos, string? neg) ApplyGenPromptRules(ParamValues p, string prompt, string? negative)
+    private static (string pos, string? neg) ApplyGenPromptRules(SubmissionCommon p, string prompt, string? negative)
     {
-        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
-        string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
+        string prefix = string.IsNullOrWhiteSpace(p.RequiredPrefix) ? "" : p.RequiredPrefix.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
         string pos = prefix + prompt;
         // Negative = the model's default (config `negative`, else the shared DefaultNegative) with the user's UI
         // negative APPENDED — never replaced. Suppressed entirely for distilled (cfg<=1) or negative-less models.
-        bool negOk = p.Dbl(WorkflowParamKeys.Cfg, 7) > 1 && p.Bool(WorkflowParamKeys.NegativeSupported, true);
-        string neg = negOk ? ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), negative) : "";
+        bool negOk = (p.Cfg ?? 7) > 1 && p.NegativeSupported;
+        string neg = negOk ? ComfyGraph.ComposeNegative(p.Negative, negative) : "";
         return (pos, neg);
     }
 
@@ -816,7 +816,7 @@ public sealed class ComfyClient : IComfyClient
     }
 
     /// <summary>POST a built workflow to /prompt under this client's client_id; return the prompt_id (no polling).</summary>
-    private async Task<string> SubmitAsync(Dictionary<string, object> workflow, CancellationToken ct)
+    private async Task<string> SubmitAsync(ComfyWorkflowGraph workflow, CancellationToken ct)
     {
         // The submitted graph is NOT logged. The graph embeds the user's prompt and negative in plaintext, so logging
         // it — even behind an "off by default" toggle, to inspect exactly what reached the model (artist tags,

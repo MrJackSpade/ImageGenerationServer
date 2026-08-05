@@ -1,4 +1,7 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
+
+namespace ImageGen.Comfy;
 
 /// <summary>HunyuanVideo 1.5 image-to-video (480p cfg-distilled fp8). The model/clip/VAE come from the shared
 /// LoadModel head (loader=unet, dual=true, clip_type="hunyuan_video_15" → UNETLoader + the Qwen2.5-VL/byT5
@@ -6,13 +9,13 @@
 /// the source image (CLIPVisionEncode → HunyuanVideo15ImageToVideo's start_image/clip_vision_output), and a
 /// BasicScheduler + SamplerCustomAdvanced sampling chain. The 7.8GB fp8 unet + 8.7GB Qwen encoder total ~16.5GB.
 /// Uncensored base; animates anime natively. LoRA-aware via ApplyLora. Validated live (shift 7, cfg 1).</summary>
-public sealed class HunyuanVideo15I2VWorkflow : EditWorkflowBase
+public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VParams>
 {
     public override string Name => "hunyuanvideo15-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).Concat(HunyuanSr.Schema).ToArray();
@@ -34,36 +37,89 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(HunyuanVideo15I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
-        model0 = ComfyGraph.ApplyLora(wf, model0, p);   // optional anime LoRA on the Hunyuan model
-        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
-        object modelS = ComfyGraph.Ref(ModelSampling, 0);
-        long seed = ComfyGraph.Seed(p);
-        int frames = p.IntReq(WorkflowParamKeys.Length);
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        string sampler = ComfyGraph.MapSampler(p.Sampler);
+        string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime LoRA on the Hunyuan model
+        g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
+        Output<Slot.Model> modelS = ModelSamplingSD3.Out(ModelSampling);
+        long seed = ComfyGraph.Seed(p.Seed);
+        int frames = p.Length;
+        double fps = p.Fps;
         double budgetMp = 0.4;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
-        wf[SourceScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 16 });
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(SourceScale, 0) });
-        wf[ClipVisionLoader] = ComfyGraph.Node(ComfyNodeTypes.CLIPVisionLoader, new { clip_name = p.Model(WorkflowParamKeys.ClipVision) });
-        wf[ClipVisionEncode] = ComfyGraph.Node(ComfyNodeTypes.CLIPVisionEncode, new { clip_vision = ComfyGraph.Ref(ClipVisionLoader, 0), image = ComfyGraph.Ref(SourceScale, 0), crop = "center" });
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clip0 });
-        wf[ImageToVideo] = ComfyGraph.Node(ComfyNodeTypes.HunyuanVideo15ImageToVideo, new { positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae = vae0, width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = frames, batch_size = 1, start_image = ComfyGraph.Ref(SourceScale, 0), clip_vision_output = ComfyGraph.Ref(ClipVisionEncode, 0) });
-        wf[Scheduler] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model = modelS, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.Steps), denoise = 1.0 });
-        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = seed });
-        wf[Guider] = ComfyGraph.Node(ComfyNodeTypes.CFGGuider, new { model = modelS, positive = ComfyGraph.Ref(ImageToVideo, 0), negative = ComfyGraph.Ref(ImageToVideo, 1), cfg = p.DblReq(WorkflowParamKeys.Cfg) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Noise, 0), guider = ComfyGraph.Ref(Guider, 0), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Scheduler, 0), latent_image = ComfyGraph.Ref(ImageToVideo, 2) });
+        g[SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 16 };
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(SourceScale) };
+        g[ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };
+        g[ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(SourceScale), Crop = "center" };
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[ImageToVideo] = new HunyuanVideo15ImageToVideo
+        {
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            Vae = vae0,
+            Width = GetImageSize.WidthOut(SourceSize),
+            Height = GetImageSize.HeightOut(SourceSize),
+            Length = frames,
+            BatchSize = 1,
+            StartImage = ImageScaleToTotalPixels.Out(SourceScale),
+            ClipVisionOutput = CLIPVisionEncode.Out(ClipVisionEncode),
+        };
+        g[Scheduler] = new BasicScheduler { Model = modelS, Scheduler = scheduler, Steps = p.Steps, Denoise = 1.0 };
+        g[SamplerSelect] = new KSamplerSelect { SamplerName = sampler };
+        g[Noise] = new RandomNoise { NoiseSeed = seed };
+        g[Guider] = new CFGGuider { Model = modelS, Positive = HunyuanVideo15ImageToVideo.PositiveOut(ImageToVideo), Negative = HunyuanVideo15ImageToVideo.NegativeOut(ImageToVideo), Cfg = p.RequiredCfg() };
+        g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = CFGGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = BasicScheduler.Out(Scheduler), LatentImage = HunyuanVideo15ImageToVideo.LatentOut(ImageToVideo) };
         // Optional super-resolution second pass (1080p). Conditioning is the raw text encode (Positive/Negative); the source
         // image (raw LoadImage Nodes.Source) + SigCLIP vision (ClipVisionEncode) carry over as SR consistency cues. Returns the sampler node unchanged when off.
-        object outLatent = HunyuanSr.Refine(wf, p, ComfyGraph.Ref(Sampler, 0), ComfyGraph.Ref(Positive, 0), ComfyGraph.Ref(Negative, 0), vae0, ComfyGraph.Ref(Nodes.Source, 0), ComfyGraph.Ref(ClipVisionEncode, 0), seed);
-        wf[Decode] = HunyuanSr.Enabled(p)
-            ? ComfyGraph.Node(ComfyNodeTypes.VAEDecodeTiled, new { samples = outLatent, vae = vae0, tile_size = 256, overlap = 64, temporal_size = 64, temporal_overlap = 8 })
-            : ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = outLatent, vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
-        return wf;
+        Output<Slot.Latent> outLatent = HunyuanSr.Refine(g, p, SamplerCustomAdvanced.Out(Sampler), CLIPTextEncode.Out(Positive), CLIPTextEncode.Out(Negative), vae0, LoadImage.ImageOut(Nodes.Source), CLIPVisionEncode.Out(ClipVisionEncode), sampler, scheduler, seed);
+        g[Decode] = HunyuanSr.Enabled(p)
+            ? new VAEDecodeTiled { Samples = outLatent, Vae = vae0, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
+            : new VAEDecode { Samples = outLatent, Vae = vae0 };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Decode, 0), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        return g;
     }
+}
+
+/// <summary>HunyuanVideo 1.5 image→video parameters — the shared loader-head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings + flow <c>shift</c>, the SigCLIP vision encoder
+/// (<c>clip_vision</c>, a resolved model ref), the clip <c>length</c> + playback <c>fps</c>, an optional preset LoRA, and
+/// the optional super-resolution second pass exposed through <see cref="IHunyuanSrParams"/> (all <c>sr_*</c> nullable —
+/// a non-SR config supplies none). The <c>*Req</c>/head reads are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c>
+/// are nullable, <c>lora</c> a nullable model-ref with a defaulted <c>lora_strength</c>, <c>seed</c> the single-sourced
+/// seed. <c>cfg</c> is nullable-with-throw (mirrors the shared txt2img contract; always present in the i2v configs).</summary>
+public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public double? Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]        public required double Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipVision)]   public required string ClipVision { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sr)]           public bool Sr { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrModel)]      public string? SrModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrUpsampler)]  public string? SrUpsampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrWidth)]      public int? SrWidth { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrHeight)]     public int? SrHeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrSteps)]      public int? SrSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]    public double? SrDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]   public double? SrNoiseAug { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrCfg)]        public double? SrCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrShift)]      public double? SrShift { get; init; }
+
+    /// <summary>CFG, required by this graph's real-CFG guider — the base's nullable <c>cfg</c>, or a refusal naming it
+    /// (the typed form of <c>DblReq(cfg)</c>).</summary>
+    public double RequiredCfg() => Cfg ?? throw new RenderValidationException(
+        $"This configuration needs a value for '{WorkflowParamKeys.Cfg}' and none is set. It must supply one — there is no default.");
 }

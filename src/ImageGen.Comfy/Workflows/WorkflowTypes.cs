@@ -1,5 +1,6 @@
 ﻿using ImageGen.Application.Rendering;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
@@ -27,7 +28,7 @@ public enum ParamType { Int, Double, String, Bool, Enum }
 /// <see cref="Checkpoint"/> is an all-in-one checkpoint (model+CLIP+VAE) via <c>CheckpointLoaderSimple</c>;
 /// <see cref="Unet"/> / <see cref="UnetGguf"/> are a diffusion-only UNet (safetensors / GGUF) with CLIP and VAE loaded
 /// separately. Only checkpoint-vs-split changes the graph head — UNet-vs-GGUF is decided downstream from the file
-/// extension (<see cref="ComfyGraph.DiffusionLoader"/>) — but all three stay distinct config-facing choices so a
+/// extension (<see cref="ComfyGraph.DiffusionLoaderNode"/>) — but all three stay distinct config-facing choices so a
 /// configuration declares its intent.</summary>
 public enum LoaderKind { Checkpoint, Unet, UnetGguf }
 
@@ -139,46 +140,32 @@ public sealed class NormalizeContext
     public static readonly NormalizeContext Empty = new();
 }
 
-/// <summary>A resolved, read-only bag of parameter values (workflow defaults overlaid by the configuration's
-/// settings layer). Values may arrive as CLR primitives (workflow defaults) or <see cref="JsonElement"/>
-/// (parsed from workflows.json); every accessor coerces both forms.</summary>
-public sealed class ParamValues
+/// <summary>The one place the merged parameter bag (workflow defaults overlaid by the configuration and request
+/// layers, values as CLR primitives or <see cref="JsonElement"/>) is turned into a strongly-typed DTO. Every
+/// submission crosses this boundary exactly once — <see cref="IWorkflow.Build"/> reads its own params DTO here, and
+/// the client reads <see cref="SubmissionCommon"/> here — and stays typed from that point to the wire.</summary>
+public static class ParamsCodec
 {
-    private readonly IReadOnlyDictionary<string, object?> _v;
-    public ParamValues(IReadOnlyDictionary<string, object?> v) => _v = v;
-
-    public bool Has(string key) => _v.ContainsKey(key) && _v[key] is not null;
-    public object? Raw(string key) => _v.TryGetValue(key, out object? v) ? v : null;
-
-    public int Int(string key, int dflt = 0) => (int)Math.Round(Dbl(key, dflt));
-
-    /// <summary>Required int: the value must be present and numeric, or the render is REFUSED — no silent 0 for an
-    /// absent key, no rounding of an invented number. Rounds a required <see cref="DblReq"/>. Extends the
-    /// <see cref="Model"/> "don't guess — say what's missing" contract to scalar params; the thrown
-    /// <see cref="RenderValidationException"/> naming the key reaches the log and the browser via FailSlot.</summary>
-    public int IntReq(string key) => (int)Math.Round(DblReq(key));
-
-    /// <summary>Coerce a raw param to a 64-bit int (seeds need the full long range, which <see cref="Int"/> truncates).</summary>
-    public long Long(string key, long dflt = 0)
+    /// <summary>System.Text.Json settings for reading the bag into a typed params DTO: the DTO's own contract enforces
+    /// itself (<c>RespectRequiredConstructorParameters</c> + <c>RespectNullableAnnotations</c>, per #103), so a
+    /// <c>required</c> / non-nullable member throws on an absent or null value at the deserializer rather than via a
+    /// hand-written guard. Unmapped keys are ignored by default.</summary>
+    private static readonly JsonSerializerOptions ParamsJsonOptions = new()
     {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => dflt,
-            JsonElement je => je.ValueKind == JsonValueKind.Number
-                ? (je.TryGetInt64(out long l) ? l : (je.TryGetDouble(out double d) ? (long)d : dflt)) : dflt,
-            long l => l,
-            int i => i,
-            double d => (long)d,
-            float f => (long)f,
-            string s => long.TryParse(s, out long p) ? p : dflt,
-            _ => dflt
-        };
-    }
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true,
+    };
 
-    /// <summary>Coerce a raw param value (a CLR primitive or a parsed <see cref="JsonElement"/>) to an int — the
-    /// static sibling of <see cref="Int"/>, for callers (e.g. <see cref="IWorkflow.Normalize"/>) holding a loose
-    /// value out of the merged param bag rather than a key.</summary>
+    /// <summary>Deserialize the merged parameters into a strongly-typed params DTO in ONE System.Text.Json pass — STJ
+    /// does the <see cref="JsonElement"/>→typed coercion and honours the DTO's <c>[JsonPropertyName]</c>s / <c>required</c>
+    /// members, so a workflow never touches a string key or a loose accessor.</summary>
+    public static T Deserialize<T>(IReadOnlyDictionary<string, object?> bag) =>
+        JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(bag), ParamsJsonOptions)
+        ?? throw new RenderValidationException($"The merged parameters could not be read as {typeof(T).Name}.");
+
+    /// <summary>Coerce a raw param value (a CLR primitive or a parsed <see cref="JsonElement"/>) to an int — for the
+    /// pre-DTO normalization pass (<see cref="IWorkflow.Normalize"/>), which mutates the loose bag BEFORE it is
+    /// deserialized and so holds a value, not a typed member.</summary>
     public static int AsInt(object? v, int dflt = 0) => v switch
     {
         null => dflt,
@@ -190,155 +177,29 @@ public sealed class ParamValues
         string s => int.TryParse(s, out int p) ? p : dflt,
         _ => dflt
     };
+}
 
-    public double Dbl(string key, double dflt = 0)
-    {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => dflt,
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : dflt,
-            double d => d,
-            float f => f,
-            long l => l,
-            int i => i,
-            string s => double.TryParse(s, out double p) ? p : dflt,
-            _ => dflt
-        };
-    }
+/// <summary>The cross-workflow submission parameters the client (not a workflow) reads off the merged bag: the ETA
+/// render-size + time drivers, and the generation prompt rules (required tag prefix, model negative, distilled-model
+/// negative suppression). Deserialized once via <see cref="ParamsCodec"/> so the client's ETA/prompt logic runs on
+/// typed values instead of loose accessors — the same keys a workflow's own DTO also reads for the graph.</summary>
+public sealed record SubmissionCommon
+{
+    [JsonPropertyName(WorkflowParamKeys.Steps)]             public int? Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]            public int? Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Aspect)]            public Dictionary<string, int[]>? Aspect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)]   public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]              public double? Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
+    [JsonPropertyName(WorkflowParamKeys.Negative)]         public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SnapResolution)]   public bool SnapResolution { get; init; }
 
-    /// <summary>Required double: present and numeric, or the render is REFUSED. An absent key OR an uncoercible value
-    /// throws a <see cref="RenderValidationException"/> naming the key, instead of substituting a made-up number.</summary>
-    public double DblReq(string key)
-    {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => throw MissingParam(key),
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : throw NotNumeric(key, je.ToString()),
-            double d => d,
-            float f => f,
-            long l => l,
-            int i => i,
-            string s => double.TryParse(s, out double p) ? p : throw NotNumeric(key, s),
-            _ => throw NotNumeric(key, v.ToString())
-        };
-    }
-
-    public string? Str(string key)
-    {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => null,
-            JsonElement je => je.ValueKind == JsonValueKind.String ? je.GetString()
-                            : je.ValueKind is JsonValueKind.Null ? null : je.ToString(),
-            string s => s,
-            _ => v.ToString()
-        };
-    }
-
-    /// <summary>Required string: present and non-empty, or the render is REFUSED — never an empty-string stand-in.</summary>
-    public string StrReq(string key) =>
-        Str(key) is { } s && s.Length > 0 ? s : throw MissingParam(key);
-
-    /// <summary>The required loader kind, parsed from the <c>loader</c> param — the typed sibling of <see cref="StrReq"/>
-    /// on that key. An absent/empty value is refused exactly as <see cref="StrReq"/> refuses it; an unrecognised value
-    /// is refused by <see cref="LoaderKinds.Parse"/>.</summary>
-    public LoaderKind Loader() => LoaderKinds.Parse(StrReq(LoaderKinds.ParamKey));
-
-    /// <summary>A model-ref parameter the graph cannot be built without — the resolved FILENAME, or a failure naming
-    /// the parameter.
-    ///
-    /// <para>A hardcoded stand-in like <c>p.Str("motion_model") ?? "v3_sd15_mm.ckpt"</c> would make an unbound or
-    /// missing slot render perfectly on the one machine that happens to have that file, and on nobody else's — so a
-    /// configuration whose slot was deleted would keep reporting success. If a graph genuinely cannot proceed without
-    /// a model, say so; do not guess its name.</para></summary>
-    public string Model(string key) =>
-        Str(key) is { } s && !string.IsNullOrWhiteSpace(s)
-            ? s
-            : throw new RenderValidationException(
-                $"This configuration needs a model for '{key}' and none is set. The configuration should name a slot "
-                + "there, and this machine should have a file bound to it.");
-
-    /// <summary>The refusal for a required param that isn't set — the scalar sibling of <see cref="Model"/>'s message.</summary>
-    private static RenderValidationException MissingParam(string key) =>
-        new($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
-
-    /// <summary>The refusal for a required param whose value can't be read as a number.</summary>
-    private static RenderValidationException NotNumeric(string key, string? got) =>
-        new($"The value for '{key}' must be a number, but was \"{got}\".");
-
-    public bool Bool(string key, bool dflt = false)
-    {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => dflt,
-            JsonElement je => je.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                _ => dflt
-            },
-            bool b => b,
-            _ => dflt
-        };
-    }
-
-    /// <summary>Nullable double: returns null when the key is absent/null (distinct from a 0 default). Used for
-    /// optional knobs like FluxGuidance / ModelSamplingAuraFlow where "unset" means "omit the node".</summary>
-    public double? DblOrNull(string key)
-    {
-        object? v = Raw(key);
-        return v switch
-        {
-            null => null,
-            JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : (double?)null,
-            double d => d,
-            float f => f,
-            long l => l,
-            int i => i,
-            _ => null
-        };
-    }
-
-    /// <summary>A string array param (e.g. Qwen reference input slots ["image2","image3"]); empty when absent.</summary>
-    public string[] StrArray(string key)
-    {
-        object? v = Raw(key);
-        if (v is JsonElement je && je.ValueKind == JsonValueKind.Array)
-            return je.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToArray();
-        if (v is string[] arr) return arr;
-        if (v is IEnumerable<string> en) return en.ToArray();
-        return Array.Empty<string>();
-    }
-
-    /// <summary>An [w,h] pair from an aspect map param (e.g. <c>aspect</c> = { square:[1024,1024], landscape:[..],
-    /// portrait:[..] }). Falls back to the flat <c>width</c>/<c>height</c> params when the sub-key is absent.</summary>
-    public (int w, int h) Dims(string aspectKey, string sub, int fallbackW, int fallbackH)
-    {
-        if (Raw(aspectKey) is JsonElement je && je.ValueKind == JsonValueKind.Object
-            && je.TryGetProperty(sub, out JsonElement arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
-            && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
-            return (arr[0].GetInt32(), arr[1].GetInt32());
-        return (fallbackW, fallbackH);
-    }
-
-    /// <summary>Required render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height params
-    /// — all declared in the config JSON — or a refusal when the configuration declares neither. No invented pixel
-    /// size ever reaches the graph.</summary>
-    public (int w, int h) DimsReq(string aspectKey, string sub)
-    {
-        if (Raw(aspectKey) is JsonElement je && je.ValueKind == JsonValueKind.Object
-            && je.TryGetProperty(sub, out JsonElement arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() >= 2
-            && arr[0].ValueKind == JsonValueKind.Number && arr[1].ValueKind == JsonValueKind.Number)
-            return (arr[0].GetInt32(), arr[1].GetInt32());
-        if (Has(WorkflowParamKeys.Width) && Has(WorkflowParamKeys.Height))
-            return (IntReq(WorkflowParamKeys.Width), IntReq(WorkflowParamKeys.Height));
-        throw new RenderValidationException(
-            $"This configuration needs a render size — an '{aspectKey}' map with a '{sub}' entry, or width/height — and declares neither.");
-    }
+    /// <summary>The ETA render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height (0,0
+    /// when neither is set — the ETA falls back to the model average). Mirrors the size a workflow's Build lays out.</summary>
+    public (int w, int h) Dims(string sub) =>
+        Aspect is not null && Aspect.TryGetValue(sub, out int[]? wh) && wh.Length >= 2 ? (wh[0], wh[1]) : (Width, Height);
 }
 
 /// <summary>Runtime data a workflow build consumes that is NOT a stored parameter: the finalized prompt text,
@@ -384,9 +245,9 @@ public sealed class ResolvedRequirements
     /// for snapping the render size onto a clean grid multiple.</summary>
     public ModelResolution? Resolution { get; init; }
 
-    /// <summary>The resolved filename for text encoder <paramref name="index"/>, or a refusal naming it — the
-    /// requirement sibling of <see cref="ParamValues.Model"/> for a REQUIRED encoder slot. An unbound slot fails
-    /// loudly rather than loading an empty name that only "works" on a machine that happens to hold the right file.</summary>
+    /// <summary>The resolved filename for text encoder <paramref name="index"/>, or a refusal naming it — a REQUIRED
+    /// encoder slot fails loudly rather than loading an empty name that only "works" on a machine that happens to hold
+    /// the right file.</summary>
     public string TextEncoder(int index) =>
         index >= 0 && index < TextEncoders.Count && !string.IsNullOrWhiteSpace(TextEncoders[index])
             ? TextEncoders[index]

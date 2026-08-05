@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -24,7 +25,7 @@ namespace ImageGen.Comfy;
 /// feed them to). Exempt from the no-change gate via <see cref="PreservesComposition"/>: an upscale is a
 /// resolution change, and every pixel of the composition is meant to survive it.
 /// </summary>
-public sealed class UpscaleWorkflow : EditWorkflowBase
+public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
 {
     public override string Name => "upscale-model";
 
@@ -63,42 +64,48 @@ public sealed class UpscaleWorkflow : EditWorkflowBase
     private const string Resample = "22";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(UpscaleParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Node ids stay clear of the shared edit head (3/4/5/6/8/9/10/13/14) — only LoadImage "10" and SaveImage "9"
         // are reused, since the edit save path keys off the "forgemcp_edit" prefix.
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.") }),
-            [UpscaleModel] = ComfyGraph.Node(ComfyNodeTypes.UpscaleModelLoader, new { model_name = p.Model(WorkflowParamKeys.UpscaleModel) }),
+            [Nodes.Source] = new LoadImage { Image = source },
+            [UpscaleModel] = new UpscaleModelLoader { ModelName = p.UpscaleModel },
         };
-        wf[Upscale] = ComfyGraph.Node(ComfyNodeTypes.ImageUpscaleWithModel, new
+        g[Upscale] = new ImageUpscaleWithModel
         {
-            upscale_model = ComfyGraph.Ref(UpscaleModel, 0),
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-        });
-        object outImage = ComfyGraph.Ref(Upscale, 0);
+            UpscaleModel = UpscaleModelLoader.Out(UpscaleModel),
+            Image = LoadImage.ImageOut(Nodes.Source),
+        };
+        Output<Slot.Image> outImage = ImageUpscaleWithModel.Out(Upscale);
 
         // Fit the net's fixed-factor output to the requested scale. A model_scale of 0 (config typo) would divide by
         // zero, so fall back to "the net's output is already what was asked for" and emit no resample.
-        double modelScale = p.DblReq(WorkflowParamKeys.ModelScale);
-        double scale = p.DblReq(WorkflowParamKeys.Scale);
+        double modelScale = p.ModelScale;
+        double scale = p.Scale;
         if (modelScale > 0 && scale > 0)
         {
             double ratio = scale / modelScale;
             if (Math.Abs(ratio - 1.0) > 0.001)   // exactly native → the SR output IS the answer, no resample node
             {
-                wf[Resample] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleBy, new
-                {
-                    image = outImage,
-                    upscale_method = p.StrReq(WorkflowParamKeys.Resample),
-                    scale_by = ratio,
-                });
-                outImage = ComfyGraph.Ref(Resample, 0);
+                g[Resample] = new ImageScaleBy { Image = outImage, UpscaleMethod = p.Resample, ScaleBy = ratio };
+                outImage = ImageScaleBy.Out(Resample);
             }
         }
 
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = outImage, filename_prefix = "forgemcp_edit" });
-        return wf;
+        g[Save] = new SaveImage { Images = outImage, FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Upscaler parameters. <c>model_scale</c>/<c>scale</c> were read as doubles (the ratio math); the model-ref
+/// filename and the resampler are <c>required</c> (the old Model()/StrReq reads throw on absent).</summary>
+public sealed record UpscaleParams
+{
+    [JsonPropertyName(WorkflowParamKeys.UpscaleModel)] public required string UpscaleModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ModelScale)]   public required double ModelScale { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scale)]        public required double Scale { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Resample)]     public required string Resample { get; init; }
 }

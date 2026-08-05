@@ -70,33 +70,18 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
     }.Concat(Common).ToArray();
 
-    /// <summary>The per-step PixelManifoldProjection model patch (node "35"), identical across pixelizers.</summary>
-    public static Dictionary<string, object> Projection(object model, object vae, int gw, int gh, string palette, int vres, ParamValues p) =>
-        ComfyGraph.Node(ComfyNodeTypes.PixelManifoldProjection, new
+    /// <summary>The per-step PixelManifoldProjection model patch (node "35"), identical across pixelizers: the projection
+    /// model-patch node from the ramp values (the caller reads them off its typed params DTO).</summary>
+    public static PixelManifoldProjection Projection(Output<Slot.Model> model, Output<Slot.Vae> vae, int gw, int gh,
+        string palette, int vres, string method, double wStart, double wEnd, double startPercent, double endPercent, int projectEvery) =>
+        new PixelManifoldProjection
         {
-            model,
-            vae,
-            grid_w = gw,
-            grid_h = gh,
-            palette,
-            method = p.StrReq(WorkflowParamKeys.ProjMethod),
-            w_start = p.DblReq(WorkflowParamKeys.WStart),
-            w_end = p.DblReq(WorkflowParamKeys.WEnd),
-            start_percent = p.DblReq(WorkflowParamKeys.StartPercent),
-            end_percent = p.DblReq(WorkflowParamKeys.EndPercent),
-            project_every = p.IntReq(WorkflowParamKeys.ProjectEvery),
-            virtual_resolution = vres,
-        });
+            Model = model, Vae = vae, GridW = gw, GridH = gh, Palette = palette, Method = method,
+            WStart = wStart, WEnd = wEnd, StartPercent = startPercent, EndPercent = endPercent,
+            ProjectEvery = projectEvery, VirtualResolution = vres,
+        };
 
     /// <summary>The authoritative final PixelQuantize render (node "36").</summary>
-    public static Dictionary<string, object> FinalQuantize(object image, int gw, int gh, string palette, int vres, ParamValues p) =>
-        ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
-        {
-            image,
-            grid_w = gw,
-            grid_h = gh,
-            palette,
-            method = p.StrReq(WorkflowParamKeys.FinalMethod),
-            virtual_resolution = vres,
-        });
+    public static PixelQuantize FinalQuantize(Output<Slot.Image> image, int gw, int gh, string palette, int vres, string finalMethod) =>
+        new PixelQuantize { Image = image, GridW = gw, GridH = gh, Palette = palette, Method = finalMethod, VirtualResolution = vres };
 }

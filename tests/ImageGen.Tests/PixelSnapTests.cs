@@ -44,36 +44,30 @@ public sealed class PixelSnapTests
     /// <summary>Flux-dev envelope (256–1440, /16) for the fail-fast tests below: snapping must never silently fall
     /// back to the model default — if it's on and can't compute, it throws.</summary>
     private static readonly ModelResolution Flux = new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
-    private static ParamValues PV(params (string, object?)[] kv)
-    {
-        Dictionary<string, object?> d = new System.Collections.Generic.Dictionary<string, object?>();
-        foreach ((string? k, object? v) in kv) d[k] = v;
-        return new ParamValues(d);
-    }
 
     [Fact]
     public void Snap_off_is_the_only_noop()
     {
-        Assert.Null(PixelSnap.Target(PV(("snap_resolution", false)), Flux, 384, 1216, 832));
+        Assert.Null(PixelSnap.Target(Flux, 384, snapOn: false, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
     }
 
     [Fact]
     public void Snap_on_without_aspect_throws_rather_than_silently_using_the_default()
     {
         // snap on; no width/height and no source dims -> must FAIL, not return null + render at default.
-        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 0, 0));
+        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(Flux, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 0, srcH: 0));
     }
 
     [Fact]
     public void Snap_on_with_no_resolution_data_throws()
     {
-        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(PV(("snap_resolution", true)), (ModelResolution?)null, 384, 1216, 832));
+        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(null, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
     }
 
     [Fact]
     public void Snap_on_with_source_dims_snaps_from_the_source_aspect()
     {
-        (int w, int h)? r = PixelSnap.Target(PV(("snap_resolution", true)), Flux, 384, 1216, 832);   // no override -> uses the source dims
+        (int w, int h)? r = PixelSnap.Target(Flux, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 1216, srcH: 832);   // no override -> uses the source dims
         Assert.Equal(((int, int)?)(1152, 768), r);
     }
 
@@ -84,14 +78,14 @@ public sealed class PixelSnapTests
     [InlineData(100, 0, 0.01)]  // 100% (copy)   -> clamped to 0.01 so the sampler still runs
     public void Reference_pct_maps_to_denoise(int reference, int dflt, double expected)
     {
-        Assert.Equal(expected, PixelSnap.Denoise(PV(("reference", reference)), dflt), 3);
+        Assert.Equal(expected, PixelSnap.Denoise(reference, dflt), 3);
     }
 
     [Fact]
     public void Reference_falls_back_to_the_per_model_default_when_unset()
     {
-        Assert.Equal(0.30, PixelSnap.Denoise(PV(), 70), 3);   // Flux default 70 -> denoise 0.3
-        Assert.Equal(1.00, PixelSnap.Denoise(PV(), 0), 3);    // QIE/Kontext default 0 -> denoise 1.0
+        Assert.Equal(0.30, PixelSnap.Denoise(null, 70), 3);   // Flux default 70 -> denoise 0.3
+        Assert.Equal(1.00, PixelSnap.Denoise(null, 0), 3);    // QIE/Kontext default 0 -> denoise 1.0
     }
 
     [Theory]
@@ -99,5 +93,5 @@ public sealed class PixelSnapTests
     [InlineData(101)]
     [InlineData(250)]
     public void Reference_outside_the_percentage_range_is_refused(int reference) =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => PixelSnap.Denoise(PV(("reference", reference)), 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PixelSnap.Denoise(reference, 0));
 }

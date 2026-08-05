@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace ImageGen.Comfy;
 /// to the output resolution before encoding. The source is pre-scaled to the ~1MP native range (aligned to /16),
 /// mirroring the official <c>image_mage_flow_edit_int8</c> template. Flow shift (6.0) is baked in at load.
 /// </summary>
-public abstract class MageFlowEditBase : EditWorkflowBase
+public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 {
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 512, MinH = 512, MaxW = 2048, MaxH = 2048, Step = 16 };
 
@@ -20,83 +22,75 @@ public abstract class MageFlowEditBase : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    /// <summary>The TextEncodeMageFlowEdit node's input-field names (the enc-dict keys). Values are the ComfyUI input
-    /// names, preserved exactly.</summary>
-    private static class Inputs
+    protected override ComfyWorkflowGraph Build(MageFlowEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        public const string Clip = "clip";
-        public const string Prompt = "prompt";
-        public const string NegativePrompt = "negative_prompt";
-        public const string Vae = "vae";
-        public const string Width = "width";
-        public const string Height = "height";
-        public const string BatchSize = "batch_size";
-        public const string Image1 = "image_1";
-    }
-
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
-    {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
 
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training
         // distribution instead of asking the model to render at, e.g., 3000px.
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new
-        {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            upscale_method = "lanczos",
-            megapixels = 1.0,
-            resolution_steps = 16,
-        });
-
-        Dictionary<string, object> enc = new Dictionary<string, object>
-        {
-            [Inputs.Clip] = clip0,
-            [Inputs.Prompt] = inputs.Positive,
-            [Inputs.NegativePrompt] = inputs.Negative ?? "",
-            [Inputs.Vae] = vae0,
-            [Inputs.Width] = 0,      // 0 -> follow the (scaled) reference's own size
-            [Inputs.Height] = 0,
-            [Inputs.BatchSize] = 1,
-            [Inputs.Image1] = ComfyGraph.Ref(ScaledSource, 0),
-        };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 16 };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
+        Dictionary<string, object> refs = new Dictionary<string, object>();
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        int rn = p.Has(WorkflowParamKeys.ReferenceMax) ? Math.Min(refNames.Count, p.IntReq(WorkflowParamKeys.ReferenceMax)) : 0;   // no reference_max declared → no extra refs
+        int rn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;   // no reference_max declared → no extra refs
         for (int i = 0; i < rn; i++)
         {
             string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
-            wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
-            wf[scale] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new
-            {
-                image = ComfyGraph.Ref(load, 0),
-                upscale_method = "lanczos",
-                megapixels = 1.0,
-                resolution_steps = 16,
-            });
-            enc[$"image_{i + 2}"] = ComfyGraph.Ref(scale, 0);
+            g[load] = new LoadImage { Image = refNames[i] };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 16 };
+            refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
         }
 
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeMageFlowEdit, enc);
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Encode] = new TextEncodeMageFlowEdit
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model = model0,
-            positive = ComfyGraph.Ref(Encode, 0),
-            negative = ComfyGraph.Ref(Encode, 1),
-            latent_image = ComfyGraph.Ref(Encode, 2),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp" });
-        return wf;
+            Clip = clip0,
+            Prompt = inputs.Positive,
+            NegativePrompt = inputs.Negative ?? "",
+            Vae = vae0,
+            Width = 0,      // 0 -> follow the (scaled) reference's own size
+            Height = 0,
+            BatchSize = 1,
+            Image1 = ImageScaleToTotalPixels.Out(ScaledSource),
+            Extra = refs.Count > 0 ? refs : null,
+        };
+        g[Sampler] = new KSampler
+        {
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = model0,
+            Positive = TextEncodeMageFlowEdit.PositiveOut(Encode),
+            Negative = TextEncodeMageFlowEdit.NegativeOut(Encode),
+            LatentImage = TextEncodeMageFlowEdit.LatentOut(Encode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp" };
+        return g;
     }
+}
+
+/// <summary>Mage-Flow-Edit parameters, shared by the standard and Turbo subclasses — the shared loader head knobs
+/// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, and the
+/// optional <c>reference_max</c> cap (Has-guarded nullable int: absent → no extra references). The <c>*Req</c> reads are
+/// <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are nullable strings; <c>seed</c> is the app's single-sourced
+/// seed (defaulted). The negative is read from the request inputs, not a param.</summary>
+public sealed record MageFlowEditParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }
 
 /// <summary>Mage-Flow-Edit (RL-aligned) — full CFG (cfg 5, negatives supported), ~30 steps.</summary>

@@ -1,8 +1,10 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>Wan 2.2 TI2V-5B image-to-video: the source image is the first frame; output is an animated WEBP. The
 /// text prompt drives the motion/scene.</summary>
-public sealed class WanI2VWorkflow : EditWorkflowBase
+public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
 {
     public override string Name => "wan22-ti2v-5b";
     public override WorkflowMedia Media => WorkflowMedia.Video;
@@ -12,7 +14,7 @@ public sealed class WanI2VWorkflow : EditWorkflowBase
     /// <summary>Flow shift. The Wan2.2 repo's ti2v_5B config runs 5.0; without an explicit node ComfyUI silently
     /// applies its own Wan default of 8.0, so the graph pins the reference value.</summary>
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
     }).ToArray();
@@ -28,37 +30,59 @@ public sealed class WanI2VWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(WanI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
-        model0 = ComfyGraph.ApplyLora(wf, model0, p);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
-        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
-        model0 = ComfyGraph.Ref(ModelSampling, 0);
-        long seed = ComfyGraph.Seed(p);
-        int len = p.IntReq(WorkflowParamKeys.Length);
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
+        g[ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
+        model0 = ModelSamplingSD3.Out(ModelSampling);
+        long seed = ComfyGraph.Seed(p.Seed);
+        int len = p.Length;
+        double fps = p.Fps;
         double budgetMp = 0.9;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)
-        wf[ScaleSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 32 });
-        wf[ImageSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaleSource, 0) });
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clip0 });
-        wf[Latent] = ComfyGraph.Node(ComfyNodeTypes.Wan22ImageToVideoLatent, new { vae = vae0, width = ComfyGraph.Ref(ImageSize, 0), height = ComfyGraph.Ref(ImageSize, 1), length = len, batch_size = 1, start_image = ComfyGraph.Ref(ScaleSource, 0) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[ImageSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaleSource) };
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Latent] = new Wan22ImageToVideoLatent { Vae = vae0, Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize), Length = len, BatchSize = 1, StartImage = ImageScaleToTotalPixels.Out(ScaleSource) };
+        g[Sampler] = new KSampler
         {
-            seed,
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model = model0,
-            positive = ComfyGraph.Ref(Positive, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            latent_image = ComfyGraph.Ref(Latent, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
-        return wf;
+            Seed = seed,
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = model0,
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            LatentImage = Wan22ImageToVideoLatent.Out(Latent),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        return g;
     }
+}
+
+/// <summary>Wan 2.2 TI2V-5B i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, the flow <c>shift</c>, the clip length +
+/// playback fps, and the optional preset LoRA. The <c>*Req</c> reads are <c>required</c>; <c>weight_dtype</c>/
+/// <c>clip_type</c> are nullable strings; <c>lora</c> is a nullable model-ref and <c>lora_strength</c> a defaulted
+/// double (only read when a LoRA is set); <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record WanI2VParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]        public required double Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

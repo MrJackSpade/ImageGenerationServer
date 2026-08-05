@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
@@ -19,7 +20,7 @@ namespace ImageGen.Comfy;
 /// Prefix/negative come from config params like <see cref="AnimaInpaintWorkflow"/>. Requires the LLLite weight
 /// (<c>controlnet</c> requirement) + the <c>ComfyUI-Anima-LLLite</c> custom node.
 /// </summary>
-public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
+public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 {
     public override string Name => "anima-outpaint";
 
@@ -32,7 +33,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
     /// to a full regenerate), plus the per-side pad amounts, the seam feather, the mask grow (mirrors inpaint), and the
     /// Anima prefix/negative/clip-skip knobs.</summary>
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.5, Max = 1.0, Label = "Fill strength" },
         new() { Key = WorkflowParamKeys.PadLeft,        Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
@@ -49,7 +50,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
     }).ToArray();
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflowBase.Nodes).</summary>
+    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
     private const string ClipSkip = "19";
     private const string Positive = "13";
     private const string Negative = "14";
@@ -62,84 +63,114 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(AnimaOutpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // nodes 4/5/6 + LoadImage "10"
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // nodes 4/5/6 + LoadImage "10"
 
-        if (p.Loader() == LoaderKind.Checkpoint && p.Has(WorkflowParamKeys.ClipSkip) && p.IntReq(WorkflowParamKeys.ClipSkip) is int clipSkip && clipSkip > 0)
+        if (LoaderKinds.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
         {
-            wf[ClipSkip] = ComfyGraph.Node(ComfyNodeTypes.CLIPSetLastLayer, new { clip = clip0, stop_at_clip_layer = -Math.Abs(clipSkip) });
-            clip0 = ComfyGraph.Ref(ClipSkip, 0);
+            g[ClipSkip] = new CLIPSetLastLayer { Clip = clip0, StopAtClipLayer = -Math.Abs(clipSkip) };
+            clip0 = CLIPSetLastLayer.ClipOut(ClipSkip);
         }
 
         // Negative = the config default with the UI negative (inputs.Negative) appended — never replaced.
-        string? rp = p.Str(WorkflowParamKeys.RequiredPrefix);
+        string? rp = p.RequiredPrefix;
         string prefix = string.IsNullOrWhiteSpace(rp) ? "" : rp.TrimEnd().TrimEnd(',').TrimEnd() + ", ";
-        string neg = ComfyGraph.ComposeNegative(p.Str(WorkflowParamKeys.Negative), inputs.Negative);
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prefix + inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
+        string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
+        g[Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // Pad the source on each side — the enlarged canvas (slot 0) + the added-border mask (slot 1). Feathering
         // softens the mask edge so the generated margin blends into the original instead of leaving a hard seam.
-        int PadPx(string k) => p.Has(k) ? Ensure.NotNegative(p.IntReq(k), k) : 0;   // per-side extend px, absent = 0 (no pad on that side)
-        int feather = Ensure.NotNegative(p.IntReq(WorkflowParamKeys.Feather), WorkflowParamKeys.Feather);
-        wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
+        static int PadPx(int? v, string name) => v is int px ? Ensure.NotNegative(px, name) : 0;   // per-side extend px, absent = 0 (no pad on that side)
+        int feather = Ensure.NotNegative(p.Feather, WorkflowParamKeys.Feather);
+        g[Pad] = new ImagePadForOutpaint
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            left = PadPx(WorkflowParamKeys.PadLeft),
-            top = PadPx(WorkflowParamKeys.PadTop),
-            right = PadPx(WorkflowParamKeys.PadRight),
-            bottom = PadPx(WorkflowParamKeys.PadBottom),
-            feathering = feather,
-        });
+            Image = LoadImage.ImageOut(Nodes.Source),
+            Left = PadPx(p.PadLeft, WorkflowParamKeys.PadLeft),
+            Top = PadPx(p.PadTop, WorkflowParamKeys.PadTop),
+            Right = PadPx(p.PadRight, WorkflowParamKeys.PadRight),
+            Bottom = PadPx(p.PadBottom, WorkflowParamKeys.PadBottom),
+            Feathering = feather,
+        };
 
         // The fill-conditioning that a base checkpoint lacks: patch the Anima model with the 4-channel inpainting
         // ControlNet-LLLite (kohya-ss Anima-LLLite). It takes the padded RGB + the border MASK (white = fill) and
         // conditions generation on the KNOWN pixels + hole, so the border CONTINUES the existing structure instead of
         // inventing over gray. The node zeroes the RGB inside the mask itself, so the padded canvas (gray border) is
         // fine as the control image. Uses the raw pad mask (not the grown one) so the control keeps every known pixel.
-        wf[LlliteApply] = ComfyGraph.Node(ComfyNodeTypes.AnimaLLLiteApply, new
+        g[LlliteApply] = new AnimaLLLiteApply
         {
-            model = model0,
-            lllite_name = req.RequiredControlNet(),
-            image = ComfyGraph.Ref(Pad, 0),
-            mask = ComfyGraph.Ref(Pad, 1),
-            strength = p.DblReq(WorkflowParamKeys.LlliteStrength),
-            start_percent = p.DblReq(WorkflowParamKeys.LlliteStart),
-            end_percent = p.DblReq(WorkflowParamKeys.LlliteEnd),
-            preserve_wrapper = true,
-        });
-        object ksModel = ComfyGraph.Ref(LlliteApply, 0);
+            Model = model0,
+            LlliteName = req.RequiredControlNet(),
+            Image = ImagePadForOutpaint.ImageOut(Pad),
+            Mask = ImagePadForOutpaint.MaskOut(Pad),
+            Strength = p.LlliteStrength,
+            StartPercent = p.LlliteStart,
+            EndPercent = p.LlliteEnd,
+            PreserveWrapper = true,
+        };
+        Output<Slot.Model> ksModel = AnimaLLLiteApply.Out(LlliteApply);
 
         // Encode the padded canvas; confine denoising to the padded (masked) border so the original region is kept.
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(Pad, 0), vae = vae0 });
-        object maskSrc = ComfyGraph.Ref(Pad, 1);
-        int grow = p.IntReq(WorkflowParamKeys.MaskGrow);
+        g[Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Pad), Vae = vae0 };
+        Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Pad);
+        int grow = p.MaskGrow;
         if (grow > 0)
         {
-            wf[GrowMaskNode] = ComfyGraph.Node(ComfyNodeTypes.GrowMask, new { mask = maskSrc, expand = grow, tapered_corners = true });
-            maskSrc = ComfyGraph.Ref(GrowMaskNode, 0);
+            g[GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
+            maskSrc = GrowMask.Out(GrowMaskNode);
         }
-        wf[NoiseMask] = ComfyGraph.Node(ComfyNodeTypes.SetLatentNoiseMask, new { samples = ComfyGraph.Ref(Encode, 0), mask = maskSrc });
+        g[NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Encode), Mask = maskSrc };
 
-        double dn = p.DblReq(WorkflowParamKeys.Denoise);
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        double dn = p.Denoise;
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = dn,
-            model = ksModel,
-            positive = ComfyGraph.Ref(Positive, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            latent_image = ComfyGraph.Ref(NoiseMask, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = dn,
+            Model = ksModel,
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            LatentImage = SetLatentNoiseMask.Out(NoiseMask),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Anima LLLite-outpaint parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings + fill <c>denoise</c>, the required seam
+/// <c>feather</c> + <c>mask_grow</c>, the LLLite strength/start/end (all <c>required</c>), the optional prefix/negative
+/// (nullable strings) + Has-guarded <c>clip_skip</c>, and the Has-guarded per-side <c>pad_*</c> ints. <c>seed</c> is the
+/// app's single-sourced seed (defaulted).</summary>
+public sealed record AnimaOutpaintParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]         public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]    public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]       public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]          public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]            public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]        public required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadLeft)]        public int? PadLeft { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadTop)]         public int? PadTop { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadRight)]       public int? PadRight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadBottom)]      public int? PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Feather)]        public required int Feather { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]       public required int MaskGrow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LlliteStrength)] public required double LlliteStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LlliteStart)]    public required double LlliteStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LlliteEnd)]      public required double LlliteEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipSkip)]       public int? ClipSkip { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
 }

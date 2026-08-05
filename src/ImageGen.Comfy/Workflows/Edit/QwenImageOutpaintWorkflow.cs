@@ -21,12 +21,12 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
 
     /// <summary>The canvas the ceiling applies to is the PADDED one — outpainting is what actually grows the frame
     /// past the model's comfortable range, so measuring the unpadded source would let the real canvas sail past it.</summary>
-    protected override (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
+    protected override (int W, int H) CanvasSize(QwenInpaintParams p, WorkflowInputs inputs)
     {
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
-        return (inputs.SourceWidth + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight),
-                inputs.SourceHeight + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom));
+        return (inputs.SourceWidth + Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft) + Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight),
+                inputs.SourceHeight + Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop) + Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom));
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
@@ -52,25 +52,25 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
     private const string PrefillBlur = "22";
     private const string PrefillComposite = "23";
 
-    protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
-        out object image, out object rawMask)
+    protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
+        out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
-        int pl = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadLeft), WorkflowParamKeys.PadLeft), pt = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadTop), WorkflowParamKeys.PadTop);
-        int pr = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadRight), WorkflowParamKeys.PadRight), pb = Ensure.NotNegative(p.Int(WorkflowParamKeys.PadBottom), WorkflowParamKeys.PadBottom);
+        int pl = Ensure.NotNegative(p.PadLeft, WorkflowParamKeys.PadLeft), pt = Ensure.NotNegative(p.PadTop, WorkflowParamKeys.PadTop);
+        int pr = Ensure.NotNegative(p.PadRight, WorkflowParamKeys.PadRight), pb = Ensure.NotNegative(p.PadBottom, WorkflowParamKeys.PadBottom);
 
-        wf[Pad] = ComfyGraph.Node(ComfyNodeTypes.ImagePadForOutpaint, new
+        g[Pad] = new ImagePadForOutpaint
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            left = pl,
-            top = pt,
-            right = pr,
-            bottom = pb,
+            Image = LoadImage.ImageOut(Nodes.Source),
+            Left = pl,
+            Top = pt,
+            Right = pr,
+            Bottom = pb,
             // feathering=0 ON PURPOSE. The node's feathering ramps the mask INWARD from the pad boundary, which would
             // stack with the shared mask_grow/mask_blur softening and give a doubly-wide band of PARTIAL denoise over
             // the original pixels — a mushy seam. Softening happens once, in SoftenMask.
-            feathering = 0,
-        });
-        rawMask = ComfyGraph.Ref(Pad, 1);
+            Feathering = 0,
+        };
+        rawMask = ImagePadForOutpaint.MaskOut(Pad);
 
         // GREY MUST NOT EXIST. ImagePadForOutpaint fills the new area with flat 0.5 grey, and that grey is the whole
         // halo family: any mask softness anywhere — the blur ramp, the latent blend, the composite crossfade — mixes
@@ -85,24 +85,24 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase
         // does not work here.)
         // CanvasSize refuses a source with unknown dimensions, so the padded canvas is always real here.
         (int W, int H) canvas = CanvasSize(p, inputs);
-        wf[StretchScale] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new
+        g[StretchScale] = new ImageScale
         {
-            image = ComfyGraph.Ref(Nodes.Source, 0),
-            upscale_method = "lanczos",
-            width = canvas.W,
-            height = canvas.H,
-            crop = "disabled",
-        });
+            Image = LoadImage.ImageOut(Nodes.Source),
+            UpscaleMethod = "lanczos",
+            Width = canvas.W,
+            Height = canvas.H,
+            Crop = "disabled",
+        };
         // sigma 10.0 is ImageBlur's node maximum.
-        wf[PrefillBlur] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(StretchScale, 0), blur_radius = 31, sigma = 10.0 });
-        wf[PrefillComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new
+        g[PrefillBlur] = new ImageBlur { Image = ImageScale.Out(StretchScale), BlurRadius = 31, Sigma = 10.0 };
+        g[PrefillComposite] = new ImageCompositeMaskedNoMask
         {
-            destination = ComfyGraph.Ref(PrefillBlur, 0),
-            source = ComfyGraph.Ref(Nodes.Source, 0),
-            x = pl,
-            y = pt,
-            resize_source = false,
-        });
-        image = ComfyGraph.Ref(PrefillComposite, 0);
+            Destination = ImageBlur.Out(PrefillBlur),
+            Source = LoadImage.ImageOut(Nodes.Source),
+            X = pl,
+            Y = pt,
+            ResizeSource = false,
+        };
+        image = ImageCompositeMaskedNoMask.Out(PrefillComposite);
     }
 }

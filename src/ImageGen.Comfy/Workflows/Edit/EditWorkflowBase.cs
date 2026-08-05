@@ -1,44 +1,13 @@
-﻿using ImageGen.Application.Rendering;
-
 namespace ImageGen.Comfy;
 
 /// <summary>
-/// Base for the image-EDIT workflows. Each edit MODEL has its own subclass with its own self-contained graph. The
-/// only thing shared here is the common head every edit graph emits — loading the model/CLIP/VAE and the source
-/// image — plus the parameter menu.
+/// The shared image-EDIT parameter menu. Each edit MODEL has its own subclass deriving from
+/// <see cref="EditWorkflow{TParams}"/> with its own self-contained graph; the one thing shared here is the
+/// <see cref="SharedSchema"/> parameter set they draw their exposed knobs from.
 /// </summary>
-public abstract class EditWorkflowBase : IWorkflow
+internal static class EditWorkflowBase
 {
-    public abstract string Name { get; }
-    public WorkflowKind Kind => WorkflowKind.Edit;
-    public virtual WorkflowMedia Media => WorkflowMedia.Image;
-    public virtual bool PromptDirectsMotion => true;
-    public virtual bool SupportsEndFrame => false;
-    public virtual bool HasAudio => false;
-    public virtual bool PreservesComposition => false;
-    public virtual PromptSemantics PromptSemantics => PromptSemantics.Instruction;
-    public virtual bool RequiresModel => true;
-    public virtual bool TakesPrompt => true;
-    public virtual FrameRule? FrameRule => null;
-    public virtual ModelResolution? ResolutionEnvelope => null;
-    public virtual IReadOnlyList<ParamSpec> Schema => SharedSchema;
-
-    /// <summary>Each edit model implements its own self-contained graph.</summary>
-    public abstract Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs);
-
-    /// <summary>The node ids of the shared edit head emitted by <see cref="LoadModel"/>, named by role. The VALUE is
-    /// the graph-local node key (preserved exactly, so the emitted graph and the id-asserting tests are byte-identical);
-    /// the NAME replaces the bare <c>"4"</c>/<c>"5"</c>/<c>"6"</c>/<c>"10"</c> literals. A subclass reuses these for the
-    /// head and declares <c>private const string</c>s for its own additional nodes.</summary>
-    protected static class Nodes
-    {
-        public const string Model = "4";
-        public const string Clip = "5";
-        public const string Vae = "6";
-        public const string Source = "10";
-    }
-
-    protected static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
+    internal static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
     {
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKinds.Choices },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
@@ -83,82 +52,4 @@ public abstract class EditWorkflowBase : IWorkflow
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "LoRA strength" },
     };
-
-    /// <summary>Emit the common edit head: the model/CLIP/VAE loaders (from the loader param + resolved
-    /// requirements, mirroring the txt2img loader block, with a GGUF text-encoder going through CLIPLoaderGGUF) and
-    /// the source <c>LoadImage</c> at node "10". Returns the model/clip/vae output refs.</summary>
-    protected static void LoadModel(Dictionary<string, object> wf, ParamValues p, ResolvedRequirements req, WorkflowInputs inputs,
-        out object model0, out object clip0, out object vae0)
-    {
-        string file = req.RequiredCheckpoint();
-        LoaderKind loader = p.Loader();
-        if (loader == LoaderKind.Checkpoint)                          // all-in-one checkpoint (model+clip+vae), e.g. Qwen AIO
-        {
-            wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = file });
-            model0 = ComfyGraph.Ref(Nodes.Model, 0); vae0 = ComfyGraph.Ref(Nodes.Model, 2);
-
-            // A checkpoint's CLIP output is only usable when the checkpoint actually carries encoders. Several do
-            // not — sd3.5_large ships without them — and taking output 1 regardless would hand CLIPTextEncode a null,
-            // surfacing as "clip input is invalid: None" far from the real mistake. Declared encoders win.
-            clip0 = req.TextEncoders.Count > 0
-                ? BuildClipLoader(wf, Nodes.Clip, req.TextEncoders, p.Str(WorkflowParamKeys.ClipType))
-                : ComfyGraph.Ref(Nodes.Model, 1);
-        }
-        else                                                 // split loaders (unet/gguf + clip + vae)
-        {
-            wf[Nodes.Model] = p.Has(WorkflowParamKeys.WeightDtype)
-                ? ComfyGraph.DiffusionLoader(file, p.StrReq(WorkflowParamKeys.WeightDtype))   // config's explicit precision override (e.g. flux1-fill fp8)
-                : ComfyGraph.DiffusionLoader(file);                            // no override → AutoWeightDtype
-            wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
-            model0 = ComfyGraph.Ref(Nodes.Model, 0); vae0 = ComfyGraph.Ref(Nodes.Vae, 0);
-            clip0 = BuildClipLoader(wf, Nodes.Clip, req.TextEncoders, p.Str(WorkflowParamKeys.ClipType));
-        }
-        wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") });
-    }
-
-    /// <summary>
-    /// The CLIP loader a model's encoders call for, chosen by HOW MANY it declares.
-    ///
-    /// <para>A <c>dual</c> boolean could express one encoder or two and nothing else, leaving a configuration that
-    /// needs three or four no way to say so. The count is already in the requirements, so it decides — one
-    /// CLIPLoader, two Dual, three Triple, four Quadruple.</para>
-    ///
-    /// <para>Triple and Quadruple take no <c>type</c>: the encoder set identifies the family on its own.</para>
-    /// </summary>
-    private static object BuildClipLoader(
-        Dictionary<string, object> wf, string nodeId, IReadOnlyList<string> encoders, string? clipType)
-    {
-        string At(int i) => i < encoders.Count && !string.IsNullOrWhiteSpace(encoders[i])
-            ? encoders[i]
-            : throw new RenderValidationException($"This configuration needs text encoder #{i + 1} and none is bound to that slot on this machine.");
-
-        wf[nodeId] = encoders.Count switch
-        {
-            >= 4 => ComfyGraph.Node(ComfyNodeTypes.QuadrupleCLIPLoader, new
-            {
-                clip_name1 = At(0),
-                clip_name2 = At(1),
-                clip_name3 = At(2),
-                clip_name4 = At(3),
-            }),
-            3 => ComfyGraph.Node(ComfyNodeTypes.TripleCLIPLoader, new
-            {
-                clip_name1 = At(0),
-                clip_name2 = At(1),
-                clip_name3 = At(2),
-            }),
-            2 => ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new
-            {
-                clip_name1 = At(0),
-                clip_name2 = At(1),
-                type = clipType,
-                device = "default",
-            }),
-            _ => ComfyGraph.IsGguf(At(0))
-                ? ComfyGraph.Node(ComfyNodeTypes.CLIPLoaderGGUF, new { clip_name = At(0), type = clipType })
-                : ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = At(0), type = clipType, device = "default" }),
-        };
-        return ComfyGraph.Ref(nodeId, 0);
-    }
-
 }

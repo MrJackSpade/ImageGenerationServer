@@ -1,4 +1,12 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
+
+/// <summary>HunyuanImage 2.1's flow-shift knob (ModelSamplingSD3).</summary>
+public sealed record HunyuanImage21Params : Txt2ImgParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Shift)] public required double Shift { get; init; }
+}
 
 /// <summary>
 /// HunyuanImage 2.1 text→image (2K native). A diffusion-transformer image model with dual text encoders
@@ -9,11 +17,11 @@
 /// The refiner stage isn't implemented natively in ComfyUI yet, so it's intentionally omitted. ~17 GB fp8 unet +
 /// the Qwen encoder → 24 GB tier (gated by the config's min_vram_mb).
 /// </summary>
-public sealed class HunyuanImage21Workflow : Txt2ImgWorkflowBase
+public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Params>
 {
     public override string Name => "hunyuanimage21";
     public override WorkflowMedia Media => WorkflowMedia.Image;
-    public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
+    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
     }).ToArray();
@@ -21,37 +29,37 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflowBase
     /// <summary>This workflow's flow-shift node id (reuses the inherited txt2img <c>Nodes.*</c>).</summary>
     private const string ModelSampling = "30";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(HunyuanImage21Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
 
-        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingSD3, new { model = ComfyGraph.Ref(Nodes.Model, 0), shift = p.DblReq(WorkflowParamKeys.Shift) });
-        object model = ComfyGraph.ApplyLora(wf, ComfyGraph.Ref(ModelSampling, 0), p);
-        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.DualCLIPLoader, new { clip_name1 = req.TextEncoder(0), clip_name2 = req.TextEncoder(1), type = "hunyuan_image", device = "default" });
-        object clip = ComfyGraph.Ref(Nodes.Clip, 0);
-        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
-        object vae = ComfyGraph.Ref(Nodes.Vae, 0);
+        g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
+        g[ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };
+        Output<Slot.Model> model = ComfyGraph.ApplyLora(g, ModelSamplingSD3.Out(ModelSampling), p.Lora, p.LoraStrength);
+        g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = "hunyuan_image", Device = "default" };
+        Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
+        g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
+        Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
 
-        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip });
-        wf[Nodes.Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip });
-        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyHunyuanImageLatent, new { width = w, height = h, batch_size = 1 });
-        wf[Nodes.Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };
+        g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip };
+        g[Nodes.Latent] = new EmptyLatent(ComfyNodeTypes.EmptyHunyuanImageLatent) { Width = w, Height = h, BatchSize = 1 };
+        g[Nodes.Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model,
-            positive = ComfyGraph.Ref(Nodes.Positive, 0),
-            negative = ComfyGraph.Ref(Nodes.Negative, 0),
-            latent_image = ComfyGraph.Ref(Nodes.Latent, 0),
-        });
-        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Nodes.Sampler, 0), vae });
-        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.RequiredCfg(),
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = model,
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            Negative = CLIPTextEncode.Out(Nodes.Negative),
+            LatentImage = EmptyLatent.Out(Nodes.Latent),
+        };
+        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        return g;
     }
 }

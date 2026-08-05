@@ -29,15 +29,15 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase
     private const string PrefillBlur2 = "22";
     private const string PrefillComposite = "23";
 
-    protected override void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
-        out object image, out object rawMask)
+    protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
+        out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)
     {
         if (!string.IsNullOrEmpty(inputs.MaskImageName))
         {
-            wf[MaskLoad] = ComfyGraph.Node(ComfyNodeTypes.LoadImageMask, new { image = inputs.MaskImageName, channel = "red" });
-            rawMask = ComfyGraph.Ref(MaskLoad, 0);
+            g[MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = "red" };
+            rawMask = LoadImageMask.Out(MaskLoad);
         }
-        else rawMask = ComfyGraph.Ref(Nodes.Source, 1);   // source alpha
+        else rawMask = LoadImage.MaskOut(Nodes.Source);   // source alpha
 
         // Same pre-fill as outpaint, for the same reason: this app's inpaint masks cover flat WHITE space to be
         // filled — non-scene content under the fill region, grey's twin. Two chained blurs (σ10 each ≈ σ14) pull
@@ -46,17 +46,17 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase
         // re-injected, never composited) and the ControlNet apply zeroes it out of the control image. What matters
         // is that the ~8-16px boundary band — the latent cells straddling the join, and everything a soft edge can
         // blend — carries scene tone instead of white.
-        wf[PrefillBlur1] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(Nodes.Source, 0), blur_radius = 31, sigma = 10.0 });
-        wf[PrefillBlur2] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(PrefillBlur1, 0), blur_radius = 31, sigma = 10.0 });
-        wf[PrefillComposite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMasked, new
+        g[PrefillBlur1] = new ImageBlur { Image = LoadImage.ImageOut(Nodes.Source), BlurRadius = 31, Sigma = 10.0 };
+        g[PrefillBlur2] = new ImageBlur { Image = ImageBlur.Out(PrefillBlur1), BlurRadius = 31, Sigma = 10.0 };
+        g[PrefillComposite] = new ImageCompositeMasked
         {
-            destination = ComfyGraph.Ref(Nodes.Source, 0),
-            source = ComfyGraph.Ref(PrefillBlur2, 0),
-            x = 0,
-            y = 0,
-            resize_source = false,
-            mask = rawMask,
-        });
-        image = ComfyGraph.Ref(PrefillComposite, 0);
+            Destination = LoadImage.ImageOut(Nodes.Source),
+            Source = ImageBlur.Out(PrefillBlur2),
+            X = 0,
+            Y = 0,
+            ResizeSource = false,
+            Mask = rawMask,
+        };
+        image = ImageCompositeMasked.Out(PrefillComposite);
     }
 }

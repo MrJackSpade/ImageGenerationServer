@@ -1,17 +1,19 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>Flux.2 Klein custom-sampler edit pipeline. Multi-image uses the ComfyUI reference_latent method (chain
 /// one ReferenceLatent per image, source first). Two models run this (4B and 9B) → two workflow classes over this
 /// base.</summary>
-public abstract class Flux2KleinEditBase : EditWorkflowBase
+public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
 {
-    /// <summary>This base's own node ids.</summary>
+    /// <summary>This base's own node ids (the model/clip/vae/source head is the inherited <c>Nodes</c>).</summary>
     private const string Positive = "13";
     private const string ScaledSource = "11";
     private const string Encode = "12";
     private const string SourceSize = "17";
     private const string Guidance = "14";
-    private const string ReferenceLatent = "15";
+    private const string RefLatent = "15";
     private const string Guider = "22";
     private const string EmptyLatent = "28";
     private const string Scheduler = "29";
@@ -21,38 +23,55 @@ public abstract class Flux2KleinEditBase : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(Flux2KleinEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
-        long seed = ComfyGraph.Seed(p);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        long seed = ComfyGraph.Seed(p.Seed);
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 64 });
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(ScaledSource, 0), vae = vae0 });
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
-        wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(Positive, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
-        wf[ReferenceLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Guidance, 0), latent = ComfyGraph.Ref(Encode, 0) });
-        object cond = ComfyGraph.Ref(ReferenceLatent, 0);
-        int fn = p.Has(WorkflowParamKeys.ReferenceMax) ? Math.Min(refNames.Count, p.IntReq(WorkflowParamKeys.ReferenceMax)) : 0;
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 64 };
+        g[Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0 };
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
+        g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
+        g[RefLatent] = new ReferenceLatent { Conditioning = FluxGuidance.Out(Guidance), Latent = VAEEncode.Out(Encode) };
+        Output<Slot.Conditioning> cond = ReferenceLatent.Out(RefLatent);
+        int fn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;
         for (int i = 0; i < fn; i++)
         {
             string load = $"{40 + i}", scale = $"{50 + i}", enc = $"{60 + i}", rl = $"{70 + i}";
-            wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
-            wf[scale] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(load, 0), upscale_method = "lanczos", megapixels = 1.0, resolution_steps = 64 });
-            wf[enc] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(scale, 0), vae = vae0 });
-            wf[rl] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = cond, latent = ComfyGraph.Ref(enc, 0) });
-            cond = ComfyGraph.Ref(rl, 0);
+            g[load] = new LoadImage { Image = refNames[i] };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = "lanczos", Megapixels = 1.0, ResolutionSteps = 64 };
+            g[enc] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(scale), Vae = vae0 };
+            g[rl] = new ReferenceLatent { Conditioning = cond, Latent = VAEEncode.Out(enc) };
+            cond = ReferenceLatent.Out(rl);
         }
-        wf[Guider] = ComfyGraph.Node(ComfyNodeTypes.BasicGuider, new { model = model0, conditioning = cond });
-        wf[EmptyLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptyFlux2LatentImage, new { width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), batch_size = 1 });
-        wf[Scheduler] = ComfyGraph.Node(ComfyNodeTypes.Flux2Scheduler, new { steps = p.IntReq(WorkflowParamKeys.Steps), width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1) });
-        wf[Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = seed });
-        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Noise, 0), guider = ComfyGraph.Ref(Guider, 0), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Scheduler, 0), latent_image = ComfyGraph.Ref(EmptyLatent, 0) });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+        g[Guider] = new BasicGuider { Model = model0, Conditioning = cond };
+        g[EmptyLatent] = new EmptyFlux2LatentImage { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = 1 };
+        g[Scheduler] = new Flux2Scheduler { Steps = p.Steps, Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize) };
+        g[Noise] = new RandomNoise { NoiseSeed = seed };
+        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Noise), Guider = BasicGuider.Out(Guider), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = Flux2Scheduler.Out(Scheduler), LatentImage = EmptyFlux2LatentImage.Out(EmptyLatent) };
+        g[Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Flux.2 Klein edit parameters, shared by the 4B and 9B subclasses — the shared loader head knobs
+/// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the custom-sampler settings, the
+/// distilled <c>guidance</c>, and the optional <c>reference_max</c> cap (Has-guarded nullable int: absent → this editor
+/// takes no reference images). The <c>*Req</c> reads are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are
+/// nullable strings; <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record Flux2KleinEditParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

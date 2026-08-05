@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// Diffusion pixelizer on Qwen-Image-Edit — generate pixel art DIRECTLY from a reference image. QIE's instruction
@@ -10,7 +12,7 @@
 /// Uses VIRTUAL RESOLUTION (longest-edge virtual-pixel count) by default, so the sprite's pixel count is set
 /// independently of whatever bucket QIE renders at. Final PixelQuantize renders the authoritative output. API-only.
 /// </summary>
-public sealed class QwenPixelizeWorkflow : EditWorkflowBase
+public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
 {
     public override string Name => "pixelize-qwen";
     public override bool PreservesComposition => true;
@@ -59,7 +61,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
     private const string SourceEncode = "21";
     private const string RefLatent = "24";
     private const string ImageSize = "40";
-    private const string EmptyLatent = "41";
+    private const string EmptyLatentNode = "41";
     private const string ZeroNegative = "26";
     private const string ModelSampling = "2";
     private const string CfgNorm = "7";
@@ -69,99 +71,111 @@ public sealed class QwenPixelizeWorkflow : EditWorkflowBase
     private const string FinalQuantize = "36";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(QwenPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // model/clip/vae + LoadImage "10"
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // model/clip/vae + LoadImage "10"
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
-        string? instruction = p.Str(WorkflowParamKeys.StylePrompt);
-        if (string.IsNullOrWhiteSpace(instruction)) instruction = inputs.Positive;
+        string instruction = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
 
-        int gw = p.IntReq(WorkflowParamKeys.GridW);
-        int gh = p.IntReq(WorkflowParamKeys.GridH);
-        string palette = p.StrReq(WorkflowParamKeys.Palette);
-        int vres = p.IntReq(WorkflowParamKeys.VirtualResolution);
+        int gw = p.GridW;
+        int gh = p.GridH;
+        string palette = p.Palette;
+        int vres = p.VirtualResolution;
 
         // The source enters as a SEMANTIC guide through Qwen's vision encoder (image1). The `reference` % knob sets
         // how much the output references the source pixels: 0 = no reference (empty init latent, no ReferenceLatent →
         // QIE GENERATES a new design each seed); >0 = inject the source latent + ReferenceLatent and img2img it at
         // denoise = 1 - reference/100 (100 ≈ copy). When snapping is on, the sprite renders at the clean k×VRES size.
-        (int w, int h)? snap = PixelSnap.Target(p, req, vres, inputs.SourceWidth, inputs.SourceHeight);
-        bool useRef = p.IntReq(WorkflowParamKeys.Reference) > 0;
-        wf[KontextScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = src });
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeQwenImageEditPlus, new { clip = clip0, image1 = ComfyGraph.Ref(KontextScale, 0), prompt = instruction });
-        object cond, initLatent;
+        (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
+        bool useRef = p.Reference > 0;
+        g[KontextScale] = new FluxKontextImageScale { Image = src };
+        g[Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(KontextScale), Prompt = instruction };
+        Output<Slot.Conditioning> cond;
+        Output<Slot.Latent> initLatent;
         if (useRef)
         {
             // source-referenced img2img: init from the source latent (snapped to the clean size if enabled). The
             // FixedScale must be its OWN node (25) and referenced — passing the node dict inline as VAEEncode's
             // `pixels` input hands the encoder a dict instead of an image ('dict' has no attribute 'shape').
-            object srcPixels;
-            if (snap is { } sa) { wf[SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h); srcPixels = ComfyGraph.Ref(SnapScale, 0); }
-            else srcPixels = ComfyGraph.Ref(KontextScale, 0);
-            wf[SourceEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = srcPixels, vae = vae0 });
-            wf[RefLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Encode, 0), latent = ComfyGraph.Ref(SourceEncode, 0) });
-            cond = ComfyGraph.Ref(RefLatent, 0);
-            initLatent = ComfyGraph.Ref(SourceEncode, 0);
+            Output<Slot.Image> srcPixels;
+            if (snap is { } sa) { g[SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h); srcPixels = ImageScale.Out(SnapScale); }
+            else srcPixels = FluxKontextImageScale.Out(KontextScale);
+            g[SourceEncode] = new VAEEncode { Pixels = srcPixels, Vae = vae0 };
+            g[RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Encode), Latent = VAEEncode.Out(SourceEncode) };
+            cond = ReferenceLatent.Out(RefLatent);
+            initLatent = VAEEncode.Out(SourceEncode);
         }
         else
         {
             if (snap is { } sl)
-                wf[EmptyLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = sl.w, height = sl.h, batch_size = 1 });
+                g[EmptyLatentNode] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = sl.w, Height = sl.h, BatchSize = 1 };
             else
             {
-                wf[ImageSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(KontextScale, 0) });
-                wf[EmptyLatent] = ComfyGraph.Node(ComfyNodeTypes.EmptySD3LatentImage, new { width = ComfyGraph.Ref(ImageSize, 0), height = ComfyGraph.Ref(ImageSize, 1), batch_size = 1 });
+                g[ImageSize] = new GetImageSize { Image = FluxKontextImageScale.Out(KontextScale) };
+                g[EmptyLatentNode] = new EmptySD3LatentFromSize { Width = GetImageSize.WidthOut(ImageSize), Height = GetImageSize.HeightOut(ImageSize), BatchSize = 1 };
             }
-            cond = ComfyGraph.Ref(Encode, 0);
-            initLatent = ComfyGraph.Ref(EmptyLatent, 0);
+            cond = TextEncodeQwenImageEditPlus.Out(Encode);
+            initLatent = EmptyLatent.Out(EmptyLatentNode);
         }
-        wf[ZeroNegative] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = cond });
+        g[ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
 
         // Qwen 2511 sampling fix (ModelSamplingAuraFlow + CFGNorm), then patch with the per-step projection.
-        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift = p.DblReq(WorkflowParamKeys.Shift) });
-        wf[CfgNorm] = ComfyGraph.Node(ComfyNodeTypes.CFGNorm, new { model = ComfyGraph.Ref(ModelSampling, 0), strength = 1.0 });
-        wf[Projection] = ComfyGraph.Node(ComfyNodeTypes.PixelManifoldProjection, new
-        {
-            model = ComfyGraph.Ref(CfgNorm, 0),
-            vae = vae0,
-            grid_w = gw,
-            grid_h = gh,
-            palette,
-            method = p.StrReq(WorkflowParamKeys.ProjMethod),
-            w_start = p.DblReq(WorkflowParamKeys.WStart),
-            w_end = p.DblReq(WorkflowParamKeys.WEnd),
-            start_percent = p.DblReq(WorkflowParamKeys.StartPercent),
-            end_percent = p.DblReq(WorkflowParamKeys.EndPercent),
-            project_every = p.IntReq(WorkflowParamKeys.ProjectEvery),
-            virtual_resolution = vres,
-        });
+        g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
+        g[CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(ModelSampling), Strength = 1.0 };
+        g[Projection] = PixelizeSchema.Projection(CFGNorm.Out(CfgNorm), vae0, gw, gh, palette, vres, p.ProjMethod, p.WStart, p.WEnd, p.StartPercent, p.EndPercent, p.ProjectEvery);
 
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = PixelSnap.Denoise(p, 0),   // reference% -> denoise; 0 (default) == 1.0 == generate fresh
-            model = ComfyGraph.Ref(Projection, 0),
-            positive = cond,
-            negative = ComfyGraph.Ref(ZeroNegative, 0),
-            latent_image = initLatent,
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[FinalQuantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
-        {
-            image = ComfyGraph.Ref(Decode, 0),
-            grid_w = gw,
-            grid_h = gh,
-            palette,
-            method = p.StrReq(WorkflowParamKeys.FinalMethod),
-            virtual_resolution = vres,
-        });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(FinalQuantize, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = PixelSnap.Denoise(p.Reference, 0),   // reference% -> denoise; 0 (default) == 1.0 == generate fresh
+            Model = PixelManifoldProjection.Out(Projection),
+            Positive = cond,
+            Negative = ConditioningZeroOut.Out(ZeroNegative),
+            LatentImage = initLatent,
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Decode), gw, gh, palette, vres, p.FinalMethod);
+        g[Save] = new SaveImage { Images = PixelQuantize.Out(FinalQuantize), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Qwen-pixelizer parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>
+/// for the typed <c>LoadModel</c>), the sampler settings + the 2511 <c>shift</c>, the grid/palette/virtual-resolution +
+/// the projection ramp, and the <c>reference</c> %% (read as a <c>required</c> int: both the img2img toggle and the
+/// denoise). <c>weight_dtype</c>/<c>clip_type</c>/<c>style_prompt</c> are nullable strings; <c>width</c>/<c>height</c>
+/// are defaulted ints, <c>snap_resolution</c> a defaulted bool; <c>seed</c> is the app's single-sourced seed.</summary>
+public sealed record QwenPixelizeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]            public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]       public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]          public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]             public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]               public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]           public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]         public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Shift)]             public required double Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Reference)]         public required int Reference { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SnapResolution)]    public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjMethod)]        public required string ProjMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public required string FinalMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WStart)]            public required double WStart { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WEnd)]              public required double WEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StartPercent)]      public required double StartPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.EndPercent)]        public required double EndPercent { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]      public required int ProjectEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]              public long Seed { get; init; }
 }

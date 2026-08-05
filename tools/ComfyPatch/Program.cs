@@ -150,7 +150,7 @@ public static class Program
                 {
                     foreach (ComfyPatch patch in Selected(catalog, options))
                     {
-                        (PatchState state, string _) = ComfyPatchCatalog.Inspect(patch, root);
+                        (PatchState state, string? _) = ComfyPatchCatalog.Inspect(patch, root);
                         if (state == PatchState.Applied)
                         {
                             Console.WriteLine($"already applied  {patch.Id}");

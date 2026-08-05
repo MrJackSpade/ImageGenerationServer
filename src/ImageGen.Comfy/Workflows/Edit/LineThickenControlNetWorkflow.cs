@@ -1,4 +1,6 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>
 /// ControlNet line-art re-render. A lineart preprocessor (<c>LineArtPreprocessor</c>,
@@ -7,7 +9,7 @@
 /// character is preserved while the outlines are redrawn clean and bold. Checkpoint + ControlNet are
 /// resolved from the configuration's requirements (the files must be present on disk).
 /// </summary>
-public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
+public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenControlNetParams>
 {
     public override string Name => "line-thicken-controlnet";
     public override bool PreservesComposition => true;
@@ -39,51 +41,72 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(LineThickenControlNetParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);                               // flatten alpha onto white (11-14)
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // CheckpointLoaderSimple (4) + LoadImage (10)
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
-        string? prompt = p.Str(WorkflowParamKeys.StylePrompt);
-        if (string.IsNullOrWhiteSpace(prompt)) prompt = inputs.Positive;
-        string neg = p.Str(WorkflowParamKeys.Negative) ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
+        string prompt = p.StylePrompt is { } sp && !string.IsNullOrWhiteSpace(sp) ? sp : inputs.Positive;
+        string neg = p.Negative ?? "";   // the model's own documented negative from the config JSON, or none — no shared baseline
         // 60/61, not 12/13 — FlattenOnWhite already owns 11-14 (EmptyImage 12, InvertMask 13, composite 14).
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = prompt, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = neg, clip = clip0 });
+        g[Positive] = new CLIPTextEncode { Text = prompt, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
         // lineart control image (white-on-black, as the lineart ControlNet expects), then apply the ControlNet.
-        wf[Lineart] = ComfyGraph.Node(ComfyNodeTypes.LineArtPreprocessor, new { image = src, coarse = p.StrReq(WorkflowParamKeys.Coarse), resolution = p.IntReq(WorkflowParamKeys.Resolution) });
-        wf[ControlNet] = ComfyGraph.Node(ComfyNodeTypes.ControlNetLoader, new { control_net_name = req.RequiredControlNet() });
-        wf[ControlNetApply] = ComfyGraph.Node(ComfyNodeTypes.ControlNetApplyAdvanced, new
+        g[Lineart] = new LineArtPreprocessor { Image = src, Coarse = p.Coarse, Resolution = p.Resolution };
+        g[ControlNet] = new ControlNetLoader { ControlNetName = req.RequiredControlNet() };
+        g[ControlNetApply] = new ControlNetApplyAdvanced
         {
-            positive = ComfyGraph.Ref(Positive, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            control_net = ComfyGraph.Ref(ControlNet, 0),
-            image = ComfyGraph.Ref(Lineart, 0),
-            strength = p.DblReq(WorkflowParamKeys.ControlnetStrength),
-            start_percent = 0.0,
-            end_percent = 1.0,
-            vae = vae0,
-        });
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            ControlNet = ControlNetLoader.Out(ControlNet),
+            Image = LineArtPreprocessor.Out(Lineart),
+            Strength = p.ControlnetStrength,
+            StartPercent = 0.0,
+            EndPercent = 1.0,
+            Vae = vae0,
+        };
 
         // img2img from the source so the character is preserved; the ControlNet enforces the bold lineart.
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = src, vae = vae0 });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Encode] = new VAEEncode { Pixels = src, Vae = vae0 };
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = p.DblReq(WorkflowParamKeys.Denoise),
-            model = model0,
-            positive = ComfyGraph.Ref(ControlNetApply, 0),
-            negative = ComfyGraph.Ref(ControlNetApply, 1),
-            latent_image = ComfyGraph.Ref(Encode, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = p.Denoise,
+            Model = model0,
+            Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply),
+            Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply),
+            LatentImage = VAEEncode.Out(Encode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>ControlNet lineart re-render parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, the lineart preprocessor's coarse/resolution
+/// and the ControlNet strength. The <c>*Req</c>-read values are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c>/
+/// <c>style_prompt</c>/<c>negative</c> are nullable strings; <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record LineThickenControlNetParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]             public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]        public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]           public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]             public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]               public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]           public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]         public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)]           public required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.StylePrompt)]       public string? StylePrompt { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)]          public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Coarse)]            public required string Coarse { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ControlnetStrength)] public required double ControlnetStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Resolution)]        public required int Resolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]             public long Seed { get; init; }
 }

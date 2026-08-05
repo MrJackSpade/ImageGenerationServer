@@ -1,7 +1,7 @@
 namespace ImageGen.Comfy;
 
 /// <summary>The single source of truth for every workflow parameter KEY — the lookup string a <see cref="ParamSpec.Key"/>
-/// declares and a <see cref="ParamValues"/> accessor reads. Each key is written once here and referenced everywhere else,
+/// declares and a params DTO's <c>[JsonPropertyName]</c> binds. Each key is written once here and referenced everywhere else,
 /// so the schema declaration and every access site share one spelling (a mistyped lookup key silently reads "absent"
 /// rather than failing). These are programmatic tokens, not UI text; a control's human label lives on the ParamSpec.</summary>
 internal static class WorkflowParamKeys

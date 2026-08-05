@@ -1,14 +1,16 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>SD1.5 AnimateDiff + SparseCtrl-RGB: the source conditions frame 0 (faithful anime i2v).</summary>
-public sealed class AnimateDiffSd15Workflow : EditWorkflowBase
+public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params>
 {
     public override string Name => "animatediff-sd15";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflowBase.Nodes).</summary>
+    /// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
     private const string ScaledSource = "11";
     private const string SourceSize = "15";
     private const string MotionLoad = "20";
@@ -24,30 +26,52 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(AnimateDiffSd15Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
-        long seed = ComfyGraph.Seed(p);
-        int frames = p.IntReq(WorkflowParamKeys.Length);
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        long seed = ComfyGraph.Seed(p.Seed);
+        int frames = p.Length;
+        double fps = p.Fps;
         double budgetMp = 0.26;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
-        string mm = p.Model(WorkflowParamKeys.MotionModel);
-        string beta = p.StrReq(WorkflowParamKeys.BetaSchedule);
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 64 });
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
-        wf[MotionLoad] = ComfyGraph.Node(ComfyNodeTypes.ADE_LoadAnimateDiffModel, new { model_name = mm });
-        wf[MotionApply] = ComfyGraph.Node(ComfyNodeTypes.ADE_ApplyAnimateDiffModelSimple, new { motion_model = ComfyGraph.Ref(MotionLoad, 0) });
-        wf[EvolvedSampling] = ComfyGraph.Node(ComfyNodeTypes.ADE_UseEvolvedSampling, new { model = model0, beta_schedule = beta, m_models = ComfyGraph.Ref(MotionApply, 0) });
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = clip0 });
-        wf[Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyLatentImage, new { width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), batch_size = frames });
-        wf[SparseCtrlLoader] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlLoaderAdvanced, new { sparsectrl_name = p.Model(WorkflowParamKeys.SparsectrlName), use_motion = true, motion_strength = 1.0, motion_scale = 1.0 });
-        wf[SparseCtrlPreprocess] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlRGBPreprocessor, new { image = ComfyGraph.Ref(ScaledSource, 0), vae = vae0, latent_size = ComfyGraph.Ref(Latent, 0) });
-        wf[ControlNetApply] = ComfyGraph.Node(ComfyNodeTypes.ControlNetApplyAdvanced, new { positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), control_net = ComfyGraph.Ref(SparseCtrlLoader, 0), image = ComfyGraph.Ref(SparseCtrlPreprocess, 0), strength = 1.0, start_percent = 0.0, end_percent = 1.0, vae = vae0 });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new { seed, steps = p.IntReq(WorkflowParamKeys.Steps), cfg = p.DblReq(WorkflowParamKeys.Cfg), sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)), scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), denoise = 1.0, model = ComfyGraph.Ref(EvolvedSampling, 0), positive = ComfyGraph.Ref(ControlNetApply, 0), negative = ComfyGraph.Ref(ControlNetApply, 1), latent_image = ComfyGraph.Ref(Latent, 0) });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
-        return wf;
+        string mm = p.MotionModel;
+        string beta = p.BetaSchedule;
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
+        g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
+        g[MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
+        g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(MotionApply) };
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
+        g[Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = frames };
+        g[SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
+        g[SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Latent) };
+        g[ControlNetApply] = new ControlNetApplyAdvanced { Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(SparseCtrlLoader), Image = ACN_SparseCtrlRGBPreprocessor.Out(SparseCtrlPreprocess), Strength = 1.0, StartPercent = 0.0, EndPercent = 1.0, Vae = vae0 };
+        g[Sampler] = new KSampler { Seed = seed, Steps = p.Steps, Cfg = p.Cfg, SamplerName = ComfyGraph.MapSampler(p.Sampler), Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Denoise = 1.0, Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply), Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply), LatentImage = EmptyLatentImageSized.Out(Latent) };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        return g;
     }
+}
+
+/// <summary>SD1.5 AnimateDiff i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/
+/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, the clip length + playback fps, the motion
+/// module, the AnimateDiff <c>beta_schedule</c>, and the SparseCtrl-RGB adapter. The <c>*Req</c>/<c>Model()</c> reads
+/// are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are nullable strings; <c>seed</c> is the app's
+/// single-sourced seed (defaulted).</summary>
+public sealed record AnimateDiffSd15Params
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]        public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]   public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]      public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]        public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]           public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MotionModel)]   public required string MotionModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BetaSchedule)]  public required string BetaSchedule { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlName)] public required string SparsectrlName { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]         public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]           public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]       public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]     public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]          public long Seed { get; init; }
 }

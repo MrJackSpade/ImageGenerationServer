@@ -36,6 +36,7 @@ internal static class ComfyNodeTypes
     public const string DifferentialDiffusion = "DifferentialDiffusion";
     public const string DualCLIPLoader = "DualCLIPLoader";
     public const string DualModelGuider = "DualModelGuider";
+    public const string EmptyChromaRadianceLatentImage = "EmptyChromaRadianceLatentImage";
     public const string EmptyFlux2LatentImage = "EmptyFlux2LatentImage";
     public const string EmptyHunyuanImageLatent = "EmptyHunyuanImageLatent";
     public const string EmptyHunyuanLatentVideo = "EmptyHunyuanLatentVideo";

@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -13,21 +14,21 @@ namespace ImageGen.Comfy;
 /// as a real video file (an animated-webp clip is transcoded to mp4 first) instead of a PNG. This is the only editor
 /// the UI offers when the source is a clip.
 /// </summary>
-public sealed class PixelQuantizeVideoWorkflow : IWorkflow
+public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoParams>
 {
-    public string Name => "pixel-quantize-video";
-    public WorkflowKind Kind => WorkflowKind.Edit;
+    public override string Name => "pixel-quantize-video";
+    public override WorkflowKind Kind => WorkflowKind.Edit;
     /// <summary>Outputs an animated WEBP clip.</summary>
-    public WorkflowMedia Media => WorkflowMedia.Video;
+    public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>Consumes a video clip (video-to-video) — the one editor that does.</summary>
-    public WorkflowMedia SourceMedia => WorkflowMedia.Video;
+    public override WorkflowMedia SourceMedia => WorkflowMedia.Video;
     /// <summary>No prompt at all — the quantize is purely deterministic.</summary>
-    public bool PromptDirectsMotion => false;
+    public override bool PromptDirectsMotion => false;
     /// <summary>Restyle to a fixed grid+palette — exempt from the no-change gate (also moot for video, which skips it).</summary>
-    public bool PreservesComposition => true;
+    public override bool PreservesComposition => true;
     /// <summary>Pure-CPU quantizer — no checkpoint, must not be hidden by the catalog's no-model guard.</summary>
-    public bool RequiresModel => false;
-    public IReadOnlyList<ParamSpec> Schema => QuantizeSchema;
+    public override bool RequiresModel => false;
+    public override IReadOnlyList<ParamSpec> Schema => QuantizeSchema;
 
     /// <summary>Node ids named by role. Values preserved exactly.</summary>
     private static class Nodes
@@ -73,60 +74,102 @@ public sealed class PixelQuantizeVideoWorkflow : IWorkflow
         new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
     };
 
-    public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(PixelQuantizeVideoParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Source clip → frames (+ its frame rate). No model head: the quantizer is pure CPU.
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") }),
-            [Nodes.Frames] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
+            [Nodes.Source] = new LoadVideo { File = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") },
+            [Nodes.Frames] = new GetVideoComponents { Video = LoadVideo.VideoOut(Nodes.Source) },
         };
-        int gw = p.IntReq(WorkflowParamKeys.GridW);
-        int gh = p.IntReq(WorkflowParamKeys.GridH);
+        int gw = p.GridW;
+        int gh = p.GridH;
         // key_background: matte every frame first, feeding RGBA (subject + alpha) into the quantizer. The BiRefNetMatte
         // node sits between the decoded frames and the quantizer so the alpha stays a tensor (no lossy round-trip).
-        bool key = p.Bool(WorkflowParamKeys.KeyBackground);
-        object frames = ComfyGraph.Ref(Nodes.Frames, 0);
+        bool key = p.KeyBackground;
+        Output<Slot.Image> frames = GetVideoComponents.ImagesOut(Nodes.Frames);
         if (key)
         {
-            wf[Nodes.Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Frames, 0), threshold = p.DblReq(WorkflowParamKeys.MatteThreshold) });
-            frames = ComfyGraph.Ref(Nodes.Matte, 0);
+            g[Nodes.Matte] = new BiRefNetMatte { Image = GetVideoComponents.ImagesOut(Nodes.Frames), Threshold = QuantizeGuards.Req(p.MatteThreshold, WorkflowParamKeys.MatteThreshold) };
+            frames = BiRefNetMatte.Out(Nodes.Matte);
         }
         // Both engines process the whole (N,H,W,C) frame batch and return N quantized frames at the same resolution.
-        if (p.StrReq(WorkflowParamKeys.Engine) == FpEngine)
+        if (p.Engine == FpEngine)
         {
             // Feature-preserving: derives ONE global palette across all frames, so 'palette'/'final_method' are unused.
-            wf[Nodes.Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantizeFP, new
+            g[Nodes.Quantize] = new PixelQuantizeFP
             {
-                image = frames,
-                grid_w = gw,
-                grid_h = gh,
-                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
-                thicken = p.DblReq(WorkflowParamKeys.Thicken),
-                tau = p.DblReq(WorkflowParamKeys.Tau),
-                lam = p.DblReq(WorkflowParamKeys.Lam),
-                k = p.IntReq(WorkflowParamKeys.K),
-                beta = p.DblReq(WorkflowParamKeys.Beta),
-                step = p.DblReq(WorkflowParamKeys.Step),
-            });
+                Image = frames,
+                GridW = gw,
+                GridH = gh,
+                VirtualResolution = p.VirtualResolution,
+                Thicken = QuantizeGuards.Req(p.Thicken, WorkflowParamKeys.Thicken),
+                Tau = QuantizeGuards.Req(p.Tau, WorkflowParamKeys.Tau),
+                Lam = QuantizeGuards.Req(p.Lam, WorkflowParamKeys.Lam),
+                K = QuantizeGuards.Req(p.K, WorkflowParamKeys.K),
+                Beta = QuantizeGuards.Req(p.Beta, WorkflowParamKeys.Beta),
+                Step = QuantizeGuards.Req(p.Step, WorkflowParamKeys.Step),
+            };
         }
         else
         {
-            wf[Nodes.Quantize] = ComfyGraph.Node(ComfyNodeTypes.PixelQuantize, new
+            g[Nodes.Quantize] = new PixelQuantize
             {
-                image = frames,
-                grid_w = gw,
-                grid_h = gh,
-                palette = p.StrReq(WorkflowParamKeys.Palette),
-                method = p.StrReq(WorkflowParamKeys.FinalMethod),
-                virtual_resolution = p.IntReq(WorkflowParamKeys.VirtualResolution),
-            });
+                Image = frames,
+                GridW = gw,
+                GridH = gh,
+                Palette = QuantizeGuards.Req(p.Palette, WorkflowParamKeys.Palette),
+                Method = QuantizeGuards.Req(p.FinalMethod, WorkflowParamKeys.FinalMethod),
+                VirtualResolution = p.VirtualResolution,
+            };
         }
         // Keep the source clip's frame rate by default (GetVideoComponents output 2); an explicit fps>0 overrides it.
         // Keyed output must be LOSSLESS so the alpha channel survives the webp encode (as the matte/deflicker passes do).
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
-        object fpsArg = fps > 0 ? fps : ComfyGraph.Ref(Nodes.Frames, 2);
-        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Quantize, 0), filename_prefix = "forgemcp_edit", fps = fpsArg, lossless = key, quality = key ? 100 : 80, method = "default" });
-        return wf;
+        double fps = p.Fps;
+        int quality = key ? 100 : 80;
+        g[Nodes.Save] = fps > 0
+            ? new SaveAnimatedWEBPFixedFps
+            {
+                Images = PixelQuantize.Out(Nodes.Quantize),
+                FilenamePrefix = "forgemcp_edit",
+                Fps = fps,
+                Lossless = key,
+                Quality = quality,
+                Method = "default",
+            }
+            : new SaveAnimatedWEBP
+            {
+                Images = PixelQuantize.Out(Nodes.Quantize),
+                FilenamePrefix = "forgemcp_edit",
+                Fps = GetVideoComponents.FpsOut(Nodes.Frames),
+                Lossless = key,
+                Quality = quality,
+                Method = "default",
+            };
+        return g;
     }
+}
+
+/// <summary>Video pixel-quantizer parameters — the grid/virtual-resolution snap, the output frame rate, the engine
+/// selector, and the feature-preserving engine knobs. The always-read values (<c>virtual_resolution</c>/<c>grid_w</c>/
+/// <c>grid_h</c>/<c>fps</c>/<c>engine</c>) are <c>required</c>; the branch-only knobs (<c>palette</c>/<c>final_method</c>
+/// for median, <c>thicken</c>…<c>step</c> for fp, <c>matte_threshold</c> for keying) are nullable and guarded in their
+/// branch with <c>QuantizeGuards.Req</c> (the old <c>*Req</c> throw); <c>key_background</c> is a defaulted bool.</summary>
+public sealed record PixelQuantizeVideoParams
+{
+    [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]               public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Engine)]            public required string Engine { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Thicken)]           public double? Thicken { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]               public double? Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lam)]               public double? Lam { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]                 public int? K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Beta)]              public double? Beta { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step)]              public double? Step { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]    public double? MatteThreshold { get; init; }
 }

@@ -1,8 +1,10 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>Flux.1 Kontext image edit. Single-image native; multi-image uses the verified ImageStitch method
 /// (stitch source+refs into one image, encode as the single reference latent; output stays source-sized).</summary>
-public sealed class FluxKontextEditWorkflow : EditWorkflowBase
+public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 {
     public override string Name => "flux1-kontext";
 
@@ -20,51 +22,69 @@ public sealed class FluxKontextEditWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(FluxKontextParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);
-        long seed = ComfyGraph.Seed(p);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);
+        long seed = ComfyGraph.Seed(p.Seed);
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
 
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[SourceScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = ComfyGraph.Ref(Nodes.Source, 0) });
-        wf[SourceEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(SourceScale, 0), vae = vae0 });
-        int fn = p.Has(WorkflowParamKeys.ReferenceMax) ? Math.Min(refNames.Count, p.IntReq(WorkflowParamKeys.ReferenceMax)) : 0;   // no reference_max declared → this editor takes no refs
-        object refLatent;
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(Nodes.Source) };
+        g[SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(SourceScale), Vae = vae0 };
+        int fn = p.ReferenceMax is int rm ? Math.Min(refNames.Count, rm) : 0;   // no reference_max declared → this editor takes no refs
+        Output<Slot.Latent> refLatent;
         if (fn > 0)
         {
-            object stitched = ComfyGraph.Ref(Nodes.Source, 0);
+            Output<Slot.Image> stitched = LoadImage.ImageOut(Nodes.Source);
             for (int i = 0; i < fn; i++)
             {
                 string load = $"{40 + i}", stitch = $"{50 + i}";
-                wf[load] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = refNames[i] });
-                wf[stitch] = ComfyGraph.Node(ComfyNodeTypes.ImageStitch, new { image1 = stitched, image2 = ComfyGraph.Ref(load, 0), direction = "right", match_image_size = true, spacing_width = 0, spacing_color = "white" });
-                stitched = ComfyGraph.Ref(stitch, 0);
+                g[load] = new LoadImage { Image = refNames[i] };
+                g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = "right", MatchImageSize = true, SpacingWidth = 0, SpacingColor = "white" };
+                stitched = ImageStitch.Out(stitch);
             }
-            wf[StitchScale] = ComfyGraph.Node(ComfyNodeTypes.FluxKontextImageScale, new { image = stitched });
-            wf[StitchEncode] = ComfyGraph.Node(ComfyNodeTypes.VAEEncode, new { pixels = ComfyGraph.Ref(StitchScale, 0), vae = vae0 });
-            refLatent = ComfyGraph.Ref(StitchEncode, 0);
+            g[StitchScale] = new FluxKontextImageScale { Image = stitched };
+            g[StitchEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(StitchScale), Vae = vae0 };
+            refLatent = VAEEncode.Out(StitchEncode);
         }
-        else refLatent = ComfyGraph.Ref(SourceEncode, 0);
-        wf[RefLatent] = ComfyGraph.Node(ComfyNodeTypes.ReferenceLatent, new { conditioning = ComfyGraph.Ref(Positive, 0), latent = refLatent });
-        wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(RefLatent, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
-        wf[NegativeZero] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = ComfyGraph.Ref(Positive, 0) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        else refLatent = VAEEncode.Out(SourceEncode);
+        g[RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Positive), Latent = refLatent };
+        g[Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(RefLatent), Guidance = p.Guidance };
+        g[NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
+        g[Sampler] = new KSampler
         {
-            seed,
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model = model0,
-            positive = ComfyGraph.Ref(Guidance, 0),
-            negative = ComfyGraph.Ref(NegativeZero, 0),
-            latent_image = ComfyGraph.Ref(SourceEncode, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Seed = seed,
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = model0,
+            Positive = FluxGuidance.Out(Guidance),
+            Negative = ConditioningZeroOut.Out(NegativeZero),
+            LatentImage = VAEEncode.Out(SourceEncode),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Flux.1 Kontext parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>
+/// for the typed <c>LoadModel</c>), the sampler settings, the distilled <c>guidance</c>, and the optional
+/// <c>reference_max</c> cap (nullable: absent → this editor takes no reference images). The <c>*Req</c> reads are
+/// <c>required</c>; <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record FluxKontextParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceMax)] public int? ReferenceMax { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

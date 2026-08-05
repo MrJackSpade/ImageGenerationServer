@@ -1,8 +1,10 @@
-﻿namespace ImageGen.Comfy;
+using System.Text.Json.Serialization;
+
+namespace ImageGen.Comfy;
 
 /// <summary>LTX-Video image-to-video: fast distilled model; source conditions frame 0. LTX has no CLIP in the
 /// checkpoint — it loads an external T5.</summary>
-public sealed class LtxvI2VWorkflow : EditWorkflowBase
+public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
 {
     public override string Name => "ltxv-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
@@ -23,29 +25,50 @@ public sealed class LtxvI2VWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(LtxvI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out _, out object? vae0);
-        model0 = ComfyGraph.ApplyLora(wf, model0, p);   // optional anime-style LoRA on the LTX model
-        long seed = ComfyGraph.Seed(p);
-        int frames = p.IntReq(WorkflowParamKeys.Length);
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out _, out var vae0);
+        model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA on the LTX model
+        long seed = ComfyGraph.Seed(p.Seed);
+        int frames = p.Length;
+        double fps = p.Fps;
         // LTX loads its own external T5 (clip_type "ltxv").
-        wf[T5Loader] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "ltxv", device = "default" });
-        object ltxClip = ComfyGraph.Ref(T5Loader, 0);
+        g[T5Loader] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "ltxv", Device = "default" };
+        Output<Slot.Clip> ltxClip = CLIPLoader.ClipOut(T5Loader);
         double budgetMp = 0.39;   // LTX's native i2v megapixel budget — always applied (the source is scaled to it)
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 32 });
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = ltxClip });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = ltxClip });
-        wf[ImgToVideo] = ComfyGraph.Node(ComfyNodeTypes.LTXVImgToVideo, new { positive = ComfyGraph.Ref(Positive, 0), negative = ComfyGraph.Ref(Negative, 0), vae = vae0, image = ComfyGraph.Ref(ScaledSource, 0), width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), length = frames, batch_size = 1, strength = 1.0 });
-        wf[Conditioning] = ComfyGraph.Node(ComfyNodeTypes.LTXVConditioning, new { positive = ComfyGraph.Ref(ImgToVideo, 0), negative = ComfyGraph.Ref(ImgToVideo, 1), frame_rate = fps });
-        wf[Scheduler] = ComfyGraph.Node(ComfyNodeTypes.LTXVScheduler, new { steps = p.IntReq(WorkflowParamKeys.Steps), max_shift = 2.05, base_shift = 0.95, stretch = true, terminal = 0.1, latent = ComfyGraph.Ref(ImgToVideo, 2) });
-        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustom, new { model = model0, add_noise = true, noise_seed = seed, cfg = p.DblReq(WorkflowParamKeys.Cfg), positive = ComfyGraph.Ref(Conditioning, 0), negative = ComfyGraph.Ref(Conditioning, 1), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Scheduler, 0), latent_image = ComfyGraph.Ref(ImgToVideo, 2) });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 80, method = "default" });
-        return wf;
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = ltxClip };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = ltxClip };
+        g[ImgToVideo] = new LTXVImgToVideo { Positive = CLIPTextEncode.Out(Positive), Negative = CLIPTextEncode.Out(Negative), Vae = vae0, Image = ImageScaleToTotalPixels.Out(ScaledSource), Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), Length = frames, BatchSize = 1, Strength = 1.0 };
+        g[Conditioning] = new LTXVConditioning { Positive = LTXVImgToVideo.PositiveOut(ImgToVideo), Negative = LTXVImgToVideo.NegativeOut(ImgToVideo), FrameRate = fps };
+        g[Scheduler] = new LTXVScheduler { Steps = p.Steps, MaxShift = 2.05, BaseShift = 0.95, Stretch = true, Terminal = 0.1, Latent = LTXVImgToVideo.LatentOut(ImgToVideo) };
+        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Conditioning), Negative = LTXVConditioning.NegativeOut(Conditioning), Sampler = KSamplerSelect.Out(SamplerSelect), Sigmas = LTXVScheduler.Out(Scheduler), LatentImage = LTXVImgToVideo.LatentOut(ImgToVideo) };
+        g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 80, Method = "default" };
+        return g;
     }
+}
+
+/// <summary>LTX-Video i2v parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c>
+/// for the typed <c>LoadModel</c>), the <c>SamplerCustom</c> settings, the clip length + playback fps, and the optional
+/// preset LoRA. LTX runs its own LTXVScheduler, so no <c>scheduler</c> param is read. The <c>*Req</c> reads are
+/// <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are nullable strings; <c>lora</c> is a nullable model-ref and
+/// <c>lora_strength</c> a defaulted double (only read when a LoRA is set); <c>seed</c> is the app's single-sourced
+/// seed (defaulted).</summary>
+public sealed record LtxvI2VParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]       public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]          public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lora)]         public string? Lora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LoraStrength)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

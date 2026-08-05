@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
@@ -10,7 +11,7 @@ namespace ImageGen.Comfy;
 /// (diffusion_models → Stable-diffusion, vae → VAE, text_encoders → text_encoder). No ComfyUI model loaders here,
 /// hence <see cref="RequiresModel"/> = false. NOTE: superseded by Step1X-Edit v1p2; this is the older release.
 /// </summary>
-public sealed class Step1XEditWorkflow : EditWorkflowBase
+public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
 {
     public override string Name => "step1x-edit-i1258";
     /// <summary>Self-contained loader node (manages its own VRAM: int8 + offload) — no ComfyUI loaders to presence-gate.</summary>
@@ -28,39 +29,51 @@ public sealed class Step1XEditWorkflow : EditWorkflowBase
     private const string Save = "9";
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.DiffusionModel, Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.Step1xVae,      Type = ParamType.String, IsModelRef = true },
     }).ToArray();
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(Step1XParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Step1X-Edit needs a source image, but none was provided.") }),
-            [ModelLoader] = ComfyGraph.Node(ComfyNodeTypes.Step1XEditModelLoader, new
+            [Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("Step1X-Edit needs a source image, but none was provided.") },
+            [ModelLoader] = new Step1XEditModelLoader
             {
-                diffusion_model = p.Model(WorkflowParamKeys.DiffusionModel),
-                vae = p.Model(WorkflowParamKeys.Step1xVae),
-                text_encoder = TextEncoder,
-                dtype = "bfloat16",
-                quantized = true,
-                offload = true,
-            }),
+                DiffusionModel = p.DiffusionModel,
+                Vae = p.Step1xVae,
+                TextEncoder = TextEncoder,
+                Dtype = "bfloat16",
+                Quantized = true,
+                Offload = true,
+            },
         };
-        wf[Generate] = ComfyGraph.Node(ComfyNodeTypes.Step1XEditGenerate, new
+        g[Generate] = new Step1XEditGenerate
         {
-            model = ComfyGraph.Ref(ModelLoader, 0),
-            input_image = ComfyGraph.Ref(Nodes.Source, 0),
-            prompt = inputs.Positive,
-            negative_prompt = "",
-            num_steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg_guidance = p.DblReq(WorkflowParamKeys.Cfg),
-            seed = ComfyGraph.Seed(p),
-            size_level = p.IntReq(WorkflowParamKeys.Width),
-        });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Generate, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Model = Step1XEditModelLoader.Out(ModelLoader),
+            InputImage = LoadImage.ImageOut(Nodes.Source),
+            Prompt = inputs.Positive,
+            NegativePrompt = "",
+            NumSteps = p.Steps,
+            CfgGuidance = p.Cfg,
+            Seed = ComfyGraph.Seed(p.Seed),
+            SizeLevel = p.Width,
+        };
+        g[Save] = new SaveImage { Images = Step1XEditGenerate.Out(Generate), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Step1X-Edit parameters — the DiT/AE model refs (<c>Model()</c> reads → <c>required</c>), the diffusion
+/// knobs and the <c>size_level</c> (from <c>width</c>), plus the app's single-sourced seed (defaulted).</summary>
+public sealed record Step1XParams
+{
+    [JsonPropertyName(WorkflowParamKeys.DiffusionModel)] public required string DiffusionModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step1xVae)]      public required string Step1xVae { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]          public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]            public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)]          public required int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
 }

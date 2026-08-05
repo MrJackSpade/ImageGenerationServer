@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -13,13 +16,13 @@ namespace ImageGen.Comfy;
 /// and that same scaled image both feeds the encode node and seeds the sampling latent (denoise 1.0, shape only). The
 /// 0.1 Edit release supports a single reference image, so only the source is used (no extra reference slots).
 /// </summary>
-public sealed class BooguEditWorkflow : EditWorkflowBase
+public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
 {
     public override string Name => "boogu-edit";
 
     /// <summary>Boogu runs real CFG with an (optionally empty) negative; expose it like the inpaint editor does.</summary>
     public override IReadOnlyList<ParamSpec> Schema => BooguSchema;
-    private static readonly IReadOnlyList<ParamSpec> BooguSchema = SharedSchema
+    private static readonly IReadOnlyList<ParamSpec> BooguSchema = EditWorkflowBase.SharedSchema
         .Concat(new ParamSpec[]
         {
             new() { Key = WorkflowParamKeys.Negative,   Type = ParamType.String },
@@ -39,70 +42,77 @@ public sealed class BooguEditWorkflow : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    /// <summary>The TextEncodeBooguEdit node's input-field names. Values are the ComfyUI input names, preserved
-    /// exactly — note the dotted Autogrow key <c>images.image_1</c> (see Build).</summary>
-    private static class Inputs
+    protected override ComfyWorkflowGraph Build(BooguParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        public const string Clip = "clip";
-        public const string Prompt = "prompt";
-        public const string NegativePrompt = "negative_prompt";
-        public const string Vae = "vae";
-        public const string ImagesImage1 = "images.image_1";
-    }
-
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
-    {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4=unet 5=clip(boogu) 6=vae 10=LoadImage(source)
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // 4=unet 5=clip(boogu) 6=vae 10=LoadImage(source)
 
         // Lift of the official Comfy-Org image_boogu_image_0_1_edit template. Resize the source to ~1 MP (lanczos) —
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
-        double mp = p.DblReq(WorkflowParamKeys.Megapixels);
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = mp, resolution_steps = 16 });
+        double mp = p.Megapixels;
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = mp, ResolutionSteps = 16 };
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries
         // 3.16) — sampling quality depends on it being on the model the scheduler/sampler see.
-        wf[ModelSampling] = ComfyGraph.Node(ComfyNodeTypes.ModelSamplingAuraFlow, new { model = model0, shift = 3.16 });
-        object modelS = ComfyGraph.Ref(ModelSampling, 0);
+        g[ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.16 };
+        Output<Slot.Model> modelS = ModelSamplingAuraFlow.Out(ModelSampling);
 
         // Boogu edit conditioning: instruction (+ vision tokens) on positive, empty/explicit negative => DROP. The node
         // VAE-encodes the reference itself and returns positive[0] / negative[1] with the reference latent on both. The
         // reference is the node's "images" Autogrow (COMFY_AUTOGROW_V3) input, keyed by its finalized dotted path
         // "images.image_1" (id "." template-name), which the v3 executor rebuilds into images={"image_1": <IMAGE>}. A
-        // bare "image_1" is rejected; the dotted key needs a Dictionary (a C# anonymous type can't express the dot).
-        string neg = inputs.Negative ?? p.Str(WorkflowParamKeys.Negative) ?? "";
-        wf[Encode] = ComfyGraph.Node(ComfyNodeTypes.TextEncodeBooguEdit, new Dictionary<string, object>
+        // bare "image_1" is rejected; the dotted key is expressed by the record's [JsonPropertyName("images.image_1")].
+        string neg = inputs.Negative ?? p.Negative ?? "";
+        g[Encode] = new TextEncodeBooguEdit
         {
-            [Inputs.Clip] = clip0,
-            [Inputs.Prompt] = inputs.Positive,
-            [Inputs.NegativePrompt] = neg,
-            [Inputs.Vae] = vae0,
-            [Inputs.ImagesImage1] = ComfyGraph.Ref(ScaledSource, 0),
-        });
+            Clip = clip0,
+            Prompt = inputs.Positive,
+            NegativePrompt = neg,
+            Vae = vae0,
+            ImagesImage1 = ImageScaleToTotalPixels.Out(ScaledSource),
+        };
 
         // Output latent: an EMPTY latent sized to the resized source (template uses GetImageSize -> EmptyLatentImage),
         // NOT a VAEEncode of the source. Sample with SamplerCustom + KSamplerSelect(dpmpp_2m) + BasicScheduler sigmas —
         // a plain euler KSampler produces soft/blurry edits.
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
-        wf[Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyLatentImage, new { width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), batch_size = 1 });
-        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Sigmas] = ComfyGraph.Node(ComfyNodeTypes.BasicScheduler, new { model = modelS, scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)), steps = p.IntReq(WorkflowParamKeys.Steps), denoise = 1.0 });
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
+        g[Latent] = new EmptyLatentFromSize { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = 1 };
+        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Sigmas] = new BasicScheduler { Model = modelS, Scheduler = ComfyGraph.MapScheduler(p.Scheduler), Steps = p.Steps, Denoise = 1.0 };
 
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustom, new
+        g[Sampler] = new SamplerCustom
         {
-            model = modelS,
-            add_noise = true,
-            noise_seed = ComfyGraph.Seed(p),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            positive = ComfyGraph.Ref(Encode, 0),
-            negative = ComfyGraph.Ref(Encode, 1),
-            sampler = ComfyGraph.Ref(SamplerSelect, 0),
-            sigmas = ComfyGraph.Ref(Sigmas, 0),
-            latent_image = ComfyGraph.Ref(Latent, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Model = modelS,
+            AddNoise = true,
+            NoiseSeed = ComfyGraph.Seed(p.Seed),
+            Cfg = p.Cfg,
+            Positive = TextEncodeBooguEdit.PositiveOut(Encode),
+            Negative = TextEncodeBooguEdit.NegativeOut(Encode),
+            Sampler = KSamplerSelect.Out(SamplerSelect),
+            Sigmas = BasicScheduler.Out(Sigmas),
+            LatentImage = EmptyLatentFromSize.Out(Latent),
+        };
+        g[Decode] = new VAEDecode { Samples = SamplerCustom.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveImage { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>Boogu-edit parameters — the shared loader head knobs (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for
+/// the typed <c>LoadModel</c>), the CFG diffusion knobs, the reference megapixel budget, and the optional negative. The
+/// <c>*Req</c> reads are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c>/<c>negative</c> are nullable string reads;
+/// <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record BooguParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]      public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]    public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]       public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]         public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]     public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]   public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]  public required double Megapixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)]    public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]        public long Seed { get; init; }
 }

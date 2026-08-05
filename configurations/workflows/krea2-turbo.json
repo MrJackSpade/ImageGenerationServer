@@ -8,7 +8,10 @@
     "text_encoders": [
       "qwen3vl-4b"
     ],
-    "vae": "qwen-image-vae"
+    "vae": "qwen-image-vae",
+    "extra": [
+      "comfyui-conditioning-rebalance"
+    ]
   },
   "params": {
     "loader": "unet",

@@ -1,4 +1,4 @@
-﻿using ImageGen.Application.Rendering;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -8,16 +8,16 @@ namespace ImageGen.Comfy;
 /// animated WEBP (<c>lossless=true</c> so the alpha channel survives). No checkpoint: the node loads its own model,
 /// so this must not be hidden by the catalog's no-model guard. Composition-preserving (exempt from the no-change gate).
 /// </summary>
-public sealed class BiRefNetMatteVideoWorkflow : IWorkflow
+public sealed class BiRefNetMatteVideoWorkflow : Workflow<MatteParams>
 {
-    public string Name => "birefnet-matte-video";
-    public WorkflowKind Kind => WorkflowKind.Edit;
-    public WorkflowMedia Media => WorkflowMedia.Video;
-    public WorkflowMedia SourceMedia => WorkflowMedia.Video;
-    public bool PromptDirectsMotion => false;
-    public bool PreservesComposition => true;
-    public bool RequiresModel => false;
-    public IReadOnlyList<ParamSpec> Schema => MatteSchema;
+    public override string Name => "birefnet-matte-video";
+    public override WorkflowKind Kind => WorkflowKind.Edit;
+    public override WorkflowMedia Media => WorkflowMedia.Video;
+    public override WorkflowMedia SourceMedia => WorkflowMedia.Video;
+    public override bool PromptDirectsMotion => false;
+    public override bool PreservesComposition => true;
+    public override bool RequiresModel => false;
+    public override IReadOnlyList<ParamSpec> Schema => MatteSchema;
 
     private static readonly IReadOnlyList<ParamSpec> MatteSchema = new ParamSpec[]
     {
@@ -33,17 +33,31 @@ public sealed class BiRefNetMatteVideoWorkflow : IWorkflow
         public const string Save = "9";
     }
 
-    public Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(MatteParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        return new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadVideo, new { file = inputs.SourceVideoName ?? throw new RenderValidationException("The video matte needs a source clip, but none was provided.") }),
-            [Nodes.Components] = ComfyGraph.Node(ComfyNodeTypes.GetVideoComponents, new { video = ComfyGraph.Ref(Nodes.Source, 0) }),
+            [Nodes.Source] = new LoadVideo
+            {
+                File = inputs.SourceVideoName ?? throw new RenderValidationException("The video matte needs a source clip, but none was provided."),
+            },
+            [Nodes.Components] = new GetVideoComponents { Video = LoadVideo.VideoOut(Nodes.Source) },
             // BiRefNetMatte output 0 = RGBA (frame + matte as alpha).
-            [Nodes.Matte] = ComfyGraph.Node(ComfyNodeTypes.BiRefNetMatte, new { image = ComfyGraph.Ref(Nodes.Components, 0), threshold = p.DblReq(WorkflowParamKeys.Threshold) }),
+            [Nodes.Matte] = new BiRefNetMatte
+            {
+                Image = GetVideoComponents.ImagesOut(Nodes.Components),
+                Threshold = p.Threshold,
+            },
+            // Keep the source clip's frame rate (GetVideoComponents output 2). lossless=true so the alpha survives.
+            [Nodes.Save] = new SaveAnimatedWEBP
+            {
+                Images = BiRefNetMatte.Out(Nodes.Matte),
+                FilenamePrefix = "forgemcp_edit",
+                Fps = GetVideoComponents.FpsOut(Nodes.Components),
+                Lossless = true,
+                Quality = 100,
+                Method = "default",
+            },
         };
-        // Keep the source clip's frame rate (GetVideoComponents output 2). lossless=true so the alpha survives.
-        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Nodes.Matte, 0), filename_prefix = "forgemcp_edit", fps = ComfyGraph.Ref(Nodes.Components, 2), lossless = true, quality = 100, method = "default" });
-        return wf;
     }
 }

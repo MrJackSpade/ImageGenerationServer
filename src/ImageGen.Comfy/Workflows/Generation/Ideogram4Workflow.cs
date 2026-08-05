@@ -1,4 +1,14 @@
+using System.Text.Json.Serialization;
+
 namespace ImageGen.Comfy;
+
+/// <summary>Ideogram 4's extra knobs: the late-step CFG override, and the mu/std of its own logit-normal schedule.</summary>
+public sealed record Ideogram4Params : Txt2ImgParams
+{
+    [JsonPropertyName(WorkflowParamKeys.CfgOverride)] public required double CfgOverride { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Mu)]          public required double Mu { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Std)]         public required double Std { get; init; }
+}
 
 /// <summary>
 /// Ideogram 4 text-to-image. fp8-only (no bf16 is published; the nvfp4 build needs Blackwell). Its distinctive trait
@@ -16,11 +26,11 @@ namespace ImageGen.Comfy;
 /// user pastes into their own chat model to produce the JSON. Making plain prompts work here needs an NL->JSON
 /// rewriter (an LLM running that system prompt) which the app no longer has. Re-enable once that exists.
 /// </summary>
-public sealed class Ideogram4Workflow : Txt2ImgWorkflowBase
+public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 {
     public override string Name => "ideogram4";
 
-    public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
+    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.CfgOverride, Type = ParamType.Double, Min = 1,   Max = 30, Label = "Late-step CFG" },
         new() { Key = WorkflowParamKeys.Mu,          Type = ParamType.Double, Min = -10, Max = 10, Label = "Schedule shift (mu)" },
@@ -37,33 +47,47 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflowBase
     private const string Noise = "18";
     private const string Sampler = "23";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(Ideogram4Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        (int w, int h) = p.DimsReq(WorkflowParamKeys.Aspect, ComfyGraph.NormalizeAspect(inputs.Aspect));
-        Dictionary<string, object> wf = new Dictionary<string, object>();
+        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
 
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
-        wf[Nodes.Model] = ComfyGraph.DiffusionLoader(req.RequiredCheckpoint());
-        wf[UncondModel] = ComfyGraph.DiffusionLoader(req.RequiredMotionModel());
-        wf[Nodes.Clip] = ComfyGraph.Node(ComfyNodeTypes.CLIPLoader, new { clip_name = req.TextEncoder(0), type = "ideogram4", device = "default" });
-        wf[Nodes.Vae] = ComfyGraph.Node(ComfyNodeTypes.VAELoader, new { vae_name = req.RequiredVae() });
+        g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
+        g[UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
+        g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = "ideogram4", Device = "default" };
+        g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
-        wf[Nodes.Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = ComfyGraph.Ref(Nodes.Clip, 0) });
-        wf[NegativeZeroOut] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = ComfyGraph.Ref(Nodes.Positive, 0) });
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = CLIPLoader.ClipOut(Nodes.Clip) };
+        g[NegativeZeroOut] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
 
         // Asymmetric CFG: CFGOverride raises guidance on the conditional model over the last (1 - start_percent) of the
         // schedule; DualModelGuider then fuses the (override) conditional and the unconditional model at the base cfg.
-        wf[CfgOverride] = ComfyGraph.Node(ComfyNodeTypes.CFGOverride, new { model = ComfyGraph.Ref(Nodes.Model, 0), cfg = p.DblReq(WorkflowParamKeys.CfgOverride), start_percent = 0.7, end_percent = 1.0 });
-        wf[Guider] = ComfyGraph.Node(ComfyNodeTypes.DualModelGuider, new { model = ComfyGraph.Ref(CfgOverride, 0), positive = ComfyGraph.Ref(Nodes.Positive, 0), model_negative = ComfyGraph.Ref(UncondModel, 0), negative = ComfyGraph.Ref(NegativeZeroOut, 0), cfg = p.DblReq(WorkflowParamKeys.Cfg) });
+        g[CfgOverride] = new CFGOverride { Model = UNETLoader.ModelOut(Nodes.Model), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
+        g[Guider] = new DualModelGuider
+        {
+            Model = ImageGen.Comfy.CFGOverride.Out(CfgOverride),
+            Positive = CLIPTextEncode.Out(Nodes.Positive),
+            ModelNegative = UNETLoader.ModelOut(UncondModel),
+            Negative = ConditioningZeroOut.Out(NegativeZeroOut),
+            Cfg = p.RequiredCfg(),
+        };
 
-        wf[Nodes.Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyFlux2LatentImage, new { width = w, height = h, batch_size = 1 });
-        wf[Sigmas] = ComfyGraph.Node(ComfyNodeTypes.Ideogram4Scheduler, new { steps = p.IntReq(WorkflowParamKeys.Steps), width = w, height = h, mu = p.DblReq(WorkflowParamKeys.Mu), std = p.DblReq(WorkflowParamKeys.Std) });
-        wf[SamplerSelect] = ComfyGraph.Node(ComfyNodeTypes.KSamplerSelect, new { sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)) });
-        wf[Noise] = ComfyGraph.Node(ComfyNodeTypes.RandomNoise, new { noise_seed = ComfyGraph.Seed(p) });
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.SamplerCustomAdvanced, new { noise = ComfyGraph.Ref(Noise, 0), guider = ComfyGraph.Ref(Guider, 0), sampler = ComfyGraph.Ref(SamplerSelect, 0), sigmas = ComfyGraph.Ref(Sigmas, 0), latent_image = ComfyGraph.Ref(Nodes.Latent, 0) });
+        g[Nodes.Latent] = new EmptyLatent(ComfyNodeTypes.EmptyFlux2LatentImage) { Width = w, Height = h, BatchSize = 1 };
+        g[Sigmas] = new Ideogram4Scheduler { Steps = p.Steps, Width = w, Height = h, Mu = p.Mu, Std = p.Std };
+        g[SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+        g[Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
+        g[Sampler] = new SamplerCustomAdvanced
+        {
+            Noise = RandomNoise.Out(Noise),
+            Guider = DualModelGuider.Out(Guider),
+            Sampler = KSamplerSelect.Out(SamplerSelect),
+            Sigmas = Ideogram4Scheduler.Out(Sigmas),
+            LatentImage = EmptyLatent.Out(Nodes.Latent),
+        };
 
-        wf[Nodes.Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = ComfyGraph.Ref(Nodes.Vae, 0) });
-        wf[Nodes.Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Nodes.Decode, 0), filename_prefix = "forgemcp" });
-        return wf;
+        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Sampler), Vae = VAELoader.VaeOut(Nodes.Vae) };
+        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = "forgemcp" };
+        return g;
     }
 }

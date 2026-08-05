@@ -1,4 +1,5 @@
-﻿using ImageGen.Domain;
+using System.Text.Json.Serialization;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -48,12 +49,12 @@ namespace ImageGen.Comfy;
 /// <para>Guidance 30 and CFG 1 are Fill's own values (guidance-distilled model, ComfyUI's shipped blueprint) — they
 /// are not the usual Flux 3.5. Steps 20, euler/normal.</para>
 /// </summary>
-public abstract class FluxFillBase : EditWorkflowBase
+public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 {
     /// <summary>Only the masked region changes, and the composite enforces it.</summary>
     public override bool PreservesComposition => true;
 
-    protected static readonly IReadOnlyList<ParamSpec> FillSchema = SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
+    protected static readonly IReadOnlyList<ParamSpec> FillSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
     {
         // Fill is guidance-distilled: real CFG stays 1 and the strength knob is FluxGuidance. 30 is the value BFL
         // ship for Fill (ComfyUI's blueprint uses it too) — an order of magnitude above Flux txt2img's 3.5, because
@@ -71,12 +72,12 @@ public abstract class FluxFillBase : EditWorkflowBase
     }).ToArray();
 
     /// <summary>Produce the canvas to fill and the raw region to fill in it.</summary>
-    protected abstract void ResolveCanvas(Dictionary<string, object> wf, ParamValues p, WorkflowInputs inputs,
-        out object image, out object rawMask);
+    protected abstract void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
+        out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
 
     /// <summary>Pixel size of the canvas <see cref="ResolveCanvas"/> produces. The source is a still, so its
     /// dimensions are always measured — a zero is a broken source, refused rather than silently skipping the ceiling.</summary>
-    protected virtual (int W, int H) CanvasSize(ParamValues p, WorkflowInputs inputs)
+    protected virtual (int W, int H) CanvasSize(FluxFillParams p, WorkflowInputs inputs)
     {
         Ensure.GreaterThanZero(inputs.SourceWidth);
         Ensure.GreaterThanZero(inputs.SourceHeight);
@@ -120,39 +121,39 @@ public abstract class FluxFillBase : EditWorkflowBase
     /// pixels. A symmetric ramp would dip below 1 inside the fill region, so the composite would blend the region's
     /// existing content (grey pad / white hole) back into the fill.</para>
     /// </summary>
-    private static object SoftenMask(Dictionary<string, object> wf, ParamValues p, object rawMask)
+    private static Output<Slot.Mask> SoftenMask(ComfyWorkflowGraph g, FluxFillParams p, Output<Slot.Mask> rawMask)
     {
-        object m = rawMask;
-        int grow = p.Has(WorkflowParamKeys.MaskGrow) ? Ensure.NotNegative(p.IntReq(WorkflowParamKeys.MaskGrow), WorkflowParamKeys.MaskGrow) : 0;
+        Output<Slot.Mask> m = rawMask;
+        int grow = p.MaskGrow is int mg ? Ensure.NotNegative(mg, WorkflowParamKeys.MaskGrow) : 0;
         if (grow > 0)
         {
-            wf[Grow] = ComfyGraph.Node(ComfyNodeTypes.GrowMask, new { mask = m, expand = grow, tapered_corners = true });
-            m = ComfyGraph.Ref(Grow, 0);
+            g[Grow] = new GrowMask { Mask = m, Expand = grow, TaperedCorners = true };
+            m = GrowMask.Out(Grow);
         }
 
-        int blur = p.IntReq(WorkflowParamKeys.MaskBlur);
+        int blur = p.MaskBlur;
         if (blur == 0) return m;
 
-        wf[MaskAsImage] = ComfyGraph.Node(ComfyNodeTypes.MaskToImage, new { mask = m });
-        wf[BlurredMaskImage] = ComfyGraph.Node(ComfyNodeTypes.ImageBlur, new { image = ComfyGraph.Ref(MaskAsImage, 0), blur_radius = blur, sigma = MaskBlurSigma });
-        wf[BlurredMask] = ComfyGraph.Node(ComfyNodeTypes.ImageToMask, new { image = ComfyGraph.Ref(BlurredMaskImage, 0), channel = "red" });
-        wf[SoftMask] = ComfyGraph.Node(ComfyNodeTypes.MaskComposite, new
+        g[MaskAsImage] = new MaskToImage { Mask = m };
+        g[BlurredMaskImage] = new ImageBlur { Image = MaskToImage.Out(MaskAsImage), BlurRadius = blur, Sigma = MaskBlurSigma };
+        g[BlurredMask] = new ImageToMask { Image = ImageBlur.Out(BlurredMaskImage), Channel = "red" };
+        g[SoftMask] = new MaskComposite
         {
-            destination = ComfyGraph.Ref(BlurredMask, 0),
-            source = rawMask,
-            x = 0,
-            y = 0,
-            operation = "add",
-        });
-        return ComfyGraph.Ref(SoftMask, 0);
+            Destination = ImageToMask.Out(BlurredMask),
+            Source = rawMask,
+            X = 0,
+            Y = 0,
+            Operation = "add",
+        };
+        return MaskComposite.Out(SoftMask);
     }
 
     /// <summary>Emit the ceiling scale for canvas AND mask, or leave both untouched. Both must travel together:
     /// the composite does not resize a mismatched mask.</summary>
-    private static void ApplyCeiling(Dictionary<string, object> wf, ParamValues p, (int W, int H) canvas,
-        ref object image, ref object rawMask)
+    private static void ApplyCeiling(ComfyWorkflowGraph g, FluxFillParams p, (int W, int H) canvas,
+        ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
-        int cap = p.IntReq(WorkflowParamKeys.MaxDimension);
+        int cap = p.MaxDimension;
         Ensure.NotNegative(cap);   // 0 = off (no ceiling); a negative is out of range, not a second spelling of "off"
         int longEdge = Math.Max(canvas.W, canvas.H);
         if (cap == 0 || longEdge <= cap) return;   // ceiling off, or already under it (CanvasSize guarantees real dims)
@@ -161,37 +162,37 @@ public abstract class FluxFillBase : EditWorkflowBase
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
         int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
 
-        wf[CeilingImage] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image, upscale_method = "lanczos", width = w, height = h, crop = "disabled" });
-        wf[CeilingMaskAsImage] = ComfyGraph.Node(ComfyNodeTypes.MaskToImage, new { mask = rawMask });
+        g[CeilingImage] = new ImageScale { Image = image, UpscaleMethod = "lanczos", Width = w, Height = h, Crop = "disabled" };
+        g[CeilingMaskAsImage] = new MaskToImage { Mask = rawMask };
         // nearest-exact keeps the mask binary; bilinear would ramp its edge and stack with SoftenMask.
-        wf[CeilingMaskImage] = ComfyGraph.Node(ComfyNodeTypes.ImageScale, new { image = ComfyGraph.Ref(CeilingMaskAsImage, 0), upscale_method = "nearest-exact", width = w, height = h, crop = "disabled" });
-        wf[CeilingMask] = ComfyGraph.Node(ComfyNodeTypes.ImageToMask, new { image = ComfyGraph.Ref(CeilingMaskImage, 0), channel = "red" });
+        g[CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(CeilingMaskAsImage), UpscaleMethod = "nearest-exact", Width = w, Height = h, Crop = "disabled" };
+        g[CeilingMask] = new ImageToMask { Image = ImageScale.Out(CeilingMaskImage), Channel = "red" };
 
-        image = ComfyGraph.Ref(CeilingImage, 0);
-        rawMask = ComfyGraph.Ref(CeilingMask, 0);
+        image = ImageScale.Out(CeilingImage);
+        rawMask = ImageToMask.Out(CeilingMask);
     }
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(FluxFillParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        LoadModel(wf, p, req, inputs, out object? model0, out object? clip0, out object? vae0);   // 4/5/6 + LoadImage "10"
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out var model0, out var clip0, out var vae0);   // 4/5/6 + LoadImage "10"
 
-        ResolveCanvas(wf, p, inputs, out object? image, out object? rawMask);
-        ApplyCeiling(wf, p, CanvasSize(p, inputs), ref image, ref rawMask);
-        object softMask = SoftenMask(wf, p, rawMask);
+        ResolveCanvas(g, p, inputs, out var image, out var rawMask);
+        ApplyCeiling(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
+        Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = clip0 });
-        wf[Guidance] = ComfyGraph.Node(ComfyNodeTypes.FluxGuidance, new { conditioning = ComfyGraph.Ref(Positive, 0), guidance = p.DblReq(WorkflowParamKeys.Guidance) });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.ConditioningZeroOut, new { conditioning = ComfyGraph.Ref(Positive, 0) });
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Positive), Guidance = p.Guidance };
+        g[Negative] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Positive) };
 
         // Differential blending: the soft mask becomes a per-pixel denoise SCHEDULE, so the model harmonizes the
         // transition band across steps instead of us cross-fading two finished images. See the class doc.
-        object samplerModel = model0;
-        if (p.Bool(WorkflowParamKeys.Diffdiff))
+        Output<Slot.Model> samplerModel = model0;
+        if (p.Diffdiff)
         {
-            wf[DiffDiff] = ComfyGraph.Node(ComfyNodeTypes.DifferentialDiffusion, new { model = model0 });
-            samplerModel = ComfyGraph.Ref(DiffDiff, 0);
+            g[DiffDiff] = new DifferentialDiffusion { Model = model0 };
+            samplerModel = DifferentialDiffusion.Out(DiffDiff);
         }
 
         // The native fill conditioning — mask and masked-image are the MODEL's inputs here, not a ControlNet's.
@@ -199,45 +200,73 @@ public abstract class FluxFillBase : EditWorkflowBase
         // surroundings. Sampling the full frame instead (noise_mask=false, the diffusers-reference shape) measures
         // strictly worse — Fill freewheels without the anchor (a moon hallucinates into an empty-prompt sky fill;
         // −27/−89 luminance vs −6 pinned). See the class doc before touching this.
-        wf[InpaintConditioning] = ComfyGraph.Node(ComfyNodeTypes.InpaintModelConditioning, new
+        g[InpaintConditioning] = new InpaintModelConditioning
         {
-            positive = ComfyGraph.Ref(Guidance, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            vae = vae0,
-            pixels = image,
-            mask = softMask,
-            noise_mask = true,
-        });
+            Positive = FluxGuidance.Out(Guidance),
+            Negative = ConditioningZeroOut.Out(Negative),
+            Vae = vae0,
+            Pixels = image,
+            Mask = softMask,
+            NoiseMask = true,
+        };
 
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Sampler] = new KSampler
         {
-            seed = ComfyGraph.Seed(p),
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model = samplerModel,
-            positive = ComfyGraph.Ref(InpaintConditioning, 0),
-            negative = ComfyGraph.Ref(InpaintConditioning, 1),
-            latent_image = ComfyGraph.Ref(InpaintConditioning, 2),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = vae0 });
+            Seed = ComfyGraph.Seed(p.Seed),
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = samplerModel,
+            Positive = InpaintModelConditioning.PositiveOut(InpaintConditioning),
+            Negative = InpaintModelConditioning.NegativeOut(InpaintConditioning),
+            LatentImage = InpaintModelConditioning.LatentOut(InpaintConditioning),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
 
         // Paste-back so everything outside the region is bit-identical to the source rather than a VAE round-trip of
         // it, with the decode's tint fitted on the outside pixels and inverted first (a small correction under the
         // noise-mask pinning — see the class doc). The same soft mask crossfades the band DifferentialDiffusion
         // already harmonized.
-        wf[Composite] = ComfyGraph.Node(ComfyNodeTypes.ImageCompositeMaskedColorCorrected, new
+        g[Composite] = new ImageCompositeMaskedColorCorrected
         {
-            destination = image,
-            source = ComfyGraph.Ref(Decode, 0),
-            x = 0,
-            y = 0,
-            mask = softMask,
-            correction_method = p.Bool(WorkflowParamKeys.ColorCorrect) ? "Linear2" : "None",
-        });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Composite, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+            Destination = image,
+            Source = VAEDecode.Out(Decode),
+            X = 0,
+            Y = 0,
+            Mask = softMask,
+            CorrectionMethod = p.ColorCorrect ? "Linear2" : "None",
+        };
+        g[Save] = new SaveImage { Images = ImageCompositeMaskedColorCorrected.Out(Composite), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>FLUX.1 Fill parameters, shared by the inpaint and outpaint subclasses — the shared loader head knobs
+/// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, the Fill
+/// guidance/mask-softening/ceiling knobs, and (outpaint only) the per-side pads. The <c>*Req</c> reads are
+/// <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are nullable strings; <c>diffdiff</c>/<c>color_correct</c> are
+/// booleans (absent = false); <c>mask_grow</c> is a Has-guarded nullable int; the <c>pad_*</c> reads are plain
+/// <c>p.Int</c> (absent = 0); <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
+public sealed record FluxFillParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]        public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]          public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskBlur)]     public required int MaskBlur { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Diffdiff)]     public bool Diffdiff { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ColorCorrect)] public bool ColorCorrect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxDimension)] public required int MaxDimension { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaskGrow)]     public int? MaskGrow { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadLeft)]      public int PadLeft { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadTop)]       public int PadTop { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadRight)]     public int PadRight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PadBottom)]    public int PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
 }

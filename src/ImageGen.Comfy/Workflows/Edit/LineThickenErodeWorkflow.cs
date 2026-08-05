@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -9,7 +10,7 @@ namespace ImageGen.Comfy;
 /// ImageMagick <c>-morphology Erode</c> / Photoshop "Minimum" algorithm. Grows every dark pixel,
 /// interior detail included. Exempt from the no-change gate (it restyles in place).
 /// </summary>
-public sealed class LineThickenErodeWorkflow : EditWorkflowBase
+public sealed class LineThickenErodeWorkflow : EditWorkflow<LineThickenErodeParams>
 {
     public override string Name => "line-thicken-erode";
     /// <summary>Restyle in place — exempt from the whole-image no-change gate.</summary>
@@ -28,15 +29,23 @@ public sealed class LineThickenErodeWorkflow : EditWorkflowBase
     private const string Thicken = "20";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(LineThickenErodeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
         {
-            [Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.") }),
+            [Nodes.Source] = new LoadImage { Image = source },
         };
-        object src = PixelHarnessGraph.FlattenOnWhite(wf);   // flatten alpha onto white (nodes 11-14)
-        wf[Thicken] = ComfyGraph.Node(ComfyNodeTypes.LineThicken, new { image = src, thickness = p.IntReq(WorkflowParamKeys.Thickness) });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveImage, new { images = ComfyGraph.Ref(Thicken, 0), filename_prefix = "forgemcp_edit" });
-        return wf;
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
+        g[Thicken] = new LineThicken { Image = src, Thickness = p.Thickness };
+        g[Save] = new SaveImage { Images = LineThicken.Out(Thicken), FilenamePrefix = "forgemcp_edit" };
+        return g;
     }
+}
+
+/// <summary>The erode thickener's one parameter. <c>required</c> so an absent value throws at the deserializer
+/// (the declarative form of the previous <c>IntReq</c> read).</summary>
+public sealed record LineThickenErodeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Thickness)] public required int Thickness { get; init; }
 }

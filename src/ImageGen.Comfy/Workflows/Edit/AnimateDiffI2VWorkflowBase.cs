@@ -1,4 +1,5 @@
-﻿using ImageGen.Application.Rendering;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -14,14 +15,14 @@ namespace ImageGen.Comfy;
 /// files (motion module, IP-Adapter PLUS, CLIP-ViT-H, SparseCtrl; AnimateLCM also an LCM LoRA) — all documented in
 /// requirements.json. Node ids / wiring mirror the proven prototype exactly.
 /// </summary>
-public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
+public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VParams>
 {
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>AnimateDiff: prompt is a scene hint, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = SharedSchema.Concat(new ParamSpec[]
+    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
     {
         new() { Key = WorkflowParamKeys.LcmLora, Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
         // sparsectrl_name is inherited from SharedSchema now (IsModelRef, no Default — a default there would be a
@@ -32,7 +33,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
         new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Label = "Identity strength" },
     }).ToArray();
 
-    /// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflowBase.Nodes; here node "4" is the
+    /// <summary>This base's own nodes (Model "4" and Source "10" come from EditWorkflow.Nodes; here node "4" is the
     /// CheckpointLoaderSimple and its outputs feed clip/vae directly).</summary>
     private const string LcmLora = "5";
     private const string ScaledSource = "11";
@@ -42,7 +43,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
     private const string MotionApply = "21";
     private const string EvolvedSampling = "22";
     private const string IpAdapterLoader = "30";
-    private const string IpAdapter = "31";
+    private const string IpAdapterApply = "31";
     private const string Positive = "13";
     private const string Negative = "12";
     private const string SparseCtrlLoader = "23";
@@ -52,73 +53,108 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflowBase
     private const string Decode = "8";
     private const string Save = "9";
 
-    public override Dictionary<string, object> Build(ParamValues p, ResolvedRequirements req, WorkflowInputs inputs)
+    protected override ComfyWorkflowGraph Build(AnimateDiffI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        Dictionary<string, object> wf = new Dictionary<string, object>();
-        long seed = ComfyGraph.Seed(p);
-        int frames = p.IntReq(WorkflowParamKeys.Length);
-        double fps = p.DblReq(WorkflowParamKeys.Fps);
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        long seed = ComfyGraph.Seed(p.Seed);
+        int frames = p.Length;
+        double fps = p.Fps;
         double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
-        string beta = p.StrReq(WorkflowParamKeys.BetaSchedule);
-        string motion = !string.IsNullOrWhiteSpace(req.MotionModel) ? req.MotionModel : p.Model(WorkflowParamKeys.MotionModel);
+        string beta = p.BetaSchedule;
+        // A requirements-bound motion module wins; otherwise the config's motion_model slot. Refuse (don't emit a null
+        // model_name) when neither names one — mirrors the old p.Model contract for this key.
+        string motion =
+            req.MotionModel is { } reqMotion && !string.IsNullOrWhiteSpace(reqMotion) ? reqMotion
+            : p.MotionModel is { } mm && !string.IsNullOrWhiteSpace(mm) ? mm
+            : throw new RenderValidationException(
+                $"This configuration needs a model for '{WorkflowParamKeys.MotionModel}' and none is set. The configuration should name a slot "
+                + "there, and this machine should have a file bound to it.");
 
-        wf[Nodes.Model] = ComfyGraph.Node(ComfyNodeTypes.CheckpointLoaderSimple, new { ckpt_name = req.RequiredCheckpoint() });
-        object baseModel = ComfyGraph.Ref(Nodes.Model, 0);
-        string? lcmLora = p.Str(WorkflowParamKeys.LcmLora);
+        g[Nodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
+        Output<Slot.Model> baseModel = CheckpointLoaderSimple.ModelOut(Nodes.Model);
+        Output<Slot.Clip> clip0 = CheckpointLoaderSimple.ClipOut(Nodes.Model);
+        Output<Slot.Vae> vae0 = CheckpointLoaderSimple.VaeOut(Nodes.Model);
+        string? lcmLora = p.LcmLora;
         if (!string.IsNullOrWhiteSpace(lcmLora))   // AnimateLCM: apply the LCM LoRA to the base model to enable lcm sampling
         {
-            wf[LcmLora] = ComfyGraph.Node(ComfyNodeTypes.LoraLoaderModelOnly, new { model = ComfyGraph.Ref(Nodes.Model, 0), lora_name = lcmLora, strength_model = 1.0 });
-            baseModel = ComfyGraph.Ref(LcmLora, 0);
+            g[LcmLora] = new LoraLoaderModelOnly { Model = CheckpointLoaderSimple.ModelOut(Nodes.Model), LoraName = lcmLora, StrengthModel = 1.0 };
+            baseModel = LoraLoaderModelOnly.Out(LcmLora);
         }
 
-        wf[Nodes.Source] = ComfyGraph.Node(ComfyNodeTypes.LoadImage, new { image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") });
-        wf[ScaledSource] = ComfyGraph.Node(ComfyNodeTypes.ImageScaleToTotalPixels, new { image = ComfyGraph.Ref(Nodes.Source, 0), upscale_method = "lanczos", megapixels = budgetMp, resolution_steps = 64 });
-        wf[SourceSize] = ComfyGraph.Node(ComfyNodeTypes.GetImageSize, new { image = ComfyGraph.Ref(ScaledSource, 0) });
-        wf[Latent] = ComfyGraph.Node(ComfyNodeTypes.EmptyLatentImage, new { width = ComfyGraph.Ref(SourceSize, 0), height = ComfyGraph.Ref(SourceSize, 1), batch_size = frames });
+        g[Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") };
+        g[ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Source), UpscaleMethod = "lanczos", Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(ScaledSource) };
+        g[Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(SourceSize), Height = GetImageSize.HeightOut(SourceSize), BatchSize = frames };
 
-        wf[MotionLoad] = ComfyGraph.Node(ComfyNodeTypes.ADE_LoadAnimateDiffModel, new { model_name = motion });
-        wf[MotionApply] = ComfyGraph.Node(ComfyNodeTypes.ADE_ApplyAnimateDiffModelSimple, new { motion_model = ComfyGraph.Ref(MotionLoad, 0) });
-        wf[EvolvedSampling] = ComfyGraph.Node(ComfyNodeTypes.ADE_UseEvolvedSampling, new { model = baseModel, beta_schedule = beta, m_models = ComfyGraph.Ref(MotionApply, 0) });
+        g[MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = motion };
+        g[MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(MotionLoad) };
+        g[EvolvedSampling] = new ADE_UseEvolvedSampling { Model = baseModel, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(MotionApply) };
 
         // IP-Adapter: UnifiedLoader auto-resolves the IP-Adapter PLUS model + CLIP-ViT-H from the preset, then apply
         // the SOURCE image so the subject's identity carries into every generated frame.
-        wf[IpAdapterLoader] = ComfyGraph.Node(ComfyNodeTypes.IPAdapterUnifiedLoader, new { model = ComfyGraph.Ref(EvolvedSampling, 0), preset = p.StrReq(WorkflowParamKeys.IpadapterPreset) });
-        wf[IpAdapter] = ComfyGraph.Node(ComfyNodeTypes.IPAdapter, new { model = ComfyGraph.Ref(IpAdapterLoader, 0), ipadapter = ComfyGraph.Ref(IpAdapterLoader, 1), image = ComfyGraph.Ref(ScaledSource, 0), weight = p.DblReq(WorkflowParamKeys.IpadapterWeight), start_at = 0.0, end_at = 1.0, weight_type = "standard" });
+        g[IpAdapterLoader] = new IPAdapterUnifiedLoader { Model = ADE_UseEvolvedSampling.Out(EvolvedSampling), Preset = p.IpadapterPreset };
+        g[IpAdapterApply] = new IPAdapter { Model = IPAdapterUnifiedLoader.ModelOut(IpAdapterLoader), Ipadapter = IPAdapterUnifiedLoader.IpadapterOut(IpAdapterLoader), Image = ImageScaleToTotalPixels.Out(ScaledSource), Weight = p.IpadapterWeight, StartAt = 0.0, EndAt = 1.0, WeightType = "standard" };
 
-        wf[Positive] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Positive, clip = ComfyGraph.Ref(Nodes.Model, 1) });
-        wf[Negative] = ComfyGraph.Node(ComfyNodeTypes.CLIPTextEncode, new { text = inputs.Negative ?? "", clip = ComfyGraph.Ref(Nodes.Model, 1) });
+        g[Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
+        g[Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
 
         // SparseCtrl RGB: condition frame 0 on the source. Strength eased off after the early frames (end_percent)
         // so later frames are free to move instead of freezing on the source.
-        wf[SparseCtrlLoader] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlLoaderAdvanced, new { sparsectrl_name = p.Model(WorkflowParamKeys.SparsectrlName), use_motion = true, motion_strength = 1.0, motion_scale = 1.0 });
-        wf[SparseCtrlPreprocess] = ComfyGraph.Node(ComfyNodeTypes.ACN_SparseCtrlRGBPreprocessor, new { image = ComfyGraph.Ref(ScaledSource, 0), vae = ComfyGraph.Ref(Nodes.Model, 2), latent_size = ComfyGraph.Ref(Latent, 0) });
-        wf[ControlNetApply] = ComfyGraph.Node(ComfyNodeTypes.ControlNetApplyAdvanced, new
+        g[SparseCtrlLoader] = new ACN_SparseCtrlLoaderAdvanced { SparsectrlName = p.SparsectrlName, UseMotion = true, MotionStrength = 1.0, MotionScale = 1.0 };
+        g[SparseCtrlPreprocess] = new ACN_SparseCtrlRGBPreprocessor { Image = ImageScaleToTotalPixels.Out(ScaledSource), Vae = vae0, LatentSize = EmptyLatentImageSized.Out(Latent) };
+        g[ControlNetApply] = new ControlNetApplyAdvanced
         {
-            positive = ComfyGraph.Ref(Positive, 0),
-            negative = ComfyGraph.Ref(Negative, 0),
-            control_net = ComfyGraph.Ref(SparseCtrlLoader, 0),
-            image = ComfyGraph.Ref(SparseCtrlPreprocess, 0),
-            strength = p.DblReq(WorkflowParamKeys.SparsectrlStrength),
-            start_percent = 0.0,
-            end_percent = p.DblReq(WorkflowParamKeys.SparsectrlEnd),
-            vae = ComfyGraph.Ref(Nodes.Model, 2),
-        });
+            Positive = CLIPTextEncode.Out(Positive),
+            Negative = CLIPTextEncode.Out(Negative),
+            ControlNet = ACN_SparseCtrlLoaderAdvanced.Out(SparseCtrlLoader),
+            Image = ACN_SparseCtrlRGBPreprocessor.Out(SparseCtrlPreprocess),
+            Strength = p.SparsectrlStrength,
+            StartPercent = 0.0,
+            EndPercent = p.SparsectrlEnd,
+            Vae = vae0,
+        };
 
-        wf[Sampler] = ComfyGraph.Node(ComfyNodeTypes.KSampler, new
+        g[Sampler] = new KSampler
         {
-            seed,
-            steps = p.IntReq(WorkflowParamKeys.Steps),
-            cfg = p.DblReq(WorkflowParamKeys.Cfg),
-            sampler_name = ComfyGraph.MapSampler(p.StrReq(WorkflowParamKeys.Sampler)),
-            scheduler = ComfyGraph.MapScheduler(p.StrReq(WorkflowParamKeys.Scheduler)),
-            denoise = 1.0,
-            model = ComfyGraph.Ref(IpAdapter, 0),
-            positive = ComfyGraph.Ref(ControlNetApply, 0),
-            negative = ComfyGraph.Ref(ControlNetApply, 1),
-            latent_image = ComfyGraph.Ref(Latent, 0),
-        });
-        wf[Decode] = ComfyGraph.Node(ComfyNodeTypes.VAEDecode, new { samples = ComfyGraph.Ref(Sampler, 0), vae = ComfyGraph.Ref(Nodes.Model, 2) });
-        wf[Save] = ComfyGraph.Node(ComfyNodeTypes.SaveAnimatedWEBP, new { images = ComfyGraph.Ref(Decode, 0), filename_prefix = "forgemcp_edit", fps, lossless = false, quality = 90, method = "default" });
-        return wf;
+            Seed = seed,
+            Steps = p.Steps,
+            Cfg = p.Cfg,
+            SamplerName = ComfyGraph.MapSampler(p.Sampler),
+            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+            Denoise = 1.0,
+            Model = IPAdapter.Out(IpAdapterApply),
+            Positive = ControlNetApplyAdvanced.PositiveOut(ControlNetApply),
+            Negative = ControlNetApplyAdvanced.NegativeOut(ControlNetApply),
+            LatentImage = EmptyLatentImageSized.Out(Latent),
+        };
+        g[Decode] = new VAEDecode { Samples = KSampler.Out(Sampler), Vae = vae0 };
+        g[Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Decode), FilenamePrefix = "forgemcp_edit", Fps = fps, Lossless = false, Quality = 90, Method = "default" };
+        return g;
     }
+}
+
+/// <summary>SD1.5 AnimateDiff i2v parameters (shared by the AnimateDiff-Lightning and AnimateLCM subclasses) — the
+/// clip length + playback fps, the AnimateDiff <c>beta_schedule</c>, the motion module + optional LCM LoRA, the
+/// SparseCtrl-RGB adapter + its strength/end knobs, and the IP-Adapter preset/weight. The <c>*Req</c>/<c>Model()</c>
+/// reads are <c>required</c>; <c>motion_model</c> is a nullable model-ref (a requirements binding may supply it instead)
+/// and <c>lcm_lora</c> a nullable model-ref (absent = no LoRA); <c>seed</c> is the app's single-sourced seed
+/// (defaulted). This base does not use the shared LoadModel head — it loads a plain checkpoint — so <c>loader</c>/
+/// <c>weight_dtype</c>/<c>clip_type</c> are not read.</summary>
+public sealed record AnimateDiffI2VParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Length)]             public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)]                public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BetaSchedule)]       public required string BetaSchedule { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MotionModel)]        public string? MotionModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LcmLora)]            public string? LcmLora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlName)]     public required string SparsectrlName { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlStrength)] public required double SparsectrlStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlEnd)]      public required double SparsectrlEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.IpadapterPreset)]    public required string IpadapterPreset { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.IpadapterWeight)]    public required double IpadapterWeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Steps)]              public required int Steps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Cfg)]                public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)]               public long Seed { get; init; }
 }

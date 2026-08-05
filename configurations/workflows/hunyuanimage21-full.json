@@ -15,6 +15,7 @@
     "loader": "unet",
     "clip_type": "hunyuan_image",
     "dual": true,
+    "latent": "sd3",
     "steps": 50,
     "cfg": 3.5,
     "sampler": "euler",
