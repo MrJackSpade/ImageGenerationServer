@@ -521,61 +521,83 @@ function trackJobBatch(jobId, o) {
     timer = setInterval(poll, 2000); poll(); openWs();
   });
 }
-// Poll /result for a single prompt until done/error; the ws is best-effort live progress. Page-agnostic: the
-// caller supplies hooks — onFraction(0..1) to drive its bar, onStart(res) when the render begins (to start the
-// ETA), and setActiveGen(obj|null) so the page's Cancel button can reach the in-flight job. Resolves the final
-// "done" result row; rejects on server error, or with an AbortError DOMException on cancellation — whether this
-// caller asked for it or the slot came back "cancelled" (stopped from another device).
-function trackPrompt(promptId, hooks) {
-  hooks = hooks || {};
-  const onFraction = hooks.onFraction || (() => {});
-  const onStart = hooks.onStart || (() => {});
-  const setActiveGen = hooks.setActiveGen || (() => {});
-  return new Promise((resolve, reject) => {
-    let settled = false, pollTimer = null, ws = null, etaStarted = false;
-    const done = (fn) => {
-      if (settled) return; settled = true;
-      try { ws && ws.close(); } catch (e) { console.debug("ws close on finish failed:", e); }
-      if (pollTimer) clearInterval(pollTimer);
-      document.removeEventListener("visibilitychange", onVisible);
-      setActiveGen(null); fn();
-    };
-    async function checkResult() {
-      if (settled) return;
-      let res;
-      try { const r = await fetch(`${GATEWAY}/result/${encodeURIComponent(promptId)}`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("result poll failed:", e); return; }
-      if (res && res.startedAt && !etaStarted) { etaStarted = true; onStart(res); }
-      // Still waiting for the GPU ("queued") or on it ("running") — either way, keep polling.
-      if (!res || res.status === "running" || res.status === "queued") return;
-      if (res.status === "error") { done(() => reject(new Error(res.error || "The image server reported an error generating the image."))); return; }
-      // Stopped on request — terminal, but not a failure. Rejecting as AbortError is what every caller already
-      // recognises as "the user cancelled" (they test e.name), so it reports "Cancelled." rather than an error.
-      if (res.status === "cancelled") { done(() => reject(new DOMException("cancelled", "AbortError"))); return; }
-      if (res.status === "done") { done(() => resolve(res)); return; }
-    }
-    function openWs() {
-      if (settled || ws) return;
-      try {
-        ws = new WebSocket(gwWs("/ws"));
-        ws.onmessage = (ev) => {
-          if (typeof ev.data !== "string") return;
-          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("gen ws non-JSON message:", e); return; }
-          const id = m.data && m.data.prompt_id;
-          if (id && id !== promptId) return;
-          const f = wsFraction(m);
-          if (f != null) onFraction(f);
-          if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") checkResult();
-        };
-        ws.onclose = () => { ws = null; };
-        ws.onerror = (ev) => { console.debug("gen ws error:", ev); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
-      } catch (e) { console.debug("gen ws open failed:", e); ws = null; }
-    }
-    const onVisible = () => { if (document.visibilityState === "visible" && !settled) { checkResult(); openWs(); } };
-    document.addEventListener("visibilitychange", onVisible);
-    setActiveGen({ cancel: async () => { try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (e) { console.debug("interrupt request failed:", e); } done(() => reject(new DOMException("Generation cancelled", "AbortError"))); } });
-    pollTimer = setInterval(checkResult, 1500);
-    checkResult(); openWs();
-  });
+
+// The ONE submit control (#147). EVERY button that enqueues work — the composer's Generate (and its Reload), and each
+// edit mode's Generate/Apply — is attached to THIS, so the entire submit lifecycle lives here once and can never drift:
+//   • click / the hold-to-count picker / the form's submit event,
+//   • collect the page's items and POST them as ONE /enqueue job,
+//   • track that one job through trackJobBatch (status·ETA·bar·preview),
+//   • queue MORE (a separate job) when pressed while a job is running.
+// The page supplies ONLY what is page-specific, via `o`:
+//   button                              the submit button element (the picker + click attach here)
+//   form?                               its form, if any (submit is intercepted)
+//   isBusy()                            whether a render this control owns is in flight (the page's own flag)
+//   buildItems(n) -> built | Promise    what to submit. Either an items array, or { items, meta } when the panel needs
+//                                       per-submission context (e.g. which prompt/models/shapes this batch used). Return
+//                                       [] (or {items:[]}) to abort after showing your own message; throw to error.
+//   onBusy(bool)                        the page marks itself busy/idle (and shows/hides its Cancel button)
+//   onActiveGen(handle|null)            the page stores the { cancel } handle so its Cancel button reaches this job
+//   panel                               the progress/preview wiring for trackJobBatch: show(bool), onProgress(f),
+//                                       onSlot(slot, meta), onRunning?(slot, job, meta), eta, activeStatus?, finalStatus,
+//                                       onSettle? — onSlot/onRunning receive the built `meta` so a queue-more submission
+//                                       (its own job + meta) can never corrupt the running job's rendering.
+//   onJob?(jobId, items, meta)          e.g. record a pending-job row for cross-device pickup
+//   setStatus(text, opts?)              write the page's status line
+//   startStatus(count) -> text          status shown the instant a submit is accepted
+//   queuedToast?(count) -> text         toast when a press queues behind a running job
+// Returns { submit(n), enqueue(built, startText), queueMore(n) } — `enqueue` submits a page-built value directly (the
+// composer's Reload uses it), sharing the exact same track/queue lifecycle as a button press.
+function attachEnqueueSubmit(o) {
+  let pending = false;   // synchronous guard so two fast clicks can't both pass the async build before onBusy lands
+  const itemsOf = built => Array.isArray(built) ? built : (built && built.items) || [];
+  const metaOf = built => Array.isArray(built) ? undefined : (built && built.meta);
+  async function collect(n) {
+    try { return (await o.buildItems(Math.max(1, n || 1))); }
+    catch (e) { o.setStatus(friendlyError(e), { error: true }); return null; }
+  }
+  async function enqueue(built, startText) {
+    const items = itemsOf(built), meta = metaOf(built);
+    if (!items.length) return;
+    o.onBusy(true); o.panel.show(true);
+    o.setStatus(items.length === 1 ? (startText || o.startStatus(1)) : `Making ${items.length}…`);
+    try {
+      const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
+      if (!r.ok) throw new Error(await gwError(r));
+      const resp = await r.json(); const jobId = resp.jobId;
+      if (!jobId) throw new Error("The queue accepted no jobs.");
+      if (o.onJob) o.onJob(jobId, items, meta);
+      await trackJobBatch(jobId, {
+        total: resp.total || items.length,
+        eta: o.panel.eta, onProgress: o.panel.onProgress,
+        onSlot: s => o.panel.onSlot(s, meta),
+        onRunning: o.panel.onRunning ? (s, job) => o.panel.onRunning(s, job, meta) : undefined,
+        activeStatus: o.panel.activeStatus, finalStatus: o.panel.finalStatus, setStatus: o.setStatus,
+        onCancelHandle: h => o.onActiveGen(h),
+        onSettle: made => { o.panel.show(false); if (o.panel.onSettle) o.panel.onSettle(made); },
+      });
+    } catch (e) {
+      o.setStatus((e && e.name === "AbortError") ? "Cancelled." : friendlyError(e), { error: true });
+      o.panel.show(false); if (o.panel.onSettle) o.panel.onSettle(0);
+    } finally { o.onBusy(false); o.onActiveGen(null); }
+  }
+  async function submit(n) {
+    if (pending || o.isBusy()) return;
+    pending = true;
+    try { const built = await collect(n); if (built) await enqueue(built); }
+    finally { pending = false; }
+  }
+  async function queueMore(n) {
+    const items = itemsOf(await collect(n));
+    if (!items.length) return;
+    try {
+      const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
+      if (!r.ok) throw new Error(await gwError(r));
+      toast(o.queuedToast ? o.queuedToast(items.length) : (items.length > 1 ? `Queued ${items.length} more — they start when the current one finishes.` : "Queued another — starts when the current one finishes."));
+    } catch (e) { console.error("queue-more failed:", e); toast("Couldn't queue more"); }
+  }
+  const picker = attachCountPicker(o.button, { onPick: n => o.isBusy() ? queueMore(n) : submit(n) });
+  if (o.form) o.form.addEventListener("submit", e => { e.preventDefault(); if (picker.opened) { picker.opened = false; return; } o.isBusy() ? queueMore(1) : submit(1); });
+  return { submit, enqueue, queueMore };
 }
 
 // --- hold-to-reveal count picker (shared: compose Generate, detail Reload, inpaint Generate) -----

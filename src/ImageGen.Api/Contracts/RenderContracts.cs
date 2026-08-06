@@ -5,35 +5,12 @@ using System.Text.Json;
 
 namespace ImageGen.Api.Contracts;
 
-/// <summary>One image-generation request body. <c>Workflow</c> is the workflow configuration id; <c>Overrides</c> are
-/// optional values for its UI-exposed parameters. The caller does NOT declare its bans: the user's banned tags/artists
-/// are a server-side fact the orchestrator reads at render time.</summary>
-/// <param name="TagTypes">
-/// Optional generation mask for this render — the tag types the random-prompt model may emit. Omit it (null) to
-/// generate under the owner's stored mask; an empty list is a real choice ("none of them"), not an omission.
-/// </param>
-/// <param name="OriginalPrompt">
-/// Optional: the prompt as the user typed it, before the CALLER resolved its own syntax into <c>Prompt</c>. Recorded
-/// with the image and never rendered from. Omit it when the caller does no such resolution — nothing is inferred.
-/// </param>
-/// <param name="Background">
-/// Optional: enqueue as a BACKGROUND (idle-time) job. It runs only once the queue has been idle of foreground work for
-/// the configured delay, and a foreground submission preempts it. Omit/false for an ordinary foreground render.
-/// </param>
-public sealed record GenerateRequest(
-    string Workflow, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
-    TriState RandomArtist = TriState.Unspecified,
-    TriState RandomPrompt = TriState.Unspecified,
-    [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
-    Dictionary<string, JsonElement>? Overrides = null,
-    List<string>? TagTypes = null,
-    string? OriginalPrompt = null,
-    List<LoraSelection>? Loras = null,
-    bool Background = false);
-
-/// <summary>One item of a batch enqueue (Edit=true marks an edit item). <c>Workflow</c> is non-nullable and required for
-/// both item kinds; <c>ImageId</c> stays nullable because a generate item legitimately omits it — its presence is the
-/// discriminated-union concern validated by the <c>Edit == true</c> branch, not a missing-member check.</summary>
+/// <summary>One item of a batch enqueue (Edit=true marks an edit item) — the SINGLE submission shape for both kinds,
+/// since every page now POSTs its work as an /enqueue batch (there is no separate /generate or /edit endpoint).
+/// <c>Workflow</c> is non-nullable and required for both item kinds; <c>ImageId</c> stays nullable because a generate
+/// item legitimately omits it — its presence is the discriminated-union concern validated by the <c>Edit == true</c>
+/// branch, not a missing-member check. Generate fields (prompt/aspect/random-*/tagTypes/loras) and edit fields
+/// (instruction/imageId/mask/refs/lastFrame) coexist; <c>ToRenderItem</c> reads the set that matches <c>Edit</c>.</summary>
 public sealed record EnqueueItem(
     string Workflow, bool Edit = false, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     string? Instruction = null, string? ImageId = null, List<string>? ReferenceImageIds = null,
@@ -54,11 +31,6 @@ public sealed record EnqueueRequest(List<EnqueueItem>? Jobs = null);
 /// <summary>Maps the render wire contracts to the Application render specs (hand-written; no AutoMapper).</summary>
 public static class RenderContractMapping
 {
-    /// <summary>Map a generate request body to the orchestration spec (an empty prompt is valid).</summary>
-    public static GenerateSpec ToSpec(this GenerateRequest r) => new(
-        r.Workflow, r.Prompt ?? "", r.NegativePrompt, r.Aspect,
-        r.RandomArtist, r.RandomPrompt, r.Temperature, r.Overrides, r.TagTypes, r.OriginalPrompt, r.Loras);
-
     /// <summary>Map a batch item to a render item, or null when the item is invalid (skipped). An absent instruction is
     /// an empty one — some editors (upscale, matte) take none — coalesced here at the wire→domain boundary exactly as
     /// the generate path does its prompt, so <see cref="EditSpec.Instruction"/> is honestly non-null.</summary>

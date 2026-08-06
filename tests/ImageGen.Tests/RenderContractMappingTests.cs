@@ -10,19 +10,10 @@ namespace ImageGen.Tests;
 /// </summary>
 public sealed class RenderContractMappingTests
 {
-    /// <summary>A single generate carries its generation mask through to the spec the orchestrator renders from.</summary>
-    [Fact]
-    public void A_generate_request_carries_its_mask_into_the_spec()
-    {
-        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square", RandomPrompt: TriState.True,
-            TagTypes: ["general", "character"]).ToSpec();
-
-        Assert.Equal(["general", "character"], spec.TagTypes);
-    }
-
     /// <summary>
-    /// And so does every item of a batch — the composer's Generate submits n slots through /enqueue, so a mask that
-    /// only survived the single-image path would apply to exactly the one case nobody uses it for.
+    /// Every item of a batch carries its generation mask through to the spec the orchestrator renders from — the
+    /// composer's Generate submits n slots through /enqueue (the only submission path), so a mask that didn't survive
+    /// the mapping would silently never reach the renderer.
     /// </summary>
     [Fact]
     public void A_batch_item_carries_its_mask_into_the_spec()
@@ -42,8 +33,9 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void An_omitted_mask_stays_null()
     {
-        GenerateSpec spec = new GenerateRequest("anima", "a prompt", null, "square").ToSpec();
+        GenerateSpec? spec = new EnqueueItem(Workflow: "anima", Prompt: "a prompt", Aspect: "square").ToRenderItem()?.Gen;
 
+        Assert.NotNull(spec);
         Assert.Null(spec.TagTypes);
     }
 }

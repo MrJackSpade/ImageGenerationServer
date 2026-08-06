@@ -8,7 +8,8 @@ namespace ImageGen.Tests;
 /// <summary>
 /// The tri-state fields stay a boolean-or-absent on the wire even though they are a <see cref="TriState"/> enum in the
 /// code: an existing client that sends <c>randomArtist: true|false</c>, or omits it, must be unaffected by the
-/// <c>bool?</c>→enum migration. These pin that contract, deserializing through the real API options.
+/// <c>bool?</c>→enum migration. These pin that contract on the one submission shape (<see cref="EnqueueItem"/>),
+/// deserializing through the real API options.
 /// </summary>
 public sealed class TriStateWireTests
 {
@@ -17,7 +18,7 @@ public sealed class TriStateWireTests
     [InlineData("false", TriState.False)]
     public void An_explicit_boolean_maps_to_the_matching_state(string json, TriState expected)
     {
-        GenerateRequest? req = JsonSerializer.Deserialize<GenerateRequest>(
+        EnqueueItem? req = JsonSerializer.Deserialize<EnqueueItem>(
             $$"""{"workflow":"anima","randomArtist":{{json}},"randomPrompt":{{json}}}""", Json.Options);
 
         Assert.NotNull(req);
@@ -28,7 +29,7 @@ public sealed class TriStateWireTests
     [Fact]
     public void An_omitted_field_is_Unspecified()
     {
-        GenerateRequest? req = JsonSerializer.Deserialize<GenerateRequest>(
+        EnqueueItem? req = JsonSerializer.Deserialize<EnqueueItem>(
             """{"workflow":"anima"}""", Json.Options);
 
         Assert.NotNull(req);

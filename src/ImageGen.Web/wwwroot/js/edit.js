@@ -40,7 +40,7 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
 // and every mode already renders a picker when its base is empty (renderSrc, setupMaskStage, setupOutpaintStage).
 //
 // Having a source is a precondition of APPLYING an edit, not of loading the editor, so the check lives at each
-// mode's submit path — sendEdit, inpaintGenerate and outpaintGenerate each refuse with "Select a file to … first".
+// mode's submit control — its buildItems refuses with "Select a file to … first" (and the button is disabled anyway).
 // Asserting it here instead would throw at page init, aborting the whole script and taking the file picker with it:
 // the one entry point whose job is choosing a source would be the one that couldn't. Checking at the point of use
 // also catches what an init assertion can't, a source that goes away or is replaced mid-session.
@@ -207,8 +207,8 @@ let inpaintBase = seed.id;
 let maskCanvas = null, maskCtx = null, eraseMode = false, inpaintTag = null;
 
 function setStatus(t, { error = false } = {}) { $status.classList.toggle("error", error); $status.textContent = t; }
-// The Apply/Generate button STAYS itself while a render runs — clicking it again queues more (queueMore), so there is
-// no cancel-adjacent gesture to misfire. The only Cancel is the dedicated per-mode button in the progress panel,
+// The Apply/Generate button STAYS itself while a render runs — clicking it again queues another job (the shared submit
+// control's queue-more), so there is no cancel-adjacent gesture to misfire. The only Cancel is the per-mode button,
 // shown only while busy. Mode switching is blocked while busy, so only the active mode's button ever shows; clear the
 // other two anyway so a leftover Cancel can't linger in a mode we're not in.
 function setBusy(b) {
@@ -255,64 +255,41 @@ function editModeSpec(mode) {
     sourceId: () => editCurrent, mine: id => { const inp = inpaintWorkflowIds(), out = outpaintWorkflowIds(); return !inp.has(id) && !out.has(id); } };
 }
 
-// Track ONE multi-slot edit job through the SHARED engine (core.js trackJobBatch) — the same one the composer uses, so
-// status·ETA·bar·cancel·preview behave identically. This only supplies the edit-specific bits: how to paint the bar
-// (width + tab title), how to render a finished slot into the mode's preview box, the status wording, and cleanup.
-function trackEditJob(jobId, N, spec) {
-  const barFill = spec.bar.querySelector("i");
-  return trackJobBatch(jobId, {
-    total: N, eta: spec.eta,
-    onProgress: f => { const pct = Math.round(Math.min(1, f) * 100); if (barFill) barFill.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; },
+// The progress/preview wiring for one edit mode — the object the shared submit control (core.js attachEnqueueSubmit)
+// and trackJobBatch consume. Identical in shape to the composer's; only the per-mode bar/eta/result rendering differs
+// (editModeSpec). This is why every page's status·ETA·bar·cancel·preview behaves the same and can't drift.
+function editPanel(spec) {
+  return {
+    eta: spec.eta,
+    show: spec.show,
+    onProgress: f => { const pct = Math.round(Math.min(1, f) * 100); const b = spec.bar.querySelector("i"); if (b) b.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; },
     onSlot: s => { spec.onSlot(s); document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: { id: s.id } })); },   // Recent reconciles from history
-    activeStatus: recorded => N > 1 ? `Making ${Math.min(recorded + 1, N)} of ${N}…` : null,
+    activeStatus: (recorded, total) => total > 1 ? `Making ${Math.min(recorded + 1, total)} of ${total}…` : null,
     finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
       : total > 1 ? (made === total ? `Done — made all ${total}.` : `Done — made ${made} of ${total}.`)
       : made ? "" : "No visible change — try rephrasing, a bigger change, or a different workflow.",
-    setStatus: t => setStatus(t),
-    onCancelHandle: h => { activeGen = h; },
-    onSettle: made => { document.title = "Edit · Make a Picture"; spec.show(false); editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },
+    onSettle: made => { document.title = "Edit · Make a Picture"; editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },
+  };
+}
+// Reconnect the tracker to an already-running job (recover on return) — the SAME panel a fresh submit uses, no POST.
+function trackEditJob(jobId, N, spec) {
+  const p = editPanel(spec);
+  return trackJobBatch(jobId, {
+    total: N, eta: p.eta, onProgress: p.onProgress, onSlot: p.onSlot, activeStatus: p.activeStatus, finalStatus: p.finalStatus,
+    setStatus, onCancelHandle: h => { activeGen = h; }, onSettle: made => { p.show(false); p.onSettle(made); },
   });
 }
-
-// The single submit path shared by every edit mode: POST the items as ONE /enqueue job and track it. Cancel targets
-// the one job. Assumes the caller already built valid items and checked !busy.
-async function runEditBatch(mode, items, startText) {
-  if (!items.length) return;
-  const spec = editModeSpec(mode);
-  cancelRequested = false; setBusy(true);
-  spec.show(true); const bar = spec.bar.querySelector("i"); if (bar) bar.style.width = "2%";
-  setStatus(items.length === 1 ? (startText || "Generating…") : `Making ${items.length}…`);
-  try {
-    const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
-    if (!r.ok) throw new Error(await gwError(r));
-    const resp = await r.json(); const jobId = resp.jobId;
-    if (!jobId) throw new Error("The queue accepted no jobs.");
-    editActiveJobId = jobId;
-    activeGen = { cancel: () => fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e)) };
-    // One pending record for the one job (like the gen page's submitItems), keyed on the first item's workflow.
-    postPending({ jobId, prompt: items[0].instruction || "", model: items[0].workflow, modelId: items[0].workflow, aspect: "" }).catch(e => console.debug("record pending job failed:", e));
-    await trackEditJob(jobId, resp.total || items.length, spec);
-  } catch (e) {
-    setStatus((cancelRequested || (e && e.name === "AbortError")) ? "Cancelled." : friendlyError(e), { error: true });
-    document.title = "Edit · Make a Picture"; stopEta(spec.eta); spec.show(false); activeGen = null; editActiveJobId = null;
-  } finally { setBusy(false); }
-}
-
-// Queue more while busy: append a SEPARATE /enqueue job for the active mode (like the gen page's queueAnother). It
-// starts once the current job finishes; the recover interval below re-attaches the tracker to it, so it renders live
-// too. Building the items reuses the same per-mode builders the initial submit uses, so the shape is identical.
-async function queueMore(n) {
-  if (!busy) return;
-  n = Math.max(1, n || 1);
-  let items = [];
-  try { items = activeMode === "inpaint" ? await buildInpaintItems(n) : activeMode === "outpaint" ? buildOutpaintItems(n) : buildChatItems(n); }
-  catch (e) { toast(friendlyError(e)); return; }
-  if (!items.length) return;
-  try {
-    const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
-    if (!r.ok) throw new Error(await gwError(r));
-    toast(items.length > 1 ? `Queued ${items.length} more — they start when the current one finishes.` : "Queued another — starts when the current one finishes.");
-  } catch (e) { console.error("queue-more failed:", e); toast("Couldn't queue more"); }
+// The bits every edit mode's submit control shares: the page's busy flag, cancel handle, status, and pending-record.
+// buildItems + the mode's panel are the only per-mode parts, supplied where each control is attached.
+function editSubmitBase() {
+  return {
+    isBusy: () => busy,
+    onBusy: b => { if (b) cancelRequested = false; setBusy(b); },
+    onActiveGen: h => { activeGen = h; },
+    onJob: (jobId, items) => postPending({ jobId, prompt: items[0].instruction || "", model: items[0].workflow, modelId: items[0].workflow, aspect: "" }).catch(e => console.debug("record pending job failed:", e)),
+    setStatus,
+    startStatus: () => "Generating…",
+  };
 }
 
 // --- model catalog + buckets --------------------------------------------------------------------
@@ -472,7 +449,7 @@ $("editParams").addEventListener("change", () => persistParams($("editParams")))
 // here — it has its own tab, because its pad_* amounts need a frame editor no dropdown can provide.
 // An editor with no text encoder (the upscalers) gets no instruction box at all: the field is hidden whenever NOT ONE
 // selected editor consumes a prompt. Mixed selections keep it — the models that read it still would. Submitting with
-// an empty instruction is already legal (see sendEdit), so hiding the box changes nothing about the request.
+// an empty instruction is already legal (buildChatItems never blocks on a blank prompt), so hiding the box changes nothing.
 function updateInstructionVisibility() {
   const field = $("instructionField");
   if (field) field.hidden = !editModels().some(m => m && m.takesPrompt);
@@ -751,24 +728,18 @@ function buildChatItems(n) {
     }
   return items;
 }
-async function sendEdit(n) {
-  const models = editModels();
-  if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return; }
-  if (busy) return;
-  if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return; }
-  const single = models.length === 1;
-  const items = buildChatItems(Math.max(1, n || 1));   // empty instruction is allowed — never blocked on a blank prompt
-  if (single) { editRefs = []; renderEditRefs(); }   // refs were consumed into this submission
-  await runEditBatch("chat", items, "Generating…");
-}
-// Hold Apply to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
-// Generate). A plain click makes 1. Apply stays Apply while busy: a click (or held count) then stacks more onto the
-// live batch (queueMore), exactly like the gen page's Generate.
-const editCount = attachCountPicker($editSend, { onPick: n => { if (busy) queueMore(n); else sendEdit(n); } });
-$editComposer.addEventListener("submit", e => {
-  e.preventDefault();
-  if (editCount.opened) { editCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) queueMore(1); else sendEdit(1);
+// Chat/animate Apply uses the ONE shared submit control (core.js attachEnqueueSubmit): a click (or held count) builds
+// the items and POSTs one /enqueue job; a press while busy queues another. buildItems does the mode's own validation.
+attachEnqueueSubmit({
+  button: $editSend, form: $editComposer, panel: editPanel(editModeSpec("chat")), ...editSubmitBase(),
+  buildItems: n => {
+    const models = editModels();
+    if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return []; }
+    if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return []; }
+    const items = buildChatItems(Math.max(1, n || 1));   // empty instruction is allowed — never blocked on a blank prompt
+    if (models.length === 1) { editRefs = []; renderEditRefs(); }   // refs were consumed into this submission
+    return items;
+  },
 });
 $cancelEdit.addEventListener("click", () => cancelGeneration());
 // The chat instruction box doubles as the full TAG prompt for whole-image redraws (Anima/Photanima): same '#'/'@'
@@ -882,32 +853,22 @@ async function buildInpaintItems(n) {
   return items;
 }
 function showInpaintBar(show) { $inpaintBar.classList.toggle("show", show); if (!show) $inpaintBar.querySelector("i").style.width = "0"; }
-// Inpaint n images from the same base + mask + prompt as ONE /enqueue job with n slots — the mask is built once (in
-// buildInpaintItems) and shared by every slot, which the queue renders one at a time. n comes from the Generate
-// button's hold-to-reveal count picker (a plain click = 1). Cancel stops the one job.
-async function inpaintGenerate(n) {
-  const model = inpaintModel();
-  if (busy || !model) return;
-  if (!inpaintBase) { setStatus("Select a file to inpaint first.", { error: true }); return; }
-  let items; setStatus("Preparing mask…");
-  try { items = await buildInpaintItems(Math.max(1, n || 1)); }
-  catch (e) { setStatus(friendlyError(e), { error: true }); return; }
-  await runEditBatch("inpaint", items, "Generating…");
-}
+// Inpaint uses the ONE shared submit control: n images from the same base + mask + prompt as one /enqueue job. The
+// mask is built once (in buildInpaintItems) and shared by every slot; a press while busy queues another take.
+attachEnqueueSubmit({
+  button: $inpaintGo, form: $inpaintComposer, panel: editPanel(editModeSpec("inpaint")), ...editSubmitBase(),
+  buildItems: async n => {
+    if (!inpaintModel()) { setStatus("Pick a workflow.", { error: true }); return []; }
+    if (!inpaintBase) { setStatus("Select a file to inpaint first.", { error: true }); return []; }
+    setStatus("Preparing mask…");
+    return await buildInpaintItems(Math.max(1, n || 1));   // throws if unpainted → the control surfaces it
+  },
+});
 inpaintTag = initTagBox({ input: $inpaintPrompt, pop: $inpaintTagPop, getModel: inpaintModel });
 // The same booru '#'/'@' autocomplete on the negative boxes (chat + inpaint), gated on the active editor's tagging
 // (so it's inert for non-tag editors — which don't show a negative box anyway). Uses the primary model per mode.
 if ($editNeg && $editNegTagPop) initTagBox({ input: $editNeg, pop: $editNegTagPop, getModel: editModel });
 if ($inpaintNeg && $inpaintNegTagPop) initTagBox({ input: $inpaintNeg, pop: $inpaintNegTagPop, getModel: inpaintModel });
-// Hold Generate to pick how many to make (core.js's shared picker — the same one behind the gen page's Generate
-// button). A plain click makes 1. Generate stays Generate while busy: a click (or held count) then stacks more takes
-// onto the live batch (queueMore).
-const inpaintCount = attachCountPicker($inpaintGo, { onPick: n => { if (busy) queueMore(n); else inpaintGenerate(n); } });
-$inpaintComposer.addEventListener("submit", e => {
-  e.preventDefault();
-  if (inpaintCount.opened) { inpaintCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) queueMore(1); else inpaintGenerate(1);
-});
 $cancelInpaint.addEventListener("click", () => cancelGeneration());
 let stagedBase = null;
 function enterInpaint() {
@@ -1064,28 +1025,20 @@ function buildOutpaintItems(n) {
       imageId: outpaintBase, referenceImageIds: [], overrides });
   return items;
 }
-// Outpaint n takes of the same base + pads + prompt as ONE /enqueue job. n comes from the Generate button's
-// hold-to-reveal count picker (a plain click = 1). A finished slot becomes the new base (editModeSpec.onSlot) so you
-// can keep pushing the frame out. Cancel stops the one job.
-async function outpaintGenerate(n) {
-  const model = outpaintModel();
-  if (busy || !model) return;
-  if (!outpaintBase) { setStatus("Select a file to outpaint first.", { error: true }); return; }
-  // Zero pads would pad by nothing and hand back the source — the outpaint equivalent of an unpainted mask.
-  if (!padsTotal()) { setStatus("Drag an edge outward to extend the canvas first.", { error: true }); return; }
-  await runEditBatch("outpaint", buildOutpaintItems(Math.max(1, n || 1)), "Generating…");
-}
+// Outpaint uses the ONE shared submit control: n takes of the same base + pads + prompt as one /enqueue job. A finished
+// slot becomes the new base (editModeSpec.onSlot) so you can keep pushing the frame out; a press while busy queues more.
+attachEnqueueSubmit({
+  button: $outpaintGo, form: $outpaintComposer, panel: editPanel(editModeSpec("outpaint")), ...editSubmitBase(),
+  buildItems: n => {
+    if (!outpaintModel()) { setStatus("Pick a workflow.", { error: true }); return []; }
+    if (!outpaintBase) { setStatus("Select a file to outpaint first.", { error: true }); return []; }
+    // Zero pads would pad by nothing and hand back the source — the outpaint equivalent of an unpainted mask.
+    if (!padsTotal()) { setStatus("Drag an edge outward to extend the canvas first.", { error: true }); return []; }
+    return buildOutpaintItems(Math.max(1, n || 1));
+  },
+});
 initTagBox({ input: $outpaintPrompt, pop: $outpaintTagPop, getModel: outpaintModel });
 if ($outpaintNeg && $outpaintNegTagPop) initTagBox({ input: $outpaintNeg, pop: $outpaintNegTagPop, getModel: outpaintModel });
-// Hold Generate to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
-// Generate). A plain click makes 1. Generate stays Generate while busy: a click (or held count) then stacks more takes
-// onto the live batch (queueMore).
-const outpaintCount = attachCountPicker($outpaintGo, { onPick: n => { if (busy) queueMore(n); else outpaintGenerate(n); } });
-$outpaintComposer.addEventListener("submit", e => {
-  e.preventDefault();
-  if (outpaintCount.opened) { outpaintCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) queueMore(1); else outpaintGenerate(1);
-});
 $cancelOutpaint.addEventListener("click", () => cancelGeneration());
 function enterOutpaint() {
   if (!$outpaintPrompt.value.trim() && seedPrompt()) $outpaintPrompt.value = seedPrompt();

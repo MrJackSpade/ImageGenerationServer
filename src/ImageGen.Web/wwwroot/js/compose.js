@@ -209,7 +209,7 @@ function adaptWorkflow(r) {
 }
 
 // --- multi-select model picker (shared createModelPicker; see modelpicker.js) -------------------
-// The Style picker fans the SAME prompt out to every checked model (one slot per model — see generateSelected).
+// The Style picker fans the SAME prompt out to every checked model (one slot per model — see buildComposerItems).
 // "Primary" = the model when EXACTLY one is checked; it alone drives the model tip and #/@ autocomplete. With 2+
 // checked there's no primary, so those single-model affordances hide — but the param panel shows the params common
 // to ALL checked models (their intersection) and applies them to every one. selectedModelIds/selectedModels/
@@ -282,14 +282,6 @@ function currentOverrides() {
 // "change" on blur, which can be missed, so "input" is what makes edits reliably persist.
 ["input", "change"].forEach(ev => document.getElementById("modelParams").addEventListener(ev, () => { collectParamPrefs(document.getElementById("modelParams"), paramPrefs); savePrefs(); }));
 
-// trackPrompt / wsFraction / uploadToInput live in core.js (shared with the edit page). The single-image path
-// drives the compose bar/ETA via hooks; trackBatch + liveSync below own their own multi-slot ws handling.
-const trackPromptHooks = () => ({
-  onFraction: showBar,
-  onStart: res => startEta($("eta"), res.expectedSeconds, res.startedAt),
-  setActiveGen: g => { activeGen = g; },
-});
-
 // Reload pickup is no longer device-local: the always-on liveSync (below) reconstructs the user's active
 // generation from the server (/jobs + /ws) on every device, including this tab after a reload.
 
@@ -297,25 +289,47 @@ const trackPromptHooks = () => ({
 // The flyout + custom-amount modal are core.js's shared attachCountPicker (the edit page's inpaint Generate uses the
 // same one). The gesture is the SAME in both states — hold always offers the count; only what the count means changes:
 // while IDLE it starts n renders, while BUSY (Generate stays Generate) it stacks n onto the queue behind the live one.
-const genCount = attachCountPicker($generate, {
-  onPick: n => { if (busy) queueAnother(n); else generateSelected(n); },
+// --- the ONE submit control (core.js attachEnqueueSubmit) ---------------------------------------
+// The composer's Generate — and the detail card's Reload — go through the SAME shared submit component every edit mode
+// uses. It owns the click / hold-to-count / queue-while-busy gestures, POSTs one /enqueue job with N slots, tracks it,
+// and cancels it. This file supplies ONLY what to submit (buildComposerItems) and how to render progress (composePanel).
+const composePanel = {
+  eta: $("eta"),
+  show: b => { if (b) showBar(0.02); else hideBar(); },
+  onProgress: showBar,   // also drives the tab-title/favicon ring
+  // `meta` is THIS submission's context (prompt/model/shapes), threaded by the control — so a queue-more job (its own
+  // meta) can never make the running job record its slots against the wrong prompt/model.
+  onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
+  onRunning: (runSlot, _job, meta) => { if (runSlot && meta.slotModels) setGenModel(meta.slotModels[runSlot.index] || ""); },   // multi-model: show the current model
+  activeStatus: (recorded, total) => `Creating ${Math.min(recorded + 1, total)} of ${total}…`,   // 1-indexed: the one being made now
+  // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
+  // missing images weren't ones that "couldn't be made" — they weren't asked for any more.
+  finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+    : (total - made) > 0 ? `Done — made ${made} of ${total} (${total - made} couldn't be made).`
+    : `Done — made all ${made}.`,
+};
+const composeSubmit = attachEnqueueSubmit({
+  button: $generate, form: $composer, panel: composePanel, buildItems: n => buildComposerItems(n),
+  isBusy: () => busy,
+  onBusy: b => { if (b) cancelRequested = false; setBusy(b); },
+  onActiveGen: h => { activeGen = h; },
+  onJob: (jobId, _items, meta) => postPending({ jobId, prompt: meta.prompt, model: meta.model, modelId: meta.modelId, aspect: (meta.slotAspects && meta.slotAspects[0]) || primaryAspect() }).catch(e => console.debug("record pending job failed:", e)),
+  setStatus,
+  startStatus: () => "Generating…",
 });
+function generate() { composeSubmit.submit(1); }
+function startBatch(n) { composeSubmit.submit(n); }   // kept for any external callers
 
-
-// --- batch --------------------------------------------------------------------------------------
-// Batch state is held in-memory for the life of one trackBatch() call (below), never in web storage. Reload/
-// cross-device pickup is the server-sourced liveSync's job (see :227), so there is nothing here to persist.
-// Single entry for the composer's Generate (and the count picker): fan the prompt across every checked model,
-// n images PER model. One checked model is the classic path (runGeneration for n=1, single-model batch for n>1,
-// honoring its param overrides + random-artist/prompt + autocomplete). Two-or-more checked goes through the
-// multi-model batch, where the shared-param panel (params common to every checked model) applies to all of them.
-function generateSelected(n) {
-  if (busy) return;
+// Build what the composer's Generate submits: fan the prompt across every checked model, n images PER model, as ONE
+// /enqueue job. One checked model → a single-model batch (its random-artist/prompt + param overrides); two-or-more →
+// the multi-model fan-out (shared-param panel applies to all; random artist/prompt are single-model, so off). Returns
+// { items, meta } — meta is what the panel renders each finished slot against. [] aborts (after messaging).
+function buildComposerItems(n) {
   const prompt = $prompt.value.trim();
   const models = selectedModels();
-  if (!models.length) { setStatus("Please pick at least one workflow.", { error: true }); return; }
+  if (!models.length) { setStatus("Please pick at least one workflow.", { error: true }); return []; }
   // Custom size chosen but not filled in: refuse rather than silently fall back to the model's default size.
-  if (customActive && !customReady()) { setStatus("Enter a width and height for the custom size.", { error: true }); return; }
+  if (customActive && !customReady()) { setStatus("Enter a width and height for the custom size.", { error: true }); return []; }
   savePrefs();
   n = Math.max(1, n || 1);
   // Explode: {a|b} sets fan the prompt into one variant per option, multiplying across sets, models, and the batch.
@@ -323,73 +337,31 @@ function generateSelected(n) {
   const info = explodeInfo(prompt);
   if (info.groupCount >= 2) {
     const total = info.combos * n * models.length;
-    if (!confirm(`This prompt has ${info.groupCount} explode sets — it will create ${total} generations. Continue?`)) return;
+    if (!confirm(`This prompt has ${info.groupCount} explode sets — it will create ${total} generations. Continue?`)) return [];
   }
   if (models.length === 1) {
     const model = models[0];
-    if (n > 1 || info.combos > 1) generateBatch(prompt, model, n);
-    else runGeneration(model, lockArtist(model, expandRandomPrompt(prompt)), pickAspect(), wantsRandomArtist(model), wantsRandomPrompt(model), promptTemp(), negFor(model), prompt);
-  } else {
-    generateMulti(prompt, models, n);
+    const { items, slotAspects } = buildBatchItems(prompt, model, n);
+    return { items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotModels: null, slotAspects } };
   }
-}
-function startBatch(n) { generateSelected(n); }   // kept for any external callers
-
-// Enqueue a prepared list of slot items as ONE multi-slot job and drive the batch UI/tracker. Shared by the
-// single-model batch and the multi-model fan-out, so both report progress and record results identically.
-// The slots one model contributes to a submission: every explode variant ({a|b} sets), n times each, each
-// rolling its own aspect from the picked set. Shared so queueing while busy builds exactly what generating
-// while idle builds.
-function composeItems(model, prompt, n) {
-  const base = {
-    workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model),
-    randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(),
-    overrides: currentOverrides(), loras: lorasPayload(),
-  };
-  const items = [];
-  for (const variant of explodePrompts(prompt))
-    for (let i = 0; i < n; i++)
-      items.push({ ...base, aspect: pickAspect(), prompt: lockArtist(model, expandRandomPrompt(variant)), originalPrompt: prompt });
-  return items;
+  const { items, slotModels, slotAspects } = buildMultiItems(prompt, models, n);
+  return { items, meta: { prompt, model: `${models.length} workflows`, modelId: "", slotModels, slotAspects } };
 }
 
-async function submitItems(items, meta) {
-  cancelRequested = false; setBusy(true);
-  const n = items.length;
-  setStatus(`Sending ${n} ${n === 1 ? "picture" : "pictures"} to the queue…`); showBar(0.02);
-  try {
-    // UI submissions are always foreground (the contract defaults Background = false). Background is an API-only
-    // affordance now — the composer no longer exposes a toggle for it.
-    const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
-    if (!r.ok) throw new Error(await gwError(r));
-    // ONE job with N slots now — track the single jobId and diff its imageIds[].
-    const resp = await r.json(); const jobId = resp.jobId, total = resp.total || n;
-    if (!jobId) throw new Error("The queue accepted no jobs.");
-    const batch = { jobId, total, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, slotModels: meta.slotModels || null, slotAspects: meta.slotAspects || null };
-    postPending({ jobId, prompt: meta.prompt, model: meta.modelFriendly, modelId: meta.modelId, aspect: meta.aspect }).catch(e => console.debug("record pending job failed:", e));
-    await trackBatch(batch);
-  } catch (e) { if (cancelRequested || (e && e.name === "AbortError")) setStatus("Cancelled."); else setStatus(friendlyError(e), { error: true }); hideBar(); }
-  finally { setBusy(false); }
-}
-async function generateBatch(prompt, model, n, exact, aspect, negative, loras) {
-  setBusy(true);   // lock before the await so a second click can't double-fire (submitItems re-affirms + clears it)
-  // No explicit aspect (the composer's own Generate) -> every slot rolls its own from the picked set, so a batch
-  // comes back mixed when several shapes are selected. Reload passes the image's shape, and every slot keeps it.
+// The slots for one model: every explode variant ({a|b} sets), n times each, each rolling its own aspect from the
+// picked set (so a batch comes back mixed when several shapes are selected). `exact` (Reload) reproduces a picture
+// verbatim — the image's own prompt/negative/loras/shape, no new random artist/prompt and no re-roll.
+function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   const rollAspect = () => aspect || pickAspect();
   const slotAspects = [];   // slotAspects[i] = the shape slot i was submitted with (= slot.index), for the record
-  // exact (Reload): the image's OWN prompt and negative verbatim, no new random artist/prompt — never the composer's.
-  // `negative ?? null` keeps "no negative was submitted" distinct from an empty one: null leaves the model's built-in
-  // default negative standing alone, which is what the picture being reloaded was actually made with.
   const ov = currentOverrides();
   let items;
   if (exact) {
-    // exact (Reload): the image's OWN LoRA stack verbatim, never the composer's current one.
+    // `negative ?? null` keeps "no negative was submitted" distinct from an empty one; the image's OWN LoRA stack.
     const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: loras || [] };
     items = Array.from({ length: n }, () => { const asp = rollAspect(); slotAspects.push(asp); return { ...one, aspect: asp }; });
   } else {
-    // Every slot shares these; the prompt is re-rolled per slot so [a|b|…] randomization varies across the batch.
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), overrides: ov, loras: lorasPayload() };
-    // Fan across explode variants ({a|b} sets), n slots each — so a batch of n makes n of every combination.
     items = [];
     for (const variant of explodePrompts(prompt))
       for (let i = 0; i < n; i++) {
@@ -397,18 +369,15 @@ async function generateBatch(prompt, model, n, exact, aspect, negative, loras) {
         items.push({ ...base, aspect: asp, prompt: lockArtist(model, expandRandomPrompt(variant)), originalPrompt: prompt });
       }
   }
-  await submitItems(items, { prompt, modelFriendly: model.friendly_name, modelId: model.id, aspect: slotAspects[0] || primaryAspect(), slotAspects });
+  return { items, slotAspects };
 }
-// Fan ONE prompt across several models — n slots per model. The shared-param panel (params common to every
-// selected model) applies to all of them; random artist/prompt stay single-model affordances. Artist-mode still
-// locks the artist per model.
-async function generateMulti(prompt, models, n) {
-  setBusy(true);   // lock before the await (submitItems re-affirms + clears it)
-  const ov = currentOverrides();   // the intersection params the user set, applied to every model
+// Fan ONE prompt across several models — n slots per model. The shared-param panel (params common to every selected
+// model) applies to all; random artist/prompt stay single-model affordances (off here). Artist-mode locks per model.
+function buildMultiItems(prompt, models, n) {
+  const ov = currentOverrides();
   const items = [], slotModels = [], slotAspects = [];   // [i] = friendly name / shape for slot i, in submission order (= slot.index)
   for (const model of models) {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: lorasPayload() };
-    // Fan across explode variants ({a|b} sets), n slots each; re-roll [a|b|…] randomization per slot so slots differ.
     for (const variant of explodePrompts(prompt))
       for (let i = 0; i < n; i++) {
         const asp = pickAspect();   // each slot rolls its own shape from the picked set
@@ -416,91 +385,7 @@ async function generateMulti(prompt, models, n) {
         slotModels.push(model.friendly_name); slotAspects.push(asp);
       }
   }
-  await submitItems(items, { prompt, modelFriendly: `${models.length} workflows`, modelId: "", aspect: slotAspects[0] || primaryAspect(), slotModels, slotAspects });
-}
-// Track ONE multi-slot job through the SHARED engine (core.js trackJobBatch) — the same one the edit page uses, so the
-// status·ETA·bar·cancel·preview block behaves identically on every page. The composer supplies only its own bits: how
-// to paint the bar (showBar, which also drives the tab-title/favicon ring), how to record a finished slot (recordResult
-// → the Recent strip), the "generating with X" model label for a multi-model batch, and the status wording.
-function trackBatch(b) {
-  if (!b || !b.jobId) return Promise.resolve();
-  const N = b.total || 1;
-  return trackJobBatch(b.jobId, {
-    total: N, eta: $("eta"),
-    onProgress: showBar,
-    onSlot: s => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, b.prompt || "", b.model || "", b.modelId || "", (b.slotAspects && b.slotAspects[s.index]) || ""),
-    onRunning: runSlot => { if (runSlot && b.slotModels) setGenModel(b.slotModels[runSlot.index] || ""); },   // multi-model: show the current model
-    activeStatus: recorded => `Creating ${Math.min(recorded + 1, N)} of ${N}…`,   // 1-indexed: the one being made now
-    // The job's OWN final status, not this tab's cancel flag: the batch may have been stopped from another device, and
-    // the missing images weren't ones that "couldn't be made" — they weren't asked for any more.
-    finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
-      : (total - made) > 0 ? `Done — made ${made} of ${total} (${total - made} couldn't be made).`
-      : `Done — made all ${made}.`,
-    setStatus: t => setStatus(t),
-    onCancelHandle: h => { activeGen = h; },
-    onSettle: () => { hideBar(); activeGen = null; },
-  });
-}
-
-// Core single-image generation: submit one job with explicit params, drive the busy/progress UI, track it, and
-// preview + announce the result. Shared by the composer's Generate button and the detail card's Reload, so both
-// behave identically (Cancel button, progress bar, Recent strip). Assumes the caller already checked !busy.
-// `originalPrompt` is what the user TYPED, before this file resolved [a|b], {a|b} and the artist lock into `prompt`
-// — recorded with the image, never rendered from, and passed explicitly rather than defaulted so a caller can't
-// silently record a resolved string as the original.
-async function runGeneration(model, prompt, aspect, randomArtist, randomPrompt, temperature, negative, originalPrompt, loras = lorasPayload()) {
-  const heavy = model.speed && (model.speed.class === "slow" || model.speed.class === "very_slow");
-  cancelRequested = false; setBusy(true);
-  setStatus(heavy ? "Generating… this is a large workflow and may take a few minutes. Press Cancel to stop." : "Generating… this usually takes 10–60 seconds.");
-  showBar(0.02);
-  try {
-    // The mask goes only with a random-prompt render: Reload passes randomPrompt=false and must reproduce the picture
-    // as it was made, not re-mask it.
-    const r = await fetch(`${GATEWAY}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workflow: gwModel(model), prompt, originalPrompt, negativePrompt: negative ?? null, aspect, randomArtist, randomPrompt, temperature, tagTypes: randomPrompt ? tagTypes() : null, overrides: currentOverrides(), loras }) });
-    if (!r.ok) throw new Error(await gwError(r));
-    const promptId = (await r.json()).promptId;
-    postPending({ jobId: promptId, prompt, model: model.friendly_name, modelId: model.id, aspect }).catch(e => console.debug("record pending job failed:", e));
-    const result = await trackPrompt(promptId, trackPromptHooks());
-    recordResult(result, prompt, model.friendly_name, model.id, aspect);
-    setStatus(""); hideBar();
-  } catch (e) { if (cancelRequested || (e && e.name === "AbortError")) setStatus("Generation cancelled."); else setStatus(friendlyError(e), { error: true }); hideBar(); }
-  finally { setBusy(false); }
-}
-
-function generate() { generateSelected(1); }
-
-// Picked a count off the button's flyout WHILE a render is in flight = stack n more per checked model onto the
-// server queue without disturbing the live tracker. The always-on liveSync picks the extra slots up once the
-// current job finishes; this deliberately does not take over the busy/progress UI, which the running generation
-// owns.
-//
-// It submits through the SAME path a fresh generation uses, and that is the point. Looping `POST /generate` once
-// per image would make the identical gesture produce a different queue shape depending only on whether something
-// happened to be running: idle gives one job with n slots, busy would give n separate jobs. It would also skip the
-// explode fan, so {a|b} sets would quietly stop varying the moment you queued while busy.
-async function queueAnother(n) {
-  const models = selectedModels();
-  if (!models.length) { toast("Pick a workflow first."); return; }
-  const prompt = $prompt.value.trim();
-  n = Math.max(1, n || 1);
-
-  const items = [];
-  for (const model of models) items.push(...composeItems(model, prompt, n));
-  if (!items.length) { toast("Couldn't queue another."); return; }
-
-  try {
-    const r = await fetch(`${GATEWAY}/enqueue`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }),
-    });
-    if (!r.ok) throw new Error(await gwError(r));
-    const count = items.length;
-    toast(count > 1
-      ? `Queued ${count} more — they start when the current one finishes.`
-      : "Queued another — starts when the current one finishes.");
-  } catch (e) {
-    console.error("queue-more failed:", e);
-    toast("Couldn't queue another.");
-  }
+  return { items, slotModels, slotAspects };
 }
 
 // Reload/Regenerate from a detail card: kick off a fresh generation with an image's EXACT prompt/model/aspect
@@ -522,9 +407,10 @@ function regenerate(rec, n) {
   // The image's OWN LoRA stack, so Reload reproduces it exactly rather than using whatever the composer shows now.
   const recLoras = Array.isArray(rec.loras) ? rec.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: l.weight })) : [];
   n = Math.max(1, n || 1);
-  // Reload reproduces a picture, so it never re-rolls: the image's own shape, or the primary pick if it has none.
-  if (n > 1) generateBatch(prompt, model, n, true, rec.aspect || primaryAspect(), negative, recLoras);
-  else runGeneration(model, prompt, rec.aspect || primaryAspect(), false, false, null, negative, prompt, recLoras);
+  // Reload reproduces a picture, so it never re-rolls: the image's own shape, or the primary pick if it has none. It
+  // goes through the SAME shared submit control a fresh Generate uses — one /enqueue job, tracked identically.
+  const { items, slotAspects } = buildBatchItems(prompt, model, n, true, rec.aspect || primaryAspect(), negative, recLoras);
+  composeSubmit.enqueue({ items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotModels: null, slotAspects } });
   return true;
 }
 window.composerRegenerate = regenerate;   // kept for compatibility / presence checks
@@ -803,8 +689,8 @@ function syncTagTypesBar() {
 let wakeLock = null;
 async function acquireWakeLock() { try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { console.debug("wake lock request failed:", e); wakeLock = null; } }
 function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch (e) { console.debug("wake lock release failed:", e); } wakeLock = null; }
-// Generate STAYS "Generate" while a render runs — clicking it again queues more (queueAnother), so there is no
-// cancel-adjacent gesture to misfire. Cancelling is the dedicated #cancelGen button in the progress panel, shown
+// Generate STAYS "Generate" while a render runs — clicking it again queues another job (the shared submit control's
+// queue-more), so there is no cancel-adjacent gesture to misfire. Cancelling is the dedicated #cancelGen button, shown
 // only while busy.
 function setBusy(b) {
   busy = b;
@@ -950,7 +836,7 @@ $randomArtist.addEventListener("change", savePrefs);
 // Dragging repaints the readout live; only the settled value is persisted (change), so a drag isn't 50 PUTs.
 if ($promptTemp) { $promptTemp.addEventListener("input", showPromptTemp); $promptTemp.addEventListener("change", savePrefs); }
 document.addEventListener("visibilitychange", () => { if (busy && document.visibilityState === "visible") acquireWakeLock(); });
-$composer.addEventListener("submit", e => { e.preventDefault(); if (genCount.opened) { genCount.opened = false; return; } if (busy) queueAnother(1); else generate(); });
+// The Generate button + its form submit + hold-to-count are wired by the shared submit control (composeSubmit above).
 $cancelGen.addEventListener("click", () => cancelGeneration());
 // Enter does NOT generate. A prompt is prose that wants paragraphs, and a key that submits it is a key that
 // submits it half-written — the button is the only way to start work. The only Enter this box treats specially

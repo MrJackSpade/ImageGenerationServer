@@ -74,9 +74,7 @@ public static class ForgeApi
         public const string Tags = "/tags";
         /// <summary><c>GET /tags/status</c> — the tag catalogue's load state.</summary>
         public const string TagsStatus = "/tags/status";
-        /// <summary><c>POST /generate</c> — enqueue a generation.</summary>
-        public const string Generate = "/generate";
-        /// <summary><c>POST /enqueue</c> — enqueue a batch (generate and/or edit items).</summary>
+        /// <summary><c>POST /enqueue</c> — the one submission endpoint (generate and/or edit items).</summary>
         public const string Enqueue = "/enqueue";
         /// <summary><c>GET /result/{id}</c> — poll one job in the legacy single-image shape.</summary>
         public const string Result = "/result/{id}";
@@ -703,33 +701,11 @@ public static class ForgeApi
 
     private static void MapRender(RouteGroupBuilder app)
     {
-        _ = app.MapPost(Routes.Generate, async (GenerateRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
-        {
-            if (string.IsNullOrWhiteSpace(req.Workflow))
-            {
-                return Results.BadRequest(new { error = "A workflow is required." });
-            }
-
-            if (!ValidTagTypes(req.TagTypes, out string? maskError))
-            {
-                return Results.BadRequest(new { error = maskError });
-            }
-
-            if (gate.Refusal() is { } full)
-            {
-                return LowMemory(full);
-            }
-
-            return await AcceptAsync(async () =>
-            {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), [RenderItem.ForGenerate(req.ToSpec(), req.Background)]);
-                return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
-            });
-        });
-
-        // Edits no longer have a dedicated single-run endpoint: every edit mode (chat/animate, inpaint, outpaint)
-        // submits its batch as ONE /enqueue job with N slots (EnqueueItem carries the mask and every other edit field),
-        // exactly like the gen page, so an N-count or multi-model edit is one cancellable job — not N separate jobs.
+        // There is ONE submission endpoint. Neither generate nor edit has a dedicated single-run route any more: every
+        // page (the composer's Generate/Reload and every edit mode — chat/animate, inpaint, outpaint) builds a list of
+        // EnqueueItem and POSTs it as ONE /enqueue job with N slots. EnqueueItem carries every field of both kinds
+        // (prompt/aspect/random-* for a generation; source, mask, refs, last frame, instruction for an edit), so an
+        // N-count or multi-model submission is one cancellable job — never N separate jobs.
 
         _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
