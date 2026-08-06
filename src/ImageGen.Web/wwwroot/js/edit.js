@@ -1298,6 +1298,9 @@ function setMode(mode) {
   // V2V (video) has no prompt — the quantize is deterministic — so hide the instruction box; only its params matter.
   const instrField = $instruction.closest(".field");
   if (instrField) instrField.hidden = (mode === "video");
+  // Expose the active chat bucket on the composer so CSS can scope per-mode tweaks (e.g. animate right-aligns its
+  // side-pane controls). Inpaint/outpaint hide the chat composer entirely, so their value is irrelevant.
+  if (chat) $chatMode.dataset.mode = mode;
   if (chat) { chatBucket = mode; populateChatMenu(); }   // chat modes: edit | redraw | upscale | effects | animate | video
   else if (mode === "inpaint") enterInpaint();
   else enterOutpaint();
