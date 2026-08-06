@@ -92,6 +92,15 @@
     for (const m of sorted) $list.appendChild(row(m));
   }
 
+  // The kind badge shows the config's specific resolved kind (#163): gen, edit, inpaint, outpaint, redraw, upscale,
+  // effect, animate, or v2v. Generate keeps the "is-gen" color; every editor kind shares "is-edit". A missing kind
+  // (an older payload) reads as generate.
+  function kindBadge(kind) {
+    const gen = !kind || kind === "generate";
+    const label = gen ? "gen" : (kind === "videoedit" ? "v2v" : kind);
+    return `<span class="listrow-badge ${gen ? "is-gen" : "is-edit"}">${label}</span>`;
+  }
+
   function row(m) {
     const el = document.createElement("div");
     el.className = "listrow" + (hidden.has(m.id) ? " is-hidden" : "") + (m.ready === false ? " is-unavailable" : "");
@@ -101,7 +110,7 @@
       `<button class="listrow-star${favs.has(m.id) ? " on" : ""}" title="Favorite" aria-label="Favorite">★</button>`
       + `<a class="listrow-main" href="/settings/workflows/${encodeURIComponent(m.id)}">`
       + `<span class="listrow-name">${escapeHtml(nameOf(m))}</span>`
-      + `<span class="listrow-badge ${m.kind === "edit" ? "is-edit" : "is-gen"}">${m.kind === "edit" ? "edit" : "gen"}</span>`
+      + kindBadge(m.kind)
       + (t.length ? `<span class="listrow-tags">${t.map(x => `<span class="wftag">${escapeHtml(x)}</span>`).join("")}</span>` : "")
       + `</a>`
       + (missing

@@ -20,6 +20,7 @@ namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 {
     public override string Name => "anima-outpaint";
+    public override WorkflowKind Kind => WorkflowKind.Outpaint;
 
     /// <summary>The prompt describes the whole extended picture, not a change to make to the existing pixels.</summary>
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;

@@ -7,6 +7,7 @@ namespace ImageGen.Comfy.Edit.FluxFillInpaint;
 public sealed class FluxFillInpaintWorkflow : FluxFillBase
 {
     public override string Name => "flux1-fill-inpaint";
+    public override WorkflowKind Kind => WorkflowKind.Inpaint;
 
     /// <summary>Fill's prompt names what appears IN the masked region (its official examples prompt the patch —
     /// "a white paper cup" — never the scene). A whole-scene prompt at guidance 30 is an instruction to render the

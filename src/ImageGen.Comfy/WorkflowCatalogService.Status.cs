@@ -102,8 +102,9 @@ public sealed partial class WorkflowCatalogService
                 Ready: missing.Count == 0,
                 MissingSlots: missing,
                 RequiredSlots: required,
-                // From the registered class, so a disabled edit workflow badges "edit", not "gen" (#162).
-                Kind: KindToken(wf.Kind)));
+                // The per-config resolved kind, so a disabled workflow badges its specific kind (#162/#163) — known
+                // here because it reads the registered class and the config, not a bound slot file.
+                Kind: KindToken(ResolveKind(cfg, wf))));
         }
 
         return new CatalogStatus(

@@ -65,23 +65,15 @@ const seed = (() => {
 
 const EDIT_MODELS = {};
 const gwModel = m => (m && m._gw) || "";
-const isInpaint = m => !!(m && /inpaint/i.test(m.workflow || ""));
-// Outpaint gets its own mode for the same reason inpaint does: its pad_left/top/right/bottom are NOT exposed params
-// (bare scalars in workflows.json — hidden from the param panel, still overridable per request), so the frame editor
-// is the only thing that can supply them. Left in the Edit dropdown it would pad by 0 and hand back the source.
-// Note /inpaint/i does NOT match "anima-outpaint" ("outpaint" has no "inpaint" substring), so the two never overlap.
-const isOutpaint = m => !!(m && /outpaint/i.test(m.workflow || ""));
-// A video-to-video editor CONSUMES a clip (the pixel-quantize V2V pass). These are offered ONLY when the source is a
-// clip (and are the only thing offered then); image editors are kept off a clip source. See applySourceMediaUi.
-const isV2V = m => !!(m && m.sourceMedia === "video");
-// A whole-image REDRAW: no mask, no instruction — the prompt describes the finished picture and the entire frame is
-// re-rendered from the source's own structure. It gets its own tab rather than a section inside Edit because it asks
-// a different question of the user (describe the picture, not the change) and is the natural place to fan one prompt
-// across several models. Declared by the catalog (edit_group), so a new redraw config lands here with no JS change.
-const isRedraw = m => !!(m && m.editGroup === "Redraw");
-// Upscalers (feed-forward SR + SeedVR2) are one edit_group too, promoted to their own top-level tab exactly like
-// Redraw so they aren't buried as a sub-section of the plain Edit menu. New upscale config → this tab, no JS change.
-const isUpscale = m => !!(m && m.editGroup === "Upscale");
+// Every tab reads the catalog's single resolved `kind` (issue #163) — no name regexes, edit_group magic strings, or
+// effect/media side-channels. Inpaint/outpaint get their own tab (their pad/mask params aren't exposed, so the frame
+// editor is the only thing that can supply them); redraw/upscale are promoted out of the Edit menu; V2V (videoedit)
+// consumes a clip and is offered only for a clip source. A new config lands in the right tab by declaring its kind.
+const isInpaint = m => !!(m && m.kind === "inpaint");
+const isOutpaint = m => !!(m && m.kind === "outpaint");
+const isV2V = m => !!(m && m.kind === "videoedit");
+const isRedraw = m => !!(m && m.kind === "redraw");
+const isUpscale = m => !!(m && m.kind === "upscale");
 // Whether the current source (editCurrent) is a video clip. Decided from /forge/media for a seeded/edited source, and
 // from the file type for an upload. When true, the editor collapses to the single V2V "Pixelize" mode.
 let srcIsVideo = false;
@@ -303,17 +295,18 @@ async function loadEditModels() {
     const prefs = await loadWorkflowPrefs();
     editFavs = prefs.favs; editHidden = prefs.hidden; editTags = prefs.tags;
     const s = prefs.settings;
-    rows.filter(r => r.kind === "edit").forEach(r => {
+    rows.filter(r => r.canEdit).forEach(r => {
       EDIT_MODELS[r.id] = {
         id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, workflow: r.workflow,
+        kind: r.kind,   // the catalog's resolved kind — every tab routes off this (issue #163)
         exposedParams: r.exposedParams || [], avgSeconds: r.avgSeconds,
         media: r.media === "video" ? "video" : "image", promptDirectsMotion: r.promptDirectsMotion !== false,
         sourceMedia: r.sourceMedia === "video" ? "video" : "image",
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to
         hasAudio: !!r.hasAudio,   // clip carries a native audio track (H3) — offer an unmute control on the result
 
-        effectType: r.effectType || null,
-        editGroup: r.editGroup || null,   // "Redraw" gets its own tab; any other group is a section inside Edit
+        effectType: r.effectType || null,   // sub-section header within a tab (grouping only — the TAB comes from kind)
+        editGroup: r.editGroup || null,      // sub-section header within the Edit tab (grouping only, not tab routing)
         promptSemantics: r.promptSemantics || "instruction",   // instruction | whole_image | masked_region
         takesPrompt: r.takesPrompt !== false,   // false = no text encoder in the graph (upscalers): hide the box
         negativeSupported: !!(r.card && r.card.negativeSupported),   // editor uses a negative prompt (append-on-top)
@@ -355,15 +348,15 @@ const visibleOf = list => list.filter(m => !editHidden.has(m.id));
 // edit   = image editors with NO effect_type (pure instruction editors); effects = image with an effect_type
 // (Line art / Pixelize, grouped by type in the dropdown); animate = video editors. Inpaint is its own mode.
 const chatModels = () => visibleOf(Object.values(EDIT_MODELS).filter(m => {
-  if (chatBucket === "video") return isV2V(m);   // the V2V (clip-source) bucket — only video-source editors
-  if (isV2V(m)) return false;                     // video-source editors never appear in the image buckets
-  if (chatBucket === "animate") return m.media === "video";
-  if (m.media !== "image" || isInpaint(m) || isOutpaint(m)) return false;
+  if (chatBucket === "video") return isV2V(m);      // the V2V (clip-source) bucket — only video-source editors
+  if (isV2V(m)) return false;                        // video-source editors never appear in the image buckets
+  if (chatBucket === "animate") return m.kind === "animate";
+  if (isInpaint(m) || isOutpaint(m)) return false;   // these have their own tabs (separate lists)
   if (chatBucket === "redraw") return isRedraw(m);
-  if (isRedraw(m)) return false;                  // redraws have their own tab — never also in Edit/Effects
+  if (isRedraw(m)) return false;                     // redraws have their own tab — never also in Edit/Effects
   if (chatBucket === "upscale") return isUpscale(m);
-  if (isUpscale(m)) return false;                 // upscalers have their own tab — never also in Edit/Effects
-  return chatBucket === "effects" ? !!m.effectType : !m.effectType;
+  if (isUpscale(m)) return false;                    // upscalers have their own tab — never also in Edit/Effects
+  return chatBucket === "effects" ? m.kind === "effect" : m.kind === "edit";
 }));
 const inpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isInpaint));
 const outpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isOutpaint));

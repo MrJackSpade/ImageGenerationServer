@@ -16,6 +16,7 @@ namespace ImageGen.Comfy.Edit.AnimaInpaint;
 public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
 {
     public override string Name => "anima-inpaint";
+    public override WorkflowKind Kind => WorkflowKind.Inpaint;
 
     /// <summary>inputs.Positive carries the user's FULL prompt for the picture, not an edit instruction.</summary>
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;

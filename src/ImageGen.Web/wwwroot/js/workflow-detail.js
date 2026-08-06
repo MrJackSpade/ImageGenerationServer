@@ -36,6 +36,14 @@
     if (workflow) { loadSettings(); loadRecents(); }
   }
 
+  // The kind badge shows the config's specific resolved kind (#163): gen, edit, inpaint, outpaint, redraw, upscale,
+  // effect, animate, or v2v. Generate keeps "is-gen"; every editor kind shares "is-edit".
+  function kindBadge(kind) {
+    const gen = !kind || kind === "generate";
+    const label = gen ? "gen" : (kind === "videoedit" ? "v2v" : kind);
+    return `<span class="listrow-badge ${gen ? "is-gen" : "is-edit"}">${label}</span>`;
+  }
+
   function renderInfo() {
     // "Not installed here" is a claim about the MACHINE; making it whenever the catalog call fails would be wrong —
     // the empty list a failed fetch resolves to is indistinguishable from a list this id is genuinely absent from.
@@ -65,7 +73,7 @@
       `<div class="wf-head">`
       + `<button id="mdStar" class="listrow-star${fav ? " on" : ""}" title="Favorite" aria-label="Favorite">★</button>`
       + `<h2>${escapeHtml(workflow.friendlyName || workflow.id)}</h2>`
-      + `<span class="listrow-badge ${workflow.kind === "edit" ? "is-edit" : "is-gen"}">${workflow.kind === "edit" ? "edit" : "gen"}</span>`
+      + kindBadge(workflow.kind)
       + `<button id="mdHide" class="wf-toggle${hid ? " on" : ""}">${hid ? "Unhide from picker" : "Hide from picker"}</button>`
       + `<button id="mdHideApi" class="wf-toggle${hidApi ? " on" : ""}">${hidApi ? "Unhide from API" : "Hide from API"}</button>`
       + `</div>`

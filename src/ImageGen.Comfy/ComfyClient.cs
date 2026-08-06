@@ -761,7 +761,7 @@ public sealed class ComfyClient : IComfyClient
                   ?? throw new RenderValidationException($"Unknown workflow configuration '{configId}'. Call list_models for valid ids.");
         IWorkflow wf = _registry.Find(cfg.WorkflowName)
                  ?? throw new RenderValidationException($"Workflow '{cfg.WorkflowName}' for configuration '{configId}' is not registered.");
-        if (wf.Kind != WorkflowKind.Edit)
+        if (wf.Kind == WorkflowKind.Generate)
         {
             throw new RenderValidationException($"Configuration '{configId}' is not an editing configuration. Pick one whose can_edit is true.");
         }

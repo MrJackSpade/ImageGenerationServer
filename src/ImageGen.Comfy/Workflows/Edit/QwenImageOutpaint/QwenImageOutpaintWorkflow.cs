@@ -11,6 +11,7 @@ namespace ImageGen.Comfy.Edit.QwenImageOutpaint;
 public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImageOutpaintParams>
 {
     public override string Name => "qwen-image-outpaint";
+    public override WorkflowKind Kind => WorkflowKind.Outpaint;
 
     /// <summary>Full denoise. A lower denoise (even 0.9, "locking tone to the pre-fill scaffold") FAILS the other
     /// way: under the AuraFlow-shifted schedule even a 0.1 denoise reduction weights the init so heavily that the pad

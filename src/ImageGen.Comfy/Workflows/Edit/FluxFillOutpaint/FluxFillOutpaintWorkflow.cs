@@ -13,6 +13,7 @@ namespace ImageGen.Comfy.Edit.FluxFillOutpaint;
 public sealed class FluxFillOutpaintWorkflow : FluxFillBase
 {
     public override string Name => "flux1-fill-outpaint";
+    public override WorkflowKind Kind => WorkflowKind.Outpaint;
 
     /// <summary>An outpaint's masked region IS the scene's continuation, so a scene-level prompt is the right ask
     /// (the official outpaint example is just "beautiful scenery").</summary>

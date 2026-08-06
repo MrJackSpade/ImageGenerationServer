@@ -246,9 +246,85 @@ public sealed partial class WorkflowCatalogService(
     private static WorkflowTagging? ToTagging(TaggingInfo? t) =>
         t is null ? null : new WorkflowTagging(t.Tags, t.Artists, t.KeepArtistMarker, t.UnderscoresToSpaces);
 
-    /// <summary>The gen/edit token the client badges and routes on, derived from the registered CLASS kind — which is
-    /// known even for an unavailable workflow, so a disabled edit workflow still reports "edit" (#162), not "gen".</summary>
-    internal static string KindToken(WorkflowKind kind) => kind == WorkflowKind.Edit ? "edit" : "generate";
+    /// <summary>
+    /// The specific kind of ONE configuration, resolved once and emitted as the single authoritative field the client
+    /// badges and routes on (#163). The class knows only <see cref="WorkflowKind.Generate"/>/<see cref="WorkflowKind.Edit"/>
+    /// and the dedicated <see cref="WorkflowKind.Inpaint"/>/<see cref="WorkflowKind.Outpaint"/>; this folds in the
+    /// config's media, edit-group and effect-type to name the rest (Animate/VideoEdit/Redraw/Upscale/Effect), so the
+    /// edit page never re-derives a tab from a workflow name, a magic-string edit-group, or an effect-type presence.
+    /// <para>Resolved even when the workflow is unavailable — it reads the registered class and the config, neither of
+    /// which depends on a slot file being bound — so a disabled edit workflow still badges its true kind.</para>
+    /// </summary>
+    internal static WorkflowKind ResolveKind(WorkflowConfiguration cfg, IWorkflow wf) => wf.Kind switch
+    {
+        // The class already names these; take them verbatim.
+        WorkflowKind.Generate => WorkflowKind.Generate,
+        WorkflowKind.Inpaint => WorkflowKind.Inpaint,
+        WorkflowKind.Outpaint => WorkflowKind.Outpaint,
+        // A plain edit class — the specific kind is a property of THIS configuration.
+        _ => ResolveEditKind(cfg, wf),
+    };
+
+    private static WorkflowKind ResolveEditKind(WorkflowConfiguration cfg, IWorkflow wf)
+    {
+        if (wf.SourceMedia == WorkflowMedia.Video)
+        {
+            return WorkflowKind.VideoEdit;   // consumes a clip (the pixel-quantize V2V pass)
+        }
+
+        if (wf.Media == WorkflowMedia.Video)
+        {
+            return WorkflowKind.Animate;     // still source, video output (image→video)
+        }
+
+        if (string.Equals(cfg.EditGroup, EditGroups.Redraw, StringComparison.Ordinal))
+        {
+            return WorkflowKind.Redraw;
+        }
+
+        if (string.Equals(cfg.EditGroup, EditGroups.Upscale, StringComparison.Ordinal))
+        {
+            return WorkflowKind.Upscale;
+        }
+
+        return cfg.EffectType is { Length: > 0 } ? WorkflowKind.Effect : WorkflowKind.Edit;
+    }
+
+    /// <summary>The client token for a resolved kind — the value the badge and the edit-page tab routing read.</summary>
+    internal static string KindToken(WorkflowKind kind) => kind switch
+    {
+        WorkflowKind.Generate => KindTokens.Generate,
+        WorkflowKind.Edit => KindTokens.Edit,
+        WorkflowKind.Inpaint => KindTokens.Inpaint,
+        WorkflowKind.Outpaint => KindTokens.Outpaint,
+        WorkflowKind.Redraw => KindTokens.Redraw,
+        WorkflowKind.Upscale => KindTokens.Upscale,
+        WorkflowKind.Effect => KindTokens.Effect,
+        WorkflowKind.Animate => KindTokens.Animate,
+        WorkflowKind.VideoEdit => KindTokens.VideoEdit,
+        _ => KindTokens.Generate,
+    };
+
+    /// <summary>The wire tokens for a resolved <see cref="WorkflowKind"/> — one fixed vocabulary shared with the client.</summary>
+    private static class KindTokens
+    {
+        public const string Generate = "generate";
+        public const string Edit = "edit";
+        public const string Inpaint = "inpaint";
+        public const string Outpaint = "outpaint";
+        public const string Redraw = "redraw";
+        public const string Upscale = "upscale";
+        public const string Effect = "effect";
+        public const string Animate = "animate";
+        public const string VideoEdit = "videoedit";
+    }
+
+    /// <summary>The config edit-group magic values the catalog promotes to their own kind.</summary>
+    private static class EditGroups
+    {
+        public const string Redraw = "Redraw";
+        public const string Upscale = "Upscale";
+    }
 
     private WorkflowDescriptor ToDescriptor(
         WorkflowConfiguration cfg, IWorkflow wf, int? avgSeconds)
@@ -273,11 +349,11 @@ public sealed partial class WorkflowCatalogService(
                     spec?.Help,
                     spec?.Choices);
             })];
-        bool canEdit = wf.Kind == WorkflowKind.Edit;
+        bool canEdit = wf.Kind != WorkflowKind.Generate;
         return new WorkflowDescriptor(
             Id: cfg.Id,
             Workflow: cfg.WorkflowName,
-            Kind: KindToken(wf.Kind),
+            Kind: KindToken(ResolveKind(cfg, wf)),
             Media: wf.Media == WorkflowMedia.Video ? "video" : "image",
             SourceMedia: wf.SourceMedia == WorkflowMedia.Video ? "video" : "image",
             EffectType: cfg.EffectType,

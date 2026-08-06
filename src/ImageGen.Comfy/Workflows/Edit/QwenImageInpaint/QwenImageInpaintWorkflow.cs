@@ -8,6 +8,7 @@ namespace ImageGen.Comfy.Edit.QwenImageInpaint;
 public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImageInpaintParams>
 {
     public override string Name => "qwen-image-inpaint";
+    public override WorkflowKind Kind => WorkflowKind.Inpaint;
 
     /// <summary>The ControlNet supplies the fill conditioning, so a full denoise inside the mask is correct — the
     /// surrounding context comes from the control image, not from partially-preserved noise.</summary>

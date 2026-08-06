@@ -10,9 +10,48 @@ using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
-/// <summary>The runtime kind of a workflow: pure text-to-image generation, or an image edit (image + instruction).
-/// Drives whether a configuration is offered to /generate vs /edit and how its inputs are populated.</summary>
-public enum WorkflowKind { Generate, Edit }
+/// <summary>
+/// The runtime kind of a workflow. <see cref="Generate"/> (text→image/video) is offered to /generate; every other
+/// value is an editor offered to /edit — an editor is exactly "not <see cref="Generate"/>".
+///
+/// <para>Classes declare their kind, but only the four they can know from the class alone: <see cref="Generate"/>,
+/// <see cref="Edit"/> (the residual instruction editor), and the dedicated <see cref="Inpaint"/>/<see cref="Outpaint"/>
+/// classes. The remaining values are CONFIGURATION-level — <see cref="Redraw"/>/<see cref="Upscale"/> from the
+/// config's edit-group, <see cref="Effect"/> from its effect-type, and <see cref="Animate"/>/<see cref="VideoEdit"/>
+/// from the media — so a class always reports one of the first four and the catalog RESOLVES the specific kind per
+/// configuration (see <c>WorkflowCatalogService.ResolveKind</c>). That resolved kind is the single authoritative value
+/// the catalog API emits per config, so the workflows-page badge and the edit-page tab routing both read one declared
+/// field instead of re-deriving it from names, magic strings, or side-channels (issue #163).</para>
+/// </summary>
+public enum WorkflowKind
+{
+    /// <summary>Text→image/video generation (offered to /generate).</summary>
+    Generate,
+
+    /// <summary>Instruction editing (add/remove/replace a change) — the residual "Edit" tab.</summary>
+    Edit,
+
+    /// <summary>Masked-region regeneration.</summary>
+    Inpaint,
+
+    /// <summary>Canvas extension / border fill.</summary>
+    Outpaint,
+
+    /// <summary>Whole-image img2img redraw (no mask, no instruction). Resolved from the config's edit-group.</summary>
+    Redraw,
+
+    /// <summary>Feed-forward super-resolution / SeedVR2. Resolved from the config's edit-group.</summary>
+    Upscale,
+
+    /// <summary>Effect editors (Line art, Pixelize, …). Resolved from the config's effect-type.</summary>
+    Effect,
+
+    /// <summary>Image→video. Resolved from the media (still source, video output).</summary>
+    Animate,
+
+    /// <summary>Video→video (the clip-source pixel-quantize "Pixelize" pass). Resolved from a video source media.</summary>
+    VideoEdit,
+}
 
 /// <summary>What a workflow produces — a still image or an animated clip (image → video). Lets the UI group the
 /// edit dropdown by image-editing vs video so the user knows what an editor outputs before picking it.</summary>

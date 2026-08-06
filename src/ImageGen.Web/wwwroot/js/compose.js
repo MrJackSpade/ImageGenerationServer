@@ -197,7 +197,7 @@ function adaptWorkflow(r) {
   const c = r.card || {};
   return {
     id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, default: !!r.default, avgSeconds: r.avgSeconds,
-    kind: r.kind, media: r.media === "video" ? "video" : "image", hasAudio: !!r.hasAudio, exposedParams: r.exposedParams || [],
+    kind: r.kind, canEdit: !!r.canEdit, media: r.media === "video" ? "video" : "image", hasAudio: !!r.hasAudio, exposedParams: r.exposedParams || [],
     loraFolder: r.loraFolder || "",   // the workflow's default LoRA-picker folder (Part H); "" = smart-route by id
     negativeSupported: c.negativeSupported === true,   // model's card declares it uses a negative prompt
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,
@@ -260,7 +260,7 @@ async function loadModels() {
     const visible = models.filter(m => !modelHidden.has(m.id));
     const def = visible.find(m => m.default) || visible.find(m => m.id === "sdxl") || visible[0] || models[0];
     modelPicker.setSelectedIds([def.id]);
-    hasEditors = all.some(m => m.kind === "edit");
+    hasEditors = all.some(m => m.canEdit);   // editors span several kinds now (#163); "editor" = can_edit, not kind==="edit"
     setStatus("");
   } catch (e) { $modelToggle.textContent = "Unavailable"; setStatus(friendlyError(e), { error: true }); }
 }
