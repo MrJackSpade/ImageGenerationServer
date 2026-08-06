@@ -110,7 +110,7 @@
 // slider that it qualifies, and is built by compose.js (buildTagTypes) from the same /api/settings response. It is
 // the same account setting on the same PUT route — surfaced there, not here.
 
-// --- pin bookmarks in autocomplete (account toggle, on the settings index) ----------------------
+// --- pin bookmarks in autocomplete (account toggle, on /settings/configurations) ----------------
 // Governs every tag box across the composer/edit/inpaint boxes at once (tagbox.js reads it from /api/settings). Loaded
 // disabled so a click before the stored value is known can't persist the wrong state.
 (function () {

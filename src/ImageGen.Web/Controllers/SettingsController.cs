@@ -21,6 +21,10 @@ public sealed class SettingsController : Controller
     [HttpGet("/settings/bans")]
     public IActionResult Bans() => View();
 
+    /// <summary>Per-user configuration toggles (e.g. pin bookmarks in autocomplete) — account-scoped.</summary>
+    [HttpGet("/settings/configurations")]
+    public IActionResult Configurations() => View();
+
     /// <summary>This box: its configuration, and the actions that act on the renderer itself.</summary>
     [HttpGet("/settings/machine")]
     public IActionResult Machine([FromServices] ComfySupervisor supervisor)

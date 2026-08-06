@@ -1,0 +1,20 @@
+@{
+    ViewData["Title"] = "Configurations";
+}
+
+<div class="hist-head"><h2>Configurations</h2></div>
+
+@* Per-user preference toggles. Structured to hold future account configuration controls alongside this first one. *@
+<div class="settings">
+    @* A control, not a link — a terse name with the behaviour in the tooltip. Disabled until settings.js has read the
+       stored value, so a click before load can't save a wrong one. *@
+    <label class="settings-card settings-toggle" title="Show your bookmarked tags and artists first in autocomplete, each with a ★.">
+        <span class="sl-name">Pin bookmarks in autocomplete</span>
+        <input type="checkbox" id="pinBookmarks" disabled>
+    </label>
+</div>
+
+@section Scripts {
+    <script src="~/js/core.js" asp-append-version="true"></script>
+    <script src="~/js/settings.js" asp-append-version="true"></script>
+}
