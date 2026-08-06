@@ -106,7 +106,9 @@ public sealed class ImageDetailViewModel
                     bool banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
                     bool bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
                     int type = isArtist ? TagCategory.ArtistType : TagTypeByToken.GetValueOrDefault(key);
-                    string? category = isArtist ? null : TagCategory.Slug(type);
+                    // Artists are distinguished by their kind (data-kind + .tagchip.artist), not a booru category, so
+                    // they carry no data-category; every real tag resolves to a name (general when the catalog is silent).
+                    string? category = isArtist ? null : TagCategory.Name(type);
                     chips.Add((new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
                 }
                 else
@@ -159,19 +161,32 @@ public sealed class ImageDetailViewModel
 public sealed record PromptChip(
     string Text, string? Kind, string Key, bool Banned = false, bool Bookmarked = false, string? Category = null);
 
-/// <summary>Maps a raw booru category id to the chip-border slug. Only the notable categories get a color; general (0),
-/// deprecated (6), and anything unknown return null (neutral border). Artists are colored by kind, not this.</summary>
+/// <summary>Maps a raw booru category id to its category name. Every tag resolves to a name (general is the default),
+/// so a chip always carries a non-empty <c>data-category</c>. Only the notable names have a color rule in CSS; general,
+/// deprecated and unknown fall through to the neutral border. Artists are colored by kind, not this.</summary>
 public static class TagCategory
 {
     /// <summary>The synthetic category id used for artist chips — they aren't booru tags but still order first.</summary>
     public const int ArtistType = 1;
 
-    public static string? Slug(int type) => type switch
+    /// <summary>Booru category names, one per raw category id. These are a fixed vocabulary, not free text.</summary>
+    private static class Names
     {
-        3 => "copyright",
-        4 => "character",
-        5 => "meta",
-        _ => null,
+        public const string General = "general";
+        public const string Copyright = "copyright";
+        public const string Character = "character";
+        public const string Meta = "meta";
+        public const string Deprecated = "deprecated";
+    }
+
+    /// <summary>The resolved category name for a tag, always non-null — the value a chip's <c>data-category</c> carries.</summary>
+    public static string Name(int type) => type switch
+    {
+        3 => Names.Copyright,
+        4 => Names.Character,
+        5 => Names.Meta,
+        6 => Names.Deprecated,
+        _ => Names.General,
     };
 
     /// <summary>Display order of a tag type within the chip group: artist, meta, copyright, character, general,

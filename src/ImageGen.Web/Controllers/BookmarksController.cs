@@ -74,7 +74,7 @@ public sealed class BookmarksController(
 
         TagCard TagCardOf(Domain.Entities.TokenBookmark t)
         {
-            return new(t.Name, TagCategory.Slug(_tagCatalog.Lookup(t.Name)?.Type ?? 0), tagDisplays.GetValueOrDefault(t.Name));
+            return new(t.Name, TagCategory.Name(_tagCatalog.Lookup(t.Name)?.Type ?? 0), tagDisplays.GetValueOrDefault(t.Name));
         }
 
         // Global = bookmarks with no category; then one group per category. A multi-category bookmark appears once per

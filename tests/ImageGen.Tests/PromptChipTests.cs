@@ -248,6 +248,29 @@ public sealed class PromptChipTests
         Assert.Equal(("at night", null), (chips[2].Text, chips[2].Kind));                                // second prose run, in written order
     }
 
+    /// <summary>#168: every tag chip carries its resolved booru category — a known-category tag its own category, an
+    /// unknown/absent one the general default — so no tag chip is emitted with an empty data-category.</summary>
+    [Fact]
+    public void Every_tag_chip_carries_its_resolved_booru_category()
+    {
+        ImageDetailViewModel vm = new()
+        {
+            Entry = new ImageDetailView("img1", "some girl, smile", "Anima", "anima", "square", DateTime.UtcNow,
+                new Dictionary<string, string> { ["some_girl"] = "tag", ["smile"] = "tag" }),
+            MarkerPrompt = "",
+            IsBookmarked = false,
+            TagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["some_girl"] = 4,   // character; 'smile' is absent → resolves to general
+            },
+        };
+
+        IReadOnlyList<PromptChip> chips = vm.Chips;
+        Assert.Equal(("some_girl", "character"), (chips[0].Key, chips[0].Category));   // known category resolved
+        Assert.Equal(("smile", "general"), (chips[1].Key, chips[1].Category));         // absent tag → general, never empty
+        Assert.All(chips, c => Assert.False(string.IsNullOrEmpty(c.Category)));
+    }
+
     /// <summary>A blank prompt renders the single "(no prompt)" placeholder chip.</summary>
     [Theory]
     [InlineData("")]
