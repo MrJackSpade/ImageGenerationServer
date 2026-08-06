@@ -105,13 +105,26 @@ a{color:var(--accent-hi)}
 .prompt-wrap{position:relative}
 .side-gen{width:100%;margin-top:4px}
 .side-gen #generate{width:100%}
-/* Animate mode right-aligns the composer's buttons and options; the Workflow/Change fields stay full width. */
-#chatMode[data-mode="animate"] .cpane-side{align-items:flex-end}
-#chatMode[data-mode="animate"] .cpane-side>.field{align-self:stretch}
+/* Animate, Redraw and Effects modes right-align the composer's buttons and options; the Workflow/Change fields stay
+   full width. */
+#chatMode[data-mode="animate"] .cpane-side,
+#chatMode[data-mode="redraw"] .cpane-side,
+#chatMode[data-mode="effects"] .cpane-side{align-items:flex-end}
+#chatMode[data-mode="animate"] .cpane-side>.field,
+#chatMode[data-mode="redraw"] .cpane-side>.field,
+#chatMode[data-mode="effects"] .cpane-side>.field{align-self:stretch}
 #chatMode[data-mode="animate"] .cpane-side .edit-refs,
 #chatMode[data-mode="animate"] .cpane-side .edit-lastframe-row,
-#chatMode[data-mode="animate"] .cpane-side .edit-params{justify-content:flex-end}
+#chatMode[data-mode="animate"] .cpane-side .edit-params,
+#chatMode[data-mode="redraw"] .cpane-side .edit-refs,
+#chatMode[data-mode="redraw"] .cpane-side .edit-lastframe-row,
+#chatMode[data-mode="redraw"] .cpane-side .edit-params,
+#chatMode[data-mode="effects"] .cpane-side .edit-refs,
+#chatMode[data-mode="effects"] .cpane-side .edit-lastframe-row,
+#chatMode[data-mode="effects"] .cpane-side .edit-params{justify-content:flex-end}
 #chatMode[data-mode="animate"] .side-gen,
+#chatMode[data-mode="redraw"] .side-gen,
+#chatMode[data-mode="effects"] .side-gen,
 #chatMode[data-mode="edit"] .side-gen{width:auto;text-align:right}
 @media (max-width:680px){.composer-grid{grid-template-columns:1fr}}
 /* Every composer textarea — the gen prompt, the edit instruction, the inpaint prompt, and all three negative boxes —
