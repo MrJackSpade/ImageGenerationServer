@@ -120,14 +120,14 @@ a{color:var(--accent-hi)}
 /* The accent pill worn by every primary action — Generate, Apply edit, the inpaint/outpaint Generates, the
    custom-count modal's. Keyed on a class, NOT on ids: this was a growing id list repeated across five rules, and the
    custom-count button (built in core.js, never given an id) was simply missing from all of them, so it rendered with
-   UA chrome. A new primary button now just says class="primary-btn". Turning it into a cancel is .is-cancel. */
+   UA chrome. A new primary button now just says class="primary-btn". Generate stays Generate while a render runs
+   (click again to queue more); cancelling is a dedicated .cancel-gen button in the progress panel below. */
 .primary-btn{appearance:none;border:none;border-radius:999px;
   background:linear-gradient(135deg,var(--accent),var(--accent-hi));color:#fff;font:inherit;font-weight:650;font-size:16px;
   padding:12px 28px;cursor:pointer;transition:.12s;white-space:nowrap;box-shadow:0 6px 20px -8px var(--accent);touch-action:manipulation}
-.primary-btn:hover:not(:disabled):not(.is-cancel){filter:brightness(1.08)}
+.primary-btn:hover:not(:disabled){filter:brightness(1.08)}
 .primary-btn:active:not(:disabled){transform:translateY(1px)}
 .primary-btn:disabled{opacity:.5;cursor:default}
-.primary-btn.is-cancel{background:var(--danger);box-shadow:none}
 .model-bar{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:13px}
 .model-bar label{white-space:nowrap}
 .shape-bar{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--ink-soft);font-size:13px}
@@ -290,6 +290,13 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s ease}
 /* ETA countdown under the progress bar (compose) / inline in the working bubble (edit). */
 .eta{margin:6px auto 0;text-align:center;font-size:12px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+/* Dedicated Cancel for the in-flight render, in the progress panel — Generate never turns into it, so a queue-more
+   click can't misfire a cancel. Hidden until a render is running (JS toggles .show, mirroring .bar). */
+.cancel-gen{display:none;margin:10px auto 0;appearance:none;border:none;border-radius:999px;background:var(--danger);
+  color:#fff;font:inherit;font-weight:600;font-size:13px;padding:7px 20px;cursor:pointer;touch-action:manipulation}
+.cancel-gen.show{display:block}
+.cancel-gen:hover{filter:brightness(1.08)}
+.cancel-gen:active{transform:translateY(1px)}
 .gen-model{margin:5px auto 0;text-align:center;font-size:12.5px;color:var(--ink-soft);font-weight:600}
 .b-eta{margin-left:8px;font-size:11px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
 

@@ -91,7 +91,7 @@ Only `#` tags and `~` guide tags steer the suggestions. Artists don't (asking fo
 
 - Tap **Generate** (or press Enter) for **one** picture.
 - **Hold** the Generate button to choose how many: **2, 4, 6, 10**, or type your own number.
-- While it's working the button turns into **Cancel**.
+- While it's working, **Generate stays Generate** — tap it again (or hold for a number) to add more to the queue. A **Cancel** button appears below the progress bar to stop the one in progress.
 
 The same hold-for-a-number trick works on the **Reload** button on a saved picture.
 

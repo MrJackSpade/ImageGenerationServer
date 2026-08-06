@@ -5,6 +5,7 @@
 const $prompt = $("prompt"), $tagPop = $("tagPop"), $generate = $("generate"),
       $modelSelect = $("modelSelect"), $modelToggle = $("modelToggle"), $modelMenu = $("modelMenu"), $status = $("status"),
       $bar = $("bar"), $barFill = $bar.querySelector("i"), $result = $("result"), $genModel = $("genModel"),
+      $cancelGen = $("cancelGen"),
       $composer = $("composer"), $modelTip = $("modelTip"), $aspect = $("aspect"),
       $randomArtist = $("randomArtist"), $randomArtistBar = $("randomArtistBar"),
       $promptTemp = $("promptTemp"), $promptTempVal = $("promptTempVal"), $randomPromptBar = $("randomPromptBar"),
@@ -350,7 +351,7 @@ const trackPromptHooks = () => ({
 // --- count picker (hold-to-reveal) --------------------------------------------------------------
 // The flyout + custom-amount modal are core.js's shared attachCountPicker (the edit page's inpaint Generate uses the
 // same one). The gesture is the SAME in both states — hold always offers the count; only what the count means changes:
-// while IDLE it starts n renders, while BUSY (the button reads "Cancel") it stacks n onto the queue behind the live one.
+// while IDLE it starts n renders, while BUSY (Generate stays Generate) it stacks n onto the queue behind the live one.
 const genCount = attachCountPicker($generate, {
   onPick: n => { if (busy) queueAnother(n); else generateSelected(n); },
 });
@@ -900,9 +901,12 @@ function syncTagTypesBar() {
 let wakeLock = null;
 async function acquireWakeLock() { try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) { console.debug("wake lock request failed:", e); wakeLock = null; } }
 function releaseWakeLock() { try { wakeLock && wakeLock.release(); } catch (e) { console.debug("wake lock release failed:", e); } wakeLock = null; }
+// Generate STAYS "Generate" while a render runs — clicking it again queues more (queueAnother), so there is no
+// cancel-adjacent gesture to misfire. Cancelling is the dedicated #cancelGen button in the progress panel, shown
+// only while busy.
 function setBusy(b) {
   busy = b;
-  $generate.textContent = b ? "Cancel" : "Generate"; $generate.classList.toggle("is-cancel", b);
+  $cancelGen.classList.toggle("show", b);
   if (b) acquireWakeLock(); else releaseWakeLock();
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
@@ -1038,7 +1042,8 @@ $randomArtist.addEventListener("change", savePrefs);
 // Dragging repaints the readout live; only the settled value is persisted (change), so a drag isn't 50 PUTs.
 if ($promptTemp) { $promptTemp.addEventListener("input", showPromptTemp); $promptTemp.addEventListener("change", savePrefs); }
 document.addEventListener("visibilitychange", () => { if (busy && document.visibilityState === "visible") acquireWakeLock(); });
-$composer.addEventListener("submit", e => { e.preventDefault(); if (genCount.opened) { genCount.opened = false; return; } if (busy) cancelGeneration(); else generate(); });
+$composer.addEventListener("submit", e => { e.preventDefault(); if (genCount.opened) { genCount.opened = false; return; } if (busy) queueAnother(1); else generate(); });
+$cancelGen.addEventListener("click", () => cancelGeneration());
 // Enter does NOT generate. A prompt is prose that wants paragraphs, and a key that submits it is a key that
 // submits it half-written — the button is the only way to start work. The only Enter this box treats specially
 // belongs to the suggestion popup, which consumes it to accept the highlighted tag while it is open.

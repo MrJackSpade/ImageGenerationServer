@@ -12,7 +12,7 @@
 
 const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMode = $("chatMode"), $inpaintMode = $("inpaintMode"), $outpaintMode = $("outpaintMode"),
       $editModelSelect = $("editModelSelect"), $editModelToggle = $("editModelToggle"), $editModelMenu = $("editModelMenu"),
-      $editSrc = $("editSrc"), $bar = $("bar"), $eta = $("eta"), $result = $("result"), $editComposer = $("editComposer"),
+      $editSrc = $("editSrc"), $bar = $("bar"), $eta = $("eta"), $cancelEdit = $("cancelEdit"), $result = $("result"), $editComposer = $("editComposer"),
       $instruction = $("instruction"), $instructionTagPop = $("instructionTagPop"), $editSend = $("editSend"), $status = $("status"),
       $editRefs = $("editRefs"), $editRefBtn = $("editRefBtn"), $editRefFile = $("editRefFile"), $editRefHint = $("editRefHint"),
       $editLastFrame = $("editLastFrame"), $editLastFrameBtn = $("editLastFrameBtn"), $editLastFrameFile = $("editLastFrameFile"),
@@ -22,13 +22,13 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $inpaintModelSelect = $("inpaintModelSelect"), $inpaintModelToggle = $("inpaintModelToggle"), $inpaintModelMenu = $("inpaintModelMenu"),
       $inpaintComposer = $("inpaintComposer"), $inpaintPrompt = $("inpaintPrompt"), $inpaintTagPop = $("inpaintTagPop"),
       $inpaintParams = $("inpaintParams"), $inpaintGo = $("inpaintGo"), $inpaintResult = $("inpaintResult"),
-      $inpaintBar = $("inpaintBar"), $inpaintEta = $("inpaintEta"),
+      $inpaintBar = $("inpaintBar"), $inpaintEta = $("inpaintEta"), $cancelInpaint = $("cancelInpaint"),
       $maskStage = $("maskStage"), $brushSize = $("brushSize"), $brushErase = $("brushErase"), $maskClear = $("maskClear"),
       // outpaint
       $outpaintModelSelect = $("outpaintModelSelect"), $outpaintModelToggle = $("outpaintModelToggle"), $outpaintModelMenu = $("outpaintModelMenu"),
       $outpaintComposer = $("outpaintComposer"), $outpaintPrompt = $("outpaintPrompt"), $outpaintTagPop = $("outpaintTagPop"),
       $outpaintGo = $("outpaintGo"), $outpaintResult = $("outpaintResult"),
-      $outpaintBar = $("outpaintBar"), $outpaintEta = $("outpaintEta"),
+      $outpaintBar = $("outpaintBar"), $outpaintEta = $("outpaintEta"), $cancelOutpaint = $("cancelOutpaint"),
       $outpaintStage = $("outpaintStage"), $outPads = $("outPads"), $outSize = $("outSize"), $outPresets = $("outPresets"),
       // optional negative prompt (chat + inpaint + outpaint) — shown only when a selected editor's card declares support
       $editNegWrap = $("editNegWrap"), $editNeg = $("editNeg"), $editNegTagPop = $("editNegTagPop"),
@@ -217,13 +217,38 @@ let maskCanvas = null, maskCtx = null, eraseMode = false, inpaintTag = null;
 function setStatus(t, { error = false } = {}) { $status.classList.toggle("error", error); $status.textContent = t; }
 function showBar(p) { const overall = Math.min(1, barBase + p * barSpan); if (editProgressEl) editProgressEl.style.width = Math.round(overall * 100) + "%"; document.title = `⏳ ${Math.round(overall * 100)}% · Edit · Make a Picture`; }
 function hideBar() { document.title = "Edit · Make a Picture"; if (editEtaEl) stopEta(editEtaEl); }
+// The Apply/Generate button STAYS itself while a render runs — clicking it again queues more (queueMore), so there is
+// no cancel-adjacent gesture to misfire. The only Cancel is the dedicated per-mode button in the progress panel,
+// shown only while busy. Mode switching is blocked while busy, so only the active mode's button ever shows; clear the
+// other two anyway so a leftover Cancel can't linger in a mode we're not in.
 function setBusy(b) {
   busy = b;
-  const btn = activeMode === "inpaint" ? $inpaintGo : activeMode === "outpaint" ? $outpaintGo : $editSend;
-  btn.textContent = b ? "Cancel" : (activeMode === "inpaint" || activeMode === "outpaint" ? "Generate" : "Apply edit");
-  btn.classList.toggle("is-cancel", b);
+  $cancelEdit.classList.toggle("show", b && activeMode !== "inpaint" && activeMode !== "outpaint");
+  $cancelInpaint.classList.toggle("show", b && activeMode === "inpaint");
+  $cancelOutpaint.classList.toggle("show", b && activeMode === "outpaint");
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
+
+// --- growable batch (queue-while-busy) ----------------------------------------------------------
+// A batch of edit/inpaint/outpaint runs stays alive until every run it has spawned settles — a running outstanding
+// count, not a fixed Promise.all — so more runs can JOIN it mid-flight. That is what lets the button stay a Generate
+// button: a click (or held count) while busy appends to the live batch via batchAppend, exactly like the compose
+// page's queueAnother, instead of starting a fresh, untracked one. Each run is its own queued job the server renders
+// one at a time, so an appended run just falls in behind the ones already queued.
+let batchOutstanding = 0, batchSettled = null, batchAppend = null;
+function spawnRuns(makers) {
+  batchOutstanding += makers.length;
+  for (const make of makers) {
+    Promise.resolve().then(make).catch(e => console.debug("batch run failed:", e)).finally(() => {
+      if (--batchOutstanding <= 0 && batchSettled) { const done = batchSettled; batchSettled = null; done(); }
+    });
+  }
+}
+// Resolves once no runs are outstanding. Call AFTER the first spawnRuns so the count is already non-zero.
+function batchComplete() { return new Promise(res => { if (batchOutstanding <= 0) res(); else batchSettled = res; }); }
+// A click/held count on the (always-Generate) button while busy: append more runs to whichever mode owns the live
+// batch. The owning mode installs batchAppend when it begins and clears it when the batch ends.
+function queueMore(n) { if (busy && batchAppend) batchAppend(Math.max(1, n || 1)); }
 
 // trackPrompt / wsFraction / uploadToInput are shared from core.js. These hooks bind one tracked prompt to the
 // edit page's bar/ETA (editEtaEl is whatever the current run points at) and Cancel button.
@@ -728,29 +753,44 @@ async function runEdit(instruction, models, n) {
   if (single) { editRefs = []; renderEditRefs(); }
   renderResultLoading();
   const total = models.length * n;   // one queued job per model, n times over
+  const unitEta = models.reduce((a, m) => a + Number(m.avgSeconds || 0), 0);   // one model fan-out's worth of estimate
   // Seed the cumulative-ETA pool with every model's estimate, once per run; each onStart peels its own off as it begins.
-  beginEditBatch(total, models.reduce((a, m) => a + Number(m.avgSeconds || 0), 0) * n);
+  beginEditBatch(total, unitEta * n);
   setStatus(total === 1 ? "" : `Making ${total}…`);
-  try {
-    // Re-roll [a|b|…] randomization per run so both the model fan-out AND the n copies of one model can differ.
-    const runs = [];
+  // One "unit" = the model fan-out once; spawnUnits(k) fans models × k runs, re-rolling [a|b|…] per run so both the
+  // model fan-out AND the copies can differ.
+  const spawnUnits = k => {
+    const makers = [];
     for (const m of models)
-      for (let i = 0; i < n; i++)
-        runs.push(runOneEdit(m, expandRandomPrompt(instruction), refIds, overrides, single));
-    await Promise.all(runs);
+      for (let i = 0; i < k; i++)
+        makers.push(() => runOneEdit(m, expandRandomPrompt(instruction), refIds, overrides, single));
+    spawnRuns(makers);
+  };
+  // Queue-while-busy: a click/held count on Apply stacks k more model-units onto the live batch. Grow the total, re-map
+  // the shared bar's slices to it, and add the new units to the cumulative-ETA pool.
+  batchAppend = k => {
+    multiTotal += models.length * k;
+    barSpan = 1 / multiTotal; barBase = multiDone / multiTotal; etaPending += unitEta * k;
+    setStatus(`Making ${multiTotal}…`);
+    spawnUnits(k);
+  };
+  try {
+    spawnUnits(n);
+    await batchComplete();
     if (cancelRequested) return;
-    if (total > 1) setStatus(editMade === total ? `Done — made all ${total}.` : `Done — made ${editMade} of ${total}.`);
-  } finally { endEditBatch(); }
+    if (multiTotal > 1) setStatus(editMade === multiTotal ? `Done — made all ${multiTotal}.` : `Done — made ${editMade} of ${multiTotal}.`);
+  } finally { batchAppend = null; endEditBatch(); }
 }
 // Hold Apply to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
-// Generate). A plain click makes 1; a hold while busy is swallowed rather than offering a count, exactly like inpaint
-// (the button reads "Cancel" then).
-const editCount = attachCountPicker($editSend, { onPick: n => sendEdit(n), onHold: () => busy });
+// Generate). A plain click makes 1. Apply stays Apply while busy: a click (or held count) then stacks more onto the
+// live batch (queueMore), exactly like the gen page's Generate.
+const editCount = attachCountPicker($editSend, { onPick: n => { if (busy) queueMore(n); else sendEdit(n); } });
 $editComposer.addEventListener("submit", e => {
   e.preventDefault();
   if (editCount.opened) { editCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) cancelGeneration(); else sendEdit(1);
+  if (busy) queueMore(1); else sendEdit(1);
 });
+$cancelEdit.addEventListener("click", () => cancelGeneration());
 // The chat instruction box doubles as the full TAG prompt for whole-image redraws (Anima/Photanima): same '#'/'@'
 // autocomplete, gated on the primary editor's tagging — inert for instruction/animate editors, which have none.
 // Enter does NOT apply the edit; Apply is the only way to start one. The popup still consumes Enter to accept a
@@ -939,13 +979,17 @@ async function inpaintGenerate(n) {
   setStatus(n === 1 ? "Generating…" : `Making ${n}…`);
   const overrides = readOverrides($inpaintParams);
   beginInpaintBatch(n);
+  // Re-roll [a|b|…] randomization per run so the n takes can differ, not just via the server's random seed. The mask +
+  // overrides captured here are reused for any runs queued while busy, so "queue more" makes more takes of the SAME region.
+  const spawn = k => spawnRuns(Array.from({ length: k }, () => () => runOneInpaint(model, expandRandomPrompt(prompt), maskId, overrides)));
+  batchAppend = k => { multiTotal += k; setStatus(`Making ${multiTotal}…`); spawn(k); };
   try {
-    // Re-roll [a|b|…] randomization per run so the n takes can differ, not just via the server's random seed.
-    await Promise.all(Array.from({ length: n }, () => runOneInpaint(model, expandRandomPrompt(prompt), maskId, overrides)));
+    spawn(n);
+    await batchComplete();
     if (cancelRequested) return;
-    if (n > 1) setStatus(inpaintMade === n ? `Done — made all ${n}.` : `Done — made ${inpaintMade} of ${n}.`);
+    if (multiTotal > 1) setStatus(inpaintMade === multiTotal ? `Done — made all ${multiTotal}.` : `Done — made ${inpaintMade} of ${multiTotal}.`);
     else if (inpaintMade === 0) renderInpaintResult(inpaintBase);   // single run failed/no-change: don't leave the box empty
-  } finally { endInpaintBatch(); }
+  } finally { batchAppend = null; endInpaintBatch(); }
 }
 inpaintTag = initTagBox({ input: $inpaintPrompt, pop: $inpaintTagPop, getModel: inpaintModel });
 // The same booru '#'/'@' autocomplete on the negative boxes (chat + inpaint), gated on the active editor's tagging
@@ -953,14 +997,15 @@ inpaintTag = initTagBox({ input: $inpaintPrompt, pop: $inpaintTagPop, getModel: 
 if ($editNeg && $editNegTagPop) initTagBox({ input: $editNeg, pop: $editNegTagPop, getModel: editModel });
 if ($inpaintNeg && $inpaintNegTagPop) initTagBox({ input: $inpaintNeg, pop: $inpaintNegTagPop, getModel: inpaintModel });
 // Hold Generate to pick how many to make (core.js's shared picker — the same one behind the gen page's Generate
-// button). A plain click makes 1. A hold while busy is swallowed rather than offering a count: the button reads
-// "Cancel" then.
-const inpaintCount = attachCountPicker($inpaintGo, { onPick: n => inpaintGenerate(n), onHold: () => busy });
+// button). A plain click makes 1. Generate stays Generate while busy: a click (or held count) then stacks more takes
+// onto the live batch (queueMore).
+const inpaintCount = attachCountPicker($inpaintGo, { onPick: n => { if (busy) queueMore(n); else inpaintGenerate(n); } });
 $inpaintComposer.addEventListener("submit", e => {
   e.preventDefault();
   if (inpaintCount.opened) { inpaintCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) cancelGeneration(); else inpaintGenerate(1);
+  if (busy) queueMore(1); else inpaintGenerate(1);
 });
+$cancelInpaint.addEventListener("click", () => cancelGeneration());
 let stagedBase = null;
 function enterInpaint() {
   if (!$inpaintPrompt.value.trim() && seedPrompt()) $inpaintPrompt.value = seedPrompt();
@@ -1186,25 +1231,30 @@ async function outpaintGenerate(n) {
   // ImagePadForOutpaint lays down, so the border would come back grey instead of painted.
   const overrides = { pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
   beginOutpaintBatch(n);
+  // Re-roll [a|b|…] randomization per run so the n takes can differ, not just via the server's random seed. The pads
+  // captured here are reused for runs queued while busy, so "queue more" makes more takes of the SAME extension.
+  const spawn = k => spawnRuns(Array.from({ length: k }, () => () => runOneOutpaint(model, expandRandomPrompt(prompt), overrides)));
+  batchAppend = k => { multiTotal += k; setStatus(`Making ${multiTotal}…`); spawn(k); };
   try {
-    // Re-roll [a|b|…] randomization per run so the n takes can differ, not just via the server's random seed.
-    await Promise.all(Array.from({ length: n }, () => runOneOutpaint(model, expandRandomPrompt(prompt), overrides)));
+    spawn(n);
+    await batchComplete();
     if (cancelRequested) return;
-    if (n > 1) setStatus(outpaintMade === n ? `Done — made all ${n}.` : `Done — made ${outpaintMade} of ${n}.`);
+    if (multiTotal > 1) setStatus(outpaintMade === multiTotal ? `Done — made all ${multiTotal}.` : `Done — made ${outpaintMade} of ${multiTotal}.`);
     else if (outpaintMade === 0) renderOutpaintResult(outpaintBase);   // single run failed/no-change: don't leave the box empty
-  } finally { endOutpaintBatch(); }
+  } finally { batchAppend = null; endOutpaintBatch(); }
 }
 initTagBox({ input: $outpaintPrompt, pop: $outpaintTagPop, getModel: outpaintModel });
 if ($outpaintNeg && $outpaintNegTagPop) initTagBox({ input: $outpaintNeg, pop: $outpaintNegTagPop, getModel: outpaintModel });
 // Hold Generate to pick how many to make (core.js's shared picker — the same one behind the gen page's and inpaint's
-// Generate). A plain click makes 1; a hold while busy is swallowed rather than offering a count, exactly like inpaint
-// (the button reads "Cancel" then).
-const outpaintCount = attachCountPicker($outpaintGo, { onPick: n => outpaintGenerate(n), onHold: () => busy });
+// Generate). A plain click makes 1. Generate stays Generate while busy: a click (or held count) then stacks more takes
+// onto the live batch (queueMore).
+const outpaintCount = attachCountPicker($outpaintGo, { onPick: n => { if (busy) queueMore(n); else outpaintGenerate(n); } });
 $outpaintComposer.addEventListener("submit", e => {
   e.preventDefault();
   if (outpaintCount.opened) { outpaintCount.opened = false; return; }   // the press was a long-press; the pick submits
-  if (busy) cancelGeneration(); else outpaintGenerate(1);
+  if (busy) queueMore(1); else outpaintGenerate(1);
 });
+$cancelOutpaint.addEventListener("click", () => cancelGeneration());
 function enterOutpaint() {
   if (!$outpaintPrompt.value.trim() && seedPrompt()) $outpaintPrompt.value = seedPrompt();
   if ($outpaintNeg && !$outpaintNeg.value.trim() && seedNegative()) $outpaintNeg.value = seedNegative();
