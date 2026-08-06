@@ -372,6 +372,39 @@ async function gwError(r) {
   return "The image server returned an error (" + r.status + ").";
 }
 
+// --- drag-and-drop upload -----------------------------------------------------------------------
+// Turn `zone` into a file drop target: highlight it (`.drop-hover`) while a file is dragged over, and hand the
+// dropped File list to `onFiles`. Only real file drags act — dragging text or a browser image carries no
+// "Files" in dataTransfer.types, so those pass through untouched. The same named upload handler the surface's
+// hidden <input> calls is passed as `onFiles`, so a drop reuses the exact click-upload path.
+function dragCarriesFiles(e) {
+  return !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files"));
+}
+function attachDropUpload(zone, onFiles) {
+  if (!zone) return;
+  const over = e => { if (!dragCarriesFiles(e)) return; e.preventDefault(); zone.classList.add("drop-hover"); };
+  zone.addEventListener("dragenter", over);
+  zone.addEventListener("dragover", over);
+  // Ignore leaves onto a child (dragleave fires crossing into descendants too) — only drop the highlight when the
+  // cursor actually leaves the zone.
+  zone.addEventListener("dragleave", e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove("drop-hover"); });
+  zone.addEventListener("drop", e => {
+    zone.classList.remove("drop-hover");
+    if (!dragCarriesFiles(e)) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) onFiles(files);
+  });
+}
+// A file dropped OUTSIDE any zone makes the browser navigate to/open it, blowing the page away. Swallow the
+// document-level default for file drags so a stray drop does nothing. Zone drops preventDefault themselves; this is
+// the safety net for everywhere else. Install once per page.
+function preventStrayFileDrops() {
+  const swallow = e => { if (dragCarriesFiles(e)) e.preventDefault(); };
+  document.addEventListener("dragover", swallow);
+  document.addEventListener("drop", swallow);
+}
+
 // --- generation tracking (shared by compose + edit) ---------------------------------------------
 // Upload a blob/File to the gateway's input store; returns its image id (used as an edit source / mask / reference).
 async function uploadToInput(blobOrFile, filename) {

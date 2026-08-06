@@ -517,12 +517,16 @@ function selectFileButton(label) {
   b.addEventListener("click", () => $editSrcFile.click());
   return b;
 }
-$editSrcFile.addEventListener("change", async e => {
-  const f = e.target.files && e.target.files[0]; e.target.value = "";
+// A file is an image/video by MIME, falling back to extension for pickers/drops that hand over a blank type.
+const isImageFile = f => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name);
+const isVideoFile = f => /^video\//.test(f.type) || /\.(mp4|webm|mov|mkv)$/i.test(f.name);
+// Shared upload path for the source: the hidden <input>'s change AND every source drop zone (the source box, and the
+// inpaint/outpaint empty-state stages, which all seed the one source). Takes the first file — the source is single.
+async function handleEditSrcFiles(files) {
+  const f = files && files[0];
   if (!f) return;
-  const isImg = /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name);
-  const isVid = /^video\//.test(f.type) || /\.(mp4|webm|mov|mkv)$/i.test(f.name);
-  if (!isImg && !isVid) { setStatus("Please choose an image or video file.", { error: true }); return; }
+  const isVid = isVideoFile(f);
+  if (!isImageFile(f) && !isVid) { setStatus("Please choose an image or video file.", { error: true }); return; }
   setStatus("Uploading…");
   try {
     const id = await uploadToInput(f, f.name || (isVid ? "edit_src.mp4" : "edit_src.png"));
@@ -538,7 +542,13 @@ $editSrcFile.addEventListener("change", async e => {
     else if (activeMode === "outpaint") { setupOutpaintStage(); outStagedBase = outpaintBase; }
     setStatus("");
   } catch (err) { setStatus(friendlyError(err), { error: true }); }
-});
+}
+$editSrcFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditSrcFiles(files); });
+// The source box and both empty-state stages accept a dropped image/video — same path as picking one.
+attachDropUpload($editSrc, handleEditSrcFiles);
+attachDropUpload($maskStage, handleEditSrcFiles);
+attachDropUpload($outpaintStage, handleEditSrcFiles);
+preventStrayFileDrops();   // a file dropped anywhere else must not navigate the page away
 // Open in the lightbox (which carries the detail fragment + its Edit button) if available, else the detail page.
 function openImage(id) {
   if (!(window.openImgcard && window.openImgcard(String(id)))) location.href = "/image/" + encodeURIComponent(id);
@@ -615,14 +625,22 @@ function renderEditRefs() {
 function editRefHint() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.hint) || ""; }
 function updateEditRefHint() { const txt = editRefHint(); $editRefHint.textContent = txt; $editRefHint.classList.toggle("hidden", editRefs.length === 0 || !txt); }
 $editRefBtn.addEventListener("click", () => $editRefFile.click());
-$editRefFile.addEventListener("change", async e => {
-  const f = e.target.files && e.target.files[0]; e.target.value = "";
-  if (!f || editRefs.length >= editRefMax()) return;
-  if (!(/^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name))) { setStatus("Please choose an image file.", { error: true }); return; }
-  setStatus("Uploading reference…");
-  try { const id = await uploadToInput(f, f.name || "ref.png"); editRefs.push({ id }); renderEditRefs(); setStatus(""); }
-  catch (err) { setStatus(friendlyError(err), { error: true }); }
-});
+// References accept MULTIPLE files (picked or dropped), filling up to the remaining reference_max slots. Uploads run
+// in order; each lands as it finishes so the chips grow one at a time.
+async function handleEditRefFiles(files) {
+  for (const f of Array.from(files || [])) {
+    if (editRefs.length >= editRefMax()) break;
+    if (!isImageFile(f)) { setStatus("Please choose an image file.", { error: true }); continue; }
+    setStatus("Uploading reference…");
+    try { const id = await uploadToInput(f, f.name || "ref.png"); editRefs.push({ id }); renderEditRefs(); setStatus(""); }
+    catch (err) { setStatus(friendlyError(err), { error: true }); }
+  }
+}
+$editRefFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditRefFiles(files); });
+// The refs strip is hidden when empty, so the ＋ ref button is the drop target that's always visible; the strip
+// itself takes drops once it holds chips.
+attachDropUpload($editRefBtn, handleEditRefFiles);
+attachDropUpload($editRefs, handleEditRefFiles);
 
 // --- last frame (i2v first/last-frame editors) --------------------------------------------------
 // A single optional END frame, offered only when the primary editor accepts one (supportsLastFrame) — a single-model
@@ -655,14 +673,18 @@ function renderEditLastFrame() {
 // Checking/unchecking Loop only reshapes the last-frame UI and persists the pref; the source itself is sent on submit.
 if ($editLoop) $editLoop.addEventListener("change", () => { renderEditLastFrame(); savePrefs(); });
 $editLastFrameBtn.addEventListener("click", () => $editLastFrameFile.click());
-$editLastFrameFile.addEventListener("change", async e => {
-  const f = e.target.files && e.target.files[0]; e.target.value = "";
+// A single end frame (picked or dropped) — takes the first file.
+async function handleEditLastFrameFiles(files) {
+  const f = files && files[0];
   if (!f) return;
-  if (!(/^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name))) { setStatus("Please choose an image file.", { error: true }); return; }
+  if (!isImageFile(f)) { setStatus("Please choose an image file.", { error: true }); return; }
   setStatus("Uploading last frame…");
   try { lastFrameId = await uploadToInput(f, f.name || "last_frame.png"); renderEditLastFrame(); setStatus(""); }
   catch (err) { setStatus(friendlyError(err), { error: true }); }
-});
+}
+$editLastFrameFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditLastFrameFiles(files); });
+attachDropUpload($editLastFrameBtn, handleEditLastFrameFiles);
+attachDropUpload($editLastFrame, handleEditLastFrameFiles);
 
 // --- chat edit: fan the instruction across every selected model --------------------------------
 // n comes from the Apply button's hold-to-reveal count picker (a plain click = 1), exactly like the gen page. It

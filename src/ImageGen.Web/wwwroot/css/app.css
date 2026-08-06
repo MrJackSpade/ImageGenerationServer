@@ -584,6 +584,9 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .edit-pick-src:hover{color:var(--ink);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .edit-pick-src .eps-icon{font-size:32px;line-height:1}
 .mask-stage .edit-pick-src{min-height:260px}
+/* Drag-over highlight, set by attachDropUpload (core.js) while a file is dragged over any upload surface. Drawn as an
+   inset outline so it reads on elements that clip overflow (source box, mask/outpaint stages) without shifting layout. */
+.drop-hover{outline:2px dashed var(--accent);outline-offset:-2px;background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .edit-refs{display:flex;flex-wrap:wrap;gap:8px}
 .edit-ref-hint{flex-basis:100%;font-size:12px;line-height:1.45;color:var(--ink-soft);background:var(--elev);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
 .edit-refs .ref-chip{position:relative;width:48px;height:48px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--elev)}
