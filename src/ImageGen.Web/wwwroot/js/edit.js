@@ -311,6 +311,7 @@ async function loadEditModels() {
         takesPrompt: r.takesPrompt !== false,   // false = no text encoder in the graph (upscalers): hide the box
         negativeSupported: !!(r.card && r.card.negativeSupported),   // editor uses a negative prompt (append-on-top)
         tagging: (r.card && r.card.tagging) || null,
+        promptGuidance: (r.card && r.card.promptGuidance) || null,   // card's how-to-prompt line → instruction placeholder
         edit: { reference: r.reference || null, default: !!r.default }
       };
     });
@@ -455,9 +456,11 @@ function updateInstructionPlaceholder() {
   const setLabel = t => { if (label) label.textContent = t; };
   if (m && m.media === "video") {
     setLabel("Change");
-    $instruction.placeholder = m.promptDirectsMotion
-      ? "Optional: describe the motion (e.g. gentle breeze, slow zoom)"
-      : "Optional: describe the scene — motion is automatic, not prompt-controlled";
+    // The card's own prompting guidance beats the generic motion line (e.g. ref2va's <Picture 1>/<Video 1> tags).
+    $instruction.placeholder = m.promptGuidance
+      || (m.promptDirectsMotion
+        ? "Optional: describe the motion (e.g. gentle breeze, slow zoom)"
+        : "Optional: describe the scene — motion is automatic, not prompt-controlled");
     return;
   }
   if (m && m.promptSemantics === "whole_image") {
