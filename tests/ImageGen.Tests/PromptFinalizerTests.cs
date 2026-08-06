@@ -265,12 +265,17 @@ public sealed class PromptFinalizerTests
     public void An_interior_tilde_is_part_of_the_tag_and_survives(string raw, string expected) =>
         Assert.Equal(expected, PromptFinalizer.Finalize(raw, Anima).Rendered);
 
-    /// <summary>A negated inert tag is still a negated tag — the marker must not survive into the exclusion key.</summary>
+    /// <summary>
+    /// The negative mirrors the positive prompt's marker visibility as suppression (issue #134): a '!' inert negative
+    /// suppresses the IMAGE MODEL ONLY, so it is NOT a tagger exclusion; '#'/plain and '~' guide both are. So of
+    /// "!pig, #castle, ~cow" only castle and cow reach the tag model's exclusion set — pig is left for the predictor
+    /// while the image model still avoids it (Finalize strips its marker into the negative conditioning).
+    /// </summary>
     [Fact]
-    public void Negative_keys_strip_the_inert_marker_too()
+    public void Inert_negative_suppresses_image_side_only_not_the_tagger()
     {
         (HashSet<string>? tags, HashSet<string> _) = PromptFinalizer.NegativeKeys("!pig, #castle, ~cow");
-        Assert.Equal(["castle", "cow", "pig"], tags.Order());
+        Assert.Equal(["castle", "cow"], tags.Order());
     }
 
     /// <summary>

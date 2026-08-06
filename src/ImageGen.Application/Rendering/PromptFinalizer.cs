@@ -84,9 +84,26 @@ public static class PromptFinalizer
     /// direction (a stored prompt back into marker form) reads the same key, so both come from <see cref="PromptMarkers"/>.</summary>
     public static string Normalize(string? s) => PromptMarkers.Key(s);
 
-    /// <summary>The canonical tag/artist keys a raw negative prompt asks NOT to see. Every comma-segment counts: '@'
-    /// declares an artist, everything else (whether marked '#' or typed plain) is a tag. Random generation treats these
-    /// as exclusions — something the user pushed into the negative must never be sampled back in as a positive.</summary>
+    /// <summary>
+    /// The canonical tag/artist keys a raw negative prompt asks the TAG PREDICTOR not to sample — the tag-model-side
+    /// half of the negative. A tag the user negated must never be handed back to them as a randomly-chosen positive.
+    ///
+    /// <para>The negative mirrors the positive prompt's marker VISIBILITY as suppression, so which side a negated
+    /// segment binds is scoped by its marker — exactly as the same marker scopes visibility in the positive box:
+    /// <list type="bullet">
+    ///   <item>'#'-marked and plain-typed — suppressed in BOTH: excluded here AND sent as negative conditioning by
+    ///   <see cref="Finalize"/>. ('@' likewise, as an artist exclusion.)</item>
+    ///   <item>'~' guide — suppressed in the TAG MODEL ONLY: excluded here, while <see cref="Finalize"/> →
+    ///   <see cref="PromptMarkers.WithoutGuides"/> strips it out of the negative conditioning so the image model never
+    ///   sees it. This is how a user stops the predictor forcing a tag WITHOUT negatively conditioning the picture
+    ///   (issue #134).</item>
+    ///   <item>'!' inert — suppressed in the IMAGE MODEL ONLY, so it is SKIPPED here. '!' means "the predictor doesn't
+    ///   deal with this tag", so a negated inert tag is not a tagger exclusion; it still reaches the negative
+    ///   conditioning, because <see cref="Finalize"/> strips its marker like any other.</item>
+    /// </list></para>
+    /// Keys are canonical (lowercased, spaces-&gt;underscores) so they match the ban sets the tag model and RandomArtist
+    /// already honour.
+    /// </summary>
     public static (HashSet<string> Tags, HashSet<string> Artists) NegativeKeys(string? rawNegative)
     {
         HashSet<string> tags = new HashSet<string>(StringComparer.Ordinal);
@@ -95,6 +112,8 @@ public static class PromptFinalizer
         {
             string t = seg.Trim();
             if (t.Length == 0) continue;
+            // '!' inert: image-side suppression only — never a tagger exclusion (see the summary).
+            if (t[0] == PromptMarkers.InertTagMarker) continue;
             string key = Normalize(t.TrimStart(PromptMarkers.TagMarker, PromptMarkers.ArtistMarker,
                                              PromptMarkers.InertTagMarker, PromptMarkers.GuideTagMarker));
             if (key.Length > 0) (t[0] == '@' ? artists : tags).Add(key);
