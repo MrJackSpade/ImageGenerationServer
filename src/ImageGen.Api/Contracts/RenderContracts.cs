@@ -31,17 +31,6 @@ public sealed record GenerateRequest(
     List<LoraSelection>? Loras = null,
     bool Background = false);
 
-/// <summary>One image-edit request body. <c>Workflow</c> is the edit workflow configuration id; <c>ImageId</c> the source.
-/// Both are non-nullable and non-optional, so the serializer rejects a payload that omits or nulls either. Required
-/// members lead so the optional (defaulted) ones can follow; binding is by name, so declaration order is cosmetic.</summary>
-public sealed record EditRequest(
-    string Workflow, string ImageId, string? Instruction = null, string? NegativePrompt = null,
-    List<string>? ReferenceImageIds = null,
-    Dictionary<string, JsonElement>? Overrides = null,
-    string? MaskImageId = null,
-    string? LastFrameImageId = null,
-    bool Background = false);
-
 /// <summary>One item of a batch enqueue (Edit=true marks an edit item). <c>Workflow</c> is non-nullable and required for
 /// both item kinds; <c>ImageId</c> stays nullable because a generate item legitimately omits it — its presence is the
 /// discriminated-union concern validated by the <c>Edit == true</c> branch, not a missing-member check.</summary>
@@ -52,6 +41,7 @@ public sealed record EnqueueItem(
     TriState RandomPrompt = TriState.Unspecified,
     [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
     Dictionary<string, JsonElement>? Overrides = null,
+    string? MaskImageId = null,
     string? LastFrameImageId = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
@@ -69,14 +59,9 @@ public static class RenderContractMapping
         r.Workflow, r.Prompt ?? "", r.NegativePrompt, r.Aspect,
         r.RandomArtist, r.RandomPrompt, r.Temperature, r.Overrides, r.TagTypes, r.OriginalPrompt, r.Loras);
 
-    /// <summary>Map an edit request body to the orchestration spec. An absent instruction is an empty one — some
-    /// editors (upscale, matte) take none — coalesced here at the wire→domain boundary exactly as the generate path
-    /// does its prompt, so <see cref="EditSpec.Instruction"/> is honestly non-null and nothing downstream re-checks it.
-    /// (The batch and requeue paths already normalize it the same way.)</summary>
-    public static EditSpec ToSpec(this EditRequest r) => new(
-        r.Workflow, r.Instruction ?? "", r.ImageId, r.NegativePrompt, r.ReferenceImageIds, r.Overrides, r.MaskImageId, r.LastFrameImageId);
-
-    /// <summary>Map a batch item to a render item, or null when the item is invalid (skipped).</summary>
+    /// <summary>Map a batch item to a render item, or null when the item is invalid (skipped). An absent instruction is
+    /// an empty one — some editors (upscale, matte) take none — coalesced here at the wire→domain boundary exactly as
+    /// the generate path does its prompt, so <see cref="EditSpec.Instruction"/> is honestly non-null.</summary>
     public static RenderItem? ToRenderItem(this EnqueueItem it)
     {
         if (it.Edit)
@@ -87,7 +72,7 @@ public static class RenderContractMapping
             }
 
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
-                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId), it.Background);
+                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, it.MaskImageId, it.LastFrameImageId), it.Background);
         }
 
         if (string.IsNullOrWhiteSpace(it.Workflow))

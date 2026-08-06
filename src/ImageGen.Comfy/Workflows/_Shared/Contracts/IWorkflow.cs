@@ -41,7 +41,7 @@ public interface IWorkflow
 
     /// <summary>Image→video only: whether this workflow accepts an optional LAST frame (the source image is the first
     /// frame; the clip is interpolated to end on the supplied image). When true, an API caller may set
-    /// <c>EditRequest.LastFrameImageId</c> and the build wires <c>WanFirstLastFrameToVideo</c>. Surfaced on the
+    /// <c>EnqueueItem.LastFrameImageId</c> and the build wires <c>WanFirstLastFrameToVideo</c>. Surfaced on the
     /// <c>/workflows</c> row (<c>supportsLastFrame</c>) so callers can discover it. Default false.</summary>
     bool SupportsEndFrame => false;
 
