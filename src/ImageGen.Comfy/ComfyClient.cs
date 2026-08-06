@@ -696,9 +696,10 @@ public sealed class ComfyClient : IComfyClient
                 if (r.Bytes is { Length: > 0 })
                 {
                     // Role-indexed filename per reference, extension matched to its media family (ComfyUI keys the
-                    // decode off the extension — an audio clip uploaded as .png would fail to decode). The kind is
-                    // carried through so the workflow routes each reference to the graph input for its family.
-                    string name = await UploadImageAsync(r.Bytes, $"forgemcp_edit_ref{ri++}{ReferenceKinds.Extension(r.Kind)}", ct);
+                    // decode off the extension — an audio clip uploaded as .png would fail to decode) and uploaded WITH
+                    // its real content type, not a forced image/png. The kind is carried through so the workflow routes
+                    // each reference to the graph input for its family.
+                    string name = await UploadFileAsync(r.Bytes, $"forgemcp_edit_ref{ri++}{ReferenceKinds.Extension(r.Kind)}", r.ContentType, ct);
                     refInputs.Add(new ReferenceInput(name, r.Kind));
                 }
             }

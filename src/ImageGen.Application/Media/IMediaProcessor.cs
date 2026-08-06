@@ -17,6 +17,11 @@ public interface IMediaProcessor
     /// throws if the format cannot be determined.</summary>
     ImageDimensions Identify(byte[] bytes);
 
+    /// <summary>Classify an uploaded file by its bytes: the authoritative MIME (an image/audio/video family, sniffed
+    /// from the header — never the client's claim) plus pixel dimensions when it has them (null for audio). Throws when
+    /// the bytes are not a recognised image, audio, or video file — the upload endpoint takes exactly those.</summary>
+    MediaIdentity IdentifyUpload(byte[] bytes);
+
     /// <summary>Read an MP4 clip's coded pixel dimensions from its container boxes (ImageSharp cannot read an mp4 — the
     /// only stored clip that isn't an animated webp is the MiniMax-H3 mp4). Throws on an unreadable file, exactly like
     /// <see cref="Identify"/>: a video whose header won't parse is a failed render, not a fabricated 0×0.</summary>

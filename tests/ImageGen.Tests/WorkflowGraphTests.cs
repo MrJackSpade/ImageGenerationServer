@@ -349,11 +349,12 @@ public sealed class WorkflowGraphTests
         // Image: source is ref_image_0, the picker still is ref_image_1.
         Assert.Contains("ref_images.ref_image_0", json);
         Assert.Contains("ref_images.ref_image_1", json);
-        // Video: decoded to frames and wired to ref_videos.ref_video_0.
+        // Video: decoded once to frames (ref_videos) AND its own soundtrack (ref_video_audios), same index.
         Assert.Contains("LoadVideo", json);
         Assert.Contains("GetVideoComponents", json);
         Assert.Contains("ref_videos.ref_video_0", json);
-        // Audio: loaded and wired to ref_audios.ref_audio_0.
+        Assert.Contains("ref_video_audios.ref_video_audio_0", json);
+        // Audio: a standalone clip loaded and wired to ref_audios.ref_audio_0.
         Assert.Contains("LoadAudio", json);
         Assert.Contains("ref_audios.ref_audio_0", json);
     }

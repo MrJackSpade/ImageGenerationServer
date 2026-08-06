@@ -1184,24 +1184,24 @@ public static class ForgeApi
             await file.CopyToAsync(ms, ctx.RequestAborted);
             byte[] bytes = ms.ToArray();
 
-            // An upload whose header will not read is not an image, and this endpoint takes images. Storing it anyway
-            // with null dimensions would push the rejection much later — to a failed render, or a gallery row of
-            // unknown size — with nothing left pointing at the upload that caused it.
-            ImageDimensions dims;
+            // An upload whose header will not read is none of the media this endpoint takes (edit source, reference,
+            // mask, end frame — an image, audio clip, or video). Storing it anyway would push the rejection much later
+            // — to a failed render — with nothing left pointing at the upload that caused it.
+            MediaIdentity ident;
             try
             {
-                dims = media.Identify(bytes);
+                ident = media.IdentifyUpload(bytes);
             }
             catch (Exception ex)
             {
-                return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" });
+                return Results.BadRequest(new { error = $"That file isn't a readable image, audio, or video: {ex.Message}" });
             }
 
-            int? w = dims.Width, h = dims.Height;
             // The content-type is derived from the bytes, not the client-declared file.ContentType: the latter is an
-            // untrusted claim (a client can send image/png for webp bytes), and Identify already decoded the true
-            // format from the header. Deriving unconditionally makes the stored/served MIME always match the content.
-            string id = uploads.Add(new UploadedImage(bytes, dims.MimeType, w, h));
+            // untrusted claim (a client can send image/png for webp bytes), and IdentifyUpload sniffed the true family
+            // from the header. Deriving unconditionally makes the stored/served MIME always match the content — and it
+            // is that MIME the render path reads to route a reference to the graph input for its media kind.
+            string id = uploads.Add(new UploadedImage(bytes, ident.MimeType, ident.Width, ident.Height));
             return Results.Ok(new { id });
         });
 

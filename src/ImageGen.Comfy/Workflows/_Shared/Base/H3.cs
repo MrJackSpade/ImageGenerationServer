@@ -147,9 +147,12 @@ internal static class H3
                         imageEdges.Add(LoadImage.ImageOut(id));
                     }
 
-                    // Video references: the node's ref_videos input is IMAGE frames, so each clip is decoded to frames
-                    // (LoadVideo → GetVideoComponents, frame output 0).
+                    // Video references: the node's ref_videos input is IMAGE frames and the paired ref_video_audios is
+                    // that same video's AUDIO, so each clip is decoded once (LoadVideo → GetVideoComponents) and its
+                    // frames (output 0) AND soundtrack (output 1) are wired to the same-numbered slots — a video
+                    // reference drives BOTH motion and its own sound.
                     List<Output<Slot.Image>> videoFrameEdges = new(videoRefNames.Count);
+                    List<Output<AudioSlot>> videoAudioEdges = new(videoRefNames.Count);
                     for (int i = 0; i < videoRefNames.Count; i++)
                     {
                         string loadId = (RefVideoLoadBase + i).ToString();
@@ -157,6 +160,7 @@ internal static class H3
                         g[loadId] = new LoadVideo { File = videoRefNames[i] };
                         g[compId] = new GetVideoComponents { Video = LoadVideo.VideoOut(loadId) };
                         videoFrameEdges.Add(GetVideoComponents.ImagesOut(compId));
+                        videoAudioEdges.Add(GetVideoComponents.AudioOut(compId));
                     }
 
                     // Audio references: standalone driving clips → ref_audios (encoded through audio_vae inside the node).
@@ -178,7 +182,7 @@ internal static class H3
                         Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
                         Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
                         RefImageSize = ComfyWidgets.RefImageSize.Match,
-                        RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, audioEdges),
+                        RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, videoAudioEdges, audioEdges),
                     };
                     break;
                 }

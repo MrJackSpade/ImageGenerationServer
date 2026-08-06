@@ -10,10 +10,11 @@ namespace ImageGen.Application.Rendering;
 /// timing sample. The signature is built where the merged params live (the Comfy adapter), not re-derived in core.</summary>
 public readonly record struct SubmitResult(string PromptId, EtaSignature Eta);
 
-/// <summary>One reference the orchestrator resolved for an edit, ready to upload: the raw bytes plus the media
-/// <see cref="Kind"/> derived from the stored blob's content type. The adapter uploads each under a kind-appropriate
-/// filename and routes it to the workflow's matching graph input.</summary>
-public readonly record struct ReferenceUpload(byte[] Bytes, ReferenceKind Kind);
+/// <summary>One reference the orchestrator resolved for an edit, ready to upload: the raw bytes, the media
+/// <see cref="Kind"/> derived from the stored blob's content type, and that <see cref="ContentType"/> itself. The
+/// adapter uploads each under a kind-appropriate filename WITH its real content type and routes it to the workflow's
+/// matching graph input.</summary>
+public readonly record struct ReferenceUpload(byte[] Bytes, ReferenceKind Kind, string ContentType);
 
 /// <summary>
 /// The render backend port the application depends on. It is the async submit/poll/cancel surface the orchestrator

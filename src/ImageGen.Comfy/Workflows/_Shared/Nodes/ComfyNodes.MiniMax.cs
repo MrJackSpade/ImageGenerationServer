@@ -86,22 +86,26 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
     [JsonPropertyName("ref_image_size")] public required string RefImageSize { get; init; }
 
     /// <summary>The node's four autogrow reference families, flattened into ONE extension-data map keyed by the exact
-    /// dotted wire keys ComfyUI re-nests server-side: <c>ref_images.ref_image_{i}</c> (up to 9 stills),
-    /// <c>ref_videos.ref_video_{i}</c> (up to 3 driving videos, as IMAGE frame batches),
-    /// <c>ref_audios.ref_audio_{i}</c> (up to 3 driving AUDIO clips). A node record allows only one
-    /// <see cref="JsonExtensionDataAttribute"/> property, so all families share this one dict. Populated by
+    /// dotted wire keys ComfyUI re-nests server-side (item prefixes confirmed against the live node's autogrow
+    /// templates): <c>ref_images.ref_image_{i}</c> (up to 9 stills), <c>ref_videos.ref_video_{i}</c> (up to 3 driving
+    /// videos, as IMAGE frame batches), <c>ref_video_audios.ref_video_audio_{i}</c> (the same-numbered driving video's
+    /// AUDIO soundtrack), <c>ref_audios.ref_audio_{i}</c> (up to 3 standalone driving AUDIO clips). A node record allows
+    /// only one <see cref="JsonExtensionDataAttribute"/> property, so all families share this one dict. Populated by
     /// <see cref="Refs"/>.</summary>
     [JsonExtensionData] public Dictionary<string, object> RefInputs { get; init; } = [];
 
     /// <summary>Build the flattened <c>ref_*.ref_*_{i}</c> extension-data map from the ordered reference outputs of each
-    /// media family. Each value is the two-element <c>[nodeId, index]</c> edge ComfyUI expects — byte-identical to an
-    /// <see cref="Output{TSlot}"/> edge, but keyed dynamically since the counts are not known at compile time.</summary>
+    /// media family. <paramref name="videoFrames"/> and <paramref name="videoAudios"/> are index-aligned — item <c>i</c>
+    /// is one driving video's frames and its own soundtrack. Each value is the two-element <c>[nodeId, index]</c> edge
+    /// ComfyUI expects — byte-identical to an <see cref="Output{TSlot}"/> edge, but keyed dynamically since the counts
+    /// are not known at compile time.</summary>
     public static Dictionary<string, object> Refs(
         IReadOnlyList<Output<Slot.Image>> images,
         IReadOnlyList<Output<Slot.Image>> videoFrames,
+        IReadOnlyList<Output<AudioSlot>> videoAudios,
         IReadOnlyList<Output<AudioSlot>> audios)
     {
-        Dictionary<string, object> map = new(images.Count + videoFrames.Count + audios.Count);
+        Dictionary<string, object> map = new(images.Count + videoFrames.Count + videoAudios.Count + audios.Count);
         for (int i = 0; i < images.Count; i++)
         {
             map[$"ref_images.ref_image_{i}"] = Edge(images[i]);
@@ -110,6 +114,11 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
         for (int i = 0; i < videoFrames.Count; i++)
         {
             map[$"ref_videos.ref_video_{i}"] = Edge(videoFrames[i]);
+        }
+
+        for (int i = 0; i < videoAudios.Count; i++)
+        {
+            map[$"ref_video_audios.ref_video_audio_{i}"] = Edge(videoAudios[i]);
         }
 
         for (int i = 0; i < audios.Count; i++)

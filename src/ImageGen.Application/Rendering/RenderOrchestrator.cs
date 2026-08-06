@@ -1098,7 +1098,7 @@ public sealed class RenderOrchestrator
                         return;
                     }
 
-                    references.Add(new ReferenceUpload(refMedia.Bytes, refKind));
+                    references.Add(new ReferenceUpload(refMedia.Bytes, refKind, refMedia.ContentType));
                 }
 
                 byte[]? maskBytes = null;

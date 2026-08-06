@@ -23,6 +23,18 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
 
         /// <summary>MIME type of the only stored clip ImageSharp can't identify (the MiniMax-H3 mp4).</summary>
         public const string Mp4MimeType = "video/mp4";
+
+        /// <summary>The video MIME family prefix, for deciding whether a sniffed type carries a pixel size to read.</summary>
+        public const string VideoFamily = "video/";
+
+        /// <summary>Sniffed upload MIME types (audio/video containers ImageSharp can't identify).</summary>
+        public const string Wav = "audio/wav";
+        public const string Avi = "video/x-msvideo";
+        public const string M4a = "audio/mp4";
+        public const string Webm = "video/webm";
+        public const string Mp3 = "audio/mpeg";
+        public const string Flac = "audio/flac";
+        public const string Ogg = "audio/ogg";
     }
 
     /// <inheritdoc/>
@@ -45,6 +57,97 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     {
         (int w, int h) = Mp4Probe.GetDimensions(bytes);
         return new ImageDimensions(w, h, MimeTypes.Mp4MimeType);
+    }
+
+    /// <inheritdoc/>
+    public MediaIdentity IdentifyUpload(byte[] bytes)
+    {
+        // Audio and video are sniffed first from their container magic bytes — cheaply and distinctively — so an image
+        // decode is only attempted for what isn't audio/video. That order (rather than "try to decode as an image, and
+        // on failure assume it's something else") keeps a genuinely-corrupt image a hard failure instead of a file
+        // silently reclassified as media: if it isn't recognised audio/video here, Identify below decides image-or-throw.
+        string? av = SniffAudioOrVideo(bytes);
+        if (av is not null)
+        {
+            if (av.StartsWith(MimeTypes.VideoFamily, StringComparison.Ordinal))
+            {
+                // MP4 carries readable coded dimensions; other containers (webm) don't here — a null size is honest.
+                if (string.Equals(av, MimeTypes.Mp4MimeType, StringComparison.Ordinal))
+                {
+                    (int w, int h) = Mp4Probe.GetDimensions(bytes);
+                    return new MediaIdentity(av, w, h);
+                }
+
+                return new MediaIdentity(av, null, null);
+            }
+
+            return new MediaIdentity(av, null, null);   // audio has no pixel size
+        }
+
+        ImageDimensions img = Identify(bytes);   // image, or throws for a file that is none of the three
+        return new MediaIdentity(img.MimeType, img.Width, img.Height);
+    }
+
+    /// <summary>The <c>audio/*</c> or <c>video/*</c> MIME a file's container magic bytes name, or null when the bytes
+    /// aren't a recognised audio/video container (an image, or unknown — the caller then tries an image decode). Header
+    /// bytes only, no decode. WebP is deliberately NOT matched here (it is a RIFF like WAV/AVI) so it stays an image.</summary>
+    private static string? SniffAudioOrVideo(ReadOnlySpan<byte> b)
+    {
+        if (b.Length < 12)
+        {
+            return null;
+        }
+
+        // RIFF container: the four bytes at offset 8 name the form — WAVE (audio), AVI (video), WEBP (image → null).
+        if (b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F')
+        {
+            if (b[8] == 'W' && b[9] == 'A' && b[10] == 'V' && b[11] == 'E')
+            {
+                return MimeTypes.Wav;
+            }
+
+            if (b[8] == 'A' && b[9] == 'V' && b[10] == 'I' && b[11] == ' ')
+            {
+                return MimeTypes.Avi;
+            }
+
+            return null;   // WEBP or another RIFF form — let the image path decide
+        }
+
+        // ISO-BMFF (MP4/MOV/M4A): an 'ftyp' box at offset 4; the major brand at offset 8 splits audio-only from video.
+        if (b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p')
+        {
+            return b[8] == 'M' && b[9] == '4' && (b[10] == 'A' || b[10] == 'B') ? MimeTypes.M4a : MimeTypes.Mp4MimeType;
+        }
+
+        // Matroska / WebM: the EBML magic. DocType (webm vs matroska, audio vs video) isn't parsed here — video is the
+        // overwhelming case and the render path only needs the family.
+        if (b[0] == 0x1A && b[1] == 0x45 && b[2] == 0xDF && b[3] == 0xA3)
+        {
+            return MimeTypes.Webm;
+        }
+
+        if (b[0] == 'I' && b[1] == 'D' && b[2] == '3')
+        {
+            return MimeTypes.Mp3;   // ID3v2-tagged MP3
+        }
+
+        if (b[0] == 0xFF && (b[1] & 0xE0) == 0xE0)
+        {
+            return MimeTypes.Mp3;   // raw MPEG-audio frame sync
+        }
+
+        if (b[0] == 'f' && b[1] == 'L' && b[2] == 'a' && b[3] == 'C')
+        {
+            return MimeTypes.Flac;
+        }
+
+        if (b[0] == 'O' && b[1] == 'g' && b[2] == 'g' && b[3] == 'S')
+        {
+            return MimeTypes.Ogg;
+        }
+
+        return null;
     }
 
     /// <inheritdoc/>
