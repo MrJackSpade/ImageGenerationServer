@@ -4,7 +4,10 @@ name: CI
 # provider-neutral database reads are intact -- neither is checkable by reading a diff.
 on:
   push:
-    branches: ['**']
+    # main is excluded on purpose: this repo commits straight to main, and a release/test tag build pushes main as a
+    # side effect — running CI + Docker on every such push starved the tag build of hosted runners. CI runs on other
+    # branches, pull requests, and manual dispatch; a main change is validated via the tag build (and locally).
+    branches: ['**', '!main']
   pull_request:
   workflow_dispatch:
 

@@ -5,7 +5,10 @@ name: Docker
 # .NET runtime install in the final stage actually resolves.
 on:
   push:
-    branches: ['**']
+    # main excluded on purpose — see ci.yml: a tag build pushes main as a side effect, and building the heavy CUDA
+    # image on every such push starved the tag build of hosted runners. This still proves the image on other branches
+    # (via the paths below), pull requests, and manual dispatch.
+    branches: ['**', '!main']
     paths:
       - 'Dockerfile*'
       - 'compose.yml'
