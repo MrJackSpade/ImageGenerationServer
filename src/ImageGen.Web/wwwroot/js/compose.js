@@ -26,7 +26,9 @@ let busy = false, activeGen = null, cancelRequested = false;
 const ASPECTS = ["square", "landscape", "portrait"];
 let aspects = ["square"];
 const primaryAspect = () => aspects[0] || "square";
-const pickAspect = () => aspects[Math.floor(Math.random() * aspects.length)] || "square";
+// While Custom is active the flat width/height overrides carry the size, so a valid aspect string is still submitted
+// (the graph ignores the map for that job) — "square" keeps NormalizeAspect happy.
+const pickAspect = () => customActive ? "square" : (aspects[Math.floor(Math.random() * aspects.length)] || "square");
 let hasEditors = false;
 // Artist mode: when the composer is on an artist page it carries a locked artist (data-artist). Every gen is
 // locked to that artist, and the Random-artist option and '@' artist autocomplete are suppressed.
@@ -113,7 +115,7 @@ function updatePlaceholder() {
   syncTagTypesBar();   // the mask hides with the slider when the model can't take random tags
   updateNegativeField();   // reveal the negative field iff any checked model supports one (independent of primary)
   updateLoraSection();     // the LoRA accordion shows only when a selected model produces images
-  updateShapeEdit();       // the inline "Edit sizes" toggle shows only for a single picked workflow
+  updateCustomShape();     // the "Custom" aspect shows only for a single workflow that enabled custom sizing
   const ex = m && exampleFor(m);
   $prompt.placeholder = ex || "Describe the picture you'd like to make…";
   const help = m && m.ui_help;
@@ -133,124 +135,60 @@ function updatePlaceholder() {
   renderParams(m);
 }
 
-// --- inline per-workflow size editor (#139) -------------------------------------------------------
-// "Edit" next to Shape opens the current workflow's three render sizes (square/landscape/portrait) inline, so a
-// resolution tweak doesn't mean a trip to the settings page. It edits the SAME per-machine config that page does
-// (param.aspect via /catalog/override), bounded by the model's declared envelope: Done saves the three pairs,
-// Reset clears the override so the shipped sizes come back. Shown only when exactly one generate workflow is
-// picked — "the current workflow" is meaningless with a multi-pick, each of which carries its own sizes.
-const $shapeEdit = $("shapeEdit"), $shapeSizes = $("shapeSizes");
-let shapeEditOpen = false, shapeInputs = null, shapeConfigId = null, shapeKey = null;
 
-// The single generate workflow whose sizes we'd edit, or null (0 or 2+ picked, or an edit workflow).
-function shapeEditable() { const m = primaryModel(); return m && m.kind === "generate" ? m : null; }
+// --- custom size (per-workflow toggle, #150) -----------------------------------------------------
+// A workflow whose settings page enabled "Custom size" (r.customSizeEnabled) gets a "Custom" aspect on the shape
+// row. Picking it reveals width/height boxes; on submit their values ride as flat width/height overrides (with the
+// aspect map emptied so the flat size wins in the graph's Dims()), and the server validates the pair against the
+// model's resolution envelope. Offered only for a SINGLE picked generate workflow — "the current workflow" is
+// meaningless with a multi-pick, each of which carries its own sizes.
+const $aspectCustom = $("aspectCustom"), $customSize = $("customSize"),
+      $customW = $("customW"), $customH = $("customH"), $customSizeNote = $("customSizeNote");
+let customActive = false, customEnv = null;
 
-function updateShapeEdit() {
-  const m = shapeEditable();
-  if ($shapeEdit) $shapeEdit.hidden = !m;
-  // Close on any selection change away from the workflow being edited — otherwise the open fields would still write
-  // to the previously-picked workflow's config.
-  if (shapeEditOpen && (!m || m.id !== shapeConfigId)) closeShapeEditor();
+// The single generate workflow whose custom sizing we'd offer, or null (0 or 2+ picked, or it hasn't enabled it).
+function customCapable() { const m = primaryModel(); return (m && m.kind === "generate" && m.customSizeEnabled) ? m : null; }
+const customDim = el => { const n = parseInt(el && el.value, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
+// True only when Custom is active with both boxes filled — the gate the submit path checks before enqueueing.
+function customReady() { return customActive && customDim($customW) > 0 && customDim($customH) > 0; }
+
+function updateCustomShape() {
+  const on = !!customCapable();
+  if ($aspectCustom) $aspectCustom.classList.toggle("hidden", !on);
+  if (!on && customActive) setCustomActive(false);   // selection moved to a workflow that doesn't offer custom sizing
 }
 
-function closeShapeEditor() {
-  shapeEditOpen = false; shapeInputs = null;
-  if ($shapeSizes) { $shapeSizes.hidden = true; $shapeSizes.innerHTML = ""; }
-  if ($shapeEdit) $shapeEdit.textContent = "Edit";
-}
-
-// Build the three width/height pairs from the workflow's effective sizes, bounded by its declared envelope. Mirrors
-// the settings page's aspect editor (wf-aspect grid) so the two surfaces read and validate the same way.
-function buildShapeEditor(m, s, env) {
-  shapeConfigId = m.id; shapeKey = s.key;
-  const eff = ((s.override !== null && s.override !== undefined) ? s.override : s.shipped) || {};
-  $shapeSizes.innerHTML = "";
-  const box = document.createElement("div"); box.className = "wf-aspect";
-  shapeInputs = {};
-  for (const name of ASPECTS) {
-    const pair = eff[name] || [];
-    const cell = document.createElement("div"); cell.className = "wf-aspect-cell";
-    const nm = document.createElement("span"); nm.className = "wf-aspect-name"; nm.textContent = name;
-    const w = document.createElement("input"), h = document.createElement("input");
-    for (const [el, v, lo, hi] of [[w, pair[0], env && env.minW, env && env.maxW],
-                                    [h, pair[1], env && env.minH, env && env.maxH]]) {
-      el.type = "number"; el.className = "fld-input";
-      if (lo) el.min = lo;
-      if (hi) el.max = hi;
-      if (env && env.step) el.step = env.step;
-      el.value = v == null ? "" : v;
-    }
-    shapeInputs[name] = [w, h];
-    const x = document.createElement("span"); x.className = "wf-aspect-x"; x.textContent = "×";
-    cell.append(nm, w, x, h);
-    box.appendChild(cell);
+function setCustomActive(on) {
+  customActive = on;
+  if ($customSize) $customSize.hidden = !on;
+  if ($aspectCustom) $aspectCustom.classList.toggle("active", on);
+  if (on) {
+    for (const b of $aspect.children) if (b !== $aspectCustom) b.classList.remove("active");   // Custom is exclusive
+    loadCustomEnv();
+  } else {
+    setAspects(aspects);   // restore the normal shape's active markers
   }
-  if (env) {
-    const note = document.createElement("p"); note.className = "wf-aspect-note";
-    note.textContent = `This model supports ${env.minW}–${env.maxW} wide and ${env.minH}–${env.maxH} tall, `
-      + `in multiples of ${env.step}.`;
-    box.appendChild(note);
-  }
-  const reset = document.createElement("button");
-  reset.type = "button"; reset.className = "wf-reset shape-reset"; reset.textContent = "Reset to defaults";
-  reset.addEventListener("click", resetShapeEditor);
-  box.appendChild(reset);
-  $shapeSizes.appendChild(box);
 }
 
-async function openShapeEditor() {
-  const m = shapeEditable(); if (!m) return;
-  let data;
+// Bound the width/height boxes by the model's declared envelope and show the same note the settings size editor does.
+async function loadCustomEnv() {
+  const m = customCapable(); if (!m) return;
   try {
     const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/settings`);
-    if (!r.ok) throw new Error(`the server answered ${r.status}`);
-    data = await r.json();
-  } catch (e) { console.error("load workflow sizes failed:", e); toast("Couldn't load this workflow's sizes"); return; }
-  const aspect = (data.settings || []).find(s => s.type === "aspect");
-  if (!aspect) { toast("This workflow has no adjustable sizes"); return; }
-  buildShapeEditor(m, aspect, data.resolution);
-  shapeEditOpen = true; $shapeSizes.hidden = false; $shapeEdit.textContent = "Done";
-}
-
-// Write (or clear, on null) the aspect override for the workflow being edited. The server re-validates against the
-// model's envelope and answers a bad size with the model's own numbers, which we surface verbatim.
-async function putAspectOverride(value) {
-  try {
-    const r = await fetch(`${GATEWAY}/catalog/override`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ configId: shapeConfigId, key: `param.${shapeKey}`, value }),
-    });
-    if (!r.ok) {
-      let msg = "Couldn't save that size";
-      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch { /* keep the generic message */ }
-      toast(msg); return false;
-    }
-    toast(value == null ? "Sizes reset to defaults" : "Sizes saved");
-    return true;
-  } catch (e) { console.error("save workflow sizes failed:", e); toast("Couldn't save that size"); return false; }
-}
-
-async function saveShapeEditor() {
-  if (!shapeInputs) { closeShapeEditor(); return; }
-  const out = {};
-  for (const name of ASPECTS) {
-    const [w, h] = shapeInputs[name].map(el => parseInt(el.value, 10));
-    if (Number.isFinite(w) && Number.isFinite(h)) out[name] = [w, h];
+    if (!r.ok) return;
+    customEnv = (await r.json()).resolution || null;
+  } catch (e) { console.debug("custom size envelope load failed:", e); return; }
+  if (!customEnv) { if ($customSizeNote) $customSizeNote.textContent = ""; return; }
+  for (const [el, lo, hi] of [[$customW, customEnv.minW, customEnv.maxW], [$customH, customEnv.minH, customEnv.maxH]]) {
+    if (!el) continue;
+    el.min = lo; el.max = hi; el.step = customEnv.step;
   }
-  if (await putAspectOverride(JSON.stringify(out))) closeShapeEditor();
+  if ($customSizeNote) $customSizeNote.textContent =
+    `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
 }
 
-// Clear the override, then re-open so the fields show the freshly restored shipped sizes.
-async function resetShapeEditor() {
-  if (await putAspectOverride(null)) await openShapeEditor();
-}
-
-if ($shapeEdit) {
-  $shapeEdit.addEventListener("click", async () => {
-    if (shapeEditOpen) await saveShapeEditor();
-    else await openShapeEditor();
-  });
-}
+if ($customW) $customW.addEventListener("change", savePrefs);
+if ($customH) $customH.addEventListener("change", savePrefs);
 
 // Adapt a /workflows configuration row into the model shape the rest of this page expects. The server already
 // resolved presence + VRAM, so a returned row is runnable on this machine; `_gw` is the configuration id the
@@ -265,7 +203,8 @@ function adaptWorkflow(r) {
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,
     prompt: { example: c.example, required_prefix: c.requiredPrefix },
     ui_help: { good_for: c.uiGoodFor, note: c.uiNote, link: c.uiLink || null },
-    tagging: c.tagging || null
+    tagging: c.tagging || null,
+    customSizeEnabled: !!r.customSizeEnabled
   };
 }
 
@@ -332,7 +271,13 @@ async function loadModels() {
 // changing any field merges back into it and persists (debounced via savePrefs).
 let paramPrefs = {};
 const renderParams = () => { const box = document.getElementById("modelParams"); renderParamFields(box, selectedModels()); applyParamPrefs(box, paramPrefs); };
-const currentOverrides = () => readOverrides(document.getElementById("modelParams"));
+function currentOverrides() {
+  const ov = readOverrides(document.getElementById("modelParams")) || {};
+  // Custom size rides as flat width/height overrides, with the aspect map emptied so the flat size wins in Dims().
+  // The server re-validates the pair against the model's resolution envelope and refuses a bad one with its numbers.
+  if (customReady()) { ov.width = customDim($customW); ov.height = customDim($customH); ov.aspect = {}; }
+  return ov;
+}
 // Capture on BOTH input (fires live per keystroke/spinner tick) and change (commit) — a number input only fires
 // "change" on blur, which can be missed, so "input" is what makes edits reliably persist.
 ["input", "change"].forEach(ev => document.getElementById("modelParams").addEventListener(ev, () => { collectParamPrefs(document.getElementById("modelParams"), paramPrefs); savePrefs(); }));
@@ -369,6 +314,8 @@ function generateSelected(n) {
   const prompt = $prompt.value.trim();
   const models = selectedModels();
   if (!models.length) { setStatus("Please pick at least one workflow.", { error: true }); return; }
+  // Custom size chosen but not filled in: refuse rather than silently fall back to the model's default size.
+  if (customActive && !customReady()) { setStatus("Enter a width and height for the custom size.", { error: true }); return; }
   savePrefs();
   n = Math.max(1, n || 1);
   // Explode: {a|b} sets fan the prompt into one variant per option, multiplying across sets, models, and the batch.
@@ -973,7 +920,7 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
+  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), custom: customActive, customW: customDim($customW) || null, customH: customDim($customH) || null, randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
   clearTimeout(prefsTimer);
   // This blob holds the user's draft PROMPT, so a silent failure means they keep typing into a composer that is no
   // longer being kept, and find an older draft on the next load.
@@ -999,9 +946,13 @@ function restorePrefs(p) {
   if (p.params && typeof p.params === "object") paramPrefs = p.params;
   if (Array.isArray(p.aspects) && p.aspects.length) setAspects(p.aspects);
   else if (p.aspect) setAspects([p.aspect]);
+  if ($customW && p.customW) $customW.value = p.customW;
+  if ($customH && p.customH) $customH.value = p.customH;
   // modelIds (multi) is current; fall back to the legacy single modelId. setSelectedIds refreshes the panel.
   const ids = (Array.isArray(p.modelIds) ? p.modelIds : (p.modelId ? [p.modelId] : [])).filter(id => MODELS[id] && !modelHidden.has(id));
   if (ids.length) modelPicker.setSelectedIds(ids);
+  // Re-activate Custom only after the selection resolved (updateCustomShape ran) and only if the workflow still offers it.
+  if (p.custom && customCapable()) setCustomActive(true);
   if (p.prompt && !$prompt.value) $prompt.value = p.prompt;
   if ($negPrompt && p.negativePrompt != null && !$negPrompt.value) $negPrompt.value = p.negativePrompt;
   if ($negPrompt && $negPrompt.value.trim()) setAccordion($negToggle, $negBody, true);   // don't bury an existing negative
@@ -1021,6 +972,7 @@ let aspHoldTimer = null, aspHeld = false, aspX = 0, aspY = 0;
 $aspect.addEventListener("pointerdown", e => {
   const b = e.target.closest("button"); if (!b) return;
   aspHeld = false; aspX = e.clientX; aspY = e.clientY; clearTimeout(aspHoldTimer);
+  if (b === $aspectCustom) return;   // Custom is a single exclusive size — no hold-to-add-a-set gesture
   aspHoldTimer = setTimeout(() => { aspHeld = true; addAspect(b.dataset.aspect); savePrefs(); }, ASPECT_HOLD_MS);
 });
 $aspect.addEventListener("pointermove", e => { if (aspHoldTimer && (Math.abs(e.clientX - aspX) > 10 || Math.abs(e.clientY - aspY) > 10)) { clearTimeout(aspHoldTimer); aspHoldTimer = null; } });
@@ -1029,7 +981,8 @@ $aspect.addEventListener("contextmenu", e => e.preventDefault());   // no callou
 $aspect.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (aspHeld) { aspHeld = false; return; }
-  setAspects([b.dataset.aspect]); savePrefs();
+  if (b === $aspectCustom) { setCustomActive(!customActive); savePrefs(); return; }
+  setCustomActive(false); setAspects([b.dataset.aspect]); savePrefs();
 });
 $prompt.addEventListener("change", savePrefs);
 if ($negPrompt) $negPrompt.addEventListener("change", savePrefs);

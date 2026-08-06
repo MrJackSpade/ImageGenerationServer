@@ -55,19 +55,22 @@
                 </div>
             </div>
             <div class="field">
-                <div class="fld-head">
-                    <label class="fld-label">Shape</label>
-                    @* Opt-in inline size editor for the current workflow's three formats. Shown only for a single
-                       picked workflow; Done saves, Reset restores the shipped sizes. compose.js fills it lazily. *@
-                    <button type="button" class="shape-edit" id="shapeEdit" title="Adjust this workflow's render sizes" hidden>Edit</button>
-                </div>
+                <label class="fld-label">Shape</label>
                 @* A tap picks one shape; a long-press ADDS one (multi-select) and each picture then rolls its own. *@
                 <div class="shape-options" id="aspect">
                     <button type="button" data-aspect="square" class="active">◻ Square</button>
                     <button type="button" data-aspect="landscape">▭ Landscape</button>
                     <button type="button" data-aspect="portrait">▯ Portrait</button>
+                    @* Shown only when this workflow enables custom sizing (per-machine toggle on its settings page).
+                       Picking it reveals the width/height boxes below, validated server-side against the model's envelope. *@
+                    <button type="button" data-aspect="custom" id="aspectCustom" class="hidden">⊞ Custom</button>
                 </div>
-                <div class="shape-sizes" id="shapeSizes" hidden></div>
+                <div class="custom-size" id="customSize" hidden>
+                    <label class="custom-size-cell"><span class="fld-label">Width</span><input type="number" id="customW" class="fld-input" min="64" step="8"></label>
+                    <span class="wf-aspect-x">×</span>
+                    <label class="custom-size-cell"><span class="fld-label">Height</span><input type="number" id="customH" class="fld-input" min="64" step="8"></label>
+                    <p class="wf-aspect-note" id="customSizeNote"></p>
+                </div>
             </div>
             <div class="opt-bar" id="randomArtistBar" hidden>
                 @* Checkbox on the RIGHT (label left), so it lines up with the random-prompt slider's control below. *@

@@ -191,6 +191,20 @@ public sealed partial class WorkflowCatalogService(
                 Override: overrides.TryGetValue(SettingKeys.TargetLoraFolder, out JsonElement lf) ? (object?)lf : null));
         }
 
+        // A per-machine "custom size" toggle for this workflow's composer. Like the LoRA folder above it is not a
+        // config/graph param, so it's surfaced as a synthetic bool setting the settings page renders and saves through
+        // the same override path (param.customSize). Only image generators can offer a Custom aspect. When on, the
+        // descriptor's CustomSizeEnabled flips and the composer shows the Custom width/height boxes.
+        if (wf.Kind == WorkflowKind.Generate && wf.Media == WorkflowMedia.Image)
+        {
+            settings.Add(new ConfigSetting(
+                SettingKeys.CustomSize, "Custom size on the generation page",
+                "When on, the generation page offers a Custom aspect with width/height boxes for this workflow, validated against its resolution envelope.",
+                ControlTokens.Bool, null, null, null, null,
+                Shipped: null,
+                Override: overrides.TryGetValue(SettingKeys.CustomSize, out JsonElement cs) ? (object?)cs : null));
+        }
+
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
         ModelResolution? r = cfg.Resolution;
@@ -281,7 +295,10 @@ public sealed partial class WorkflowCatalogService(
                 Tagging: ToTagging(c.Tagging)),
             // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);
             // null falls back client-side to a folder matching the workflow, else the root.
-            LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder));
+            LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder),
+            // Opt-in per-machine toggle: when set, the composer offers a "Custom" aspect with width/height boxes for
+            // this workflow. Read from the same per-machine override store as the settings toggle that sets it.
+            CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize));
     }
 
     /// <summary>Settings-page override keys (persisted per machine).</summary>
@@ -293,6 +310,10 @@ public sealed partial class WorkflowCatalogService(
 
         /// <summary>The settings-page override key for a configuration's render-size aspect map.</summary>
         public const string AspectOverride = "param.aspect";
+
+        /// <summary>The per-machine setting key for whether the composer offers a Custom aspect (width/height boxes) for
+        /// this workflow (a plain bool override, not a graph parameter).</summary>
+        public const string CustomSize = "customSize";
     }
 
     /// <summary>Control tokens the settings page uses to pick an input widget.</summary>
@@ -301,6 +322,10 @@ public sealed partial class WorkflowCatalogService(
         /// <summary>The lowercased CLR-type control token for a plain string setting (matches
         /// <c>ParamType.String.ToString().ToLowerInvariant()</c>).</summary>
         public const string String = "string";
+
+        /// <summary>The control token for a boolean toggle (matches <c>ParamType.Bool.ToString().ToLowerInvariant()</c>);
+        /// the settings page renders it as a checkbox.</summary>
+        public const string Bool = "bool";
     }
 
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
@@ -313,6 +338,19 @@ public sealed partial class WorkflowCatalogService(
 
         string? s = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
         return string.IsNullOrWhiteSpace(s) ? null : s;
+    }
+
+    /// <summary>Read a boolean per-machine override, accepting either a real JSON boolean or the string "true"/"false"
+    /// (the settings page persists it as a string). Missing/blank/anything-else is false.</summary>
+    private static bool OverrideBool(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)
+    {
+        if (!machine.TryGetValue(key, out JsonElement v))
+        {
+            return false;
+        }
+
+        return v.ValueKind == System.Text.Json.JsonValueKind.True
+            || (v.ValueKind == System.Text.Json.JsonValueKind.String && bool.TryParse(v.GetString(), out bool b) && b);
     }
 
     private static PromptingGuide ToGuide(ModelCard c) => new(

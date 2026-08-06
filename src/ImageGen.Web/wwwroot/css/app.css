@@ -139,17 +139,13 @@ a{color:var(--accent-hi)}
 .model-bar label{white-space:nowrap}
 .shape-bar{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--ink-soft);font-size:13px}
 .shape-bar label{white-space:nowrap}
-/* Shape label + its inline "Edit" size toggle share a row so the label keeps its place and the toggle sits right. */
-.fld-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.fld-head .fld-label{margin-bottom:6px}
-.shape-edit{appearance:none;background:none;border:none;padding:0;font:inherit;font-size:11px;letter-spacing:.04em;
-  color:var(--ink-faint);cursor:pointer}
-.shape-edit:hover{color:var(--accent)}
-/* The three-format size editor drops under the shape chips only while open (compose.js reuses the .wf-aspect grid). */
-.shape-sizes{margin-top:8px}
-.shape-sizes .wf-aspect-cell .fld-input{flex:0 1 6rem}
-.shape-reset{margin-left:0;font-size:11px}
-.shape-options{display:flex;flex:1;gap:6px}
+/* The Custom aspect (shown only for workflows that enable it) reveals width/height boxes under the shape chips. */
+.custom-size{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}
+.custom-size-cell{display:flex;align-items:center;gap:6px}
+.custom-size-cell .fld-label{margin-bottom:0}
+.custom-size .fld-input{width:6rem}
+.custom-size .wf-aspect-note{flex-basis:100%}
+.shape-options{display:flex;flex:1;gap:6px;flex-wrap:wrap}
 /* Settings' generation mask picks the same way (a tap toggles one), so it wears the same chips — it just wraps. */
 .type-options{display:flex;flex-wrap:wrap;gap:6px}
 .shape-options button,.type-options button{flex:1;appearance:none;background:var(--elev);border:1px solid var(--line);border-radius:10px;color:var(--ink-soft);
