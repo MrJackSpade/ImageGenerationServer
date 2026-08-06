@@ -1,0 +1,24 @@
+using ImageGen.Comfy;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
+
+namespace ImageGen.Comfy.Generation.MiniMaxH3T2V;
+
+/// <summary>MiniMax-H3 text→video (with native audio). The fl2va model, no source frame — <c>MiniMaxH3ImageToVideo</c>
+/// conditions on the prompt alone.</summary>
+public sealed class MiniMaxH3T2VWorkflow : Txt2ImgWorkflow<MiniMaxH3Params>
+{
+    public override string Name => "minimax-h3-t2v";
+    public override WorkflowMedia Media => WorkflowMedia.Video;
+    /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>
+    public override bool HasAudio => true;
+    /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
+    public override FrameRule? FrameRule => new(5, 17);
+    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
+
+    protected override ComfyWorkflowGraph Build(MiniMaxH3Params p, ResolvedRequirements req, WorkflowInputs inputs)
+        => H3.Build(req, inputs, H3Mode.T2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,
+            p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)));
+}

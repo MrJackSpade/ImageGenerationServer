@@ -1,0 +1,21 @@
+using ImageGen.Comfy;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using ImageGen.Domain.CodeAnalysis;
+
+namespace ImageGen.Comfy.Edit.AnimaInpaint;
+
+/// <summary>This workflow's own nodes (the shared head Model/Clip/Vae/Source come from EditWorkflow.Nodes).</summary>
+internal static class Nodes
+{
+    public const string ClipSkip = "19";
+    public const string Positive = "13";
+    public const string Negative = "14";
+    public const string Encode = "12";
+    public const string MaskImage = "11";
+    public const string GrowMaskNode = "30";
+    public const string NoiseMask = "31";
+    public const string Sampler = "3";
+    public const string Decode = "8";
+    public const string Save = "9";
+}

@@ -1,3 +1,0 @@
-﻿namespace ImageGen.Comfy;
-
-public sealed class Sd21Workflow : Txt2ImgWorkflow<Txt2ImgParams> { public override string Name => "sd21"; }

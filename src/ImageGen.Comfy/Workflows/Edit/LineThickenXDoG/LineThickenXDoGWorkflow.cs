@@ -1,0 +1,63 @@
+using ImageGen.Comfy;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using ImageGen.Application.Rendering;
+
+namespace ImageGen.Comfy.Edit.LineThickenXDoG;
+
+/// <summary>
+/// Model-free OUTLINE-ONLY thickener — XDoG line extraction → thicken the extracted lines → multiply
+/// them back over the original. Unlike the plain erode (which darkens every dark pixel), this touches
+/// only the edges: <c>XDoGLines</c> (ComfyUI-PixelHarness) pulls the existing outlines out as
+/// dark-lines-on-white, <c>LineThicken</c> boldens that line layer, and a multiply <c>ImageBlend</c>
+/// composites it over the source so flat-colour interiors stay clean. No model, no VRAM. API-only.
+/// </summary>
+public sealed class LineThickenXDoGWorkflow : EditWorkflow<LineThickenXDoGParams>
+{
+    public override string Name => "line-thicken-xdog";
+    public override bool PreservesComposition => true;
+    public override bool RequiresModel => false;
+    public override IReadOnlyList<ParamSpec> Schema => XDoGSchema;
+
+    private static readonly IReadOnlyList<ParamSpec> XDoGSchema = new ParamSpec[]
+    {
+        new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int,    Min = 0,    Max = 32,  Label = "Line thickness (px)" },
+        new() { Key = WorkflowParamKeys.Sigma,     Type = ParamType.Double, Min = 0.3,  Max = 8.0, Label = "Line scale (sigma)" },
+        new() { Key = WorkflowParamKeys.K,         Type = ParamType.Double, Min = 1.0,  Max = 4.0 },
+        new() { Key = WorkflowParamKeys.Tau,       Type = ParamType.Double, Min = 0.5,  Max = 1.0 },
+        new() { Key = WorkflowParamKeys.Epsilon,   Type = ParamType.Double, Min = -1.0, Max = 1.0, Label = "Edge threshold (0=flats stay clean)" },
+        new() { Key = WorkflowParamKeys.Phi,       Type = ParamType.Double, Min = 0.1,  Max = 50.0 },
+    };
+
+    protected override ComfyWorkflowGraph Build(LineThickenXDoGParams p, ResolvedRequirements req, WorkflowInputs inputs)
+    {
+        string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
+        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        {
+            [EditNodes.Source] = new LoadImage { Image = source },
+        };
+        Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);   // flatten alpha onto white (nodes 11-14)
+        // Extract the existing outlines as dark-lines-on-white...
+        g[Nodes.Lineart] = new XDoGLines
+        {
+            Image = src,
+            Sigma = p.Sigma,
+            K = p.K,
+            Tau = p.Tau,
+            Epsilon = p.Epsilon,
+            Phi = p.Phi,
+        };
+        // ...bolden that line layer...
+        g[Nodes.Thicken] = new LineThicken { Image = XDoGLines.Out(Nodes.Lineart), Thickness = p.Thickness };
+        // ...and multiply it back over the source so only the outlines darken (flat regions = white = unchanged).
+        g[Nodes.Blend] = new ImageBlend
+        {
+            Image1 = src,
+            Image2 = LineThicken.Out(Nodes.Thicken),
+            BlendFactor = 1.0,
+            BlendMode = ComfyWidgets.Blend.Multiply,
+        };
+        g[Nodes.Save] = new SaveImage { Images = ImageBlend.Out(Nodes.Blend), FilenamePrefix = OutputPrefixes.Edit };
+        return g;
+    }
+}
