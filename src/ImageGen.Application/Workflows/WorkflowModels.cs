@@ -185,9 +185,11 @@ public sealed record LoraCatalogEntry(string Name, bool Compatible, bool ClipCap
 /// Every slot this workflow needs, satisfied or not — so the fix-it dialog can offer them all rather than only the
 /// empty ones, and a wrong binding can be corrected without hunting for it.
 /// </param>
+/// <param name="Kind">The workflow's gen/edit kind — from the registered CLASS, so it is known even when the workflow
+/// is unavailable (a slot file isn't bound). The workflows page badges every row off this, disabled ones included.</param>
 public sealed record WorkflowStatus(
     string Id, string FriendlyName, bool Ready, IReadOnlyList<string> MissingSlots,
-    IReadOnlyList<string> RequiredSlots);
+    IReadOnlyList<string> RequiredSlots, string Kind);
 
 /// <summary>
 /// One setting on one workflow, as its settings page sees it: what the catalogue ships, what this machine has

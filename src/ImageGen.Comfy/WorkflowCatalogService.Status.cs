@@ -101,7 +101,9 @@ public sealed partial class WorkflowCatalogService
                 cfg.FriendlyName ?? cfg.Id,
                 Ready: missing.Count == 0,
                 MissingSlots: missing,
-                RequiredSlots: required));
+                RequiredSlots: required,
+                // From the registered class, so a disabled edit workflow badges "edit", not "gen" (#162).
+                Kind: KindToken(wf.Kind)));
         }
 
         return new CatalogStatus(

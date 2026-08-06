@@ -246,6 +246,10 @@ public sealed partial class WorkflowCatalogService(
     private static WorkflowTagging? ToTagging(TaggingInfo? t) =>
         t is null ? null : new WorkflowTagging(t.Tags, t.Artists, t.KeepArtistMarker, t.UnderscoresToSpaces);
 
+    /// <summary>The gen/edit token the client badges and routes on, derived from the registered CLASS kind — which is
+    /// known even for an unavailable workflow, so a disabled edit workflow still reports "edit" (#162), not "gen".</summary>
+    internal static string KindToken(WorkflowKind kind) => kind == WorkflowKind.Edit ? "edit" : "generate";
+
     private WorkflowDescriptor ToDescriptor(
         WorkflowConfiguration cfg, IWorkflow wf, int? avgSeconds)
     {
@@ -273,7 +277,7 @@ public sealed partial class WorkflowCatalogService(
         return new WorkflowDescriptor(
             Id: cfg.Id,
             Workflow: cfg.WorkflowName,
-            Kind: canEdit ? "edit" : "generate",
+            Kind: KindToken(wf.Kind),
             Media: wf.Media == WorkflowMedia.Video ? "video" : "image",
             SourceMedia: wf.SourceMedia == WorkflowMedia.Video ? "video" : "image",
             EffectType: cfg.EffectType,
