@@ -1306,12 +1306,28 @@ function setMode(mode) {
   else enterOutpaint();
   refreshTabSelect();   // keep the mobile mirror's selected option on the active mode
 }
+// Whether a tab's group has ≥1 available (non-hidden) workflow. Chat buckets reuse chatHasModels; inpaint/outpaint
+// have their own workflow sets. Drives both the source-media split and the empty-tab hiding below.
+function tabHasModels(mode) {
+  if (mode === "inpaint") return inpaintModelList().length > 0;
+  if (mode === "outpaint") return outpaintModelList().length > 0;
+  return chatHasModels(mode);   // edit | redraw | upscale | effects | animate | video buckets
+}
 // Reflect the source's media type in the tab bar: a clip source shows ONLY the "Pixelize" (V2V) tab; an image source
-// shows the four image-editing tabs and hides the video one. Called on boot and whenever the source changes.
+// shows the four image-editing tabs and hides the video one. On top of that, hide any tab whose group has no available
+// workflows (e.g. no upscalers installed) so an empty tab never shows. Called on boot and whenever the source changes.
 function applySourceMediaUi() {
   for (const t of $editTabs.querySelectorAll(".edit-tab")) {
-    const isVideoTab = t.dataset.mode === "video";
-    t.hidden = srcIsVideo ? !isVideoTab : isVideoTab;
+    const mode = t.dataset.mode;
+    const isVideoTab = mode === "video";
+    const mediaHidden = srcIsVideo ? !isVideoTab : isVideoTab;
+    t.hidden = mediaHidden || !tabHasModels(mode);
+  }
+  // If the active tab just became hidden (empty group / source split), move to a visible tab that has workflows.
+  const active = $editTabs.querySelector(`.edit-tab[data-mode="${activeMode}"]`);
+  if (active && active.hidden && !busy) {
+    const next = Array.from($editTabs.querySelectorAll(".edit-tab")).find(t => !t.hidden);
+    if (next && next.dataset.mode !== activeMode) setMode(next.dataset.mode);
   }
   refreshTabSelect();   // the source-media split changed which tabs exist — rebuild the mobile mirror to match
 }
