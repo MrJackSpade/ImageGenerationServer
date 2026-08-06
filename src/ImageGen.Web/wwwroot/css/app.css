@@ -595,6 +595,9 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .edit-ref-btn{appearance:none;background:var(--elev);border:1px solid var(--line);border-radius:999px;color:var(--ink-soft);font:inherit;font-size:13px;padding:9px 13px;cursor:pointer;white-space:nowrap}
 .edit-ref-btn:hover:not(:disabled){border-color:var(--accent);color:var(--ink)}
 .edit-ref-btn:disabled{opacity:.5;cursor:default}
+/* Loop checkbox + ＋ last frame share one row (Loop on the left); each child controls its own visibility. */
+.edit-lastframe-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.edit-lastframe-row:empty{display:none}
 /* edit mode tabs */
 .edit-tabs{display:flex;gap:4px;background:var(--elev);border:1px solid var(--line);border-radius:999px;padding:3px}
 .edit-tab{appearance:none;background:transparent;border:none;border-radius:999px;color:var(--ink-soft);font:inherit;font-size:14px;padding:7px 16px;cursor:pointer}
