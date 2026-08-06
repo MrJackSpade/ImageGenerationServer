@@ -3,6 +3,18 @@ using System.Text.RegularExpressions;
 
 namespace ImageGen.Application.Prompting;
 
+/// <summary>The result of <see cref="PromptMarkers.Parse"/>: the one parse of a comma-segment every consumer routes
+/// through. <paramref name="Marker"/> is <see cref="PromptMarkers.NoMarker"/> when the segment is unmarked.</summary>
+/// <param name="Marker">The leading marker '#'/'@'/'!'/'~', or <see cref="PromptMarkers.NoMarker"/>.</param>
+/// <param name="MarkerIndex">The marker's index in the original segment, or -1 when unmarked.</param>
+/// <param name="Key">The canonical base tag (weight, marker and casing stripped; whitespace to underscores).</param>
+/// <param name="Rendered">The segment with ONLY the marker removed — weight/emphasis, escapes and whitespace kept.</param>
+public readonly record struct MarkedSegment(char Marker, int MarkerIndex, string Key, string Rendered)
+{
+    /// <summary>True when the segment carries a leading marker.</summary>
+    public bool HasMarker => MarkerIndex >= 0;
+}
+
 /// <summary>
 /// MARKER FORM — the prompt dialect every prompt box in the app speaks: comma segments where a booru tag carries '#'
 /// and an artist '@', both on the CANONICAL UNDERSCORED token ("#long_hair, @greg_rutkowski, a plain phrase"). It is
@@ -55,17 +67,124 @@ public static partial class PromptMarkers
     /// </summary>
     public const char GuideTagMarker = '~';
 
-    /// <summary>True when <paramref name="c"/> is a leading marker. Position 0 of a comma-segment is the ONLY place any
-    /// of them mean anything — booru tags natively contain all three ('#compass', '@_@', '!?', '!-shaped_pupils').</summary>
+    /// <summary>Absence of a leading marker (the <see cref="MarkedSegment.Marker"/> of a plain, unmarked segment).</summary>
+    public const char NoMarker = '\0';
+
+    /// <summary>True when <paramref name="c"/> is a marker character.</summary>
     public static bool IsMarker(char c) =>
         c is TagMarker or ArtistMarker or InertTagMarker or GuideTagMarker;
 
-    /// <summary>True when a comma-segment carries <paramref name="marker"/> — position 0 after any leading
-    /// whitespace, the only place a marker means anything.</summary>
-    public static bool IsMarkedWith(string? segment, char marker)
+    /// <summary>
+    /// The ONE parse of a comma-segment — the single extraction every consumer routes through (the image prompt, the
+    /// tag-model seed/exclusion, marks, bookmarks, bans), so the key, the rendered prompt and the tag-model tags can
+    /// never disagree for the same input (issue #157). It reports:
+    /// <list type="bullet">
+    ///   <item><see cref="MarkedSegment.Marker"/> — the leading '#'/'@'/'!'/'~', found by peeling any A1111/Comfy
+    ///   weight wrapper so a marker INSIDE one (<c>(#tag:1.2)</c>) is recognised exactly like one OUTSIDE
+    ///   (<c>#(tag:1.2)</c>, the canonical spelling), or <see cref="NoMarker"/> when there is none;</item>
+    ///   <item><see cref="MarkedSegment.Key"/> — the canonical base tag (see <see cref="Key"/>);</item>
+    ///   <item><see cref="MarkedSegment.Rendered"/> — the segment with ONLY the marker removed: weight/emphasis,
+    ///   escapes and surrounding whitespace are all preserved, so the picture is unchanged.</item>
+    /// </list>
+    /// </summary>
+    public static MarkedSegment Parse(string? segment)
     {
-        ReadOnlySpan<char> s = (segment ?? string.Empty).AsSpan().TrimStart();
-        return s.Length > 0 && s[0] == marker;
+        string seg = segment ?? string.Empty;
+        int lead = 0;
+        while (lead < seg.Length && char.IsWhiteSpace(seg[lead]))
+        {
+            lead++;
+        }
+
+        int idx = LeadingMarkerIndex(seg, lead);
+        char marker = idx >= 0 ? seg[idx] : NoMarker;
+        string rendered = idx >= 0 ? seg.Remove(idx, 1) : seg;   // remove the marker in place; weight + whitespace stay
+        return new MarkedSegment(marker, idx, Key(seg), rendered);
+    }
+
+    /// <summary>The index in <paramref name="s"/> of the leading marker, or -1 when the segment is unmarked. Peels
+    /// whole-segment weight wrappers (the SAME rule <see cref="StripWeight"/> uses) from <paramref name="from"/> inward
+    /// so a marker sitting inside them is found; the trailing weight/close of each wrapper is at the far end and does
+    /// not move the front index.</summary>
+    internal static int LeadingMarkerIndex(string s, int from)
+    {
+        int lo = from, hi = s.Length;
+        while (hi > lo && char.IsWhiteSpace(s[hi - 1]))
+        {
+            hi--;   // trailing whitespace must not defeat the "wrapper closes at the end" test
+        }
+
+        while (hi - lo >= 2)
+        {
+            if (s[lo] == '(' && MatchingClose(s, lo, hi, '(', ')') == hi - 1)
+            {
+                hi = TrailingWeightStart(s, lo + 1, hi - 1);   // narrow past a trailing ':weight' inside the '(...)'
+                lo++;
+                continue;
+            }
+
+            if (s[lo] == '[' && MatchingClose(s, lo, hi, '[', ']') == hi - 1)
+            {
+                lo++;
+                hi--;
+                continue;
+            }
+
+            break;
+        }
+
+        while (lo < hi && char.IsWhiteSpace(s[lo]))
+        {
+            lo++;
+        }
+
+        return lo < hi && IsMarker(s[lo]) ? lo : -1;
+    }
+
+    /// <summary>The index of the close bracket matching an <paramref name="open"/> at <paramref name="lo"/> within
+    /// <c>[lo, hi)</c> (balanced nesting, '\'-escaped brackets skipped), or -1 — the ONE bracket matcher, shared by the
+    /// whole-segment peel (<see cref="TryPeelWrapper"/>), the marker scan, and the tag parser's emphasis decomposition.</summary>
+    internal static int MatchingClose(string s, int lo, int hi, char open, char close)
+    {
+        if (lo >= hi || s[lo] != open)
+        {
+            return -1;
+        }
+
+        int depth = 0;
+        for (int i = lo; i < hi; i++)
+        {
+            char c = s[i];
+            if (c == '\\')
+            {
+                i++;
+                continue;
+            }
+
+            if (c == open)
+            {
+                depth++;
+            }
+            else if (c == close && --depth == 0)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>The start index of a trailing <c>:weight</c> number inside <c>[lo, hi)</c> (so the marker scan and the
+    /// emphasis decomposition can narrow past it), or <paramref name="hi"/> when there is none.</summary>
+    internal static int TrailingWeightStart(string s, int lo, int hi)
+    {
+        if (hi <= lo)
+        {
+            return hi;
+        }
+
+        Match m = TrailingWeight().Match(s[lo..hi]);
+        return m.Success ? lo + m.Index : hi;
     }
 
     /// <summary>
@@ -130,38 +249,17 @@ public static partial class PromptMarkers
     private static bool TryPeelWrapper(string s, char open, char close, out string inner)
     {
         inner = s;
-        if (s.Length < 2 || s[0] != open)
+        // A wrapper only counts when the opening bracket's match is the segment's FINAL character — otherwise the '('
+        // closes mid-string (e.g. '(a)_(b)') and is a native bracket, not weight. One bracket matcher, shared with the
+        // marker scan, so the two agree on what a whole-segment wrapper is.
+        int c = MatchingClose(s, 0, s.Length, open, close);
+        if (c != s.Length - 1)
         {
             return false;
         }
 
-        int depth = 0;
-        for (int i = 0; i < s.Length; i++)
-        {
-            char c = s[i];
-            if (c == '\\')
-            {
-                i++;
-                continue;
-            }   // escaped char — literal, not a bracket
-
-            if (c == open)
-            {
-                depth++;
-            }
-            else if (c == close && --depth == 0)
-            {
-                if (i != s.Length - 1)
-                {
-                    return false;   // the opening bracket closes before the segment's end
-                }
-
-                inner = s[1..i];
-                return true;
-            }
-        }
-
-        return false;
+        inner = s[1..c];
+        return true;
     }
 
     /// <summary>Drop a single trailing <c>:weight</c> emphasis number from a peeled '(...)' body: <c>tag:1.2</c> -&gt;
@@ -223,15 +321,10 @@ public static partial class PromptMarkers
         HashSet<string> keys = new(StringComparer.Ordinal);
         foreach (string seg in Segments(rawPrompt))
         {
-            if (seg[0] != marker)
+            MarkedSegment p = Parse(seg);   // weight-aware: '(!pig:1.3)' is found exactly like '!pig'
+            if (p.Marker == marker && p.Key.Length > 0)
             {
-                continue;
-            }
-
-            string key = Key(seg);
-            if (key.Length > 0)
-            {
-                _ = keys.Add(key);
+                _ = keys.Add(p.Key);
             }
         }
 
@@ -255,14 +348,9 @@ public static partial class PromptMarkers
 
         return string.Join(',', raw.Split(',').Select(seg =>
         {
-            int i = 0;
-            while (i < seg.Length && char.IsWhiteSpace(seg[i]))
-            {
-                i++;
-            }
-
-            return i < seg.Length && seg[i] == GuideTagMarker
-                ? string.Concat(seg.AsSpan(0, i), TagMarker.ToString(), seg.AsSpan(i + 1))
+            MarkedSegment p = Parse(seg);   // weight-aware: rewrites the '~' wherever it sits, e.g. '(~t:1.1)' -> '(#t:1.1)'
+            return p.Marker == GuideTagMarker
+                ? string.Concat(seg.AsSpan(0, p.MarkerIndex), TagMarker.ToString(), seg.AsSpan(p.MarkerIndex + 1))
                 : seg;
         }));
     }
@@ -276,7 +364,7 @@ public static partial class PromptMarkers
             return raw;
         }
 
-        return string.Join(',', raw.Split(',').Where(seg => !IsMarkedWith(seg, GuideTagMarker)));
+        return string.Join(',', raw.Split(',').Where(seg => Parse(seg).Marker != GuideTagMarker));
     }
 
     /// <summary>The canonical-key text tokens (as strings, distinct from the <c>const char</c> markers above).</summary>

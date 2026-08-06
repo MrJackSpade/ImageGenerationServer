@@ -2187,27 +2187,8 @@ public sealed class RenderOrchestrator
     /// returned rather than just dropped because hiding a tag from the seed is only half the job — see the ban union at
     /// the call site.
     /// </summary>
-    internal static (string Seed, HashSet<string> SuppressKeys) TagSeed(string? raw, WorkflowTagging tagging)
-    {
-        // Finalize a copy in which every '~' guide tag is an ordinary '#'. The seed is the one place guide tags DO
-        // belong, and rewriting them in place keeps each in the position the user wrote it and in the same rendered
-        // form as its neighbours — appending their keys to a finished seed would reorder the prompt and mix
-        // underscored keys into a seed whose other tags had their underscores folded.
-        FinalizedPrompt typed = PromptFinalizer.Finalize(PromptMarkers.GuidesAsTags(raw), tagging);
-        HashSet<string> inertKeys = PromptMarkers.InertKeys(raw);
-        HashSet<string> guideKeys = PromptMarkers.GuideKeys(raw);
-        HashSet<string> hidden = typed.Marks.Where(kv => kv.Value == TokenKinds.Artist).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal);
-        hidden.UnionWith(inertKeys);
-        string seed = string.Join(Format.ListSeparator, PromptMarkers.Segments(typed.Rendered)
-                                                 .Where(seg => !hidden.Contains(PromptMarkers.Key(seg))));
-
-        // Both kinds must be banned for this call, for opposite reasons that land in the same place: an inert tag is
-        // hidden from the seed, so the predictor may freely sample it back; a guide tag IS the seed, and anything it
-        // echoed would be appended as a '#' tag and rendered — the one outcome '~' exists to prevent.
-        HashSet<string> suppress = new(inertKeys, StringComparer.Ordinal);
-        suppress.UnionWith(guideKeys);
-        return (seed, suppress);
-    }
+    internal static (string Seed, HashSet<string> SuppressKeys) TagSeed(string? raw, WorkflowTagging tagging) =>
+        PromptParse.TagSeed(raw, tagging);
 
     /// <summary>Split banned tokens into the canonical tag/artist key sets the random samplers honour (the tag model
     /// zeroes these during sampling; RandomArtist rejects them). A key is canonicalized exactly like a prompt token —

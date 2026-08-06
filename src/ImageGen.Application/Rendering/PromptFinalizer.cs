@@ -1,4 +1,5 @@
 using ImageGen.Application.Prompting;
+using ImageGen.Application.Prompting.Tags;
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 
@@ -22,87 +23,11 @@ public static class PromptFinalizer
     /// map of the explicitly-marked tokens.</summary>
     public static FinalizedPrompt Finalize(string? rawPrompt, WorkflowTagging? tg)
     {
-        // A model with no tagging block — or one that speaks neither tags nor artists — gets its prompt back
-        // BYTE-FOR-BYTE. Comma is sentence punctuation to a natural-language model, not a tag delimiter, so NONE of the
-        // comma-segment management below runs for it: not marker stripping, not underscore folding, and not '~' guide
-        // removal. A '~'-led segment therefore renders exactly as typed here — '~' means "guide tag" only inside the
-        // tagging gate, the sole place it is ever read (the predictor seed in TagSeed, off the RAW prompt).
-        Dictionary<string, string> marks = new(StringComparer.Ordinal);
-        if (tg is null || (!tg.Tags && !tg.Artists))
-        {
-            return new FinalizedPrompt(rawPrompt ?? string.Empty, marks);
-        }
-
-        // Tag model only: '~' GUIDE TAGS are dropped up front — they steer the predictor's seed (see TagSeed) but the
-        // image model never sees one — and everything below operates on the guide-free prompt.
-        string raw = PromptMarkers.WithoutGuides(rawPrompt);
-
-        // 1) Marks: a leading '#'/'@'/'!' on a comma-segment declares a bookmarkable tag/artist. '!' is an INERT TAG —
-        //    it marks as a plain tag here on purpose. Its inertness is a fact about ONE consumer (the seed handed to
-        //    the tag predictor, which reads it via PromptMarkers.InertKeys off the raw string); to chips, bookmarks and
-        //    bans it is an ordinary tag, so it must not become a third kind in this map.
-        //    '~' guide tags cannot appear here at all — they were removed above. That is deliberate and not an
-        //    oversight: marks describe the PRODUCED IMAGE, and a guide tag is by definition not in it. Marking one
-        //    would chip it on the card, offer it as a bookmark, and file a ban under a tag the picture never had.
-        foreach (string seg in raw.Split(','))
-        {
-            string t = seg.TrimStart();
-            if (t.Length == 0)
-            {
-                continue;
-            }
-
-            char m = t[0];
-            if (!PromptMarkers.IsMarker(m))
-            {
-                continue;
-            }
-
-            string canonical = Normalize(t[1..]);
-            if (canonical.Length > 0)
-            {
-                marks[canonical] = m == PromptMarkers.ArtistMarker ? TokenKinds.Artist : TokenKinds.Tag;
-            }
-        }
-
-        // 2) Render: strip the LEADING '#' of a segment always; the leading '@'
-        //    unless kept; '_'->space per non-score_ segment when the model wants spaces.
-        string s = string.Join(Tokens.SegmentSeparator, raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
-        if (tg.UnderscoresToSpaces)
-        {
-            s = string.Join(Tokens.SegmentSeparator, s.Split(',').Select(seg =>
-                seg.TrimStart().StartsWith(Tokens.ScorePrefix) ? seg : seg.Replace('_', ' ')));
-        }
-
-        return new FinalizedPrompt(s, marks);
-    }
-
-    /// <summary>
-    /// Drop a comma-segment's LEADING marker, preserving the segment's leading whitespace. Only position 0 (after
-    /// whitespace) is a marker — the same rule step 1 reads marks by. A '#'/'@' anywhere else is part of the token and
-    /// must survive: booru tags natively contain all three ('#compass', 'genei_ibunroku_#fe', '@_@', 'j@ck', '!?',
-    /// '!-shaped_pupils'), and HTML entities in scraped tag names carry a '#' too ('&amp;#039;'). A blanket Replace would
-    /// eat all of those. A tag that genuinely BEGINS with a marker is written with its own marker in front ('#!!', '#@_@').
-    /// </summary>
-    private static string StripMarker(string seg, bool keepArtistMarker)
-    {
-        int i = 0;
-        while (i < seg.Length && char.IsWhiteSpace(seg[i]))
-        {
-            i++;
-        }
-
-        if (i == seg.Length)
-        {
-            return seg;
-        }
-
-        char m = seg[i];
-        // '!' is stripped unconditionally, exactly like '#': it is a tag marker, and by this point the seed build has
-        // already read it off the RAW prompt. Nothing about it should reach the image model.
-        bool strip = m == PromptMarkers.TagMarker || m == PromptMarkers.InertTagMarker
-                 || (m == PromptMarkers.ArtistMarker && !keepArtistMarker);
-        return strip ? seg[..i] + seg[(i + 1)..] : seg;
+        // The one render path: the tag service reassembles the parsed tags for this model. On the render path the prompt
+        // is already resolved (groups expanded at enqueue), so this is a group-free reassembly — the image prompt and
+        // its marks from the SAME parse, so they cannot disagree. A prose model gets the text back byte-for-byte.
+        GeneratedTagGroup g = GeneratedTagGroup.FromResolvedText(rawPrompt ?? string.Empty);
+        return new FinalizedPrompt(g.ToImageModel(tg), g.Marks(tg));
     }
 
     /// <summary>Canonical bookmark key for a token: trim, whitespace-&gt;underscores, lowercase, no marker. The inverse
@@ -129,33 +54,8 @@ public static class PromptFinalizer
     /// Keys are canonical (lowercased, spaces-&gt;underscores) so they match the ban sets the tag model and RandomArtist
     /// already honour.
     /// </summary>
-    public static (HashSet<string> Tags, HashSet<string> Artists) NegativeKeys(string? rawNegative)
-    {
-        HashSet<string> tags = new(StringComparer.Ordinal);
-        HashSet<string> artists = new(StringComparer.Ordinal);
-        foreach (string seg in (rawNegative ?? string.Empty).Split(','))
-        {
-            string t = seg.Trim();
-            if (t.Length == 0)
-            {
-                continue;
-            }
-            // '!' inert: image-side suppression only — never a tagger exclusion (see the summary).
-            if (t[0] == PromptMarkers.InertTagMarker)
-            {
-                continue;
-            }
-
-            string key = Normalize(t.TrimStart(PromptMarkers.TagMarker, PromptMarkers.ArtistMarker,
-                                             PromptMarkers.InertTagMarker, PromptMarkers.GuideTagMarker));
-            if (key.Length > 0)
-            {
-                _ = (t[0] == '@' ? artists : tags).Add(key);
-            }
-        }
-
-        return (tags, artists);
-    }
+    public static (HashSet<string> Tags, HashSet<string> Artists) NegativeKeys(string? rawNegative) =>
+        TagPromptService.NegativeKeys(rawNegative);
 
     /// <summary>
     /// The marker-form tokens for the bare names a random sampler produced — "long_hair" -&gt; "#long_hair",
@@ -193,15 +93,6 @@ public static class PromptFinalizer
     {
         string p = (prompt ?? string.Empty).TrimEnd(Separators);
         return p.Length == 0 ? segment : p + ", " + segment;
-    }
-
-    /// <summary>Literal tokens the finalizer matches or joins on while normalizing a tag prompt.</summary>
-    private static class Tokens
-    {
-        /// <summary>The tag separator a prompt is split and rejoined on.</summary>
-        public const string SegmentSeparator = ",";
-        /// <summary>The quality-score tag prefix (<c>score_9</c>, …) whose underscores are kept as-is.</summary>
-        public const string ScorePrefix = "score_";
     }
 
     private static readonly char[] Separators = [',', ' ', '\t', '\r', '\n'];
