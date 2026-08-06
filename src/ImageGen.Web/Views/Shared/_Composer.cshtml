@@ -73,9 +73,6 @@
                 @* Checkbox on the RIGHT (label left), so it lines up with the random-prompt slider's control below. *@
                 <label class="opt-chk opt-artist"><span>🎨 Random artist</span><input type="checkbox" id="randomArtist"></label>
             </div>
-            <div class="opt-bar">
-                <label class="opt-chk" title="Run only once the queue has been idle of foreground work for the configured delay; a normal generation preempts it."><span>🌙 Background</span><input type="checkbox" id="bgToggle"></label>
-            </div>
             @* 0 = off; anything above it is the tag model's sampling temperature for this generation. *@
             <div class="opt-bar" id="randomPromptBar" hidden>
                 <span class="opt-lbl" title="Off at 0. Above that it's the tag model's sampling temperature — 1 is its natural sampling, higher picks rarer, wilder tags.">🎲 Random prompt</span>
