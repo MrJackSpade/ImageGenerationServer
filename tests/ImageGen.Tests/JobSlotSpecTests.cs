@@ -86,7 +86,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
                 SourceImageId = "src-1",
                 MaskImageId = "mask-1",
                 LastFrameImageId = "last-1",
-                ReferenceImageIds = ["ref-a", "ref-b", "ref-c"],
+                ReferenceIds = ["ref-a", "ref-b", "ref-c"],
             },
         };
 
@@ -99,7 +99,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal("src-1", back.Edit.SourceImageId);
         Assert.Equal("mask-1", back.Edit.MaskImageId);
         Assert.Equal("last-1", back.Edit.LastFrameImageId);
-        Assert.Equal(["ref-a", "ref-b", "ref-c"], back.Edit.ReferenceImageIds);
+        Assert.Equal(["ref-a", "ref-b", "ref-c"], back.Edit.ReferenceIds);
         // An edit carries no generate data at all — the generate-only fields aren't null-on-an-edit, they're absent.
         Assert.Null(back.Generate);
     }
@@ -118,7 +118,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             new JobSlotRecord
             {
                 JobId = jobId, SlotIndex = 0, IsEdit = true, State = JobSlotState.Queued, Workflow = "anima-inpaint",
-                Edit = new EditSlotData { SourceImageId = "shared-input", ReferenceImageIds = ["shared-input"] },
+                Edit = new EditSlotData { SourceImageId = "shared-input", ReferenceIds = ["shared-input"] },
             },
         ]), Ct);
 
@@ -203,7 +203,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             new JobSlotRecord
             {
                 JobId = jobId, SlotIndex = 0, IsEdit = true, State = JobSlotState.Queued, Workflow = "anima-inpaint",
-                Edit = new EditSlotData { SourceImageId = "src", ReferenceImageIds = [.. refs] },
+                Edit = new EditSlotData { SourceImageId = "src", ReferenceIds = [.. refs] },
                 Marks = [new Mark("long_hair", TokenKind.Tag)],
             },
         ]);
@@ -216,7 +216,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.NotNull(job);
         JobSlotRecord back = job.Slots.Single();
         Assert.NotNull(back.Edit);
-        Assert.Equal(["a"], back.Edit.ReferenceImageIds);
+        Assert.Equal(["a"], back.Edit.ReferenceIds);
         _ = Assert.Single(back.Marks);
     }
 

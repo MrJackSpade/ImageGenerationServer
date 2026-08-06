@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using System.Net.WebSockets;
 using System.Text.Json;
@@ -8,6 +9,11 @@ namespace ImageGen.Application.Rendering;
 /// params (resolved resolution / steps / frames) so the orchestrator can param-match its ETA and store it with the
 /// timing sample. The signature is built where the merged params live (the Comfy adapter), not re-derived in core.</summary>
 public readonly record struct SubmitResult(string PromptId, EtaSignature Eta);
+
+/// <summary>One reference the orchestrator resolved for an edit, ready to upload: the raw bytes plus the media
+/// <see cref="Kind"/> derived from the stored blob's content type. The adapter uploads each under a kind-appropriate
+/// filename and routes it to the workflow's matching graph input.</summary>
+public readonly record struct ReferenceUpload(byte[] Bytes, ReferenceKind Kind);
 
 /// <summary>
 /// The render backend port the application depends on. It is the async submit/poll/cancel surface the orchestrator
@@ -26,7 +32,7 @@ public interface IComfyClient
     /// backend prompt id (no polling). <paramref name="negativePrompt"/> is the optional UI negative appended to the
     /// edit model's default (null/blank = just the default); ignored by editors that use no negative conditioning.</summary>
     Task<SubmitResult> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
-        IReadOnlyList<byte[]>? references, IReadOnlyDictionary<string, JsonElement>? overrides,
+        IReadOnlyList<ReferenceUpload>? references, IReadOnlyDictionary<string, JsonElement>? overrides,
         byte[]? maskPng, byte[]? lastFramePng, CancellationToken ct);
 
     /// <summary>One non-looping poll of a prompt's result: the produced image if ready, null if not yet, or throws

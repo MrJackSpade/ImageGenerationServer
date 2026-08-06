@@ -1,6 +1,7 @@
 using ImageGen.Application.Rendering;
 using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 using ImageGen.Comfy.Generation.HunyuanVideo15T2V;
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
@@ -301,7 +302,15 @@ public sealed class WorkflowInputs
     /// derive the target aspect from the source without a UI width/height field.</summary>
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
-    public IReadOnlyList<string> ReferenceImageNames { get; init; } = [];
+    /// <summary>The uploaded reference inputs, in order, EACH carrying its media kind (image/audio/video) so a workflow
+    /// routes it to the correct graph input. Most editors take only images — <see cref="ImageReferences"/> is the
+    /// convenience for them; a multi-modal workflow (e.g. one taking a driving audio/video reference) reads this and
+    /// filters by <see cref="ReferenceInput.Kind"/>.</summary>
+    public IReadOnlyList<ReferenceInput> References { get; init; } = [];
+
+    /// <summary>The uploaded ComfyUI filenames of the IMAGE references only, in order — the common case for edit
+    /// workflows that condition on reference stills. Non-image references (if any) are omitted.</summary>
+    public IReadOnlyList<string> ImageReferences => [.. References.Where(r => r.Kind == ReferenceKind.Image).Select(r => r.Name)];
     /// <summary>Inpaint only: the uploaded white-on-black mask's ComfyUI filename (the region to regenerate).</summary>
     public string? MaskImageName { get; init; }
     /// <summary>Image→video first/last-frame conditioning only: the uploaded ComfyUI filename of the LAST frame the
@@ -314,6 +323,10 @@ public sealed class WorkflowInputs
     /// <c>Txt2ImgWorkflowBase.Build</c>; edit workflows ignore it.</summary>
     public IReadOnlyList<LoraSelection> Loras { get; init; } = [];
 }
+
+/// <summary>One uploaded reference: its ComfyUI input-folder filename and the media <see cref="Kind"/> the render path
+/// derived from the stored blob's content type (never from the caller). Positional to the workflow that consumes it.</summary>
+public sealed record ReferenceInput(string Name, ReferenceKind Kind);
 
 /// <summary>The concrete on-disk filenames a workflow loads, resolved from a configuration's requirement-id links
 /// through the requirement registry. <c>Checkpoint</c> is the ckpt_name/unet_name; the rest are optional per shape.</summary>

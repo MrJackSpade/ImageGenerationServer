@@ -148,12 +148,25 @@ internal sealed record UiLinkDto
     [JsonPropertyName("url")] public string? Url { get; init; }
 }
 
-/// <summary>The card's <c>reference</c> block: how many reference images an editor takes, and a hint about them.</summary>
+/// <summary>The card's <c>reference</c> block: which reference media KINDS an editor takes (and how many of each), plus
+/// a hint. Two spellings: the back-compat scalar <c>max</c> declares reference IMAGES only (every existing card); the
+/// explicit <c>types</c> array declares per-kind maxes for a multi-modal editor (image / audio / video). Give one or the
+/// other — a card with <c>types</c> ignores <c>max</c>.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ReferenceDto
 {
     [JsonPropertyName("max")][AllowNullable("null = the \"max\" key was absent; distinct from a 0 reference count")] public int? Max { get; init; }
     [JsonPropertyName("hint")] public string? Hint { get; init; }
+    [JsonPropertyName("types")] public ReferenceTypeDto[]? Types { get; init; }
+}
+
+/// <summary>One entry of a <c>reference.types</c> array: a media kind (<c>image</c>/<c>audio</c>/<c>video</c>) and how
+/// many references of it the editor accepts.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ReferenceTypeDto
+{
+    [JsonPropertyName("kind")] public string? Kind { get; init; }
+    [JsonPropertyName("max")][AllowNullable("null = the \"max\" key was absent; distinct from a 0 reference count")] public int? Max { get; init; }
 }
 
 /// <summary>The card's <c>tagging</c> block: the model's booru-tagging capability.</summary>

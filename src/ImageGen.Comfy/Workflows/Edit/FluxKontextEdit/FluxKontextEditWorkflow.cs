@@ -13,7 +13,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Nodes.SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };

@@ -57,7 +57,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         };
         Output<Slot.Image> batch = LoadImage.ImageOut(EditNodes.Source);
         int node = 100;
-        foreach (string refName in inputs.ReferenceImageNames)
+        foreach (string refName in inputs.ImageReferences)
         {
             string loadId = node++.ToString();
             g[loadId] = new LoadImage { Image = refName };

@@ -15,7 +15,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 64 };

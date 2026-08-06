@@ -1,4 +1,6 @@
 ﻿using ImageGen.Application.Rendering;
+using ImageGen.Application.Workflows;
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -620,6 +622,35 @@ public sealed class WorkflowCatalog
         };
     }
 
+    /// <summary>Normalize a card's <c>reference</c> block to per-kind allowances. The explicit <c>types</c> array wins
+    /// (each entry's kind validated, non-positive maxes dropped); otherwise the scalar <c>max</c> declares IMAGE
+    /// references only; a block that declares neither (or all-zero) yields no allowances (the editor takes no
+    /// references). An unknown kind token throws — a malformed card is a boot error, not something to route around.</summary>
+    private static List<ReferenceAllowance> NormalizeReferenceTypes(ReferenceDto? reference)
+    {
+        if (reference is null)
+        {
+            return [];
+        }
+
+        if (reference.Types is { Length: > 0 } types)
+        {
+            List<ReferenceAllowance> allow = new(types.Length);
+            foreach (ReferenceTypeDto t in types)
+            {
+                ReferenceKind kind = ReferenceKinds.Parse(t.Kind);   // validate the token; throws on an unknown kind
+                if (t.Max is > 0)
+                {
+                    allow.Add(new ReferenceAllowance(ReferenceKinds.Wire(kind), t.Max.Value));
+                }
+            }
+
+            return allow;
+        }
+
+        return reference.Max is > 0 ? [new ReferenceAllowance(ReferenceKindNames.Image, reference.Max.Value)] : [];
+    }
+
     private static ModelCard BuildCard(CardDto? m, string id, string? friendlyName)
     {
         PromptDto? prompt = m?.Prompt;
@@ -661,7 +692,7 @@ public sealed class WorkflowCatalog
             CommercialUse = m?.CommercialUse,
             PickWhen = m?.PickWhen,
             EditUseCases = Arr(m?.EditUseCases),
-            EditReferenceMax = reference?.Max ?? 0,
+            EditReferenceTypes = NormalizeReferenceTypes(reference),
             EditReferenceHint = reference?.Hint,
             Tagging = m?.Tagging is { } t
                 ? new TaggingInfo
@@ -787,7 +818,9 @@ public sealed class ModelCard
     public bool? NegativeSupported { get; init; }
     public string? NegativeGuidance { get; init; }
     public string[] EditUseCases { get; init; } = [];
-    public int EditReferenceMax { get; init; }
+    /// <summary>The accepted reference media kinds and their per-kind maxes (empty when the editor takes no references),
+    /// normalized from the card's <c>reference</c> block.</summary>
+    public IReadOnlyList<ReferenceAllowance> EditReferenceTypes { get; init; } = [];
     public string? EditReferenceHint { get; init; }
     public string? Speed { get; init; }
     /// <summary>A short qualitative speed note (e.g. "Fastest model here"), distinct from the benchmarked

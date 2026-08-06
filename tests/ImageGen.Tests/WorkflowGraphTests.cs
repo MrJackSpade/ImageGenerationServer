@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -192,7 +193,7 @@ public sealed class WorkflowGraphTests
             SourceVideoName = "src.mp4",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = ["ref1.png", "ref2.png"],
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image), new ReferenceInput("ref2.png", ReferenceKind.Image)],
         };
 
         List<string> failures = [];
@@ -305,7 +306,7 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = ["ref1.png", "ref2.png"],
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image), new ReferenceInput("ref2.png", ReferenceKind.Image)],
         };
         string json = BuildJson("minimax-h3-ref2v", inputs);
         Assert.Contains("MiniMaxH3ReferenceToVideo", json);      // the ref2va conditioning+latent node
@@ -325,6 +326,38 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
+    /// <summary>ref2va routes each reference to the node input for its media KIND: image stills to <c>ref_images</c>,
+    /// a driving video (decoded to frames via LoadVideo→GetVideoComponents) to <c>ref_videos</c>, and a driving audio
+    /// clip (LoadAudio) to <c>ref_audios</c> — #154's audio+video reference inputs, verified against the shipped node.</summary>
+    [Fact]
+    public void MiniMaxH3_ref2v_routes_image_video_and_audio_references_to_their_inputs()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "she speaks to camera in a neon street. Audio: her voice, city ambience.",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References =
+            [
+                new ReferenceInput("subject.png", ReferenceKind.Image),
+                new ReferenceInput("motion.mp4", ReferenceKind.Video),
+                new ReferenceInput("voice.wav", ReferenceKind.Audio),
+            ],
+        };
+        string json = BuildJson("minimax-h3-ref2v", inputs);
+        // Image: source is ref_image_0, the picker still is ref_image_1.
+        Assert.Contains("ref_images.ref_image_0", json);
+        Assert.Contains("ref_images.ref_image_1", json);
+        // Video: decoded to frames and wired to ref_videos.ref_video_0.
+        Assert.Contains("LoadVideo", json);
+        Assert.Contains("GetVideoComponents", json);
+        Assert.Contains("ref_videos.ref_video_0", json);
+        // Audio: loaded and wired to ref_audios.ref_audio_0.
+        Assert.Contains("LoadAudio", json);
+        Assert.Contains("ref_audios.ref_audio_0", json);
+    }
+
     /// <summary>ref2va refuses more picker references than the configured cap (reference_max=3), rather than silently
     /// dropping them.</summary>
     [Fact]
@@ -336,7 +369,7 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = ["r1.png", "r2.png", "r3.png", "r4.png"],
+            References = [new ReferenceInput("r1.png", ReferenceKind.Image), new ReferenceInput("r2.png", ReferenceKind.Image), new ReferenceInput("r3.png", ReferenceKind.Image), new ReferenceInput("r4.png", ReferenceKind.Image)],
         };
         _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }

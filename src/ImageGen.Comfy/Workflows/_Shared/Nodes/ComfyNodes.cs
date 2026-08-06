@@ -11,13 +11,23 @@ public sealed record LoadVideo : ComfyNode
     public static Output<Slot.Video> VideoOut(string id) => new(id, 0);
 }
 
-/// <summary>Splits a clip into its component streams — output 0 the image frames, output 2 the frame rate.</summary>
+/// <summary>Splits a clip into its component streams — output 0 the image frames, output 1 the audio track, output 2
+/// the frame rate.</summary>
 public sealed record GetVideoComponents : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.GetVideoComponents;
     [JsonPropertyName("video")] public required Output<Slot.Video> Video { get; init; }
     public static Output<Slot.Image> ImagesOut(string id) => new(id, 0);
+    public static Output<AudioSlot> AudioOut(string id) => new(id, 1);
     public static Output<Slot.Float> FpsOut(string id) => new(id, 2);
+}
+
+/// <summary>Loads an audio clip from ComfyUI's input folder (core ComfyUI). Output 0 is the AUDIO waveform.</summary>
+public sealed record LoadAudio : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.LoadAudio;
+    [JsonPropertyName("audio")] public required string Audio { get; init; }
+    public static Output<AudioSlot> AudioOut(string id) => new(id, 0);
 }
 
 /// <summary>Automatic flicker/wash correction over a clip (PixelHarness).</summary>

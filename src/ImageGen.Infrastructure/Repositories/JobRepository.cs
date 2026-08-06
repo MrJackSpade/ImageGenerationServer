@@ -446,7 +446,7 @@ WHERE JobId = @jobId
             sourceImageId = source,
             maskImageId = mask,
             lastFrameImageId = lastFrame,
-            referenceImageIds = references,
+            referenceIds = references,
         });
         return new ImageRequestRecord(userId, json);
 
@@ -502,7 +502,7 @@ WHERE JobId = @jobId
         }
 
         // References belong to an edit slot; a generate carries none.
-        List<string> references = slot.Edit?.ReferenceImageIds ?? [];
+        List<string> references = slot.Edit?.ReferenceIds ?? [];
         for (int i = 0; i < references.Count; i++)
         {
             await using DbCommand cmd = conn.Command(
@@ -551,7 +551,7 @@ WHERE JobId = @jobId
             {
                 if (bySlot.TryGetValue(reader.AsInt32(0), out JobSlotRecord? slot) && slot.Edit is { } e)
                 {
-                    e.ReferenceImageIds.Add(reader.GetString(1));
+                    e.ReferenceIds.Add(reader.GetString(1));
                 }
             }
         }

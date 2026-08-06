@@ -1,4 +1,5 @@
-﻿using ImageGen.Domain.CodeAnalysis;
+﻿using ImageGen.Domain;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Application.Workflows;
 
@@ -21,7 +22,8 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// <param name="ProducesVideo">The workflow's DECLARED output: true for a video workflow. Not a guess from the
 /// output's file extension — a single-frame render comes back as .webp exactly like a clip does.</param>
 public sealed record WorkflowInfo(
-    string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false);
+    string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
+    WorkflowReference? Reference = null);
 
 /// <summary>One UI-exposed parameter of a workflow configuration, joined to its schema for type/range/label.</summary>
 /// <param name="Key">Parameter key.</param>
@@ -40,10 +42,41 @@ public sealed record WorkflowExposedParam(
     [property: AllowNullable("null = the control declares no increment (free-entry); distinct from a 0 step")] double? Step,
     string Label, string? Help, string[]? Choices);
 
-/// <summary>The reference-image capability of an editor: how many extra images it takes and how to phrase them.</summary>
-/// <param name="Max">Maximum reference images accepted.</param>
+/// <summary>How many references of ONE media kind a workflow accepts.</summary>
+/// <param name="Kind">The media kind's wire token (see <see cref="ReferenceKinds.Wire"/>): image / audio / video.</param>
+/// <param name="Max">Maximum references of this kind the workflow accepts (&gt; 0 to be offered at all).</param>
+public sealed record ReferenceAllowance(string Kind, int Max);
+
+/// <summary>The reference capability of an editor: which media KINDS it accepts and how many of each (most editors take
+/// only images; a multi-modal one — e.g. MiniMax-H3 reference→video — takes image + audio + video), plus a phrasing
+/// hint. The <c>＋ ref</c> button, the upload <c>accept</c> filter, and the enqueue validation all read this so no
+/// workflow can be handed a reference kind it doesn't accept.</summary>
+/// <param name="Types">The accepted per-kind allowances (only kinds with a positive max).</param>
 /// <param name="Hint">How to phrase the instruction for references, or null.</param>
-public sealed record WorkflowReference(int Max, string? Hint);
+public sealed record WorkflowReference(IReadOnlyList<ReferenceAllowance> Types, string? Hint)
+{
+    /// <summary>The max references of <paramref name="kind"/> this workflow accepts (0 = not accepted).</summary>
+    public int MaxOf(ReferenceKind kind)
+    {
+        string token = ReferenceKinds.Wire(kind);
+        foreach (ReferenceAllowance t in Types)
+        {
+            if (string.Equals(t.Kind, token, StringComparison.Ordinal))
+            {
+                return t.Max;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>Whether this workflow accepts any reference of <paramref name="kind"/>.</summary>
+    public bool Accepts(ReferenceKind kind) => MaxOf(kind) > 0;
+
+    /// <summary>The image-reference max — the back-compat scalar for surfaces (MCP model info) that predate multi-kind
+    /// references and only know about reference IMAGES.</summary>
+    public int MaxImages => MaxOf(ReferenceKind.Image);
+}
 
 /// <summary>A UI help link (text + url).</summary>
 /// <param name="Text">Link text.</param>

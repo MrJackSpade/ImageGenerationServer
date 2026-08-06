@@ -1,9 +1,11 @@
 namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 
 /// <summary>MiniMax-H3 reference→video (ref2va, with native audio). The open image is the primary subject reference and
-/// the edit page's ＋ ref picker (<c>reference.max &gt; 0</c>) adds more; unlike i2v NONE of them is a first frame — they
-/// condition the subject/identity through the <see cref="MiniMaxH3ReferenceToVideo"/> node. Same fl2va model, text
-/// encoder and dual VAEs as the T2V/I2V siblings — no new weights. Buckets into the Animate section (<c>media:video</c>).</summary>
+/// the edit page's ＋ ref picker adds more references of the KINDS the node accepts (see the card's <c>reference.types</c>):
+/// image stills → <c>ref_images</c>, a driving video → <c>ref_videos</c> (decoded to frames), a driving audio clip →
+/// <c>ref_audios</c>. Unlike i2v NONE is a first frame — they condition subject/motion/voice through the
+/// <see cref="MiniMaxH3ReferenceToVideo"/> node. Same fl2va model, text encoder and dual VAEs as the T2V/I2V siblings —
+/// no new weights. Buckets into the Animate section (<c>media:video</c>).</summary>
 public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 {
     public override string Name => "minimax-h3-ref2v";

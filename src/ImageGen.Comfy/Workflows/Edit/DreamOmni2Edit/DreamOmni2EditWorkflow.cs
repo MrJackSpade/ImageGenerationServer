@@ -25,7 +25,7 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
         };
         // The Editor requires a reference image; use the first attached reference, else the source itself.
         Output<Slot.Image> refImg;
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
         if (refNames.Count > 0)
         {
             g[Nodes.Reference] = new LoadImage { Image = refNames[0] };

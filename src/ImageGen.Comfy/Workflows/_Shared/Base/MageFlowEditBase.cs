@@ -27,7 +27,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         Dictionary<string, object> refs = [];
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
         // No reference_max declared → no extra refs (capacity 0). Supplying more references than the capacity is
         // REFUSED, not silently truncated.
         int rm = p.ReferenceMax ?? 0;

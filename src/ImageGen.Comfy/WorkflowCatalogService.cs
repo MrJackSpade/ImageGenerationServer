@@ -1,5 +1,7 @@
 ﻿using ImageGen.Application.Workflows;
+using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
+using System.Linq;
 using System.Text.Json;
 
 namespace ImageGen.Comfy;
@@ -35,8 +37,13 @@ public sealed partial class WorkflowCatalogService(
         string friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
         bool preserves = wf?.PreservesComposition ?? false;
-        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video);
+        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card));
     }
+
+    /// <summary>The workflow's reference capability, or null when it accepts no references — the single projection of a
+    /// card's normalized reference types shared by the descriptor (UI) and <see cref="WorkflowInfo"/> (enqueue validation).</summary>
+    private static WorkflowReference? BuildReference(ModelCard card) =>
+        card.EditReferenceTypes.Count > 0 ? new WorkflowReference(card.EditReferenceTypes, card.EditReferenceHint) : null;
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<WorkflowDescriptor>> ListEligibleAsync(CancellationToken ct)
@@ -273,7 +280,7 @@ public sealed partial class WorkflowCatalogService(
             AvgSeconds: avgSeconds,
             ExposedParams: exposed,
             CanEdit: canEdit,
-            Reference: canEdit && c.EditReferenceMax > 0 ? new WorkflowReference(c.EditReferenceMax, c.EditReferenceHint) : null,
+            Reference: canEdit ? BuildReference(c) : null,
             Card: new WorkflowCardSummary(
                 FriendlyName: c.FriendlyName,
                 Architecture: c.Architecture,
@@ -357,7 +364,7 @@ public sealed partial class WorkflowCatalogService(
         Name: c.Name,
         FriendlyName: c.FriendlyName,
         Architecture: c.Architecture,
-        CanEdit: c.EditUseCases.Length > 0 || c.EditReferenceMax > 0,
+        CanEdit: c.EditUseCases.Length > 0 || c.EditReferenceTypes.Count > 0,
         Format: c.PromptFormat,
         Overview: c.PromptOverview ?? c.PromptGuidance,
         Guidance: c.PromptGuidance,
@@ -369,6 +376,6 @@ public sealed partial class WorkflowCatalogService(
         Dont: c.PromptDont is { Length: > 0 } dn ? dn : null,
         Examples: c.PromptExamples is { Length: > 0 } ex ? ex : null,
         Source: c.PromptSource,
-        MaxReferenceImages: c.EditReferenceMax,
+        MaxReferenceImages: c.EditReferenceTypes.FirstOrDefault(t => t.Kind == ReferenceKindNames.Image)?.Max ?? 0,
         ReferenceTechnique: c.EditReferenceHint);
 }

@@ -82,6 +82,7 @@ internal static class ComfyNodeTypes
     public const string LatentUpscaleModelLoader = "LatentUpscaleModelLoader";
     public const string LineArtPreprocessor = "LineArtPreprocessor";
     public const string LineThicken = "LineThicken";
+    public const string LoadAudio = "LoadAudio";
     public const string LoadImage = "LoadImage";
     public const string LoadImageMask = "LoadImageMask";
     public const string LoadVideo = "LoadVideo";

@@ -550,6 +550,10 @@ function selectFileButton(label) {
 // A file is an image/video by MIME, falling back to extension for pickers/drops that hand over a blank type.
 const isImageFile = f => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(f.name);
 const isVideoFile = f => /^video\//.test(f.type) || /\.(mp4|webm|mov|mkv)$/i.test(f.name);
+const isAudioFile = f => /^audio\//.test(f.type) || /\.(wav|mp3|flac|ogg|m4a|aac)$/i.test(f.name);
+// The media kind of a picked/dropped file, or null when it's none of the three families. Matches the server's
+// content-type classification so the client rejects a file the workflow won't accept before uploading it.
+const fileKind = f => isImageFile(f) ? "image" : isVideoFile(f) ? "video" : isAudioFile(f) ? "audio" : null;
 // Shared upload path for the source: the hidden <input>'s change AND every source drop zone (the source box, and the
 // inpaint/outpaint empty-state stages, which all seed the one source). Takes the first file — the source is single.
 async function handleEditSrcFiles(files) {
@@ -627,14 +631,31 @@ function showEditResult(id, instruction, model, notice) {
 // is where you compare them. Progress lives in the page-level bar (#bar), never inside a card — and the box stays
 // empty until a real result lands (no "working" placeholder), so an in-flight batch never shows an empty spinner box.
 
-// --- reference images ---------------------------------------------------------------------------
-function editRefMax() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.max) || 0; }
-function updateEditRefBtn() { const max = editRefMax(); $editRefBtn.classList.toggle("hidden", max <= 0); $editRefBtn.disabled = editRefs.length >= max; $editRefBtn.textContent = max > 0 ? `＋ ref (${editRefs.length}/${max})` : "＋ ref"; }
+// --- references (image / audio / video, per the workflow's declared types) ----------------------
+// The workflow's accepted reference types: [{ kind, max }]. Most editors declare only image; ref2va takes all three.
+function editRefTypes() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.types) || []; }
+function editRefMaxOf(kind) { const t = editRefTypes().find(x => x.kind === kind); return (t && t.max) || 0; }
+function editRefTotalMax() { return editRefTypes().reduce((n, t) => n + (t.max || 0), 0); }
+function editRefCountOf(kind) { return editRefs.filter(r => r.kind === kind).length; }
+// The <input accept> string from the accepted kinds, so the picker only offers files the workflow takes.
+function editRefAccept() { return editRefTypes().filter(t => t.max > 0).map(t => `${t.kind}/*`).join(","); }
+function updateEditRefBtn() {
+  const total = editRefTotalMax();
+  $editRefBtn.classList.toggle("hidden", total <= 0);
+  $editRefBtn.disabled = editRefs.length >= total;
+  $editRefBtn.textContent = total > 0 ? `＋ ref (${editRefs.length}/${total})` : "＋ ref";
+  $editRefFile.accept = editRefAccept() || "image/*";
+}
 function renderEditRefs() {
   $editRefs.innerHTML = "";
   editRefs.forEach((rf, i) => {
     const chip = document.createElement("div"); chip.className = "ref-chip";
-    const im = document.createElement("img"); im.src = viewUrl(rf.id); im.alt = "reference"; chip.appendChild(im);
+    // Only an image reference has a thumbnail; an audio/video reference shows a kind glyph (its preview isn't an <img>).
+    if (rf.kind === "image") {
+      const im = document.createElement("img"); im.src = viewUrl(rf.id); im.alt = "reference"; chip.appendChild(im);
+    } else {
+      const g = document.createElement("span"); g.className = "ref-glyph"; g.textContent = rf.kind === "audio" ? "♪" : "▶"; g.title = rf.kind + " reference"; chip.appendChild(g);
+    }
     const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { editRefs.splice(i, 1); renderEditRefs(); });
     chip.appendChild(x); $editRefs.appendChild(chip);
   });
@@ -643,14 +664,16 @@ function renderEditRefs() {
 function editRefHint() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.hint) || ""; }
 function updateEditRefHint() { const txt = editRefHint(); $editRefHint.textContent = txt; $editRefHint.classList.toggle("hidden", editRefs.length === 0 || !txt); }
 $editRefBtn.addEventListener("click", () => $editRefFile.click());
-// References accept MULTIPLE files (picked or dropped), filling up to the remaining reference_max slots. Uploads run
-// in order; each lands as it finishes so the chips grow one at a time.
+// References accept MULTIPLE files (picked or dropped), each routed by its media kind — the workflow declares which
+// kinds it takes and how many of each; a file of an unaccepted kind, or one over its per-kind cap, is rejected here.
 async function handleEditRefFiles(files) {
   for (const f of Array.from(files || [])) {
-    if (editRefs.length >= editRefMax()) break;
-    if (!isImageFile(f)) { setStatus("Please choose an image file.", { error: true }); continue; }
+    if (editRefs.length >= editRefTotalMax()) break;
+    const kind = fileKind(f);
+    if (!kind || editRefMaxOf(kind) <= 0) { setStatus(`This model doesn't accept ${kind || "that"} references.`, { error: true }); continue; }
+    if (editRefCountOf(kind) >= editRefMaxOf(kind)) { setStatus(`At most ${editRefMaxOf(kind)} ${kind} reference(s).`, { error: true }); continue; }
     setStatus("Uploading reference…");
-    try { const id = await uploadToInput(f, f.name || "ref.png"); editRefs.push({ id }); renderEditRefs(); setStatus(""); }
+    try { const id = await uploadToInput(f, f.name || `ref.${kind}`); editRefs.push({ id, kind }); renderEditRefs(); setStatus(""); }
     catch (err) { setStatus(friendlyError(err), { error: true }); }
   }
 }
@@ -728,7 +751,7 @@ function buildChatItems(n) {
       const lastFrame = (single && m.supportsLastFrame) ? (editLoopActive() ? editCurrent : lastFrameId) : null;
       // Re-roll [a|b|…] per slot so the model fan-out AND the copies can differ.
       items.push({ workflow: gwModel(m), edit: true, instruction: expandRandomPrompt(instruction), negativePrompt: editNegFor(m),
-        imageId: editCurrent, referenceImageIds: refIds, lastFrameImageId: lastFrame, overrides });
+        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, overrides });
     }
   return items;
 }
@@ -853,7 +876,7 @@ async function buildInpaintItems(n) {
   const items = [];
   for (let i = 0; i < n; i++)
     items.push({ workflow: gwModel(model), edit: true, instruction: expandRandomPrompt(prompt), negativePrompt: inpaintNegFor(model),
-      imageId: inpaintBase, maskImageId: maskId, referenceImageIds: [], overrides });
+      imageId: inpaintBase, maskImageId: maskId, referenceIds: [], overrides });
   return items;
 }
 function showInpaintBar(show) { $inpaintBar.classList.toggle("show", show); if (!show) $inpaintBar.querySelector("i").style.width = "0"; }
@@ -1026,7 +1049,7 @@ function buildOutpaintItems(n) {
   const items = [];
   for (let i = 0; i < n; i++)
     items.push({ workflow: gwModel(model), edit: true, instruction: expandRandomPrompt(prompt), negativePrompt: outpaintNegFor(model),
-      imageId: outpaintBase, referenceImageIds: [], overrides });
+      imageId: outpaintBase, referenceIds: [], overrides });
   return items;
 }
 // Outpaint uses the ONE shared submit control: n takes of the same base + pads + prompt as one /enqueue job. A finished

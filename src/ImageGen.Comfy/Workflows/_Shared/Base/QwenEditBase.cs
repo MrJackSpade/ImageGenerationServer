@@ -104,7 +104,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         string instruction = inputs.Positive;
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
 
         // Default resolution normalisation (FluxKontextImageScale snaps to a Qwen-trained bucket) + the danamir blur
         // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent

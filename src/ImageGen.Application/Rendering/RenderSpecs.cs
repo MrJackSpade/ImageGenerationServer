@@ -59,7 +59,7 @@ public sealed record EditSpec(
     string Instruction,
     string ImageId,
     string? NegativePrompt = null,
-    List<string>? ReferenceImageIds = null,
+    List<string>? ReferenceIds = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
     string? LastFrameImageId = null);

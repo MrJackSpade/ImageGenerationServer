@@ -85,23 +85,42 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
     [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("ref_image_size")] public required string RefImageSize { get; init; }
 
-    /// <summary>The autogrow reference images, keyed by the exact flat dotted wire key <c>ref_images.ref_image_{i}</c>
-    /// and serialized as sibling inputs via STJ extension data. Populated by <see cref="Refs"/>.</summary>
-    [JsonExtensionData] public Dictionary<string, object> RefImages { get; init; } = [];
+    /// <summary>The node's four autogrow reference families, flattened into ONE extension-data map keyed by the exact
+    /// dotted wire keys ComfyUI re-nests server-side: <c>ref_images.ref_image_{i}</c> (up to 9 stills),
+    /// <c>ref_videos.ref_video_{i}</c> (up to 3 driving videos, as IMAGE frame batches),
+    /// <c>ref_audios.ref_audio_{i}</c> (up to 3 driving AUDIO clips). A node record allows only one
+    /// <see cref="JsonExtensionDataAttribute"/> property, so all families share this one dict. Populated by
+    /// <see cref="Refs"/>.</summary>
+    [JsonExtensionData] public Dictionary<string, object> RefInputs { get; init; } = [];
 
-    /// <summary>Build the <c>ref_images.ref_image_{i}</c> extension-data map from the ordered reference outputs. Each
-    /// value is the two-element <c>[nodeId, index]</c> edge ComfyUI expects — byte-identical to an
-    /// <see cref="Output{TSlot}"/> edge, but keyed dynamically since the count is not known at compile time.</summary>
-    public static Dictionary<string, object> Refs(IReadOnlyList<Output<Slot.Image>> images)
+    /// <summary>Build the flattened <c>ref_*.ref_*_{i}</c> extension-data map from the ordered reference outputs of each
+    /// media family. Each value is the two-element <c>[nodeId, index]</c> edge ComfyUI expects — byte-identical to an
+    /// <see cref="Output{TSlot}"/> edge, but keyed dynamically since the counts are not known at compile time.</summary>
+    public static Dictionary<string, object> Refs(
+        IReadOnlyList<Output<Slot.Image>> images,
+        IReadOnlyList<Output<Slot.Image>> videoFrames,
+        IReadOnlyList<Output<AudioSlot>> audios)
     {
-        Dictionary<string, object> map = new(images.Count);
+        Dictionary<string, object> map = new(images.Count + videoFrames.Count + audios.Count);
         for (int i = 0; i < images.Count; i++)
         {
-            map[$"ref_images.ref_image_{i}"] = new object[] { images[i].NodeId, images[i].Index };
+            map[$"ref_images.ref_image_{i}"] = Edge(images[i]);
+        }
+
+        for (int i = 0; i < videoFrames.Count; i++)
+        {
+            map[$"ref_videos.ref_video_{i}"] = Edge(videoFrames[i]);
+        }
+
+        for (int i = 0; i < audios.Count; i++)
+        {
+            map[$"ref_audios.ref_audio_{i}"] = Edge(audios[i]);
         }
 
         return map;
     }
+
+    private static object[] Edge<TSlot>(Output<TSlot> o) => [o.NodeId, o.Index];
 
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);

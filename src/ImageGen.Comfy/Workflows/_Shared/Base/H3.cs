@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -15,8 +16,24 @@ internal static class H3
     /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v (the source is ref_image_0, in-place
     /// at <see cref="H3Nodes.Source"/>); each picker reference gets <c>RefImageBase + i</c>. Kept clear of every node id
     /// in <see cref="H3Nodes"/>. A const int (not a node-id string), so it stays out of the pure <see cref="H3Nodes"/>
-    /// holder.</summary>
+    /// holder. The video/audio reference bases follow, each in its own decade so the ranges can't collide.</summary>
     private const int RefImageBase = 60;
+
+    /// <summary>First id for the per-video-reference <c>LoadVideo</c> nodes; the matching <c>GetVideoComponents</c> nodes
+    /// (which split each clip to IMAGE frames for the node's <c>ref_videos</c> input) start at <see cref="RefVideoCompBase"/>.</summary>
+    private const int RefVideoLoadBase = 70;
+
+    /// <summary>First id for the per-video-reference <c>GetVideoComponents</c> nodes.</summary>
+    private const int RefVideoCompBase = 80;
+
+    /// <summary>First id for the per-audio-reference <c>LoadAudio</c> nodes (the node's <c>ref_audios</c> input).</summary>
+    private const int RefAudioBase = 90;
+
+    /// <summary>The <see cref="MiniMaxH3ReferenceToVideo"/> node's structural autogrow caps: up to 3 driving videos and 3
+    /// driving audios (image refs are capped per-config by <c>reference_max</c>). A last-resort graph-integrity guard —
+    /// the accepted-per-kind policy is enforced upstream at enqueue against the workflow's declared reference types.</summary>
+    private const int MaxVideoRefs = 3;
+    private const int MaxAudioRefs = 3;
 
     /// <summary>The shared T2V/I2V graph (typed #93). <paramref name="i2v"/>: the source image is the first frame and
     /// the clip size derives from it (scaled to H3's ~1 MP budget); otherwise the size is the aspect map's
@@ -100,18 +117,55 @@ internal static class H3
                     g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
                     g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
 
-                    IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-                    if (refNames.Count > refMax)
+                    // Partition the typed references by media kind. Each family enters its own autogrow input on the
+                    // node: image stills → ref_images, driving videos → ref_videos (as decoded frame batches), driving
+                    // audio → ref_audios. The '<Picture i>'/'<Video k>'/'<Audio j>' prompt tags reference them by index.
+                    IReadOnlyList<string> imageRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Image).Select(r => r.Name)];
+                    IReadOnlyList<string> videoRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Video).Select(r => r.Name)];
+                    IReadOnlyList<string> audioRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Audio).Select(r => r.Name)];
+                    if (imageRefNames.Count > refMax)
                     {
-                        throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {refNames.Count}.");
+                        throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {imageRefNames.Count}.");
                     }
 
-                    List<Output<Slot.Image>> refs = new(refNames.Count + 1) { LoadImage.ImageOut(H3Nodes.Source) };
-                    for (int i = 0; i < refNames.Count; i++)
+                    if (videoRefNames.Count > MaxVideoRefs)
+                    {
+                        throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxVideoRefs} reference video(s); got {videoRefNames.Count}.");
+                    }
+
+                    if (audioRefNames.Count > MaxAudioRefs)
+                    {
+                        throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxAudioRefs} reference audio clip(s); got {audioRefNames.Count}.");
+                    }
+
+                    // Image references: the source is ref_image_0 (already loaded), the picker stills follow.
+                    List<Output<Slot.Image>> imageEdges = new(imageRefNames.Count + 1) { LoadImage.ImageOut(H3Nodes.Source) };
+                    for (int i = 0; i < imageRefNames.Count; i++)
                     {
                         string id = (RefImageBase + i).ToString();
-                        g[id] = new LoadImage { Image = refNames[i] };
-                        refs.Add(LoadImage.ImageOut(id));
+                        g[id] = new LoadImage { Image = imageRefNames[i] };
+                        imageEdges.Add(LoadImage.ImageOut(id));
+                    }
+
+                    // Video references: the node's ref_videos input is IMAGE frames, so each clip is decoded to frames
+                    // (LoadVideo → GetVideoComponents, frame output 0).
+                    List<Output<Slot.Image>> videoFrameEdges = new(videoRefNames.Count);
+                    for (int i = 0; i < videoRefNames.Count; i++)
+                    {
+                        string loadId = (RefVideoLoadBase + i).ToString();
+                        string compId = (RefVideoCompBase + i).ToString();
+                        g[loadId] = new LoadVideo { File = videoRefNames[i] };
+                        g[compId] = new GetVideoComponents { Video = LoadVideo.VideoOut(loadId) };
+                        videoFrameEdges.Add(GetVideoComponents.ImagesOut(compId));
+                    }
+
+                    // Audio references: standalone driving clips → ref_audios (encoded through audio_vae inside the node).
+                    List<Output<AudioSlot>> audioEdges = new(audioRefNames.Count);
+                    for (int i = 0; i < audioRefNames.Count; i++)
+                    {
+                        string id = (RefAudioBase + i).ToString();
+                        g[id] = new LoadAudio { Audio = audioRefNames[i] };
+                        audioEdges.Add(LoadAudio.AudioOut(id));
                     }
 
                     g[H3Nodes.Encode] = new MiniMaxH3ReferenceToVideo
@@ -124,7 +178,7 @@ internal static class H3
                         Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
                         Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
                         RefImageSize = ComfyWidgets.RefImageSize.Match,
-                        RefImages = MiniMaxH3ReferenceToVideo.Refs(refs),
+                        RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, audioEdges),
                     };
                     break;
                 }

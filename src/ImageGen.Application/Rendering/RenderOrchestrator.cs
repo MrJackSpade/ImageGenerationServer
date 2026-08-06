@@ -662,8 +662,9 @@ public sealed class RenderOrchestrator
         return new RequeueOutcome(RequeueStatus.Requeued, job.JobId, items.Count);
     }
 
-    /// <summary>The first edit input across these specs that can no longer be found, phrased for the user, or null
-    /// when every one still resolves. One database round trip for the whole set — existence only, never bytes.</summary>
+    /// <summary>The first edit input across these specs that can no longer be USED — either it can no longer be found,
+    /// or it is a reference whose media KIND the workflow doesn't accept — phrased for the user, or null when every one
+    /// is usable. One database round trip for the whole set (content types, which also existence-check the blobs).</summary>
     private async Task<string?> FirstMissingEditInputAsync(List<EditSpec> edits, CancellationToken ct)
     {
         if (edits.Count == 0)
@@ -686,11 +687,11 @@ public sealed class RenderOrchestrator
                 inputs.Add((e.LastFrameImageId, "end frame"));
             }
 
-            foreach (string r in e.ReferenceImageIds ?? [])
+            foreach (string r in e.ReferenceIds ?? [])
             {
                 if (!string.IsNullOrWhiteSpace(r))
                 {
-                    inputs.Add((r, "reference image"));
+                    inputs.Add((r, "reference"));
                 }
             }
         }
@@ -705,6 +706,62 @@ public sealed class RenderOrchestrator
             if (_uploads.Get(id) is null && !stored.ContainsKey(id))
             {
                 return $"its {what} is gone — an uploaded input lives only in the process that received it and is never stored";
+            }
+        }
+
+        // Every reference's kind is intrinsic to its stored blob (content type), so a caller cannot smuggle an
+        // audio/video file into an image-only workflow by mislabelling it: the kind is read here, authoritatively, and
+        // a reference the workflow doesn't accept fails the whole enqueue rather than being silently dropped downstream.
+        foreach (EditSpec e in edits)
+        {
+            string? rejection = ReferenceKindRejection(e, ContentTypeOf);
+            if (rejection is not null)
+            {
+                return rejection;
+            }
+        }
+
+        return null;
+
+        string? ContentTypeOf(string id) => _uploads.Get(id)?.ContentType ?? (stored.TryGetValue(id, out string? ct2) ? ct2 : null);
+    }
+
+    /// <summary>Reject the first reference on <paramref name="edit"/> whose media kind the workflow doesn't accept (an
+    /// unclassifiable content type, a kind the workflow declares no allowance for, or more of a kind than its per-kind
+    /// max), phrased for the user — or null when every reference is acceptable. A workflow that declares no references
+    /// at all rejects any reference it is handed.</summary>
+    private string? ReferenceKindRejection(EditSpec edit, Func<string, string?> contentTypeOf)
+    {
+        IReadOnlyList<string> refIds = edit.ReferenceIds is { Count: > 0 } r ? [.. r.Where(x => !string.IsNullOrWhiteSpace(x))] : [];
+        if (refIds.Count == 0)
+        {
+            return null;
+        }
+
+        WorkflowReference? allowed = _catalog.ResolveInfo(edit.Workflow)?.Reference;
+        if (allowed is null)
+        {
+            return "this workflow doesn't accept reference inputs";
+        }
+
+        Dictionary<ReferenceKind, int> seen = [];
+        foreach (string id in refIds)
+        {
+            ReferenceKind? kind = ReferenceKinds.Classify(contentTypeOf(id));
+            if (kind is not { } k)
+            {
+                return "one of its references isn't a recognised image, audio or video file";
+            }
+
+            if (!allowed.Accepts(k))
+            {
+                return $"this workflow doesn't accept {ReferenceKinds.Wire(k)} references";
+            }
+
+            seen[k] = seen.TryGetValue(k, out int n) ? n + 1 : 1;
+            if (seen[k] > allowed.MaxOf(k))
+            {
+                return $"this workflow accepts at most {allowed.MaxOf(k)} {ReferenceKinds.Wire(k)} reference(s)";
             }
         }
 
@@ -1019,18 +1076,29 @@ public sealed class RenderOrchestrator
                     return;
                 }
 
-                List<byte[]> references = [];
-                foreach (string refId in edit.ReferenceImageIds ?? [])
+                List<ReferenceUpload> references = [];
+                foreach (string refId in edit.ReferenceIds ?? [])
                 {
+                    (byte[] Bytes, string ContentType) refMedia;
                     try
                     {
-                        references.Add(await GetImageBytesAsync(refId, ct));
+                        refMedia = await GetImageMediaAsync(refId, ct);
                     }
                     catch (HttpRequestException)
                     {
-                        FailSlot(slot, $"reference image '{refId}' not found");
+                        FailSlot(slot, $"reference '{refId}' not found");
                         return;
                     }
+
+                    // The reference's kind rides its stored blob's content type — the enqueue gate already rejected any
+                    // kind this workflow doesn't accept, so an unclassifiable one here is a corrupt input, not policy.
+                    if (ReferenceKinds.Classify(refMedia.ContentType) is not { } refKind)
+                    {
+                        FailSlot(slot, $"reference '{refId}' isn't a recognised image, audio or video file");
+                        return;
+                    }
+
+                    references.Add(new ReferenceUpload(refMedia.Bytes, refKind));
                 }
 
                 byte[]? maskBytes = null;
@@ -1831,7 +1899,7 @@ public sealed class RenderOrchestrator
                     SourceImageId = s.RequireEdit().ImageId,
                     MaskImageId = s.RequireEdit().MaskImageId,
                     LastFrameImageId = s.RequireEdit().LastFrameImageId,
-                    ReferenceImageIds = [.. s.RequireEdit().ReferenceImageIds ?? []],
+                    ReferenceIds = [.. s.RequireEdit().ReferenceIds ?? []],
                 },
             });
         }
@@ -1887,7 +1955,7 @@ public sealed class RenderOrchestrator
             sr.Prompt ?? "",
             e.SourceImageId ?? "",
             sr.NegativePrompt,
-            [.. e.ReferenceImageIds],
+            [.. e.ReferenceIds],
             Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
             e.MaskImageId,
             e.LastFrameImageId);
@@ -2253,11 +2321,17 @@ public sealed class RenderOrchestrator
     /// <see cref="HttpRequestException"/> when none has it, which the caller turns into a "not found".
     /// <para>An upload is process-local, so a slot that was queued but never submitted before a restart lands here with
     /// nothing to find; that surfaces as a slot error naming the missing source rather than a silent failure.</para></summary>
-    private async Task<byte[]> GetImageBytesAsync(string id, CancellationToken ct)
+    private async Task<byte[]> GetImageBytesAsync(string id, CancellationToken ct) => (await GetImageMediaAsync(id, ct)).Bytes;
+
+    /// <summary>Source bytes AND the content type for an edit/reference id, by the same upload-first/DB/legacy path as
+    /// <see cref="GetImageBytesAsync"/>. The content type is a reference's authoritative media kind (see
+    /// <see cref="ReferenceKinds.Classify"/>); a legacy backend view-ref predates content-type tracking and is always
+    /// an image.</summary>
+    private async Task<(byte[] Bytes, string ContentType)> GetImageMediaAsync(string id, CancellationToken ct)
     {
         if (_uploads.Get(id) is { } upload)
         {
-            return upload.Bytes;
+            return (upload.Bytes, upload.ContentType);
         }
         // Waits out an unreachable database rather than reporting the source as missing. "Not found" and "could not
         // be looked up" are opposite facts, and only one of them is the user's to act on: failing the slot here would
@@ -2265,10 +2339,10 @@ public sealed class RenderOrchestrator
         ImageBlob? blob = await AwaitingDatabaseAsync(c => _blobs.GetAsync(id, c), $"loading input image {id}", ct);
         if (blob is not null)
         {
-            return blob.Bytes;
+            return (blob.Bytes, blob.ContentType);
         }
 
-        return await _comfy.FetchLegacyImageAsync(id, ct);
+        return (await _comfy.FetchLegacyImageAsync(id, ct), ReferenceKindNames.ImageMime + "png");
     }
 
     #endregion

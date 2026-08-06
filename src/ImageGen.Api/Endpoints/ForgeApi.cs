@@ -987,7 +987,7 @@ public static class ForgeApi
             model = j.Model,
             prompt = j.Prompt,
             sourceImageId = j.IsEdit && j.Slots.Count > 0 ? j.Slots[0].Edit?.ImageId : null,
-            referenceImageIds = j.IsEdit && j.Slots.Count > 0 ? j.Slots[0].Edit?.ReferenceImageIds : null,
+            referenceIds = j.IsEdit && j.Slots.Count > 0 ? j.Slots[0].Edit?.ReferenceIds : null,
             total = j.Total,
             progress = j.Progress,
             produced = j.Produced,

@@ -79,8 +79,12 @@
       "reference-to-video: generate a clip featuring the referenced subject, with native audio"
     ],
     "reference": {
-      "max": 3,
-      "hint": "The current image is the primary subject reference; add more subject references here. Describe the scene and motion — the references define the subject's appearance."
+      "types": [
+        { "kind": "image", "max": 3 },
+        { "kind": "video", "max": 3 },
+        { "kind": "audio", "max": 3 }
+      ],
+      "hint": "The current image is the primary subject reference; add more image, video or audio references. Images/videos define the subject's appearance and motion; audio drives the voice/sound. Describe the scene and motion."
     }
   },
   "resolution": {

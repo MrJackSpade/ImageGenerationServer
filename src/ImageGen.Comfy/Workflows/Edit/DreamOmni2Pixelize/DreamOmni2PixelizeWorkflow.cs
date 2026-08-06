@@ -27,7 +27,7 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
         Output<Slot.Image> refImg;
-        IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+        IReadOnlyList<string> refNames = inputs.ImageReferences;
         if (refNames.Count > 0)
         {
             g[Nodes.Reference] = new LoadImage { Image = refNames[0] };

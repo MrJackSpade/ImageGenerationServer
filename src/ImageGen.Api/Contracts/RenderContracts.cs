@@ -13,7 +13,7 @@ namespace ImageGen.Api.Contracts;
 /// (instruction/imageId/mask/refs/lastFrame) coexist; <c>ToRenderItem</c> reads the set that matches <c>Edit</c>.</summary>
 public sealed record EnqueueItem(
     string Workflow, bool Edit = false, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
-    string? Instruction = null, string? ImageId = null, List<string>? ReferenceImageIds = null,
+    string? Instruction = null, string? ImageId = null, List<string>? ReferenceIds = null,
     TriState RandomArtist = TriState.Unspecified,
     TriState RandomPrompt = TriState.Unspecified,
     [property: AllowNullable("null = the caller omitted it, so use the tag model's default sampling; 0.0 is a real (greedy) temperature")] double? Temperature = null,
@@ -44,7 +44,7 @@ public static class RenderContractMapping
             }
 
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
-                it.NegativePrompt, it.ReferenceImageIds, it.Overrides, it.MaskImageId, it.LastFrameImageId), it.Background);
+                it.NegativePrompt, it.ReferenceIds, it.Overrides, it.MaskImageId, it.LastFrameImageId), it.Background);
         }
 
         if (string.IsNullOrWhiteSpace(it.Workflow))

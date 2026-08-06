@@ -1,5 +1,6 @@
 ﻿using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
@@ -653,7 +654,7 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>Upload the source PNG (and any references) to ComfyUI's input folder, build the configuration's edit
     /// graph, POST it to <c>/prompt</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
     public async Task<SubmitResult> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
-        IReadOnlyList<byte[]>? references, IReadOnlyDictionary<string, JsonElement>? overrides, byte[]? maskPng = null,
+        IReadOnlyList<ReferenceUpload>? references, IReadOnlyDictionary<string, JsonElement>? overrides, byte[]? maskPng = null,
         byte[]? lastFramePng = null, CancellationToken ct = default)
     {
         if (sourcePng is null || sourcePng.Length == 0)
@@ -686,15 +687,19 @@ public sealed class ComfyClient : IComfyClient
         // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
         // serializes ComfyUI work so these fixed names can't race.
         string uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
-        List<string> refNames = [];
+        List<ReferenceInput> refInputs = [];
         if (references is { Count: > 0 })
         {
             int ri = 0;
-            foreach (byte[] r in references)
+            foreach (ReferenceUpload r in references)
             {
-                if (r is { Length: > 0 })
+                if (r.Bytes is { Length: > 0 })
                 {
-                    refNames.Add(await UploadImageAsync(r, $"forgemcp_edit_ref{ri++}.png", ct));
+                    // Role-indexed filename per reference, extension matched to its media family (ComfyUI keys the
+                    // decode off the extension — an audio clip uploaded as .png would fail to decode). The kind is
+                    // carried through so the workflow routes each reference to the graph input for its family.
+                    string name = await UploadImageAsync(r.Bytes, $"forgemcp_edit_ref{ri++}{ReferenceKinds.Extension(r.Kind)}", ct);
+                    refInputs.Add(new ReferenceInput(name, r.Kind));
                 }
             }
         }
@@ -717,7 +722,7 @@ public sealed class ComfyClient : IComfyClient
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
         }
 
-        WorkflowInputs inputs = new() { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
+        WorkflowInputs inputs = new() { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
         // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.

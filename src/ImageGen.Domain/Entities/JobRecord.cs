@@ -154,6 +154,8 @@ public sealed class EditSlotData
     public string? MaskImageId { get; set; }
     /// <summary>Image-to-video: the end frame. A real, joinable id.</summary>
     public string? LastFrameImageId { get; set; }
-    /// <summary>The reference images, in order (dbo.JobSlotReference). Ordered because they are positional to the workflow.</summary>
-    public List<string> ReferenceImageIds { get; set; } = [];
+    /// <summary>The reference input ids, in order (dbo.JobSlotReference). Ordered because they are positional to the
+    /// workflow. A reference may be an image, audio, or video — its media kind is derived from the blob's content type at
+    /// render time, not stored here, so this stays a plain id list regardless of kind.</summary>
+    public List<string> ReferenceIds { get; set; } = [];
 }
