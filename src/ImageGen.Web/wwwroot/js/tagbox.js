@@ -144,7 +144,6 @@ function initTagBox(opts) {
     const kind = tok.marker === "@" ? "artist" : "tag";
     if (kind === "artist" && !allowArtist()) { close(); return; }
     if ((kind === "artist" && !m.tagging.artists) || (kind === "tag" && !m.tagging.tags)) { close(); return; }
-    if (kind === "artist" && tok.frag.length < 1) { close(); return; }
     clearTimeout(timer); timer = setTimeout(() => query(tok, kind), 110);
   }
 
