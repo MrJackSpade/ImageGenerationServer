@@ -852,3 +852,19 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_MachineSetting_Machine_Key')
 CREATE UNIQUE INDEX UX_MachineSetting_Machine_Key ON dbo.MachineSetting (MachineName, SettingKey);
 GO
+
+-- Mark PROVENANCE: 1 when a random sampler (random-prompt tag or random-artist) APPENDED the token, 0 when the user
+-- typed it. The viewer dashes the border of generated chips. New column on the three pre-existing mark tables, so it
+-- MUST be a guarded ALTER (an existing database skips the CREATEs above). NOT NULL with a constant default -- 0 = "not
+-- known to be generated", so pre-provenance rows render no dash (never a guess) without a backfill.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Generated' AND Object_ID = Object_ID('dbo.HistoryMark'))
+    ALTER TABLE dbo.HistoryMark ADD Generated BIT NOT NULL CONSTRAINT DF_HistoryMark_Generated DEFAULT 0;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Generated' AND Object_ID = Object_ID('dbo.ImageBookmarkMark'))
+    ALTER TABLE dbo.ImageBookmarkMark ADD Generated BIT NOT NULL CONSTRAINT DF_ImageBookmarkMark_Generated DEFAULT 0;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Generated' AND Object_ID = Object_ID('dbo.JobSlotMark'))
+    ALTER TABLE dbo.JobSlotMark ADD Generated BIT NOT NULL CONSTRAINT DF_JobSlotMark_Generated DEFAULT 0;
+GO

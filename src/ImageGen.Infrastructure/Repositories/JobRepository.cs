@@ -520,14 +520,15 @@ WHERE JobId = @jobId
         foreach (Mark mark in slot.Marks)
         {
             await using DbCommand cmd = conn.Command(
-                "INSERT INTO dbo.JobSlotMark (JobId, SlotIndex, Token, Kind) " +
-                "SELECT @jobId, @idx, @token, @kind WHERE NOT EXISTS (" +
+                "INSERT INTO dbo.JobSlotMark (JobId, SlotIndex, Token, Kind, Generated) " +
+                "SELECT @jobId, @idx, @token, @kind, @generated WHERE NOT EXISTS (" +
                 "  SELECT 1 FROM dbo.JobSlotMark WHERE JobId = @jobId AND SlotIndex = @idx AND Token = @token AND Kind = @kind);",
                 tx);
             _ = cmd.AddParam("@jobId", slot.JobId);
             _ = cmd.AddParam("@idx", slot.SlotIndex);
             _ = cmd.AddParam("@token", await _cipher.DeterministicAsync(userId, mark.Token, ct));
             _ = cmd.AddParam("@kind", (byte)mark.Kind);
+            _ = cmd.AddParam("@generated", mark.Generated ? 1 : 0);
             _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
@@ -558,23 +559,23 @@ WHERE JobId = @jobId
 
         // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection, which
         // it does on a cold key-cache miss. Same ordering MarkIo uses, for the same reason.
-        List<(int Slot, string Token, TokenKind Kind)> raw = [];
+        List<(int Slot, string Token, TokenKind Kind, bool Generated)> raw = [];
         await using (DbCommand cmd = conn.Command(
-            "SELECT SlotIndex, Token, Kind FROM dbo.JobSlotMark WHERE JobId = @jobId;"))
+            "SELECT SlotIndex, Token, Kind, Generated FROM dbo.JobSlotMark WHERE JobId = @jobId;"))
         {
             _ = cmd.AddParam("@jobId", job.JobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                raw.Add((reader.AsInt32(0), reader.GetString(1), (TokenKind)reader.AsByte(2)));
+                raw.Add((reader.AsInt32(0), reader.GetString(1), (TokenKind)reader.AsByte(2), reader.AsBool(3)));
             }
         }
 
-        foreach ((int slotIndex, string? token, TokenKind kind) in raw)
+        foreach ((int slotIndex, string? token, TokenKind kind, bool generated) in raw)
         {
             if (bySlot.TryGetValue(slotIndex, out JobSlotRecord? slot))
             {
-                slot.Marks.Add(new Mark(await _cipher.DecryptDeterministicAsync(job.UserId, token, ct), kind));
+                slot.Marks.Add(new Mark(await _cipher.DecryptDeterministicAsync(job.UserId, token, ct), kind, generated));
             }
         }
     }

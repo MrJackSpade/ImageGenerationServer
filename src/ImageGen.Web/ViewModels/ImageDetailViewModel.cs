@@ -105,13 +105,16 @@ public sealed class ImageDetailViewModel
                     bool isArtist = kind == TokenKinds.Artist;
                     bool banned = isArtist ? BannedArtists.Contains(key) : BannedTags.Contains(key);
                     bool bookmarked = isArtist ? BookmarkedArtists.Contains(key) : BookmarkedTags.Contains(key);
+                    // Provenance is an orthogonal axis: true dashes the chip's border to mark it auto-generated. Unknown
+                    // (pre-provenance rows carry no set) renders no dash — never a guess.
+                    bool generated = Entry.GeneratedTokens?.Contains(key) == true;
                     int type = isArtist ? TagCategory.ArtistType : TagTypeByToken.GetValueOrDefault(key);
                     // Artists are distinguished by their kind (data-kind + .tagchip.artist), not a booru category, so
                     // they carry no data-category; every real tag resolves to a name (general when the catalog is silent).
                     string? category = isArtist ? null : TagCategory.Name(type);
                     // The chip's DISPLAY name drops the escaping backslashes literal delimiters carry for the image
                     // model ('ganyu \(genshin impact\)' -> 'ganyu (genshin impact)'); the finalized prompt keeps them.
-                    chips.Add((new PromptChip(PromptMarkers.DisplayName(seg.Trim()), kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
+                    chips.Add((new PromptChip(PromptMarkers.DisplayName(seg.Trim()), kind, key, banned, bookmarked, category, generated), TagCategory.DisplayRank(type)));
                 }
                 else
                 {
@@ -161,7 +164,8 @@ public sealed class ImageDetailViewModel
 }
 
 public sealed record PromptChip(
-    string Text, string? Kind, string Key, bool Banned = false, bool Bookmarked = false, string? Category = null);
+    string Text, string? Kind, string Key, bool Banned = false, bool Bookmarked = false, string? Category = null,
+    bool Generated = false);
 
 /// <summary>Maps a raw booru category id to its category name. Every tag resolves to a name (general is the default),
 /// so a chip always carries a non-empty <c>data-category</c>. Only the notable names have a color rule in CSS; general,

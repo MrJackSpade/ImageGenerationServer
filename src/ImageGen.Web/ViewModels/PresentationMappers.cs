@@ -25,8 +25,17 @@ public static class PresentationMappers
     /// <summary>Project a history entry to the detail/card view (marks flattened to the SPA's token→kind shape).</summary>
     public static ImageDetailView ToDetailView(this HistoryEntry e) => new(
         e.GatewayImageId, e.Prompt, e.ModelFriendly, e.ModelId, e.Aspect, e.CreatedAtUtc, MarksToMap(e.Marks),
-        e.Loras.Count == 0 ? null : e.Loras.Select(l => new LoraView(l.Name, l.Weight)).ToList());
+        e.Loras.Count == 0 ? null : e.Loras.Select(l => new LoraView(l.Name, l.Weight)).ToList(),
+        GeneratedKeys(e.Marks));
 
     private static Dictionary<string, string> MarksToMap(IReadOnlyList<Mark> marks) =>
         marks.ToDictionary(m => m.Token, m => m.Kind.ToWire());
+
+    /// <summary>The canonical keys of the marks a random sampler appended — the provenance the card dashes. Null when
+    /// none are generated, so an all-typed prompt carries no set at all.</summary>
+    private static HashSet<string>? GeneratedKeys(IReadOnlyList<Mark> marks)
+    {
+        HashSet<string> keys = marks.Where(m => m.Generated).Select(m => m.Token).ToHashSet(StringComparer.Ordinal);
+        return keys.Count == 0 ? null : keys;
+    }
 }

@@ -44,6 +44,8 @@ public sealed record ImageBookmarkView(
 /// <param name="Aspect">The aspect label.</param>
 /// <param name="CreatedAtUtc">When it was generated.</param>
 /// <param name="Marks">Canonical token → "tag"|"artist" for the marked tokens (empty when none).</param>
+/// <param name="GeneratedTokens">Canonical keys of the marks a random sampler APPENDED (auto-generated) — the subset
+/// the card dashes. Empty when none, and absent (renders no dash) for rows written before provenance was recorded.</param>
 public sealed record ImageDetailView(
     string GatewayImageId,
     string Prompt,
@@ -52,7 +54,8 @@ public sealed record ImageDetailView(
     string Aspect,
     DateTime CreatedAtUtc,
     IReadOnlyDictionary<string, string> Marks,
-    IReadOnlyList<LoraView>? Loras = null);
+    IReadOnlyList<LoraView>? Loras = null,
+    IReadOnlySet<string>? GeneratedTokens = null);
 
 /// <summary>One LoRA an image was generated with (name + weight), for the viewer's LoRA list and its Reload.</summary>
 /// <param name="Name">The subfolder-qualified <c>lora_name</c>.</param>

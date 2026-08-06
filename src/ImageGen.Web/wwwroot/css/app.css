@@ -553,6 +553,10 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .tagchip.banned{background:color-mix(in srgb,var(--danger) 16%,var(--elev));border-color:var(--danger);color:var(--danger)}
 .tagchip.banned .tc-star{color:var(--danger)}
 .tagchip.banned .tc-name{text-decoration:line-through;opacity:.85}
+/* Provenance, an axis orthogonal to category (border COLOR) and state (background): auto-generated tags (appended by
+   the tag model / random-artist sampler) get a dashed border, so it stacks with the category color instead of competing.
+   Only auto tags are treated; typed tags stay solid. */
+.tagchip.src-auto{border-style:dashed}
 
 /* --- bookmarks view --------------------------------------------------------- */
 /* A category and the kinds inside it are two levels, and they are drawn as two levels. They used to differ in type

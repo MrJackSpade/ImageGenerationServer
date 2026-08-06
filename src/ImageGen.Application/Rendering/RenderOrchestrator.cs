@@ -1173,6 +1173,10 @@ public sealed class RenderOrchestrator
                 (HashSet<string> Tags, HashSet<string> Artists) bans = slot.Gen.RandomPrompt == TriState.True || slot.Gen.RandomArtist == TriState.True
                     ? await BannedKeysAsync(slot.Job.Owner, slot.Model, ct)
                     : (Tags: new HashSet<string>(StringComparer.Ordinal), Artists: new HashSet<string>(StringComparer.Ordinal));
+                // Provenance captured EXACTLY as the samplers append — the canonical keys of the tokens they add. The
+                // viewer dashes these chips. Taken here, at the append, not reconstructed by diffing OriginalPrompt (which
+                // is pre-expansion, so a diff mis-flags wildcard/locked-artist tags as auto). Empty when nothing sampled.
+                HashSet<string> generatedTokens = new(StringComparer.Ordinal);
                 // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed tags,
                 // but only when the model speaks tags. This does NOT fail soft: a tag model that is down or erroring
                 // throws out of GenerateAsync and fails the slot (see the catch at the bottom of RunSlotAsync). This is
@@ -1205,6 +1209,11 @@ public sealed class RenderOrchestrator
                         if (additions.Count > 0)
                         {
                             raw = PromptFinalizer.Append(raw, string.Join(Format.ListSeparator, additions));
+                            // The additions are marker-form ("#long_hair"/"@kazaana"); their canonical key is the mark key.
+                            foreach (string token in additions)
+                            {
+                                _ = generatedTokens.Add(PromptFinalizer.Normalize(token));
+                            }
                         }
                     }
                 }
@@ -1216,7 +1225,9 @@ public sealed class RenderOrchestrator
                     string? artist = _tags.RandomArtist(bannedArtists.Count > 0 ? bannedArtists : null);
                     if (!string.IsNullOrEmpty(artist))
                     {
-                        raw = PromptFinalizer.Append(raw, PromptMarkers.ArtistMarker + PromptFinalizer.Normalize(artist));
+                        string artistKey = PromptFinalizer.Normalize(artist);
+                        raw = PromptFinalizer.Append(raw, PromptMarkers.ArtistMarker + artistKey);
+                        _ = generatedTokens.Add(artistKey);
                     }
                 }
                 // The single derivation: the prompt the model renders and the marks that describe it both come from the
@@ -1229,6 +1240,7 @@ public sealed class RenderOrchestrator
                 slot.RawNegativePrompt = slot.Gen.NegativePrompt;
                 slot.EffectivePrompt = final.Rendered;
                 slot.Marks = final.Marks;
+                slot.GeneratedTokens = generatedTokens.Count > 0 ? generatedTokens : null;
                 await _userLog.LogAsync(slot.Job.Owner, LogCategories.Submit, final.Rendered, ct);
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
@@ -1708,7 +1720,7 @@ public sealed class RenderOrchestrator
                 ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
             IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
                 ? Array.Empty<Mark>()
-                : slot.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value))).ToList();
+                : slot.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), slot.GeneratedTokens?.Contains(kv.Key) == true)).ToList();
             // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
             // and Reload reproduces the exact stack; empty for edits and for generations that used none.
             IReadOnlyList<LoraSelection>? genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
@@ -1860,7 +1872,7 @@ public sealed class RenderOrchestrator
                 EffectivePrompt = s.EffectivePrompt,
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
-                Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value)))],
+                Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), s.GeneratedTokens?.Contains(kv.Key) == true))],
                 GenStartedAtUtc = s.GenStartedAt?.UtcDateTime,
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
                 // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the
@@ -2095,6 +2107,11 @@ public sealed class RenderOrchestrator
             Dictionary<string, string>? marks = sr.Marks.Count == 0
                 ? null
                 : sr.Marks.ToDictionary(m => m.Token, m => m.Kind.ToWire(), StringComparer.Ordinal);
+            // Rebuild the sampler-provenance subset from the persisted marks so a resumed slot still dashes its
+            // auto-generated chips in history.
+            HashSet<string>? generatedTokens = sr.Marks.Any(m => m.Generated)
+                ? new HashSet<string>(sr.Marks.Where(m => m.Generated).Select(m => m.Token), StringComparer.Ordinal)
+                : null;
 
             // A background slot that was mid-render at a crash comes back FRESH, not resuming: the renderer very likely
             // restarted too, so its old prompt id is gone, and a background render is cheap to redo on the next idle
@@ -2120,6 +2137,7 @@ public sealed class RenderOrchestrator
                 RawPrompt = sr.RawPrompt,
                 RawNegativePrompt = sr.RawNegativePrompt,
                 Marks = marks,
+                GeneratedTokens = generatedTokens,
                 GenStartedAt = sr.GenStartedAtUtc is { } g ? new DateTimeOffset(DateTime.SpecifyKind(g, DateTimeKind.Utc)) : null,
                 ExpectedGenSeconds = sr.ExpectedGenSeconds,
                 State = parseError is not null ? SlotState.Error : RenderPhases.Live(sr.State),

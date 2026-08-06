@@ -544,3 +544,15 @@ ALTER TABLE dbo.AppUser ADD COLUMN PinBookmarkSuggestions INTEGER NOT NULL DEFAU
 -- column would never arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = foreground,
 -- so existing rows adopt "foreground" without a backfill and anything already queued keeps running as before.
 ALTER TABLE dbo.JobSlot ADD COLUMN IsBackground INTEGER NOT NULL DEFAULT 0;
+
+
+-- --- 0.14.0 -----------------------------------------------------------------------------------------------------
+
+-- Mark PROVENANCE: 1 when a random sampler (random-prompt tag or random-artist) APPENDED the token, 0 when the user
+-- typed it. The viewer dashes the border of generated chips. New column on the three pre-existing mark tables, so each
+-- MUST be an ALTER (an existing database skips the 0.9.0 CREATEs, so an inlined column would never arrive; the runner
+-- adds it only when absent). NOT NULL with a constant default -- 0 = "not known to be generated", so pre-provenance
+-- rows render no dash (never a guess) and existing rows adopt "not generated" without a backfill.
+ALTER TABLE dbo.HistoryMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE dbo.ImageBookmarkMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE dbo.JobSlotMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;

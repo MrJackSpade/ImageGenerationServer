@@ -34,6 +34,35 @@ public sealed class PromptChipTests
         Assert.Null(chips[2].Kind);   // plain text: not a token, and it groups last
     }
 
+    /// <summary>Provenance is an orthogonal axis: a chip whose canonical key is in GeneratedTokens is marked auto-generated
+    /// (dashed in the card); a typed token in the same prompt is not; a prompt with no provenance set marks nothing.</summary>
+    [Fact]
+    public void Generated_flag_marks_only_the_sampler_appended_tokens()
+    {
+        ImageDetailViewModel vm = new()
+        {
+            Entry = new ImageDetailView("img1", "bad anatomy, long hair", "Anima", "anima", "square", DateTime.UtcNow,
+                new Dictionary<string, string> { ["bad_anatomy"] = "tag", ["long_hair"] = "tag" },
+                GeneratedTokens: new HashSet<string>(StringComparer.Ordinal) { "long_hair" }),
+            MarkerPrompt = "",
+            IsBookmarked = false,
+        };
+
+        IReadOnlyList<PromptChip> chips = vm.Chips;
+
+        Assert.True(chips.Single(c => c.Key == "long_hair").Generated);     // sampler-appended
+        Assert.False(chips.Single(c => c.Key == "bad_anatomy").Generated);  // user-typed, same prompt
+    }
+
+    /// <summary>Unknown provenance (a pre-provenance row carries no GeneratedTokens set) marks nothing — never a guess.</summary>
+    [Fact]
+    public void No_provenance_set_marks_no_chip_generated()
+    {
+        IReadOnlyList<PromptChip> chips = Card("long hair", ("long_hair", "tag")).Chips;
+
+        Assert.False(chips[0].Generated);
+    }
+
     /// <summary>Models with keep_artist_marker leave '@' in the stored prompt; the key must not carry it.</summary>
     [Fact]
     public void An_artist_that_kept_its_marker_still_keys_on_the_bare_token()

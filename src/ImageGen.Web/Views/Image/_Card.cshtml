@@ -40,7 +40,7 @@
             {
                 if (c.Kind != null)
                 {
-                    <span class="tagchip @c.Kind @(c.Category is not null ? "cat-" + c.Category : "") @(c.Banned ? "banned" : "") @(c.Bookmarked ? "on" : "")" data-token="@c.Key" data-kind="@c.Kind" data-category="@c.Category" title="Click to cycle: bookmark → ban for this workflow → off"><span class="tc-star">★</span><span class="tc-name">@c.Text</span></span>
+                    <span class="tagchip @c.Kind @(c.Category is not null ? "cat-" + c.Category : "") @(c.Banned ? "banned" : "") @(c.Bookmarked ? "on" : "") @(c.Generated ? "src-auto" : "")" data-token="@c.Key" data-kind="@c.Kind" data-category="@c.Category" title="Click to cycle: bookmark → ban for this workflow → off"><span class="tc-star">★</span><span class="tc-name">@c.Text</span></span>
                 }
                 else
                 {
