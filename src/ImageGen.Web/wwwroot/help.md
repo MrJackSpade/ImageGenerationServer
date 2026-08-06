@@ -56,7 +56,13 @@ Under the prompt there's sometimes a second, smaller box called **Negative promp
 
 **More is not safer.** A negative is not a wish list. Every word in it pulls the picture somewhere, including words for things that were never going to show up anyway, and a long negative full of "just in case" terms makes pictures worse rather than safer. Add the one thing that actually went wrong.
 
-It takes `#` and `@` the same way the main prompt does, so you can name a tag or an artist you want steered away from.
+It takes `#` and `@` the same way the main prompt does, so you can name a tag or an artist you want steered away from. And just like the main prompt, `~` and `!` change *where* a word applies — in the negative they narrow what "keep it out" means:
+
+- `#word` (or a plain word) — **out of both.** The app won't *suggest* it, and the picture is steered away from it. This is the ordinary negative.
+- `~word` — **out of the suggestions only.** The app stops offering and adding `word`, but the picture is *not* pushed away from it. Reach for this when the app keeps forcing a tag you didn't want, while the thing itself is fine: with 🎲 surprise tags on, `~holding_smartphone` (or `~feet`) makes the app quit adding phones — and hands and feet still draw normally. A plain `#feet` in the negative can't do that; it also pushes the picture away from feet and deforms it.
+- `!word` — **the picture only.** The picture is steered away from `word`, but the app's suggestions are left alone.
+
+The `~word` trick is the *per-picture* version of a ban: it lasts for that one generation. To stop the app suggesting a tag for good — for every picture in a style — ban it instead (**Settings → Bans**, and see below) rather than typing it every time.
 
 Two other places already respect it: 🎲 **Random prompt** won't pick a tag you've put in the negative box, and 🎨 **Random artist** won't pick an artist you've put there.
 
