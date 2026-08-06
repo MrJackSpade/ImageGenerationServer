@@ -72,9 +72,10 @@ function carriesArtistMark(marks, artist) {
 
 // Booru category id (0=general, 1=artist, 3=copyright, 4=character, 5=meta, 6=deprecated) -> the CSS category class an
 // autocomplete suggestion carries. Only the notable categories get one; general/deprecated/unknown stay neutral.
+// Artist (1) is intentionally neutral: the '#' tag popup lists tags only — artists complete on the separate '@'
+// marker — so an artist suggestion never appears here to be colored.
 function tagCategoryClass(type) {
   switch (type) {
-    case 1: return "cat-artist";
     case 3: return "cat-copyright";
     case 4: return "cat-character";
     case 5: return "cat-meta";
