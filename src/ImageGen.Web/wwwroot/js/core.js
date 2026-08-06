@@ -15,7 +15,38 @@ const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<":
 // Mirror of PromptMarkers.Key. '!' is the INERT TAG marker (a tag the tag predictor is not conditioned on) and '~'
 // the GUIDE TAG marker (seen only by the predictor, never rendered); both are ordinary tags to every client surface
 // that matches on a key, so they must strip here too or a "!pig" segment won't match its own chip, bookmark or ban.
-const normToken = s => String(s || "").trim().replace(/^[#@!~]/, "").trim().replace(/\s+/g, "_").toLowerCase();
+// Weight/emphasis is identity-invisible (issue #133): 'tag', '(tag)', '(tag:1.2)' and '[tag]' are the same tag, so the
+// wrapper is peeled — before AND after the marker, so it may sit either side ('#(tag:1.2)', '(#tag:1.2)') — down to the
+// base tag before the marker/whitespace/case steps. This must stay in lockstep with PromptMarkers.StripWeight (C#).
+function stripWeight(s) {
+  s = String(s == null ? "" : s).trim();
+  // Peel one unescaped wrapper that spans the WHOLE segment per turn: '(...)' carries an optional trailing ':weight',
+  // '[...]' is bare de-emphasis. A booru tag that natively holds parens ('hatsune_miku_(vocaloid)', '(a)_(b)') is not
+  // wrapped and survives; an escaped '\(' is a literal char, unescaped at the end. Bounded loop handles nesting.
+  for (let guard = 0; guard < 32; guard++) {
+    if (s.length < 2) break;
+    const open = s[0], close = open === "(" ? ")" : open === "[" ? "]" : "";
+    if (!close) break;
+    let depth = 0, end = -1;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === "\\") { i++; continue; }          // escaped char — literal, not a bracket
+      if (c === open) depth++;
+      else if (c === close && --depth === 0) { end = i; break; }
+    }
+    if (end !== s.length - 1) break;              // no wrapper, or it closes before the segment's end
+    let inner = s.slice(1, end).trim();
+    if (open === "(") inner = inner.replace(/:\s*-?\d+(?:\.\d+)?\s*$/, "").trim();   // drop a trailing ':weight'
+    s = inner;
+  }
+  return s.includes("\\") ? s.replace(/\\([()\[\]])/g, "$1") : s;   // unescape literal brackets
+}
+const normToken = s => {
+  let t = stripWeight(s);
+  if (/^[#@!~]/.test(t)) t = stripWeight(t.slice(1));   // drop exactly one marker, then peel a wrapper it sat outside of
+  return t.trim().replace(/\s+/g, "_").toLowerCase();
+};
+
 
 // Does an image belong on this artist's page? Its `marks` map (name -> "tag"|"artist") must carry this artist AND
 // no other — an artist page shows what that artist's style looks like, and a blend of two styles is evidence of

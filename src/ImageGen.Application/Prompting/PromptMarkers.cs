@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ImageGen.Application.Prompting;
@@ -68,17 +69,95 @@ public static partial class PromptMarkers
     }
 
     /// <summary>
-    /// The canonical key of a prompt segment: trim, drop a leading marker, collapse whitespace runs to '_', lowercase.
-    /// This is the key marks, bookmarks and bans are all stored under — and, with its marker in front, the token the
-    /// random samplers append. <see cref="Rendering.PromptFinalizer.Normalize"/> is this.
+    /// The canonical key of a prompt segment: peel any A1111/Comfy emphasis-weight wrapper down to the base tag, drop a
+    /// leading marker, collapse whitespace runs to '_', lowercase. This is the key marks, bookmarks and bans are all
+    /// stored under — and, with its marker in front, the token the random samplers append.
+    /// <see cref="Rendering.PromptFinalizer.Normalize"/> is this.
+    /// <para>Weight/emphasis is IDENTITY-INVISIBLE: <c>tag</c>, <c>(tag)</c>, <c>(tag:1.2)</c> and <c>[tag]</c> are the
+    /// same tag, so favouriting or banning one recognizes them all (issue #133). Only the KEY is stripped — the rendered
+    /// prompt (built by <see cref="Rendering.PromptFinalizer.Finalize"/>) keeps the weight the user typed, so the picture
+    /// is unchanged; solely who the segment MATCHES against changes. The wrapper is peeled before AND after the marker so
+    /// the marker may sit either side of it (<c>#(tag:1.2)</c> and <c>(#tag:1.2)</c> both reduce to <c>tag</c>).</para>
     /// </summary>
     public static string Key(string? segment)
     {
-        string s = (segment ?? string.Empty).Trim();
+        string s = StripWeight((segment ?? string.Empty).Trim());
         if (s.Length > 0 && IsMarker(s[0]))
-            s = s[1..];
+            s = StripWeight(s[1..]);
         return Whitespace().Replace(s.Trim(), Tokens.Underscore).ToLowerInvariant();
     }
+
+    /// <summary>
+    /// Peel A1111/Comfy emphasis-weight syntax off a segment down to its base tag: an UNESCAPED bracket pair that wraps
+    /// the WHOLE segment — <c>(tag)</c>/<c>[tag]</c> emphasis, <c>(tag:1.2)</c> explicit weight, and nested forms
+    /// <c>((tag:1.1):1.2)</c> — is removed; an escaped <c>\(</c>/<c>\)</c> is a literal character and is unescaped in
+    /// place so the escaped and bare spellings resolve to one key.
+    /// <para>Only a pair that encloses the entire segment counts, so a booru tag that natively carries parens
+    /// (<c>hatsune_miku_(vocaloid)</c>, <c>@_@</c>, <c>(a)_(b)</c>) is untouched — its bracket does not wrap the whole
+    /// string. This mirrors A1111's own rule that literal parens must be escaped; an unescaped wrapping pair is weight.</para>
+    /// </summary>
+    private static string StripWeight(string s)
+    {
+        s = s.Trim();
+        // Peel one wrapper per turn: '(...)' also carries an optional trailing ':weight'; '[...]' is bare de-emphasis.
+        while (s.Length >= 2)
+        {
+            if (TryPeelWrapper(s, '(', ')', out string inner)) { s = StripTrailingWeight(inner); continue; }
+            if (TryPeelWrapper(s, '[', ']', out inner)) { s = inner.Trim(); continue; }
+            break;
+        }
+        return Unescape(s);
+    }
+
+    /// <summary>True when <paramref name="s"/> is entirely wrapped by an unescaped <paramref name="open"/>/<paramref
+    /// name="close"/> pair; <paramref name="inner"/> is the content between them. The opening bracket at index 0 must
+    /// match the FINAL character with balanced nesting in between — so <c>(a)_(b)</c> (whose first '(' closes mid-string)
+    /// is not a wrapper — and a '\'-escaped bracket is skipped, never counted.</summary>
+    private static bool TryPeelWrapper(string s, char open, char close, out string inner)
+    {
+        inner = s;
+        if (s.Length < 2 || s[0] != open) return false;
+        int depth = 0;
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            if (c == '\\') { i++; continue; }   // escaped char — literal, not a bracket
+            if (c == open) depth++;
+            else if (c == close && --depth == 0)
+            {
+                if (i != s.Length - 1) return false;   // the opening bracket closes before the segment's end
+                inner = s.Substring(1, i - 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Drop a single trailing <c>:weight</c> emphasis number from a peeled '(...)' body: <c>tag:1.2</c> -&gt;
+    /// <c>tag</c>. The tail must be a bare number, so a booru tag that ends in a non-numeric colon segment
+    /// (<c>re:zero</c>) keeps it.</summary>
+    private static string StripTrailingWeight(string inner)
+    {
+        string t = inner.Trim();
+        Match m = TrailingWeight().Match(t);
+        return (m.Success ? t[..m.Index] : t).Trim();
+    }
+
+    /// <summary>Unescape the bracket escapes A1111 uses for literal brackets in a tag name ('\(' -> '('), leaving every
+    /// other backslash as-is.</summary>
+    private static string Unescape(string s)
+    {
+        if (!s.Contains('\\')) return s;
+        StringBuilder sb = new StringBuilder(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (s[i] == '\\' && i + 1 < s.Length && IsBracket(s[i + 1])) { sb.Append(s[++i]); continue; }
+            sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
+
+    private static bool IsBracket(char c) => c is '(' or ')' or '[' or ']';
 
     /// <summary>The comma segments of a prompt, trimmed, empties dropped.</summary>
     public static string[] Segments(string? prompt) =>
@@ -148,4 +227,9 @@ public static partial class PromptMarkers
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
+
+    /// <summary>A trailing ':weight' emphasis number ('(tag:1.2)' -> the ':1.2'), matched only when the tail is a bare
+    /// number so a real ':' inside a tag name is never mistaken for one.</summary>
+    [GeneratedRegex(@":\s*-?\d+(?:\.\d+)?\s*$")]
+    private static partial Regex TrailingWeight();
 }

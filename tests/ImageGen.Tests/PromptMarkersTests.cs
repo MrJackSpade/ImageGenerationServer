@@ -28,6 +28,48 @@ public sealed class PromptMarkersTests
         Assert.Equal(expected, PromptMarkers.Key(segment));
 
     /// <summary>
+    /// Issue #133: emphasis-weight syntax is IDENTITY-INVISIBLE — the base tag is recognized however it is weighted, so
+    /// favouriting or banning one spelling matches them all. Only the key collapses; the rendered prompt keeps the weight
+    /// (asserted separately below).
+    /// </summary>
+    [Theory]
+    [InlineData("(long_hair)", "long_hair")]            // '()' emphasis
+    [InlineData("(long_hair:1.2)", "long_hair")]        // explicit weight
+    [InlineData("[long_hair]", "long_hair")]            // '[]' de-emphasis
+    [InlineData("((long_hair:1.1):1.2)", "long_hair")] // nested
+    [InlineData("(long hair:1.2)", "long_hair")]        // weight around a spaced display form still canonicalizes
+    [InlineData("#(long_hair:1.2)", "long_hair")]       // marker OUTSIDE the wrapper
+    [InlineData("(#long_hair:1.2)", "long_hair")]       // marker INSIDE the wrapper
+    [InlineData("!(pig:1.3)", "pig")]                   // inert-tag marker + weight
+    public void Key_strips_emphasis_weight_to_the_base_tag(string segment, string expected) =>
+        Assert.Equal(expected, PromptMarkers.Key(segment));
+
+    /// <summary>
+    /// The peel is confined to an UNESCAPED pair that wraps the WHOLE segment, so booru tags that natively carry brackets
+    /// survive: a trailing '(series)' isn't a wrapper, a mid-string ')' means the leading '(' doesn't span the segment,
+    /// and an escaped '\(' is a literal char (unescaped to its bare bracket so the two spellings still share a key).
+    /// </summary>
+    [Theory]
+    [InlineData("hatsune_miku_(vocaloid)", "hatsune_miku_(vocaloid)")]
+    [InlineData("(hatsune_miku_(vocaloid):1.3)", "hatsune_miku_(vocaloid)")]  // outer weight peeled, native parens kept
+    [InlineData("(a)_(b)", "(a)_(b)")]                                        // first '(' closes mid-string — not a wrapper
+    [InlineData("re:zero", "re:zero")]                                        // ':' outside a wrapper is never a weight
+    [InlineData(@"\(o\)", "(o)")]                                             // escaped literal parens -> bare parens
+    public void Key_leaves_native_brackets_alone(string segment, string expected) =>
+        Assert.Equal(expected, PromptMarkers.Key(segment));
+
+    /// <summary>Stripping the weight is a MATCH-KEY concern only: the finalized prompt the model renders keeps the exact
+    /// emphasis the user typed, so the picture is identical — solely who the tag matches against changes.</summary>
+    [Fact]
+    public void A_weighted_tag_renders_with_its_weight_but_marks_the_base_tag()
+    {
+        FinalizedPrompt final = PromptFinalizer.Finalize("#1girl, #(long_hair:1.2)", Booru);
+
+        Assert.Equal("1girl, (long_hair:1.2)", final.Rendered);   // '#' stripped, weight preserved
+        Assert.Equal(TokenKinds.Tag, final.Marks["long_hair"]);   // mark filed under the base tag
+    }
+
+    /// <summary>
     /// The worker injects a randomly-sampled tag by appending '#token' to the RAW prompt and letting the finalizer
     /// render it, instead of appending pre-rendered text and hand-writing the marks entry. Same rendered output, same
     /// mark — and the injected tag now also lives in the stored raw prompt, so reloading the image re-rolls nothing:
