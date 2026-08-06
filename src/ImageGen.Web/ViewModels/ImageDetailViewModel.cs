@@ -109,7 +109,9 @@ public sealed class ImageDetailViewModel
                     // Artists are distinguished by their kind (data-kind + .tagchip.artist), not a booru category, so
                     // they carry no data-category; every real tag resolves to a name (general when the catalog is silent).
                     string? category = isArtist ? null : TagCategory.Name(type);
-                    chips.Add((new PromptChip(seg.Trim(), kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
+                    // The chip's DISPLAY name drops the escaping backslashes literal delimiters carry for the image
+                    // model ('ganyu \(genshin impact\)' -> 'ganyu (genshin impact)'); the finalized prompt keeps them.
+                    chips.Add((new PromptChip(PromptMarkers.DisplayName(seg.Trim()), kind, key, banned, bookmarked, category), TagCategory.DisplayRank(type)));
                 }
                 else
                 {

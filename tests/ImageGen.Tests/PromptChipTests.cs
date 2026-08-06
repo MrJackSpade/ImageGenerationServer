@@ -271,6 +271,17 @@ public sealed class PromptChipTests
         Assert.All(chips, c => Assert.False(string.IsNullOrEmpty(c.Category)));
     }
 
+    /// <summary>#169: escaped parens are unescaped in the chip DISPLAY name ('ganyu \(genshin impact\)' -> 'ganyu
+    /// (genshin impact)'), while the data-token stays the clean canonical key.</summary>
+    [Fact]
+    public void Escaped_delimiters_are_unescaped_in_the_chip_display_but_the_token_stays_clean()
+    {
+        IReadOnlyList<PromptChip> chips = Card(@"ganyu \(genshin impact\)", ("ganyu_(genshin_impact)", "tag")).Chips;
+
+        Assert.Equal("ganyu (genshin impact)", chips[0].Text);        // no backslashes shown
+        Assert.Equal("ganyu_(genshin_impact)", chips[0].Key);          // data-token remains the clean key
+    }
+
     /// <summary>A blank prompt renders the single "(no prompt)" placeholder chip.</summary>
     [Theory]
     [InlineData("")]

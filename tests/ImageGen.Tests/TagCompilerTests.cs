@@ -183,6 +183,17 @@ public sealed class TagCompilerTests
         Assert.Contains("1boy", seed);         // while the guide is seeded as a tag
     }
 
+    /// <summary>#169: the finalized IMAGE-MODEL prompt keeps the backslash escapes on literal parens (ComfyUI needs
+    /// '\(' to read a literal paren, not an emphasis wrapper). The chip DISPLAY drops them — see PromptChipTests.</summary>
+    [Fact]
+    public void The_image_model_prompt_keeps_the_paren_escapes()
+    {
+        string rendered = PromptFinalizer.Finalize(@"#ganyu_\(genshin_impact\)", Booru).Rendered;
+
+        Assert.Contains(@"\(", rendered);
+        Assert.Contains(@"\)", rendered);
+    }
+
     /// <summary>Parse one segment, failing the test if it is empty.</summary>
     private static ParsedTag One(string seg) => TagParser.ParseSegment(seg, 0) ?? throw new Xunit.Sdk.XunitException($"'{seg}' parsed to nothing");
 }

@@ -298,6 +298,38 @@ public static partial class PromptMarkers
 
     private static bool IsBracket(char c) => c is '(' or ')' or '[' or ']';
 
+    /// <summary>
+    /// A segment's DISPLAY name: drops the escaping backslash before a literal delimiter ('\(' -&gt; '(', '\)' -&gt; ')',
+    /// '\|' -&gt; '|') so a chip reads <c>ganyu (genshin impact)</c> rather than <c>ganyu \(genshin impact\)</c>. The
+    /// escapes exist for the image model — ComfyUI needs '\(' to read a literal paren instead of an emphasis wrapper —
+    /// so the FINALIZED prompt keeps them; this only changes what the UI shows. Every other backslash is left as-is.
+    /// </summary>
+    public static string DisplayName(string? segment)
+    {
+        string s = segment ?? string.Empty;
+        if (!s.Contains('\\'))
+        {
+            return s;
+        }
+
+        StringBuilder sb = new(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            if (s[i] == '\\' && i + 1 < s.Length && IsDisplayDelimiter(s[i + 1]))
+            {
+                _ = sb.Append(s[++i]);
+                continue;
+            }
+
+            _ = sb.Append(s[i]);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>The delimiter characters an A1111/Comfy prompt escapes with a backslash to make literal.</summary>
+    private static bool IsDisplayDelimiter(char c) => c is '(' or ')' or '[' or ']' or '{' or '}' or '|';
+
     /// <summary>The comma segments of a prompt, trimmed, empties dropped.</summary>
     public static string[] Segments(string? prompt) =>
         (prompt ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
