@@ -757,7 +757,8 @@ attachEnqueueSubmit({
     if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return []; }
     if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return []; }
     const items = buildChatItems(Math.max(1, n || 1));   // empty instruction is allowed — never blocked on a blank prompt
-    if (models.length === 1) { editRefs = []; renderEditRefs(); }   // refs were consumed into this submission
+    // Keep the attached references after Apply so repeated animate/edit runs reuse them (like the gen page keeps its
+    // composer). They're removed only by the user (the × on each chip) or when switching source/model.
     return items;
   },
 });
