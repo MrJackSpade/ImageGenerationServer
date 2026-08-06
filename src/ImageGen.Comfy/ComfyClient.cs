@@ -799,6 +799,16 @@ public sealed class ComfyClient : IComfyClient
                     v[kv.Key] = kv.Value;
                 }
             }
+
+            // An explicit width+height (the composer's Custom size) supersedes the configuration's aspect map for THIS
+            // request: drop the aspect entry so Dims() resolves to the flat width/height just supplied instead of the
+            // aspect the request nominally names. Scoped to a request that sent BOTH sides — a normal aspect submission,
+            // which carries no width/height, is untouched. The size was envelope-checked at submit (/enqueue) and is
+            // re-checked here on the render path (ResolutionGuard), so this can't smuggle an unsupported size through.
+            if (overrides.ContainsKey(WorkflowParamKeys.Width) && overrides.ContainsKey(WorkflowParamKeys.Height))
+            {
+                _ = v.Remove(WorkflowParamKeys.Aspect);
+            }
         }
 
         // A parameter declared IsModelRef holds a SLOT ID; substitute the file this machine has bound to it. Carrying

@@ -139,6 +139,22 @@ public sealed class ParamBoundsValidationTests
     [Fact]
     public void A_null_envelope_is_not_second_guessed() => ResolutionGuard.EnsureWithin(null, 99999, 99999);
 
+    /// <summary>RenderSizeViolation is the submit-path shape the catalog's request-size check (a composer Custom size)
+    /// delegates to, so /enqueue can refuse an unsupported width/height up front with the model's own numbers.</summary>
+    [Fact]
+    public void A_valid_render_size_reports_no_violation() => Assert.Null(ResolutionGuard.RenderSizeViolation(Env, 1024, 1024));
+
+    [Fact]
+    public void A_null_envelope_reports_no_violation() => Assert.Null(ResolutionGuard.RenderSizeViolation(null, 99999, 99999));
+
+    [Fact]
+    public void An_out_of_envelope_render_size_is_reported_with_the_models_numbers()
+    {
+        string? msg = ResolutionGuard.RenderSizeViolation(Env, 4096, 1024);
+        Assert.NotNull(msg);
+        Assert.Contains("1536", msg);   // the model's own max, named in the refusal
+    }
+
 
     [Fact]
     public void No_configuration_declares_a_bounded_param_outside_its_workflow_schema()

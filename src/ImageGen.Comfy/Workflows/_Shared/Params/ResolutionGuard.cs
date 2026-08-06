@@ -14,6 +14,7 @@ namespace ImageGen.Comfy;
 [AllowMagicStrings("human-readable render-size refusal messages")]
 internal static class ResolutionGuard
 {
+
     /// <summary>Null when (<paramref name="w"/>,<paramref name="h"/>) is within <paramref name="env"/>; otherwise a
     /// reason naming the violated side range or step multiple, with the model's own numbers. <paramref name="subject"/>
     /// names what the size belongs to (an aspect entry on the write path, "the render size" at submit).</summary>
@@ -32,11 +33,18 @@ internal static class ResolutionGuard
         return null;
     }
 
+    /// <summary>The refusal message for a resolved render size against <paramref name="env"/>, or null when it fits —
+    /// the standard "the render size" subject over <see cref="Violation"/>. A null envelope (the configuration declares
+    /// none) yields null: no bound to enforce. Shared by the render path (<see cref="EnsureWithin"/>) and the submit
+    /// path (the catalog's request-size check), so both refuse an out-of-envelope size with identical wording.</summary>
+    public static string? RenderSizeViolation(ModelResolution? env, int w, int h)
+        => env is null ? null : Violation(env, w, h, "the render size");
+
     /// <summary>Refuse a resolved render size the model does not document, at submit — before the graph is built. A
     /// null envelope (the configuration declares none) is left alone.</summary>
     public static void EnsureWithin(ModelResolution? env, int w, int h)
     {
-        if (env is not null && Violation(env, w, h, "the render size") is { } msg)
+        if (RenderSizeViolation(env, w, h) is { } msg)
         {
             throw new RenderValidationException(msg + ".");
         }

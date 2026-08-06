@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace ImageGen.Application.Workflows;
 
 /// <summary>
@@ -54,4 +56,10 @@ public interface IWorkflowCatalog
 
     /// <summary>Sets or clears one per-configuration override (VRAM, visibility, a parameter default).</summary>
     Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct);
+
+    /// <summary>Validate a caller-supplied explicit render size (a width+height override — the composer's Custom size)
+    /// against the configuration's declared resolution envelope, at submit. Returns a human-readable refusal naming the
+    /// model's own min/max/step, or null when the size is within the envelope, the caller supplied no explicit
+    /// width+height, or the model declares no envelope. The render path re-checks the same envelope as a backstop.</summary>
+    string? ValidateRequestedSize(string? configId, IReadOnlyDictionary<string, JsonElement>? overrides);
 }

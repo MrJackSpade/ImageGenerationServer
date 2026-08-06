@@ -153,6 +153,42 @@ public sealed partial class WorkflowCatalogService
     }
 
     /// <inheritdoc/>
+    public string? ValidateRequestedSize(string? configId, IReadOnlyDictionary<string, JsonElement>? overrides)
+    {
+        // Only a request carrying BOTH an explicit width and height is a custom-size request — anything else uses the
+        // configuration's aspect map (already envelope-checked on the write path), so there is nothing to validate.
+        if (overrides is null
+            || !overrides.TryGetValue(WorkflowParamKeys.Width, out JsonElement wEl) || !TryPixel(wEl, out int w)
+            || !overrides.TryGetValue(WorkflowParamKeys.Height, out JsonElement hEl) || !TryPixel(hEl, out int h))
+        {
+            return null;
+        }
+
+        // The configuration's declared envelope — the same numbers the settings page shows and the write path guards —
+        // checked through the ONE render-size guard, so submit and render refuse with identical wording. A configuration
+        // that declares none is not second-guessed (the render path has no bound to enforce either).
+        return ResolutionGuard.RenderSizeViolation(_catalog.FindConfig(configId)?.Resolution, w, h);
+    }
+
+    /// <summary>Read a pixel dimension from an override value — a JSON number, or a numeric string. Anything else is
+    /// "not an explicit size" (returns false), left to normal binding rather than mistaken for a custom size.</summary>
+    private static bool TryPixel(JsonElement el, out int value)
+    {
+        if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out value))
+        {
+            return true;
+        }
+
+        if (el.ValueKind == JsonValueKind.String && int.TryParse(el.GetString(), out value))
+        {
+            return true;
+        }
+
+        value = 0;
+        return false;
+    }
+
+    /// <inheritdoc/>
     public async Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct)
     {
         // A render size outside what the model documents is refused here, with the model's own numbers in the

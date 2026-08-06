@@ -273,9 +273,9 @@ let paramPrefs = {};
 const renderParams = () => { const box = document.getElementById("modelParams"); renderParamFields(box, selectedModels()); applyParamPrefs(box, paramPrefs); };
 function currentOverrides() {
   const ov = readOverrides(document.getElementById("modelParams")) || {};
-  // Custom size rides as flat width/height overrides, with the aspect map emptied so the flat size wins in Dims().
-  // The server re-validates the pair against the model's resolution envelope and refuses a bad one with its numbers.
-  if (customReady()) { ov.width = customDim($customW); ov.height = customDim($customH); ov.aspect = {}; }
+  // Custom size rides as flat width/height overrides. The server supersedes the aspect map with them for this request
+  // (MergeParamsDict) and validates them against the model's resolution envelope at submit, refusing with its numbers.
+  if (customReady()) { ov.width = customDim($customW); ov.height = customDim($customH); }
   return ov;
 }
 // Capture on BOTH input (fires live per keystroke/spinner tick) and change (commit) — a number input only fires

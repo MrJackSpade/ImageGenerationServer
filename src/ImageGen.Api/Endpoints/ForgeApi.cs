@@ -707,7 +707,7 @@ public static class ForgeApi
         // (prompt/aspect/random-* for a generation; source, mask, refs, last frame, instruction for an edit), so an
         // N-count or multi-model submission is one cancellable job — never N separate jobs.
 
-        _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate, IWorkflowCatalog catalog) =>
         {
             if (gate.Refusal() is { } full)
             {
@@ -720,6 +720,14 @@ public static class ForgeApi
                 if (!ValidTagTypes(it.TagTypes, out string? itemMaskError))
                 {
                     return Results.BadRequest(new { error = itemMaskError });
+                }
+
+                // A composer Custom size (an explicit width+height override) is refused HERE, at submit, with the
+                // model's own numbers — not minutes later as a failed slot. Non-custom items carry no explicit size,
+                // so this no-ops for them. The render path re-checks the same envelope as a backstop.
+                if (!it.Edit && catalog.ValidateRequestedSize(it.Workflow, it.Overrides) is { } sizeError)
+                {
+                    return Results.BadRequest(new { error = sizeError + "." });
                 }
             }
 
