@@ -84,9 +84,11 @@
                 <input type="file" id="editLastFrameFile" class="hidden" accept="image/*" />
             </div>
         </form>
-        <div class="bar" id="bar"><i></i></div>
+        <div class="bar-row">
+            <div class="bar" id="bar"><i></i></div>
+            <button type="button" id="cancelEdit" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
+        </div>
         <div class="eta" id="eta" hidden></div>
-        <button type="button" id="cancelEdit" class="cancel-gen">Cancel</button>
         <div id="result"></div>
     </div>
 
@@ -125,9 +127,11 @@
                 <button id="inpaintGo" class="primary-btn" type="submit" title="Hold to make several">Generate</button>
             </div>
         </form>
-        <div class="bar" id="inpaintBar"><i></i></div>
+        <div class="bar-row">
+            <div class="bar" id="inpaintBar"><i></i></div>
+            <button type="button" id="cancelInpaint" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
+        </div>
         <div class="eta" id="inpaintEta" hidden></div>
-        <button type="button" id="cancelInpaint" class="cancel-gen">Cancel</button>
         <div id="inpaintResult"></div>
     </div>
 
@@ -184,9 +188,11 @@
                 <button id="outpaintGo" class="primary-btn" type="submit">Generate</button>
             </div>
         </form>
-        <div class="bar" id="outpaintBar"><i></i></div>
+        <div class="bar-row">
+            <div class="bar" id="outpaintBar"><i></i></div>
+            <button type="button" id="cancelOutpaint" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
+        </div>
         <div class="eta" id="outpaintEta" hidden></div>
-        <button type="button" id="cancelOutpaint" class="cancel-gen">Cancel</button>
         <div id="outpaintResult"></div>
     </div>
 

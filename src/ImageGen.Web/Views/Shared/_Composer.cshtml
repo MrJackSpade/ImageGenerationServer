@@ -96,11 +96,13 @@
     </form>
 
     <div class="status" id="status"></div>
-    <div class="bar" id="bar"><i></i></div>
+    @* Cancels the in-flight render. A small × inline beside the bar (not on Generate) so Generate stays Generate while
+       busy — click it again to queue more. compose.js toggles .show with the busy state. *@
+    <div class="bar-row">
+        <div class="bar" id="bar"><i></i></div>
+        <button type="button" id="cancelGen" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
+    </div>
     <div class="gen-model" id="genModel" hidden></div>
     <div class="eta" id="eta" hidden></div>
-    @* Cancels the in-flight render. Lives here (not on Generate) so Generate stays Generate while busy — click it
-       again to queue more. compose.js toggles .show with the busy state. *@
-    <button type="button" id="cancelGen" class="cancel-gen">Cancel</button>
     <div id="result"></div>
 </div>

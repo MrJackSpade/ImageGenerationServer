@@ -295,13 +295,18 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .bar{height:4px;background:var(--line);border-radius:999px;overflow:hidden;margin:10px auto 0;max-width:320px;display:none}
 .bar.show{display:block}
 .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s ease}
+/* The progress bar and its inline × cancel share one centered row, so the × sits beside the bar (not as a block
+   below the preview). The bar keeps its own auto margins when it's the lone child (no row), so the row resets them. */
+.bar-row{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px auto 0;max-width:344px}
+.bar-row .bar{margin:0;flex:1 1 auto}
 /* ETA countdown under the progress bar (compose) / inline in the working bubble (edit). */
 .eta{margin:6px auto 0;text-align:center;font-size:12px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
-/* Dedicated Cancel for the in-flight render, in the progress panel — Generate never turns into it, so a queue-more
-   click can't misfire a cancel. Hidden until a render is running (JS toggles .show, mirroring .bar). */
-.cancel-gen{display:none;margin:10px auto 0;appearance:none;border:none;border-radius:999px;background:var(--danger);
-  color:#fff;font:inherit;font-weight:600;font-size:13px;padding:7px 20px;cursor:pointer;touch-action:manipulation}
-.cancel-gen.show{display:block}
+/* Dedicated Cancel for the in-flight render, inline next to the bar — Generate never turns into it, so a queue-more
+   click can't misfire a cancel. A small bordered × icon, hidden until a render is running (JS toggles .show). */
+.cancel-gen{display:none;flex:none;appearance:none;width:22px;height:22px;padding:0;border:1px solid var(--line);
+  border-radius:6px;background:var(--elev);color:var(--ink-soft);font:inherit;font-size:16px;line-height:1;cursor:pointer;touch-action:manipulation}
+.cancel-gen:hover{border-color:var(--danger);color:var(--danger)}
+.cancel-gen.show{display:inline-flex;align-items:center;justify-content:center}
 .cancel-gen:hover{filter:brightness(1.08)}
 .cancel-gen:active{transform:translateY(1px)}
 .gen-model{margin:5px auto 0;text-align:center;font-size:12.5px;color:var(--ink-soft);font-weight:600}
