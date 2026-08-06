@@ -13,23 +13,62 @@ public static class TagModelServiceCollectionExtensions
     /// <summary>Folder names composing the path to the tag model artifacts.</summary>
     private static class Folders
     {
-        /// <summary>Folder beside the executable that holds the tag model.</summary>
+        /// <summary>Per-user cache root subfolder that scopes this app's files.</summary>
+        public const string AppFolder = "ImageGenerationServer";
+
+        /// <summary>Folder that holds the tag model.</summary>
         public const string TagModelFolder = "tagmodel";
 
         /// <summary>Sub-folder holding the published artifacts.</summary>
         public const string ArtifactsFolder = "artifacts";
+
+        /// <summary>Default per-user cache root folder under the home directory when no XDG override is set (Linux).</summary>
+        public const string LinuxCacheFolder = ".cache";
+    }
+
+    /// <summary>Environment variable names consulted when resolving the cache root.</summary>
+    private static class EnvVars
+    {
+        /// <summary>Names the Linux user cache root (XDG base directory spec).</summary>
+        public const string XdgCacheHome = "XDG_CACHE_HOME";
     }
 
     /// <summary>
-    /// Where the artifacts live: <c>tagmodel/artifacts</c> beside the executable, always.
+    /// Where the artifacts live: a stable per-user cache location under an app-named subfolder — on Windows
+    /// <c>%LOCALAPPDATA%\ImageGenerationServer\tagmodel\artifacts</c>, on Linux
+    /// <c>$XDG_CACHE_HOME/ImageGenerationServer/tagmodel/artifacts</c> (default <c>~/.cache</c>).
     ///
-    /// <para>Not configurable, and anchored to the application rather than to the working directory. A configurable
-    /// relative path (repeated across a config key, the settings page, an install-script flag and both launchers)
-    /// would resolve against the CURRENT DIRECTORY, so launching the executable from anywhere but its own folder
-    /// would fail to find the model and refuse to start, naming a path that does not exist. The install script writes
-    /// here, the app reads here, and there is nothing to keep in step.</para>
+    /// <para>Anchored to the user's cache rather than to the install folder. A deploy replaces the app folder with a
+    /// fresh self-contained build, so caching beside the executable (the old <c>AppContext.BaseDirectory</c> location)
+    /// meant re-downloading ~900 MB on every deploy; a per-user path persists across updates and needs no write access
+    /// to the install directory. It is an absolute path, so it is independent of the current working directory.</para>
+    ///
+    /// <para>The cache dir — not the data dir — is correct because these artifacts are re-downloadable and verified
+    /// against a manifest. On Windows this is Local AppData, never Roaming: a 900 MB model must not sync across
+    /// machines. On Linux, .NET's <see cref="Environment.SpecialFolder.LocalApplicationData"/> maps to
+    /// <c>~/.local/share</c> (<c>$XDG_DATA_HOME</c>), not the cache, so the XDG cache root is resolved explicitly.</para>
     /// </summary>
-    public static string ArtifactsDirectory => Path.Combine(AppContext.BaseDirectory, Folders.TagModelFolder, Folders.ArtifactsFolder);
+    public static string ArtifactsDirectory => Path.Combine(UserCacheRoot, Folders.AppFolder, Folders.TagModelFolder, Folders.ArtifactsFolder);
+
+    /// <summary>Resolves the per-user cache root, correct per OS (Local AppData on Windows, XDG cache on Linux).</summary>
+    private static string UserCacheRoot
+    {
+        get
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            }
+
+            string xdgCache = Environment.GetEnvironmentVariable(EnvVars.XdgCacheHome) ?? string.Empty;
+            if (!string.IsNullOrEmpty(xdgCache))
+            {
+                return xdgCache;
+            }
+
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Folders.LinuxCacheFolder);
+        }
+    }
 
     /// <summary>
     /// Load the artifacts from <see cref="ArtifactsDirectory"/> and register both tag ports.
