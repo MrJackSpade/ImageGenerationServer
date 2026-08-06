@@ -175,7 +175,7 @@ public sealed partial class WorkflowCatalogService(
                     // `aspect` is its own shape — a map of aspect name to [width, height] — and the page draws it
                     // as three width/height pairs rather than asking anyone to type JSON.
                     string.Equals(kv.Key, WorkflowParamKeys.Aspect, StringComparison.OrdinalIgnoreCase)
-                        ? "aspect"
+                        ? ControlTokens.Aspect
                         : (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
                     kv.Value.Min ?? spec?.Min,
                     kv.Value.Max ?? spec?.Max,
@@ -202,14 +202,27 @@ public sealed partial class WorkflowCatalogService(
         // config/graph param, so it's surfaced as a synthetic bool setting the settings page renders and saves through
         // the same override path (param.customSize). Only image generators can offer a Custom aspect. When on, the
         // descriptor's CustomSizeEnabled flips and the composer shows the Custom width/height boxes.
+        //
+        // It governs the aspect/render-size editor, so it is placed immediately after the aspect setting rather than
+        // appended last — the settings page renders in list order, and the toggle belongs next to the sizes it drives.
         if (wf.Kind == WorkflowKind.Generate && wf.Media == WorkflowMedia.Image)
         {
-            settings.Add(new ConfigSetting(
+            ConfigSetting customSize = new(
                 SettingKeys.CustomSize, "Custom size on the generation page",
                 "When on, the generation page offers a Custom aspect with width/height boxes for this workflow, validated against its resolution envelope.",
                 ControlTokens.Bool, null, null, null, null,
                 Shipped: null,
-                Override: overrides.TryGetValue(SettingKeys.CustomSize, out JsonElement cs) ? (object?)cs : null));
+                Override: overrides.TryGetValue(SettingKeys.CustomSize, out JsonElement cs) ? (object?)cs : null);
+
+            int aspectIndex = settings.FindIndex(s => string.Equals(s.Type, ControlTokens.Aspect, StringComparison.Ordinal));
+            if (aspectIndex >= 0)
+            {
+                settings.Insert(aspectIndex + 1, customSize);
+            }
+            else
+            {
+                settings.Add(customSize);
+            }
         }
 
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
@@ -333,6 +346,9 @@ public sealed partial class WorkflowCatalogService(
         /// <summary>The control token for a boolean toggle (matches <c>ParamType.Bool.ToString().ToLowerInvariant()</c>);
         /// the settings page renders it as a checkbox.</summary>
         public const string Bool = "bool";
+
+        /// <summary>The control token for the render-size map; the settings page draws it as width/height pairs.</summary>
+        public const string Aspect = "aspect";
     }
 
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
