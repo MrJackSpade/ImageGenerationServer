@@ -155,14 +155,17 @@
         </div>`;
     }
 
-    const rest = s.available.filter(f => !s.candidates.includes(f));
+    // Each group A–Z, case-insensitive (recognised candidates first, then the rest) — matching #84's ordering.
+    const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
+    const candidates = s.candidates.slice().sort(byName);
+    const rest = s.available.filter(f => !s.candidates.includes(f)).sort(byName);
     const opt = (f, tag) =>
       `<option value="${escapeHtml(f)}"${f === s.boundFile ? " selected" : ""}>${escapeHtml(f)}${tag || ""}</option>`;
     return `<label class="wf-slot">
         ${label}
         <select class="fld-input slot-pick" data-slot="${escapeHtml(s.id)}">
           <option value="">— not set —</option>
-          ${s.candidates.map(f => opt(f, " (recognised)")).join("")}
+          ${candidates.map(f => opt(f, " (recognised)")).join("")}
           ${rest.map(f => opt(f, "")).join("")}
         </select>
       </label>`;

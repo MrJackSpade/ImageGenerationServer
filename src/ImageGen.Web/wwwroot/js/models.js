@@ -76,8 +76,11 @@
     }
 
     // Candidates first and marked, then everything else of the same kind. A slot may be bound to any file of its
-    // kind, not only to something a pattern recognised — the patterns pre-fill, they do not restrict.
-    const rest = s.available.filter((f) => !s.candidates.includes(f));
+    // kind, not only to something a pattern recognised — the patterns pre-fill, they do not restrict. Each group is
+    // A–Z, case-insensitive (matching #84's ordering).
+    const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
+    const candidates = s.candidates.slice().sort(byName);
+    const rest = s.available.filter((f) => !s.candidates.includes(f)).sort(byName);
     const opt = (f, tag) =>
       `<option value="${esc(f)}"${f === s.boundFile ? " selected" : ""}>${esc(f)}${tag || ""}</option>`;
 
@@ -95,7 +98,7 @@
       </div>
       <select class="slot-pick" data-slot="${esc(s.id)}" title="${esc(s.id)}">
         <option value="">— not set —</option>
-        ${s.candidates.map((f) => opt(f, " (recognised)")).join("")}
+        ${candidates.map((f) => opt(f, " (recognised)")).join("")}
         ${rest.map((f) => opt(f, "")).join("")}
       </select>
     </div>`;
@@ -136,7 +139,7 @@
       .map((k) => ({
         kind: k,
         label: KIND_LABELS[k] || k,
-        slots: seen.get(k).sort((a, b) => a.label.localeCompare(b.label)),
+        slots: seen.get(k).sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),   // A–Z, case-insensitive
       }));
   }
 
