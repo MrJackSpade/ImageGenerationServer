@@ -1181,20 +1181,7 @@ public sealed class RenderOrchestrator
                 if (slot.Gen.RandomPrompt == TriState.True && info?.Tagging is { Tags: true })
                 {
                     (string? seed, HashSet<string>? suppressKeys) = TagSeed(raw, info.Tagging);
-                    HashSet<string> bannedTags = bans.Tags;
-                    bannedTags.UnionWith(negKeys.Tags);
-                    // Inert ('!') and guide ('~') tags are both banned for this call. A tag hidden from the seed is one
-                    // the predictor may freely sample ("!pig" would come back "!pig, ..., #pig"); a guide tag echoed
-                    // back would be appended as a '#' and rendered, which is exactly what '~' promises cannot happen.
-                    // Banning only masks the per-step output distribution; it does not condition, so neither is
-                    // un-hidden or un-seeded by it.
-                    bannedTags.UnionWith(suppressKeys);
-                    // Artist bans bind THIS sampler too, not just the random-artist pick below. With artists in the
-                    // generation mask the tag model emits artist-type names, so a ban held under Kind=Artist (or an
-                    // artist the user negated) has to be suppressed in the same call — otherwise the one sampler that
-                    // can produce an artist is the one that ignores the artist bans.
-                    bannedTags.UnionWith(bans.Artists);
-                    bannedTags.UnionWith(negKeys.Artists);
+                    HashSet<string> bannedTags = RandomPromptBannedTags(bans, negKeys, suppressKeys);
                     // The generation mask for this slot: the one submitted with it, or the owner's stored mask when the
                     // caller specified none. It rides on the SLOT (unlike the bans, which stay a server-side fact read
                     // fresh here) because it is a composer control now — the chips under the Random prompt slider — so a
@@ -2263,6 +2250,26 @@ public sealed class RenderOrchestrator
     /// </summary>
     internal static (string Seed, HashSet<string> SuppressKeys) TagSeed(string? raw, WorkflowTagging tagging) =>
         PromptParse.TagSeed(raw, tagging);
+
+    /// <summary>
+    /// The tags the random-prompt call must ban: the user's tag bans, their negated tags, the inert ('!') and guide
+    /// ('~') suppress keys, AND the artist bans + negated artists (the tag model can emit artist-type names, so the
+    /// one sampler that produces an artist must honour the artist bans too). This is exactly the set handed to
+    /// <see cref="ITagModelClient.GenerateAsync"/>, extracted so the inert/guide guarantee (#166) is testable: nothing
+    /// between the seed build and the model may re-introduce a suppressed key.
+    /// </summary>
+    internal static HashSet<string> RandomPromptBannedTags(
+        (HashSet<string> Tags, HashSet<string> Artists) bans,
+        (HashSet<string> Tags, HashSet<string> Artists) negKeys,
+        IReadOnlySet<string> suppressKeys)
+    {
+        HashSet<string> banned = new(bans.Tags, StringComparer.Ordinal);
+        banned.UnionWith(negKeys.Tags);
+        banned.UnionWith(suppressKeys);
+        banned.UnionWith(bans.Artists);
+        banned.UnionWith(negKeys.Artists);
+        return banned;
+    }
 
     /// <summary>
     /// Resolve the prompt DSL for every generate item into concrete render slots: a <c>{a|b}</c> explode fans one item

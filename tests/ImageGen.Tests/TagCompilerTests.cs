@@ -150,6 +150,39 @@ public sealed class TagCompilerTests
         Assert.Same(edit, Assert.Single(RenderOrchestrator.ExpandGenerateGroups([edit])));
     }
 
+    /// <summary>#166: an inert ('!') tag renders to the image model but is kept ENTIRELY out of the tag model — never
+    /// seeded, and added to the suppress set so the predictor cannot echo it back. A guide ('~') is the mirror: seeded
+    /// as a tag yet also suppressed. An artist is never seeded.</summary>
+    [Fact]
+    public void Inert_and_guide_tags_are_kept_out_of_the_tag_model_seed_or_suppressed()
+    {
+        GeneratedTagGroup g = Assert.Single(TagGroup.Parse("#1girl, !solo, ~1boy, @artgerm").Generate());
+        (string seed, HashSet<string> suppress) = g.ToTagModel(Booru);
+
+        Assert.Equal("1girl, 1boy", seed);       // guide kept as a seed tag; inert + artist never seeded
+        Assert.DoesNotContain("solo", seed);     // the inert key is NOT in the seed
+        Assert.DoesNotContain("artgerm", seed);  // the artist is not seeded
+        Assert.Contains("solo", suppress);       // inert IS suppressed
+        Assert.Contains("1boy", suppress);       // guide IS suppressed
+    }
+
+    /// <summary>#166: the orchestrator's random-prompt path unions the inert/guide suppress keys into the banned-tags
+    /// set it hands to <c>ITagModelClient.GenerateAsync</c> — so nothing between the seed build and the model call can
+    /// re-introduce a tag the seed deliberately hid.</summary>
+    [Fact]
+    public void Random_prompt_bans_the_inert_and_guide_keys_it_hid_from_the_seed()
+    {
+        (string seed, HashSet<string> suppress) = RenderOrchestrator.TagSeed("#1girl, !solo, ~1boy, @artgerm", Booru);
+        static HashSet<string> Empty() => new(StringComparer.Ordinal);
+
+        HashSet<string> banned = RenderOrchestrator.RandomPromptBannedTags((Empty(), Empty()), (Empty(), Empty()), suppress);
+
+        Assert.Contains("solo", banned);       // inert reaches the banned set passed to GenerateAsync
+        Assert.Contains("1boy", banned);       // guide too
+        Assert.DoesNotContain("solo", seed);   // and it stayed out of the seed
+        Assert.Contains("1boy", seed);         // while the guide is seeded as a tag
+    }
+
     /// <summary>Parse one segment, failing the test if it is empty.</summary>
     private static ParsedTag One(string seg) => TagParser.ParseSegment(seg, 0) ?? throw new Xunit.Sdk.XunitException($"'{seg}' parsed to nothing");
 }
