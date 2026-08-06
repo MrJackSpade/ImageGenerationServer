@@ -311,6 +311,10 @@ public sealed class WorkflowGraphTests
         string json = BuildJson("minimax-h3-ref2v", inputs);
         Assert.Contains("MiniMaxH3ReferenceToVideo", json);      // the ref2va conditioning+latent node
         Assert.DoesNotContain("MiniMaxH3ImageToVideo", json);    // NOT the i2v/t2v node
+        // ref2va is its OWN task-specific checkpoint — loading the T2V/I2V fl2va weights into this graph is the
+        // documented setup mistake for this model family.
+        Assert.Contains("minimax-h3-ref2va.safetensors", json);
+        Assert.DoesNotContain("minimax-h3-fl2va.safetensors", json);
         Assert.DoesNotContain("first_frame", json);              // references are NOT first frames
         // Source is ref_image_0; the two picker references follow as ref_image_1/_2 — flat DOTTED autogrow keys.
         Assert.Contains("ref_images.ref_image_0", json);

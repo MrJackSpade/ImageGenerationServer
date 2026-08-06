@@ -4,7 +4,7 @@
   "friendly_name": "MiniMax-H3 (reference)",
   "default": false,
   "requirements": {
-    "checkpoint": "minimax-h3-fl2va",
+    "checkpoint": "minimax-h3-ref2va",
     "text_encoders": [
       "qwen3vl-32b-minimax-h3"
     ],
@@ -31,7 +31,7 @@
     "reference_max": 3
   },
   "card": {
-    "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) — REFERENCE-TO-VIDEO with native audio",
+    "architecture": "MiniMax-H3 ref2va (Qwen3-VL 32B, int8 ConvRot) — REFERENCE-TO-VIDEO with native audio",
     "summary": "Generate a clip whose SUBJECT is taken from your reference image(s), with NATIVE stereo audio — voice, sound effects and music generated together with the motion. The current image is the primary subject reference; add more via the ＋ ref picker. The references condition identity/appearance (they are NOT the first frame). Output is an mp4 with a baked-in audio track.",
     "use_cases": [
       "reference→video: place a referenced subject into a new clip with synchronized sound",

@@ -188,9 +188,10 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, WanA14bT2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, HunyuanVideo15T2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, HunyuanVideoT2VWorkflow>();
-        // MiniMax-H3 — omni-modal video with NATIVE audio (mp4, not the silent SaveAnimatedWEBP). One fl2va model
-        // serves all three: T2V (generation), I2V (edit, optional last frame) and ref2va (edit, subject-reference
-        // conditioning). Needs ComfyUI >= v0.30.1.
+        // MiniMax-H3 — omni-modal video with NATIVE audio (mp4, not the silent SaveAnimatedWEBP). TWO task-specific
+        // diffusion checkpoints over one shared encoder/VAE stack: fl2va serves T2V (generation) and I2V (edit,
+        // optional last frame); ref2va (edit, subject-reference conditioning) is its own weight set.
+        // Needs ComfyUI >= v0.30.1.
         _ = services.AddSingleton<IWorkflow, MiniMaxH3T2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, MiniMaxH3I2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, MiniMaxH3Ref2VWorkflow>();

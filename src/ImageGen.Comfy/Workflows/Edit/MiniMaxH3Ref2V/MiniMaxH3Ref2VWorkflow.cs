@@ -4,8 +4,9 @@ namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 /// the edit page's ＋ ref picker adds more references of the KINDS the node accepts (see the card's <c>reference.types</c>):
 /// image stills → <c>ref_images</c>, a driving video → <c>ref_videos</c> (decoded to frames), a driving audio clip →
 /// <c>ref_audios</c>. Unlike i2v NONE is a first frame — they condition subject/motion/voice through the
-/// <see cref="MiniMaxH3ReferenceToVideo"/> node. Same fl2va model, text encoder and dual VAEs as the T2V/I2V siblings —
-/// no new weights. Buckets into the Animate section (<c>media:video</c>).</summary>
+/// <see cref="MiniMaxH3ReferenceToVideo"/> node. Its OWN ref2va diffusion checkpoint (reference-driven task weights,
+/// distinct from the T2V/I2V fl2va checkpoint); the text encoder and dual VAEs are shared with the siblings.
+/// Buckets into the Animate section (<c>media:video</c>).</summary>
 public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 {
     public override string Name => "minimax-h3-ref2v";

@@ -2,9 +2,10 @@ namespace ImageGen.Comfy;
 
 /// <summary>
 /// MiniMax-H3 — an omni-modal video model with NATIVE stereo audio (voice/SFX/music generated in the same forward
-/// pass, not layered on after). A single "fl2va" diffusion model serves both text→video and image→video; the two
-/// differ only in whether a first frame is fed to the one H3-specific node, <c>MiniMaxH3ImageToVideo</c>, which
-/// encodes the prompt itself (no separate CLIPTextEncode) and emits (positive, latent). Distilled sampling
+/// pass, not layered on after). TWO task-specific diffusion checkpoints share one graph shape: the "fl2va" model
+/// serves both text→video and image→video (the two differ only in whether a first frame is fed to the H3
+/// conditioning node), and the separate "ref2va" model serves reference→video. The H3-specific conditioning nodes
+/// encode the prompt themselves (no separate CLIPTextEncode) and emit (positive, latent). Distilled sampling
 /// (BasicGuider, no CFG/negative) through a res_multistep SamplerCustomAdvanced chain, exactly like the official
 /// ComfyUI templates (video_minimax_h3_{t2v,i2v}.json).
 ///

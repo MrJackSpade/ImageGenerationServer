@@ -1,0 +1,8 @@
+{
+  "id": "minimax-h3-ref2va",
+  "kind": "unet",
+  "label": "MiniMax-H3 ref2va (reference→video)",
+  "match": [
+    "minimax[-_]?h3[-_]?ref2va"
+  ]
+}
