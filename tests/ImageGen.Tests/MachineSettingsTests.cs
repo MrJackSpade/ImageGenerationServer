@@ -106,7 +106,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
     [Fact]
     public void Every_spec_key_is_unique_and_findable()
     {
-        List<string> keys = MachineSettingSpecs.All.Select(s => s.Key).ToList();
+        List<string> keys = [.. MachineSettingSpecs.All.Select(s => s.Key)];
         Assert.Equal(keys.Count, keys.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(keys, k => Assert.NotNull(MachineSettingSpecs.Find(k)));
         // The settings API refuses anything not on the list, so an unknown key must not resolve.

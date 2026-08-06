@@ -14,7 +14,10 @@ public sealed class ComfyObjectInfoTests
         JsonDocument.Parse(json).RootElement.GetProperty(node).GetProperty("input").GetProperty("required").GetProperty(key);
 
     private static string[] Options(JsonElement el) =>
-        ComfyClient.ComboOptions(el).Select(e => e.RequireString()).ToArray();
+        [.. ComfyClient.ComboOptions(el).Select(e => e.RequireString())];
+
+    private static readonly string[] vaeLoaderOptions = ["ae.safetensors", "flux2-vae.safetensors"];
+    private static readonly string[] upscaleLoaderOptions = ["2x-AnimeSharpV2_RPLKSR_Sharp.pth", "4xNomos2_hq_dat2.safetensors"];
 
     [Fact]
     public void Classic_combo_lists_its_options_at_slot_zero()
@@ -23,7 +26,7 @@ public sealed class ComfyObjectInfoTests
         const string json = """
         {"VAELoader":{"input":{"required":{"vae_name":[["ae.safetensors","flux2-vae.safetensors"]]}}}}
         """;
-        Assert.Equal(new[] { "ae.safetensors", "flux2-vae.safetensors" }, Options(Key(json, "VAELoader", "vae_name")));
+        Assert.Equal(vaeLoaderOptions, Options(Key(json, "VAELoader", "vae_name")));
     }
 
     [Fact]
@@ -35,7 +38,7 @@ public sealed class ComfyObjectInfoTests
         {"UpscaleModelLoader":{"input":{"required":{"model_name":["COMBO",{"multiselect":false,"options":["2x-AnimeSharpV2_RPLKSR_Sharp.pth","4xNomos2_hq_dat2.safetensors"]}]}}}}
         """;
         Assert.Equal(
-            new[] { "2x-AnimeSharpV2_RPLKSR_Sharp.pth", "4xNomos2_hq_dat2.safetensors" },
+            upscaleLoaderOptions,
             Options(Key(json, "UpscaleModelLoader", "model_name")));
     }
 

@@ -91,7 +91,7 @@ public static class ModelMatcher
             }
 
             IReadOnlyList<Regex> regexes = Compile(slot);
-            List<string> matched = files.Where(f => regexes.Any(rx => rx.IsMatch(Stem(f)))).ToList();
+            List<string> matched = [.. files.Where(f => regexes.Any(rx => rx.IsMatch(Stem(f))))];
             if (matched.Count > 0)
             {
                 hits.Add((slot, matched));
@@ -110,14 +110,14 @@ public static class ModelMatcher
             }
         }
 
-        return hits.Select(h =>
+        return [.. hits.Select(h =>
         {
             // Bind only on a clean one-to-one: this slot recognised exactly one file, and nothing else of the
             // same kind recognised it either.
             string? only = h.Files.Count == 1 ? h.Files[0] : null;
             string? auto = only is not null && claims[(h.Slot.Kind, only)] == 1 ? only : null;
             return new SlotMatch(h.Slot.Id, h.Files, auto);
-        }).ToList();
+        })];
     }
 
     /// <summary>

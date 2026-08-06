@@ -19,10 +19,10 @@ public sealed class BiRefNetMatteWorkflow : Workflow<MatteParams>
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => MatteSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> MatteSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> MatteSchema =
+    [
         new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Alpha cutoff", Help = "0 = soft matte (caller thresholds); >0 = hard cutoff at this matte value" },
-    };
+    ];
 
     /// <summary>This graph's node ids, named by role. Values are the graph-local keys, preserved exactly so the
     /// emitted graph stays byte-identical.</summary>

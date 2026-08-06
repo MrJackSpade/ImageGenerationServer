@@ -17,7 +17,7 @@ public sealed class PixelVideoWorkflow : IWorkflow
     public PixelVideoWorkflow(IWorkflow inner)
     {
         _inner = inner;
-        Schema = _inner.Schema.Concat(PixelVideoGraph.Params).ToArray();
+        Schema = [.. _inner.Schema, .. PixelVideoGraph.Params];
     }
 
     public string Name => _inner.Name + "-pixel";

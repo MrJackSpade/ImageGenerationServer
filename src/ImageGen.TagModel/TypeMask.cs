@@ -114,7 +114,7 @@ public static class TypeMask
             .ToHashSet(StringComparer.Ordinal);
 
         Dictionary<string, int> suppressible = Droppable.ToDictionary(c => Names[c], c => c, StringComparer.Ordinal);
-        string[] unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
+        string[] unknown = [.. allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal)];
         if (unknown.Length > 0)
         {
             throw new ArgumentException(
@@ -138,10 +138,9 @@ public static class TypeMask
     /// <summary>'all', or 'no:artist,character' — for logs and diagnostics.</summary>
     public static string Describe(int mask)
     {
-        string[] missing = Enumerable.Range(0, CategoryCount)
+        string[] missing = [.. Enumerable.Range(0, CategoryCount)
             .Where(c => Names.ContainsKey(c) && !Allows(mask, c))
-            .Select(c => Names[c])
-            .ToArray();
+            .Select(c => Names[c])];
         return missing.Length == 0 ? "all" : "no:" + string.Join(Separators.CategorySeparator, missing);
     }
 }

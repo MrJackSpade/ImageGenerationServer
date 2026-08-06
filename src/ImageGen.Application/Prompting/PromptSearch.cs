@@ -19,9 +19,7 @@ public static class PromptSearch
     public static string[] Terms(string? search) =>
         string.IsNullOrWhiteSpace(search)
             ? []
-            : Fold(search)
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .ToArray();
+            : [.. Fold(search).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
 
     /// <summary>
     /// True when every term of <paramref name="terms"/> appears in the prompt. No terms → everything matches (an empty

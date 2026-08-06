@@ -15,11 +15,11 @@ public sealed class LineThickenSketchKerasWorkflow : EditWorkflow<LineThickenSke
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => SketchSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> SketchSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> SketchSchema =
+    [
         new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int,    Min = 0,   Max = 32,  Label = "Line thickness (px)" },
         new() { Key = WorkflowParamKeys.Threshold, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Sketch threshold" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(LineThickenSketchKerasParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

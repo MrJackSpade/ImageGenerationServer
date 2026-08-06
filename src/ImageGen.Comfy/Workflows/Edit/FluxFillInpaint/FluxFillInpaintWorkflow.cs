@@ -14,12 +14,11 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
     public override PromptSemantics PromptSemantics => PromptSemantics.MaskedRegion;
 
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> InpaintSchema = FillSchema.Concat(new ParamSpec[]
-    {
-        // Grow pushes the whole soft band OUTWARD onto real pixels, so the painted region keeps a hard 1 and is
-        // fully replaced. 16 ≈ 2σ places the band's midpoint just outside the painted edge.
+    private static readonly IReadOnlyList<ParamSpec> InpaintSchema =
+    [
+        .. FillSchema,
         new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-    }).ToArray();
+    ];
 
     protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)

@@ -35,7 +35,7 @@ public sealed class DeadNullCoalescingAnalyzer : DiagnosticAnalyzer
             + "hiding. Genuinely nullable and nullable-oblivious operands are not reported.");
 
     /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

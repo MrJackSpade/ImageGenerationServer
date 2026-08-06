@@ -56,7 +56,7 @@ public sealed class RenderOrchestrator
         public const string RandomPrompt = "random_prompt";
     }
 
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly Dictionary<string, RenderJob> _jobs = new(StringComparer.Ordinal);
     /// <summary>The FOREGROUND tier: per-owner fair round-robin, served exactly as before background work existed.</summary>
     private readonly Dictionary<long, Queue<RenderSlot>> _byOwner = [];
@@ -302,7 +302,7 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            return _jobs.Values.Where(j => j.Owner == owner && !j.AllTerminal).OrderBy(j => j.CreatedAt).ToList();
+            return [.. _jobs.Values.Where(j => j.Owner == owner && !j.AllTerminal).OrderBy(j => j.CreatedAt)];
         }
     }
 
@@ -311,7 +311,7 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            return _jobs.Values.Where(j => !j.AllTerminal).OrderBy(j => j.CreatedAt).ToList();
+            return [.. _jobs.Values.Where(j => !j.AllTerminal).OrderBy(j => j.CreatedAt)];
         }
     }
 
@@ -330,7 +330,7 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            List<RenderJob> active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
+            List<RenderJob> active = [.. _jobs.Values.Where(j => !j.AllTerminal)];
             int waiting = active.SelectMany(j => j.Slots).Count(s => !s.Terminal && !ReferenceEquals(s, _running));
             return new WorkloadSnapshot(
                 ActiveJobs: active.Count,
@@ -349,16 +349,14 @@ public sealed class RenderOrchestrator
     {
         lock (_lock)
         {
-            List<RenderJob> active = _jobs.Values.Where(j => !j.AllTerminal).ToList();
+            List<RenderJob> active = [.. _jobs.Values.Where(j => !j.AllTerminal)];
             RenderSlot? running = _running;
             // "What's left" is IMMINENT work: parked background slots may not run for the whole idle delay (or ever,
             // while foreground traffic continues), so pricing them into the header ETA would overstate near-term load
             // by an arbitrary amount. A background slot that is actually ON the GPU right now is imminent and counts.
             // (The job/owner counts below still come from `active`, so a background-only queue still lights up its
             // Cancel buttons — only the image count and ETA drop the parked background work.)
-            List<RenderSlot> pending = active.SelectMany(j => j.Slots)
-                .Where(s => !s.Terminal && (!s.IsBackground || ReferenceEquals(s, running)))
-                .ToList();
+            List<RenderSlot> pending = [.. active.SelectMany(j => j.Slots).Where(s => !s.Terminal && (!s.IsBackground || ReferenceEquals(s, running)))];
 
             // The in-flight slot is priced from its own measurement only once it HAS one — the expected time and start
             // instant are assigned at submit, so a slot the worker has picked but not yet submitted has neither. That
@@ -369,10 +367,9 @@ public sealed class RenderOrchestrator
                 runningRemaining = Math.Max(0, expected - (DateTimeOffset.UtcNow - started).TotalSeconds);
             }
 
-            List<string> waiting = pending
+            List<string> waiting = [.. pending
                 .Where(s => runningRemaining is null || !ReferenceEquals(s, running))
-                .Select(s => s.Model)
-                .ToList();
+                .Select(s => s.Model)];
             return new OutstandingSnapshot(
                 active.Count, active.Count(j => j.Owner == viewer), pending.Count, runningRemaining, waiting);
         }
@@ -607,10 +604,9 @@ public sealed class RenderOrchestrator
             return new RequeueOutcome(RequeueStatus.NotOwner);
         }
 
-        List<JobSlotRecord> missing = rec.Slots
+        List<JobSlotRecord> missing = [.. rec.Slots
             .Where(s => s.ImageId is null && s.State is JobSlotState.Error or JobSlotState.Cancelled)
-            .OrderBy(s => s.SlotIndex)
-            .ToList();
+            .OrderBy(s => s.SlotIndex)];
         if (missing.Count == 0)
         {
             return new RequeueOutcome(RequeueStatus.NothingMissing);
@@ -662,7 +658,7 @@ public sealed class RenderOrchestrator
 
     /// <summary>The first edit input across these specs that can no longer be found, phrased for the user, or null
     /// when every one still resolves. One database round trip for the whole set — existence only, never bytes.</summary>
-    private async Task<string?> FirstMissingEditInputAsync(IReadOnlyList<EditSpec> edits, CancellationToken ct)
+    private async Task<string?> FirstMissingEditInputAsync(List<EditSpec> edits, CancellationToken ct)
     {
         if (edits.Count == 0)
         {
@@ -693,7 +689,7 @@ public sealed class RenderOrchestrator
             }
         }
 
-        List<string> unresolved = inputs.Where(i => _uploads.Get(i.Id) is null).Select(i => i.Id).Distinct(StringComparer.Ordinal).ToList();
+        List<string> unresolved = [.. inputs.Where(i => _uploads.Get(i.Id) is null).Select(i => i.Id).Distinct(StringComparer.Ordinal)];
         IReadOnlyDictionary<string, string> stored = unresolved.Count == 0
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : await _blobs.GetContentTypesAsync(unresolved, ct);
@@ -719,8 +715,15 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             s = _running;
-            s?.CancelRequested = true;
-            interrupt = s?.Submitted == true;
+            if (s is { } running)
+            {
+                running.CancelRequested = true;
+                interrupt = running.Submitted;
+            }
+            else
+            {
+                interrupt = false;
+            }
         }
 
         if (s is null)
@@ -1757,7 +1760,7 @@ public sealed class RenderOrchestrator
 
     /// <summary>Snapshot the in-memory job into its durable record. Called under _lock. Status derives from the slots:
     /// Active until all terminal, then Done if anything was produced, else Error.</summary>
-    private JobRecord ToRecord(RenderJob j)
+    private static JobRecord ToRecord(RenderJob j)
     {
         JobRecord rec = new()
         {
@@ -1796,7 +1799,7 @@ public sealed class RenderOrchestrator
                 EffectivePrompt = s.EffectivePrompt,
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
-                Marks = s.Marks is null ? [] : s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value))).ToList(),
+                Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value)))],
                 GenStartedAtUtc = s.GenStartedAt?.UtcDateTime,
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
                 // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the

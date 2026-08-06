@@ -162,7 +162,7 @@ public static class PatchApplier
             return false;
         }
 
-        List<string> subdirectories = Directory.EnumerateDirectories(directory).ToList();
+        List<string> subdirectories = [.. Directory.EnumerateDirectories(directory)];
         if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PythonArtifact.PyCache, StringComparison.Ordinal)))
         {
             return false;
@@ -437,7 +437,7 @@ public static class PatchApplier
     {
         string text = File.ReadAllText(path);
         bool crlf = text.Contains(LineEnding.Crlf, StringComparison.Ordinal);
-        List<string> lines = UnifiedDiff.SplitLines(text).ToList();
+        List<string> lines = [.. UnifiedDiff.SplitLines(text)];
 
         // A trailing newline splits to an empty final element that is not a line of the file.
         if (lines.Count > 0 && lines[^1].Length == 0)

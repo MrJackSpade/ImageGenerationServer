@@ -29,8 +29,8 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => QuantizeSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> QuantizeSchema =
+    [
         // Virtual resolution = the grid's longest edge (aspect from the frame); each frame keeps its input resolution.
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
@@ -58,7 +58,7 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
         // a webp decode that would drop the alpha. Off = the legacy opaque path.
         new() { Key = WorkflowParamKeys.KeyBackground, Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background clip (lossless)" },
         new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(PixelQuantizeVideoParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

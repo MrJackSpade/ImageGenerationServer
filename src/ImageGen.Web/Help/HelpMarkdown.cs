@@ -93,9 +93,7 @@ public static class HelpMarkdown
         return new HelpPageViewModel
         {
             IntroHtml = Markdown.ToHtml(intro.ToString(), Pipeline),
-            Sections = sections
-                .Select(s => new HelpSection(s.Title, Markdown.ToHtml(s.Body.ToString(), Pipeline)))
-                .ToList(),
+            Sections = [.. sections.Select(s => new HelpSection(s.Title, Markdown.ToHtml(s.Body.ToString(), Pipeline)))],
         };
     }
 }

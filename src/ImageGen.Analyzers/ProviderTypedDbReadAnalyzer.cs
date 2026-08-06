@@ -89,7 +89,7 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     };
 
     /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule, ScalarRule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule, ScalarRule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

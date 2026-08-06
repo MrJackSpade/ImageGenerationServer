@@ -55,12 +55,11 @@ public sealed partial class WorkflowCatalogService(
 
         // Which custom nodes this ComfyUI has, asked once: the file lists cannot answer it, because a pack that
         // loads no weights contributes no filenames to look for.
-        List<string> declaredNodes = _catalog.AllRequirements()
+        List<string> declaredNodes = [.. _catalog.AllRequirements()
             .Where(r => !string.IsNullOrWhiteSpace(r.Node))
             .Select(r => r.Node)
             .OfType<string>()
-            .Distinct()
-            .ToList();
+            .Distinct()];
         IReadOnlySet<string> presentNodes = declaredNodes.Count == 0
             ? new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(declaredNodes, ct);
@@ -130,12 +129,11 @@ public sealed partial class WorkflowCatalogService(
         // Shared display name (within a kind + effect + edit section) → keep the first. The section is part of the
         // identity for the same reason the effect is: "Anima" under the Redraw header and a plain "Anima" editor are
         // different offerings, not duplicates.
-        return eligible
+        return [.. eligible
             .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
-                avgs.TryGetValue(e.cfg.Id, out double ms) ? (int?)Math.Round(ms / 1000.0) : null))
-            .ToList();
+                avgs.TryGetValue(e.cfg.Id, out double ms) ? (int?)Math.Round(ms / 1000.0) : null))];
     }
 
     /// <inheritdoc/>
@@ -158,7 +156,7 @@ public sealed partial class WorkflowCatalogService(
         // Every parameter the CONFIGURATION sets, not just the ones exposed per generation. The exposed ones are
         // what a caller may vary on a single render; these are what this machine renders with by default, which is
         // a different question and the one this page answers.
-        List<ConfigSetting> settings = cfg.Params
+        List<ConfigSetting> settings = [.. cfg.Params
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .Select(kv =>
             {
@@ -178,8 +176,7 @@ public sealed partial class WorkflowCatalogService(
                     spec?.Choices,
                     kv.Value.Value,
                     overrides.TryGetValue(kv.Key, out JsonElement o) ? o : null);
-            })
-            .ToList();
+            })];
 
         // A per-machine "default LoRA folder" for this workflow's composer picker. It is NOT a config/graph param, so
         // it's surfaced here as a synthetic string setting the settings page renders and saves through the same
@@ -210,7 +207,7 @@ public sealed partial class WorkflowCatalogService(
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<PromptingGuide> AllGuides() => _catalog.AllCards().Select(ToGuide).ToList();
+    public IReadOnlyList<PromptingGuide> AllGuides() => [.. _catalog.AllCards().Select(ToGuide)];
 
     private static WorkflowTagging? ToTagging(TaggingInfo? t) =>
         t is null ? null : new WorkflowTagging(t.Tags, t.Artists, t.KeepArtistMarker, t.UnderscoresToSpaces);
@@ -222,7 +219,7 @@ public sealed partial class WorkflowCatalogService(
         // This machine's overrides win here too. Reporting the SHIPPED value while rendering the overridden one
         // would put the composer and the graph into disagreement — the control would read 40 steps and produce 12.
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
-        List<WorkflowExposedParam> exposed = cfg.Params
+        List<WorkflowExposedParam> exposed = [.. cfg.Params
             .Where(kv => kv.Value.Exposed)
             .Select(kv =>
             {
@@ -237,8 +234,7 @@ public sealed partial class WorkflowCatalogService(
                     spec?.Label ?? kv.Key,
                     spec?.Help,
                     spec?.Choices);
-            })
-            .ToList();
+            })];
         bool canEdit = wf.Kind == WorkflowKind.Edit;
         return new WorkflowDescriptor(
             Id: cfg.Id,

@@ -290,7 +290,7 @@ public sealed class ComfyPatchTests : IDisposable
             "https://codeload.github.com/owner/repo/tar.gz/abc123",
             PackSource.ArchiveUrl("https://github.com/owner/repo.git", "abc123").ToString());
 
-        Assert.Throws<PackSource.FetchException>(() => PackSource.ArchiveUrl("https://gitlab.com/owner/repo", "abc123"));
+        _ = Assert.Throws<PackSource.FetchException>(() => PackSource.ArchiveUrl("https://gitlab.com/owner/repo", "abc123"));
     }
 
     /// <summary>
@@ -376,7 +376,7 @@ public sealed class ComfyPatchTests : IDisposable
         IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
         // Anything targeting custom_nodes/ must either BE the pack (this repo ships it) or say where to get it.
-        List<ComfyPatch> packs = patches.Where(p => p.Target.StartsWith("custom_nodes/", StringComparison.Ordinal)).ToList();
+        List<ComfyPatch> packs = [.. patches.Where(p => p.Target.StartsWith("custom_nodes/", StringComparison.Ordinal))];
         Assert.NotEmpty(packs);
         Assert.All(packs, p => Assert.True(p.CreatesItsTarget || p.SourceUrl is not null,
             $"{p.Id} targets {p.Target} but neither ships it nor says where to fetch it"));
@@ -429,7 +429,7 @@ public sealed class ComfyPatchTests : IDisposable
         // Every custom_node requirement the catalogue has should be installable, or a workflow needing it is a
         // dead end on a fresh box.
         HashSet<string> installable = patches.SelectMany(p => p.Provides).ToHashSet(StringComparer.Ordinal);
-        List<string> orphans = slots.Where(s => s.Value == "custom_node" && !installable.Contains(s.Key)).Select(s => s.Key).ToList();
+        List<string> orphans = [.. slots.Where(s => s.Value == "custom_node" && !installable.Contains(s.Key)).Select(s => s.Key)];
         Assert.True(orphans.Count == 0, $"no patch installs these custom_node requirements: {string.Join(", ", orphans)}");
     }
 

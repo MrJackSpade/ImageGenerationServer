@@ -218,7 +218,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         await tx.CommitAsync(ct);
     }
 
-    private async Task<List<string>> ReadWorkflowIdsAsync(
+    private static async Task<List<string>> ReadWorkflowIdsAsync(
         DbConnection conn, string table, long userId, CancellationToken ct)
     {
         List<string> ids = [];

@@ -52,7 +52,7 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         }
 
         Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(
-            conn, Sql.TokenCatTable, Sql.TokenCatParent, raw.Select(r => r.Id).ToList(), userId, _cipher, ct);
+            conn, Sql.TokenCatTable, Sql.TokenCatParent, [.. raw.Select(r => r.Id)], userId, _cipher, ct);
 
         List<TokenBookmark> list = new(raw.Count);
         foreach (TokenBookmarkRow r in raw)
@@ -240,8 +240,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
     };
 
     private async Task<ImageBookmark> WithMarksAsync(
-        ImageBookmark b, IReadOnlyDictionary<long, List<Mark>> marks,
-        IReadOnlyDictionary<long, List<string>> categories, CancellationToken ct) => new()
+        ImageBookmark b, Dictionary<long, List<Mark>> marks,
+        Dictionary<long, List<string>> categories, CancellationToken ct) => new()
         {
             Id = b.Id,
             UserId = b.UserId,

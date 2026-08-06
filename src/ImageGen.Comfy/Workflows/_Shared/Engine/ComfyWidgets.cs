@@ -191,15 +191,15 @@ internal static class ComfyWidgetChoices
 {
     /// <summary>The pixelize projection/cell-method vocabulary in dropdown order, shared by every pixelizer schema.</summary>
     public static readonly string[] PixelizeMethods =
-    {
+    [
         ComfyWidgets.Pixelize.Median, ComfyWidgets.Pixelize.Mode, ComfyWidgets.Pixelize.Box,
         ComfyWidgets.Pixelize.NearestPresent, ComfyWidgets.Pixelize.MeanSrgb, ComfyWidgets.Pixelize.MeanLinear,
         ComfyWidgets.Pixelize.MeanOklab, ComfyWidgets.Pixelize.Lanczos, ComfyWidgets.Pixelize.VarHybrid,
         ComfyWidgets.Pixelize.SupersampleMode,
-    };
+    ];
 
     /// <summary>The PixelQuantize engine-selector vocabulary in dropdown order.</summary>
-    public static readonly string[] PixelEngines = { ComfyWidgets.PixelEngine.Median, ComfyWidgets.PixelEngine.Fp };
+    public static readonly string[] PixelEngines = [ComfyWidgets.PixelEngine.Median, ComfyWidgets.PixelEngine.Fp];
 }
 
 /// <summary>The output-image filename prefix this app writes on a Save node — its own identifier, not a ComfyUI token.

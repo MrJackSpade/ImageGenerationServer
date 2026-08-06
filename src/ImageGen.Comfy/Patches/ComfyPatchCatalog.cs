@@ -212,7 +212,7 @@ public static class ComfyPatchCatalog
     /// <summary>The numeric prefix on the filename, which is what orders the authored patches. No prefix sorts last.</summary>
     private static int OrderFromName(string name)
     {
-        char[] digits = name.TakeWhile(char.IsAsciiDigit).ToArray();
+        char[] digits = [.. name.TakeWhile(char.IsAsciiDigit)];
         return digits.Length > 0 ? int.Parse(new string(digits)) : int.MaxValue;
     }
 

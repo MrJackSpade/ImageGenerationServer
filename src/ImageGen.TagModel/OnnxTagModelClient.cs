@@ -54,9 +54,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
                 return null;   // "no match" is a non-failure, and the port says null for it
             }
 
-            return result.Results
-                .Select(r => new TagSuggestion(r.Tag, r.P, r.Lift))
-                .ToList();
+            return [.. result.Results.Select(r => new TagSuggestion(r.Tag, r.P, r.Lift))];
         }
         finally
         {
@@ -112,11 +110,10 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
     /// the model does not know.</para>
     /// </summary>
     private static string[] NormalizeTags(string? csv) =>
-        (csv ?? "")
+        [.. (csv ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(t => t.ToLowerInvariant().TrimStart('@', '#').Replace(' ', '_'))
-        .Where(t => t.Length > 0)
-        .ToArray();
+        .Where(t => t.Length > 0)];
 
     /// <inheritdoc />
     public void Dispose() => _gate.Dispose();

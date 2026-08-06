@@ -39,7 +39,7 @@ public sealed class LoraPreviewRepository(IDbConnectionFactory connectionFactory
             return result;
         }
 
-        List<string> names = loraNames.ToList();
+        List<string> names = [.. loraNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {
@@ -96,7 +96,7 @@ public sealed class LoraPreviewRepository(IDbConnectionFactory connectionFactory
             return;
         }
 
-        List<string> names = loraNames.ToList();
+        List<string> names = [.. loraNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {

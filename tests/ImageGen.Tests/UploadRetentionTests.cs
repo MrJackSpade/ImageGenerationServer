@@ -22,7 +22,7 @@ public sealed class UploadRetentionTests
     {
         InMemoryUploadStore store = new();
         // Far past any byte budget an evicting store would keep: 64 x 1MB. The first id must answer exactly like the last.
-        List<string> ids = Enumerable.Range(0, 64).Select(_ => store.Add(Image(1024 * 1024))).ToList();
+        List<string> ids = [.. Enumerable.Range(0, 64).Select(_ => store.Add(Image(1024 * 1024)))];
 
         Assert.Equal(64, store.Count);
         Assert.Equal(64L * 1024 * 1024, store.Bytes);
@@ -84,7 +84,7 @@ public sealed class UploadRetentionTests
     {
         SubmissionMemoryGate gate = new(new BrokenMemory(), () => 500L * 1024 * 1024);
         // "Unknown" must never resolve to "plenty of room" — that is how an unrenderable job gets accepted.
-        _ = Assert.Throws<InvalidOperationException>(() => gate.Refusal());
+        _ = Assert.Throws<InvalidOperationException>(gate.Refusal);
     }
 
     private sealed class FakeMemory(long available) : ISystemMemory

@@ -41,8 +41,8 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
     /// <summary>The shared schema is all diffusion knobs (steps/cfg/sampler/denoise); none of them apply to a
     /// feed-forward SR net. Declare the two that do.</summary>
     public override IReadOnlyList<ParamSpec> Schema => UpscaleSchema;
-    private static readonly IReadOnlyList<ParamSpec> UpscaleSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> UpscaleSchema =
+    [
         // The on-disk filename in models/upscale_models. Locked per config — the choice of network IS the editor.
         new() { Key = WorkflowParamKeys.UpscaleModel, Type = ParamType.String, IsModelRef = true },
         // The network's own fixed output factor, from its model card. Locked per config; used only as the divisor
@@ -54,9 +54,9 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
                 Label = "Scale (×)", Help = "Output size relative to the source. Above the model's native factor the result is stretched, not resolved." },
         // Resampler for the fit-to-scale step. lanczos keeps the SR pass's sharpness on the way down.
         new() { Key = WorkflowParamKeys.Resample,      Type = ParamType.Enum,
-                Choices = new[] { ComfyWidgets.Upscale.Lanczos, ComfyWidgets.Upscale.Bicubic, ComfyWidgets.Upscale.Bilinear,
-                                  ComfyWidgets.Upscale.Area, ComfyWidgets.Upscale.NearestExact } },
-    };
+                Choices = [ ComfyWidgets.Upscale.Lanczos, ComfyWidgets.Upscale.Bicubic, ComfyWidgets.Upscale.Bilinear,
+                                  ComfyWidgets.Upscale.Area, ComfyWidgets.Upscale.NearestExact ] },
+    ];
 
     protected override ComfyWorkflowGraph Build(UpscaleParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

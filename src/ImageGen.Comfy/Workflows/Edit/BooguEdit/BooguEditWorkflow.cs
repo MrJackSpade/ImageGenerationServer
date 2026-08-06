@@ -19,13 +19,13 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
 
     /// <summary>Boogu runs real CFG with an (optionally empty) negative; expose it like the inpaint editor does.</summary>
     public override IReadOnlyList<ParamSpec> Schema => BooguSchema;
-    private static readonly IReadOnlyList<ParamSpec> BooguSchema = EditWorkflowBase.SharedSchema
-        .Concat(new ParamSpec[]
-        {
-            new() { Key = WorkflowParamKeys.Negative,   Type = ParamType.String },
-            new() { Key = WorkflowParamKeys.Megapixels, Type = ParamType.Double, Min = 0.5, Max = 4.0, Label = "Edit resolution (MP)" },
-        })
-        .ToArray();
+    private static readonly IReadOnlyList<ParamSpec> BooguSchema =
+    [
+        .. EditWorkflowBase.SharedSchema
+,
+        new() { Key = WorkflowParamKeys.Negative,   Type = ParamType.String },
+        new() { Key = WorkflowParamKeys.Megapixels, Type = ParamType.Double, Min = 0.5, Max = 4.0, Label = "Edit resolution (MP)" },
+    ];
 
     protected override ComfyWorkflowGraph Build(BooguParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

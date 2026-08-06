@@ -112,7 +112,7 @@ public sealed class ModelRefResolutionTests
         IWorkflow? wf = registry.Find(cfg.WorkflowName);
         Assert.NotNull(wf);
 
-        List<string> asked = catalog.ModelRefSlots(wf, cfg).ToList();
+        List<string> asked = [.. catalog.ModelRefSlots(wf, cfg)];
         Assert.Contains("wan2-2-i2v-low-noise-14b", asked);
         Assert.DoesNotContain(asked, s => s == "lora");   // unset optional params ask for nothing
     }

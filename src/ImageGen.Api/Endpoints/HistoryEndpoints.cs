@@ -43,7 +43,7 @@ public static class HistoryEndpoints
             IReadOnlySet<string> viewed = await views.ViewedAsync(userId, result.Items, context.RequestAborted);
             return Results.Ok(new HistoryPageResponse
             {
-                Items = result.Items.Select(e => e.ToContract(viewed)).ToList(),
+                Items = [.. result.Items.Select(e => e.ToContract(viewed))],
                 Total = result.Total,
                 Page = result.Page,
                 PageSize = result.PageSize,
@@ -69,7 +69,7 @@ public static class HistoryEndpoints
             int minimum = min ?? 48;
             IReadOnlyList<HistoryEntry> items = await history.GetRecentsAsync(userId, minimum, context.RequestAborted);
             IReadOnlySet<string> viewed = await views.ViewedAsync(userId, items, context.RequestAborted);
-            return Results.Ok(new RecentsResponse { Items = items.Select(e => e.ToContract(viewed)).ToList() });
+            return Results.Ok(new RecentsResponse { Items = [.. items.Select(e => e.ToContract(viewed))] });
         });
 
         // Clear the whole unread backlog. Without this an outline that means "you haven't opened this" can only be

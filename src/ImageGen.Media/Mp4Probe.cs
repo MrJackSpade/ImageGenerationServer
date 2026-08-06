@@ -140,5 +140,5 @@ internal static class Mp4Probe
         ((long)b[o] << 24) | ((long)b[o + 1] << 16) | ((long)b[o + 2] << 8) | b[o + 3];
 
     private static string ReadType(ReadOnlySpan<byte> b, int o) =>
-        new(new[] { (char)b[o], (char)b[o + 1], (char)b[o + 2], (char)b[o + 3] });
+        new([(char)b[o], (char)b[o + 1], (char)b[o + 2], (char)b[o + 3]]);
 }

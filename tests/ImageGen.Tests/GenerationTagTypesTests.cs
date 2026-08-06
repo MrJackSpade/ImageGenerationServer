@@ -18,7 +18,7 @@ public sealed class GenerationTagTypesTests
     [Fact]
     public void Empty_selection_is_a_real_choice_not_the_default()
     {
-        Assert.True(GenerationTagTypes.TryNormalize(Array.Empty<string>(), out IReadOnlyList<string>? none, out _));
+        Assert.True(GenerationTagTypes.TryNormalize([], out IReadOnlyList<string>? none, out _));
         Assert.Empty(none);
         Assert.Empty(GenerationTagTypes.Resolve(GenerationTagTypes.Serialize(none)));   // "[]" != unset
     }
@@ -26,15 +26,15 @@ public sealed class GenerationTagTypesTests
     [Fact]
     public void Selection_is_canonicalised_and_round_trips()
     {
-        Assert.True(GenerationTagTypes.TryNormalize(new[] { "META", " artist ", "meta" }, out IReadOnlyList<string>? types, out _));
-        Assert.Equal(new[] { "artist", "meta" }, types);                                // deduped, in display order
+        Assert.True(GenerationTagTypes.TryNormalize(["META", " artist ", "meta"], out IReadOnlyList<string>? types, out _));
+        Assert.Equal(["artist", "meta"], types);                                // deduped, in display order
         Assert.Equal(types, GenerationTagTypes.Resolve(GenerationTagTypes.Serialize(types)));
     }
 
     [Fact]
     public void Unknown_type_is_rejected_never_dropped()
     {
-        Assert.False(GenerationTagTypes.TryNormalize(new[] { "character", "seiyuu" }, out _, out string? error));
+        Assert.False(GenerationTagTypes.TryNormalize(["character", "seiyuu"], out _, out string? error));
         Assert.Contains("seiyuu", error);
     }
 
@@ -47,16 +47,16 @@ public sealed class GenerationTagTypesTests
     [Fact]
     public void Every_suppressible_type_is_switchable_and_general_can_be_turned_off()
     {
-        Assert.Equal(new[] { "general", "artist", "character", "copyright", "meta" }, GenerationTagTypes.Selectable);
+        Assert.Equal(["general", "artist", "character", "copyright", "meta"], GenerationTagTypes.Selectable);
 
         // General off is a real, selectable condition — a set like {traditional_media, colored_pencil}.
-        Assert.True(GenerationTagTypes.TryNormalize(new[] { "meta" }, out IReadOnlyList<string>? metaOnly, out _));
-        Assert.Equal(new[] { "meta" }, metaOnly);
+        Assert.True(GenerationTagTypes.TryNormalize(["meta"], out IReadOnlyList<string>? metaOnly, out _));
+        Assert.Equal(["meta"], metaOnly);
         Assert.Equal(metaOnly, GenerationTagTypes.Resolve(GenerationTagTypes.Serialize(metaOnly)));
 
         // The wire list is the selection verbatim: nothing is added behind the user's back, nothing is filtered.
         Assert.Equal(GenerationTagTypes.Default, GenerationTagTypes.ForWire(GenerationTagTypes.Default));
-        Assert.Empty(GenerationTagTypes.ForWire(Array.Empty<string>()));
+        Assert.Empty(GenerationTagTypes.ForWire([]));
         // The unset default still allows general — artists are the only thing off until the user says otherwise.
         Assert.Contains("general", GenerationTagTypes.Default);
     }
@@ -70,12 +70,12 @@ public sealed class GenerationTagTypesTests
     [Fact]
     public void Legacy_stored_value_is_upgraded_not_read_as_general_off()
     {
-        Assert.Equal(new[] { "general", "character", "copyright", "meta" },
+        Assert.Equal(["general", "character", "copyright", "meta"],
                      GenerationTagTypes.Resolve("[\"character\",\"copyright\",\"meta\"]"));
         // v1's empty selection meant "every switchable type off", and general was not switchable — so it stays on.
-        Assert.Equal(new[] { "general" }, GenerationTagTypes.Resolve("[]"));
+        Assert.Equal(["general"], GenerationTagTypes.Resolve("[]"));
         // ...whereas the same selection saved TODAY means general really is off, and survives the round trip.
-        Assert.True(GenerationTagTypes.TryNormalize(new[] { "character", "copyright", "meta" }, out IReadOnlyList<string>? today, out _));
+        Assert.True(GenerationTagTypes.TryNormalize(["character", "copyright", "meta"], out IReadOnlyList<string>? today, out _));
         Assert.Equal(today, GenerationTagTypes.Resolve(GenerationTagTypes.Serialize(today)));
         Assert.DoesNotContain("general", GenerationTagTypes.Resolve(GenerationTagTypes.Serialize(today)));
     }
@@ -106,13 +106,13 @@ public sealed class GenerationTagTypesPersistenceTests(TestDatabaseFixture fixtu
         Assert.Null(user.GenerationTagTypes);                                          // unset until it is set
         Assert.Equal(GenerationTagTypes.Default, GenerationTagTypes.Resolve(user.GenerationTagTypes));
 
-        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, new[] { "artist", "character" }, Ct));
+        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, ["artist", "character"], Ct));
         User? reloaded = await svc.GetByIdAsync(user.Id, Ct);
         Assert.NotNull(reloaded);
-        Assert.Equal(new[] { "artist", "character" }, GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
+        Assert.Equal(["artist", "character"], GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
 
         // ...including the empty selection, which must survive as "none of them" rather than reading as unset.
-        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, Array.Empty<string>(), Ct));
+        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, [], Ct));
         reloaded = await svc.GetByIdAsync(user.Id, Ct);
         Assert.NotNull(reloaded);
         Assert.Empty(GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
@@ -124,12 +124,12 @@ public sealed class GenerationTagTypesPersistenceTests(TestDatabaseFixture fixtu
         UserService svc = Service();
         User? user = await svc.RegisterAsync("mask_reject_user", "password1", "", Ct);
         Assert.NotNull(user);
-        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, new[] { "meta" }, Ct));
+        Assert.Null(await svc.SetGenerationTagTypesAsync(user.Id, ["meta"], Ct));
 
-        string? error = await svc.SetGenerationTagTypesAsync(user.Id, new[] { "character", "nonsense" }, Ct);
+        string? error = await svc.SetGenerationTagTypesAsync(user.Id, ["character", "nonsense"], Ct);
         Assert.NotNull(error);
         User? reloaded = await svc.GetByIdAsync(user.Id, Ct);
         Assert.NotNull(reloaded);
-        Assert.Equal(new[] { "meta" }, GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
+        Assert.Equal(["meta"], GenerationTagTypes.Resolve(reloaded.GenerationTagTypes));
     }
 }

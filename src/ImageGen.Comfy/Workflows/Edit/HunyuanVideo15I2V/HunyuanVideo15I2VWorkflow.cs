@@ -12,10 +12,12 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
     public override WorkflowMedia Media => WorkflowMedia.Video;
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
-    }).Concat(HunyuanSr.Schema).ToArray();
+        .. HunyuanSr.Schema,
+    ];
 
     protected override ComfyWorkflowGraph Build(HunyuanVideo15I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

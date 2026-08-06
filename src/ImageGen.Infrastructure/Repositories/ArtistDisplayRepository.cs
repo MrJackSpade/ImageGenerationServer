@@ -50,7 +50,7 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
             return result;
         }
 
-        List<string> names = artistNames.ToList();
+        List<string> names = [.. artistNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {

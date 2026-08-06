@@ -45,7 +45,7 @@ public sealed class BookmarksController(
         {
             Token = tag,
             Kind = BookmarkFilterViewModel.Kinds.KindTag,
-            Items = page.Items.Select(e => e.ToItemView(viewed)).ToList(),
+            Items = [.. page.Items.Select(e => e.ToItemView(viewed))],
         });
     }
 
@@ -63,10 +63,10 @@ public sealed class BookmarksController(
         IReadOnlyList<TokenBookmark> tokens = await _bookmarks.GetTokensAsync(userId, ct);
         IReadOnlyList<ImageBookmark> images = await _bookmarks.GetImagesAsync(userId, ct);
 
-        List<TokenBookmark> artists = tokens.Where(t => t.Kind == TokenKind.Artist).ToList();
-        List<TokenBookmark> tags = tokens.Where(t => t.Kind == TokenKind.Tag).ToList();
-        IReadOnlyDictionary<string, string> displays = await _artists.ResolveManyAsync(userId, artists.Select(a => a.Name).ToList(), ct);
-        IReadOnlyDictionary<string, string> tagDisplays = await _tags.ResolveManyAsync(userId, tags.Select(t => t.Name).ToList(), ct);
+        List<TokenBookmark> artists = [.. tokens.Where(t => t.Kind == TokenKind.Artist)];
+        List<TokenBookmark> tags = [.. tokens.Where(t => t.Kind == TokenKind.Tag)];
+        IReadOnlyDictionary<string, string> displays = await _artists.ResolveManyAsync(userId, [.. artists.Select(a => a.Name)], ct);
+        IReadOnlyDictionary<string, string> tagDisplays = await _tags.ResolveManyAsync(userId, [.. tags.Select(t => t.Name)], ct);
         ArtistCard Card(Domain.Entities.TokenBookmark t)
         {
             return new() { Name = t.Name, DisplayImageId = displays.GetValueOrDefault(t.Name), Pinned = t.PinnedAtUtc is not null };
@@ -92,18 +92,17 @@ public sealed class BookmarksController(
 
         BookmarkGroup Build(string title, bool isGlobal, Func<IReadOnlyList<string>, bool> pred)
         {
-            List<ArtistCard> groupArtists = artists.Where(a => pred(a.Categories))
+            List<ArtistCard> groupArtists = [.. artists.Where(a => pred(a.Categories))
                 .OrderByDescending(t => t.PinnedAtUtc is not null)
                 .ThenByDescending(t => t.PinnedAtUtc)
-                .Select(Card)
-                .ToList();
+                .Select(Card)];
             return new BookmarkGroup
             {
                 Title = title,
                 IsGlobal = isGlobal,
                 Artists = groupArtists,
-                Tags = tags.Where(t => pred(t.Categories)).Select(TagCardOf).ToList(),
-                Images = images.Where(i => pred(i.Categories)).Select(b => b.ToBookmarkView()).ToList(),
+                Tags = [.. tags.Where(t => pred(t.Categories)).Select(TagCardOf)],
+                Images = [.. images.Where(i => pred(i.Categories)).Select(b => b.ToBookmarkView())],
             };
         }
 

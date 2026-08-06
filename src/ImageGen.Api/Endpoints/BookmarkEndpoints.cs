@@ -17,9 +17,9 @@ public static class BookmarkEndpoints
             IReadOnlyList<ImageBookmark> images = await bookmarks.GetImagesAsync(userId, context.RequestAborted);
             return Results.Ok(new BookmarksResponse
             {
-                Artists = tokens.Where(t => t.Kind == TokenKind.Artist).Select(t => t.Name).ToList(),
-                Tags = tokens.Where(t => t.Kind == TokenKind.Tag).Select(t => t.Name).ToList(),
-                Images = images.Select(i => i.ToContract()).ToList(),
+                Artists = [.. tokens.Where(t => t.Kind == TokenKind.Artist).Select(t => t.Name)],
+                Tags = [.. tokens.Where(t => t.Kind == TokenKind.Tag).Select(t => t.Name)],
+                Images = [.. images.Select(i => i.ToContract())],
             });
         });
 

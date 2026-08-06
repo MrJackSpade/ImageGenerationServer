@@ -78,7 +78,7 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
 
         if (jobIds.Count > 0)
         {
-            string[] ps = jobIds.Select((_, i) => "@j" + i).ToArray();
+            string[] ps = [.. jobIds.Select((_, i) => "@j" + i)];
 
             // 4. The slots themselves. Same rows the SELECT above matched: same image, same jobs.
             await using (DbCommand cmd = conn.Command(
@@ -112,10 +112,10 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
                 }
             }
 
-            List<string> orphaned = jobIds.Where(id => !survivors.Contains(id)).ToList();
+            List<string> orphaned = [.. jobIds.Where(id => !survivors.Contains(id))];
             if (orphaned.Count > 0)
             {
-                string[] ops = orphaned.Select((_, i) => "@o" + i).ToArray();
+                string[] ops = [.. orphaned.Select((_, i) => "@o" + i)];
                 await using DbCommand cmd = conn.Command(
                     $"DELETE FROM dbo.Job WHERE JobId IN ({string.Join(',', ops)});", tx);
                 for (int i = 0; i < orphaned.Count; i++)

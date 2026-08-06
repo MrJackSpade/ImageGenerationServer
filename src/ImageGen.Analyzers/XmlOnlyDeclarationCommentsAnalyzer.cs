@@ -29,7 +29,8 @@ public sealed class XmlOnlyDeclarationCommentsAnalyzer : DiagnosticAnalyzer
             + "accessor bodies.");
 
     /// <summary>The declaration kinds whose attached comments are required to be XML.</summary>
-    private static readonly ImmutableArray<SyntaxKind> DeclarationKinds = ImmutableArray.Create(
+    private static readonly ImmutableArray<SyntaxKind> DeclarationKinds =
+    [
         SyntaxKind.ClassDeclaration,
         SyntaxKind.StructDeclaration,
         SyntaxKind.InterfaceDeclaration,
@@ -47,10 +48,11 @@ public sealed class XmlOnlyDeclarationCommentsAnalyzer : DiagnosticAnalyzer
         SyntaxKind.EventDeclaration,
         SyntaxKind.EventFieldDeclaration,
         SyntaxKind.FieldDeclaration,
-        SyntaxKind.EnumMemberDeclaration);
+        SyntaxKind.EnumMemberDeclaration,
+    ];
 
     /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

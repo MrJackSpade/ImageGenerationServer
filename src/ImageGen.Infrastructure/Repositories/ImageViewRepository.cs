@@ -38,7 +38,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageView WHERE UserId = @userId AND Gateway
         long userId, IReadOnlyCollection<string> gatewayImageIds, CancellationToken ct)
     {
         HashSet<string> viewed = new(StringComparer.Ordinal);
-        List<string> ids = gatewayImageIds.Distinct(StringComparer.Ordinal).ToList();
+        List<string> ids = [.. gatewayImageIds.Distinct(StringComparer.Ordinal)];
         if (ids.Count == 0)
         {
             return viewed;

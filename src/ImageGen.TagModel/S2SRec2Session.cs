@@ -76,7 +76,7 @@ public sealed class S2SRec2Session : IDisposable
 
         // Bound by name from the graph rather than assumed positionally, so a re-export that reorders inputs fails
         // here with a clear message instead of silently feeding the type mask in as tag ids.
-        string[] inputs = _session.InputMetadata.Keys.ToArray();
+        string[] inputs = [.. _session.InputMetadata.Keys];
         _idsName = Require(inputs, Inputs.IdsInput);
         _padMaskName = Require(inputs, Inputs.PadMaskInput);
         _typeMaskName = Require(inputs, Inputs.TypeMaskInput);
@@ -111,8 +111,8 @@ public sealed class S2SRec2Session : IDisposable
         ];
 
         using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(inputs);
-        DisposableNamedOnnxValue[] ordered = results.ToArray();
-        float[] rowLogits = ordered[0].AsEnumerable<float>().ToArray();
+        DisposableNamedOnnxValue[] ordered = [.. results];
+        float[] rowLogits = [.. ordered[0].AsEnumerable<float>()];
         float completeness = ordered[1].AsEnumerable<float>().First();
 
         return (ScatterToVocab(rowLogits), completeness);

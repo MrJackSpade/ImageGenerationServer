@@ -140,7 +140,7 @@ public sealed class TagVocab
         // Refuse an HTML-encoded vocab instead of compensating for it. Decoding here cannot be made safe: it is not
         // idempotent, so it would corrupt an already-decoded vocab ('&ether' becomes 'ðer'). A literal '&' is normal
         // in real tags ('tiger_&_bunny'); an ENTITY never is, so this is a build mistake and has to fail loudly.
-        string[] encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
+        string[] encoded = [.. tags.Where(t => HtmlEntity.IsMatch(t)).Take(3)];
         if (encoded.Length > 0)
         {
             throw new InvalidDataException(

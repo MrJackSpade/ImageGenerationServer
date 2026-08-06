@@ -7,10 +7,10 @@ internal static class H3
     /// <summary>The audio VAE — a SECOND vae slot beyond the video VAE (<c>req.Vae</c>). A model-ref param resolved to
     /// this machine's bound file (linked in the config's <c>extra</c>), mirroring how the MoE/SR workflows carry a
     /// second model file.</summary>
-    public static readonly ParamSpec[] ExtraSchema = new ParamSpec[]
-    {
+    public static readonly ParamSpec[] ExtraSchema =
+    [
         new() { Key = WorkflowParamKeys.AudioVae, Type = ParamType.String, IsModelRef = true, Label = "Audio VAE" },
-    };
+    ];
 
     /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v (the source is ref_image_0, in-place
     /// at <see cref="H3Nodes.Source"/>); each picker reference gets <c>RefImageBase + i</c>. Kept clear of every node id

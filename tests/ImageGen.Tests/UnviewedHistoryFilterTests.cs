@@ -17,6 +17,8 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
     private static readonly DateTime Now = new(2026, 7, 31, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly string[] collection = ["uv-07", "uv-08", "uv-09", "uv-10", "uv-11"];
+    private static readonly string[] expectedUnviewedIds = ["up-00", "up-02", "up-04", "up-06", "up-08"];
 
     [Fact]
     public async Task A_full_page_of_unviewed_comes_back_even_when_the_newest_are_all_viewed()
@@ -38,7 +40,7 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
             new HistoryQuery(user.Id, 1, 5, UnviewedOnly: true), Ct);
 
         Assert.Equal(5, page.Items.Count);
-        Assert.All(page.Items, e => Assert.DoesNotContain(e.GatewayImageId, new[] { "uv-07", "uv-08", "uv-09", "uv-10", "uv-11" }));
+        Assert.All(page.Items, e => Assert.DoesNotContain(e.GatewayImageId, collection));
     }
 
     [Fact]
@@ -81,10 +83,10 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
         PagedResult<HistoryEntry> p1 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 3, UnviewedOnly: true), Ct);
         PagedResult<HistoryEntry> p2 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 2, 3, UnviewedOnly: true), Ct);
 
-        List<string> ids = p1.Items.Concat(p2.Items).Select(e => e.GatewayImageId).ToList();
+        List<string> ids = [.. p1.Items.Concat(p2.Items).Select(e => e.GatewayImageId)];
         Assert.Equal(5, ids.Count);
         Assert.Equal(5, ids.Distinct().Count());
-        Assert.All(ids, id => Assert.Contains(id, new[] { "up-00", "up-02", "up-04", "up-06", "up-08" }));
+        Assert.All(ids, id => Assert.Contains(id, expectedUnviewedIds));
     }
 
     [Fact]

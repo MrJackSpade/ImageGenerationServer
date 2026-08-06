@@ -248,7 +248,7 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         if (jobs.Count > 0)
         {
             Dictionary<string, JobRecord> byId = jobs.ToDictionary(j => j.JobId);
-            string[] names = jobs.Select((_, i) => "@j" + i).ToArray();
+            string[] names = [.. jobs.Select((_, i) => "@j" + i)];
             await using DbCommand cmd = conn.Command(
                 $"SELECT JobId, SlotIndex, IsEdit, State, ImageId FROM dbo.JobSlot " +
                 $"WHERE JobId IN ({string.Join(",", names)}) ORDER BY SlotIndex ASC;");

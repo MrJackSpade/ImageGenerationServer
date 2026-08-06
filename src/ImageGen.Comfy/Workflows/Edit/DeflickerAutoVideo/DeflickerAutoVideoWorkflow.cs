@@ -35,13 +35,13 @@ public sealed class DeflickerAutoVideoWorkflow : Workflow<DeflickerAutoParams>
         public const string Save = "9";
     }
 
-    private static readonly IReadOnlyList<ParamSpec> DeflickerSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> DeflickerSchema =
+    [
         new() { Key = WorkflowParamKeys.MadK, Type = ParamType.Double, Min = 0.5, Max = 20.0, Label = "MAD K", Help = "Robust threshold: flag a frame past K*MAD of the whole-clip series" },
         new() { Key = WorkflowParamKeys.MinDev, Type = ParamType.Double, Min = 0.0, Max = 16.0, Label = "Min deviation (levels)", Help = "Absolute floor in 8-bit levels — smaller deviations are invisible" },
         new() { Key = WorkflowParamKeys.AlphaCut, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Matte cutoff", Help = "BiRefNet matte threshold for the character pixel set" },
         new() { Key = WorkflowParamKeys.TimeSigma, Type = ParamType.Double, Min = 0.1, Max = 32.0, Label = "Reference sigma (frames)", Help = "How fast the clean-frame reference pool's temporal weights fall off" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(DeflickerAutoParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

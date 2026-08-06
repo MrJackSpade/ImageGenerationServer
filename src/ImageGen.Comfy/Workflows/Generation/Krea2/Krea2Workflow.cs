@@ -15,5 +15,5 @@ public sealed class Krea2Workflow : Krea2Base<Krea2Params>
     public override string Name => "krea2";
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = Txt2ImgWorkflowBase.SharedSchema.Concat(Krea2Rebalance.Schema).ToArray();
+    private static readonly IReadOnlyList<ParamSpec> _schema = [.. Txt2ImgWorkflowBase.SharedSchema, .. Krea2Rebalance.Schema];
 }

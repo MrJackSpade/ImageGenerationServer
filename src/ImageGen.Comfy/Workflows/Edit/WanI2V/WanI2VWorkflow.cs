@@ -12,10 +12,11 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
     /// <summary>Flow shift. The Wan2.2 repo's ti2v_5B config runs 5.0; without an explicit node ComfyUI silently
     /// applies its own Wan default of 8.0, so the graph pins the reference value.</summary>
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(WanI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

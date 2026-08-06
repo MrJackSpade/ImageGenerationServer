@@ -14,7 +14,7 @@ namespace ImageGen.Tests;
 /// </summary>
 public sealed class DatabaseAvailabilityTests
 {
-    private readonly IDatabaseAvailability _availability = new SqlDatabaseAvailability();
+    private readonly SqlDatabaseAvailability _availability = new();
 
     /// <summary>
     /// The real thing, end to end: a server that cannot be reached must be recognised from the exception it actually
@@ -40,14 +40,12 @@ public sealed class DatabaseAvailabilityTests
     public void An_ordinary_failure_is_not_unavailable(Exception ex) =>
         Assert.False(_availability.IsUnavailable(ex));
 
-    public static TheoryData<Exception> NotOutages() =>
-    [
+    public static TheoryData<Exception> NotOutages() => new(
         new Exception("something went wrong"),
         new InvalidOperationException("the sequence contains no elements"),
         new ArgumentException("bad argument"),
         new NullReferenceException(),
-        new Exception("outer", new ArgumentOutOfRangeException()),
-    ];
+        new Exception("outer", new ArgumentOutOfRangeException()));
 
     /// <summary>A socket that never answers surfaces as a bare timeout — no connection happened, so it is a wait.</summary>
     [Fact]

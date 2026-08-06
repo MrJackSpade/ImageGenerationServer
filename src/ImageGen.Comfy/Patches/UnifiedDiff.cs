@@ -318,7 +318,7 @@ public static class UnifiedDiff
     public static FileDiff Added(string path, string content)
     {
         bool endsWithoutNewline = content.Length > 0 && !content.EndsWith('\n');
-        List<string> lines = SplitLines(content).ToList();
+        List<string> lines = [.. SplitLines(content)];
 
         // A file ending in a newline splits to a trailing empty element that is not a line of the file.
         if (!endsWithoutNewline && lines.Count > 0 && lines[^1].Length == 0)

@@ -55,22 +55,15 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
     /// <summary>Only the masked region changes, and the composite enforces it.</summary>
     public override bool PreservesComposition => true;
 
-    protected static readonly IReadOnlyList<ParamSpec> FillSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
-        // Fill is guidance-distilled: real CFG stays 1 and the strength knob is FluxGuidance. 30 is the value BFL
-        // ship for Fill (ComfyUI's blueprint uses it too) — an order of magnitude above Flux txt2img's 3.5, because
-        // the guidance embedding is what carries "obey the mask conditioning".
+    protected static readonly IReadOnlyList<ParamSpec> FillSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double, Min = 1.0, Max = 60.0, Step = 0.5, Label = "Fill guidance" },
-        // The soft edge that DifferentialDiffusion converts into a per-pixel denoise schedule. Wide enough to be a
-        // real schedule ramp rather than a 1px step; the grow keeps it off the region being filled.
         new() { Key = WorkflowParamKeys.MaskBlur, Type = ParamType.Int, Min = 0, Max = 31, Label = "Mask edge blur (px)" },
         new() { Key = WorkflowParamKeys.Diffdiff,  Type = ParamType.Bool, Label = "Differential blending" },
-        // Fit-and-invert the decode's tint on the outside-mask pixels before pasting back
-        // (ImageCompositeMaskedColorCorrected "Linear2"). Off = plain composite.
         new() { Key = WorkflowParamKeys.ColorCorrect, Type = ParamType.Bool, Label = "Seam color match" },
-        // Long-edge CEILING (not a target): a canvas already under it is passed through untouched and never upscaled.
         new() { Key = WorkflowParamKeys.MaxDimension, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Max long edge (px)" },
-    }).ToArray();
+    ];
 
     /// <summary>Produce the canvas to fill and the raw region to fill in it.</summary>
     protected abstract void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,

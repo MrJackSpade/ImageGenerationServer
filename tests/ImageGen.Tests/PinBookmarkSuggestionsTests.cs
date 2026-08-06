@@ -43,7 +43,7 @@ public sealed class PinBookmarkMergeTests
 
         List<ForgeApi.TagSuggestionItem> merged = ForgeApi.MergePinnedFirst(pinned, ranked, 10);
 
-        Assert.Single(merged);
+        _ = Assert.Single(merged);
         Assert.Equal("Smile", merged[0].Name);
     }
 

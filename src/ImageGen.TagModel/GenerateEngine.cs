@@ -198,7 +198,7 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         }
 
         // Only what was generated: the caller keeps its own prompt verbatim and appends to it.
-        List<string> tags = current.Where(id => !seedIds.Contains(id)).Select(id => vocab.Tags[id]).ToList();
+        List<string> tags = [.. current.Where(id => !seedIds.Contains(id)).Select(id => vocab.Tags[id])];
         return new Result(tags, reason);
     }
 

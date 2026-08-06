@@ -33,8 +33,7 @@ public sealed class CustomNodePresenceTests
         // The workflow has to actually ask for it, or the requirement exists and gates nothing.
         JsonElement config = JsonDocument.Parse(
             File.ReadAllText(Path.Combine(repo, "configurations", "workflows", "anima-outpaint.json"))).RootElement;
-        List<string?> extra = config.GetProperty("requirements").GetProperty("extra").EnumerateArray()
-            .Select(e => e.GetString()).ToList();
+        List<string?> extra = [.. config.GetProperty("requirements").GetProperty("extra").EnumerateArray().Select(e => e.GetString())];
         Assert.Contains("comfyui-anima-lllite", extra);
     }
 

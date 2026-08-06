@@ -27,7 +27,7 @@ namespace ImageGen.Web.Auth;
 /// </summary>
 public sealed class MemoryTicketStore : ITicketStore, IDisposable
 {
-    private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
+    private readonly MemoryCache _cache = new(new MemoryCacheOptions());
 
     public Task<string> StoreAsync(AuthenticationTicket ticket)
     {
@@ -60,5 +60,5 @@ public sealed class MemoryTicketStore : ITicketStore, IDisposable
         return Task.CompletedTask;
     }
 
-    public void Dispose() => (_cache as IDisposable)?.Dispose();
+    public void Dispose() => _cache.Dispose();
 }

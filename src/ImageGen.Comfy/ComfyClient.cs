@@ -231,7 +231,7 @@ public sealed class ComfyClient : IComfyClient
     /// exactly as the text encoders below have always done across their four loaders.</para>
     /// </summary>
     private static readonly (RequirementKind Kind, string Node, string Input)[] LoaderInputs =
-    {
+    [
         (RequirementKind.Checkpoint, "CheckpointLoaderSimple", "ckpt_name"),
         (RequirementKind.UnetGguf, "UnetLoaderGGUF", "unet_name"),
         (RequirementKind.UnetGguf, "UNETLoader", "unet_name"),
@@ -253,7 +253,7 @@ public sealed class ComfyClient : IComfyClient
         // than two different sets — the DiT and the VAE genuinely live together.
         (RequirementKind.SeedVr2, "SeedVR2LoadDiTModel", "model"),
         (RequirementKind.SeedVr2, "SeedVR2LoadVAEModel", "model"),
-    };
+    ];
 
     /// <summary>
     /// What each slot kind can be filled with on this machine. A kind absent from the result has no loader in this
@@ -265,7 +265,7 @@ public sealed class ComfyClient : IComfyClient
         Dictionary<RequirementKind, List<string>> byKind = [];
         foreach (IGrouping<RequirementKind, (RequirementKind Kind, string Node, string Input)> group in LoaderInputs.GroupBy(l => l.Kind))
         {
-            HashSet<string> files = await ReadLoaderFilesAsync(group.Select(g => (g.Node, g.Input)).ToArray(), ct);
+            HashSet<string> files = await ReadLoaderFilesAsync([.. group.Select(g => (g.Node, g.Input))], ct);
             if (files.Count == 0)
             {
                 continue;
@@ -306,7 +306,7 @@ public sealed class ComfyClient : IComfyClient
 
         return byKind.ToDictionary(
             kv => kv.Key,
-            kv => (IReadOnlyList<string>)kv.Value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+            kv => (IReadOnlyList<string>)[.. kv.Value.Distinct(StringComparer.OrdinalIgnoreCase)]);
     }
 
     /// <summary>ComfyUI's on-disk model roots by category, from <c>/internal/folder_paths</c> — e.g. "loras",
@@ -356,8 +356,8 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>Every loadable filename across the loaders a workflow might use, for presence-gating a configuration.</summary>
     public async Task<IReadOnlySet<string>> GetPresentFilesAsync(CancellationToken ct = default)
     {
-        HashSet<string> files = await ReadLoaderFilesAsync(new[]
-        {
+        HashSet<string> files = await ReadLoaderFilesAsync(
+        [
             ("CheckpointLoaderSimple", "ckpt_name"),
             ("UnetLoaderGGUF", "unet_name"),
             ("UNETLoader", "unet_name"),
@@ -380,7 +380,7 @@ public sealed class ComfyClient : IComfyClient
             // weights are on disk (the pack downloads on first use), so this gates on the PACK, not the weights.
             ("SeedVR2LoadDiTModel", "model"),
             ("SeedVR2LoadVAEModel", "model"),
-        }, ct);
+        ], ct);
         if (files.Count == 0)
         {
             throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
@@ -529,7 +529,7 @@ public sealed class ComfyClient : IComfyClient
     {
         if (keyEl.ValueKind != JsonValueKind.Array || keyEl.GetArrayLength() == 0)
         {
-            return Array.Empty<JsonElement>();
+            return [];
         }
 
         if (keyEl[0].ValueKind == JsonValueKind.Array)
@@ -543,7 +543,7 @@ public sealed class ComfyClient : IComfyClient
             return opts.EnumerateArray();
         }
 
-        return Array.Empty<JsonElement>();
+        return [];
     }
 
     /// <summary>
@@ -632,7 +632,7 @@ public sealed class ComfyClient : IComfyClient
     {
         if (loras is not { Count: > 0 })
         {
-            return Array.Empty<LoraSelection>();
+            return [];
         }
 
         IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> present = await GetPresentFilesByKindAsync(ct);
@@ -1028,7 +1028,7 @@ public sealed class ComfyClient : IComfyClient
 
     /// <summary>The prompt ids in one of <c>/queue</c>'s lists. Each entry is
     /// <c>[number, prompt_id, prompt, extra_data, outputs]</c>; the prompt id is element 1.</summary>
-    private static IReadOnlySet<string> PromptIdsIn(JsonElement root, string key)
+    private static HashSet<string> PromptIdsIn(JsonElement root, string key)
     {
         HashSet<string> ids = new(StringComparer.Ordinal);
         if (!root.TryGetProperty(key, out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
@@ -1055,7 +1055,7 @@ public sealed class ComfyClient : IComfyClient
     /// decide whether a failed interrupt should fail their own operation; none of them may discard the reason.</summary>
     public async Task InterruptAsync(CancellationToken ct = default)
     {
-        using HttpResponseMessage resp = await Http.PostAsync(Endpoint.Interrupt, new ByteArrayContent(Array.Empty<byte>()), ct);
+        using HttpResponseMessage resp = await Http.PostAsync(Endpoint.Interrupt, new ByteArrayContent([]), ct);
         await EnsureOk(resp, Op.PostInterrupt);
     }
 

@@ -25,10 +25,10 @@ public static class GenerationTagTypes
     /// wire verbatim as <c>types=</c>, so an addition here must exist in the model's <c>DROPPABLE</c> too (it 400s
     /// otherwise), and a category the model gains must be added HERE in the same change: <c>types=</c> names what stays
     /// ALLOWED, so one this list forgets is one the model silently switches OFF.</summary>
-    public static readonly IReadOnlyList<string> Selectable = new[] { "general", "artist", "character", "copyright", "meta" };
+    public static readonly IReadOnlyList<string> Selectable = ["general", "artist", "character", "copyright", "meta"];
 
     /// <summary>What an unset mask means: everything switchable except artists.</summary>
-    public static readonly IReadOnlyList<string> Default = new[] { "general", "character", "copyright", "meta" };
+    public static readonly IReadOnlyList<string> Default = ["general", "character", "copyright", "meta"];
 
     /// <summary>The allowed-type list to put on the tag model's <c>types=</c> parameter. Now that every suppressible
     /// category is switchable this is the selection itself — but callers still go through here rather than passing the
@@ -103,7 +103,7 @@ public static class GenerationTagTypes
 
         if (legacy)
         {
-            parsed = parsed.Append(Tokens.GeneralType).ToArray();
+            parsed = [.. parsed, Tokens.GeneralType];
         }
 
         if (!TryNormalize(parsed, out IReadOnlyList<string>? types, out string? error))
@@ -127,7 +127,7 @@ public static class GenerationTagTypes
     public static bool TryNormalize(IEnumerable<string>? requested, out IReadOnlyList<string> types, out string? error)
     {
         HashSet<string> wanted = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string raw in requested ?? Enumerable.Empty<string>())
+        foreach (string raw in requested ?? [])
         {
             string name = raw.Trim();
             if (name.Length == 0)
@@ -145,7 +145,7 @@ public static class GenerationTagTypes
             _ = wanted.Add(name);
         }
 
-        types = Selectable.Where(wanted.Contains).ToList();
+        types = [.. Selectable.Where(wanted.Contains)];
         error = null;
         return true;
     }
@@ -155,5 +155,5 @@ public static class GenerationTagTypes
     /// always versioned, so a selection that omits <c>general</c> reads back as exactly that instead of being mistaken
     /// for a v1 value written before general was switchable.</summary>
     public static string Serialize(IReadOnlyList<string> types) =>
-        JsonSerializer.Serialize(new StoredMask(StoredVersion, types.ToArray()));
+        JsonSerializer.Serialize(new StoredMask(StoredVersion, [.. types]));
 }

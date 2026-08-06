@@ -19,8 +19,10 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
     public override string Name => "krea2-refine";
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = Txt2ImgWorkflowBase.SharedSchema.Concat(Krea2Rebalance.Schema).Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. Txt2ImgWorkflowBase.SharedSchema,
+        .. Krea2Rebalance.Schema,
         new() { Key = WorkflowParamKeys.PolishDenoise, Type = ParamType.Double, Min = 0.0, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the base render in the second pass. ~0.25–0.40 polishes texture and "
@@ -33,7 +35,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         new() { Key = WorkflowParamKeys.RefinerCfg, Type = ParamType.Double, Min = 1.0, Max = 4.0 },
         new() { Key = WorkflowParamKeys.RefinerSampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.RefinerScheduler, Type = ParamType.String },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(Krea2RefineParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

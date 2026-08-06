@@ -5,6 +5,7 @@ root = true
 [*.cs]
 
 # Build-enforced as errors (rule-ID form, honored by dotnet build / CI).
+dotnet_diagnostic.IDE0028.severity = error
 dotnet_diagnostic.IDE0300.severity = error
 dotnet_diagnostic.IDE0301.severity = error
 dotnet_diagnostic.IDE0303.severity = error
@@ -14,6 +15,10 @@ dotnet_diagnostic.CA1861.severity = error
 dotnet_diagnostic.CA1822.severity = error
 dotnet_diagnostic.CA1825.severity = error
 dotnet_diagnostic.CA1859.severity = error
+
+# Suppressed.
+dotnet_diagnostic.CA1873.severity = silent
+dotnet_diagnostic.IDE0130.severity = silent
 
 #### Core EditorConfig Options ####
 

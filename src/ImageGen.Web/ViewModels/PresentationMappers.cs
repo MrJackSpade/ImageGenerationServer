@@ -27,6 +27,6 @@ public static class PresentationMappers
         e.GatewayImageId, e.Prompt, e.ModelFriendly, e.ModelId, e.Aspect, e.CreatedAtUtc, MarksToMap(e.Marks),
         e.Loras.Count == 0 ? null : e.Loras.Select(l => new LoraView(l.Name, l.Weight)).ToList());
 
-    private static IReadOnlyDictionary<string, string> MarksToMap(IReadOnlyList<Mark> marks) =>
+    private static Dictionary<string, string> MarksToMap(IReadOnlyList<Mark> marks) =>
         marks.ToDictionary(m => m.Token, m => m.Kind.ToWire());
 }

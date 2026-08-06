@@ -18,11 +18,11 @@ public sealed class LineThickenErodeWorkflow : EditWorkflow<LineThickenErodePara
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => ErodeSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> ErodeSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> ErodeSchema =
+    [
         // Growth radius in pixels = iterations of a 3x3 minimum filter. 1 ≈ +1px lines.
         new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int, Min = 0, Max = 32, Label = "Line thickness (px)" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(LineThickenErodeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

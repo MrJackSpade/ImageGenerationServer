@@ -38,7 +38,7 @@ internal static class HunyuanSr
     /// <summary>SR knobs, appended to the HunyuanVideo 1.5 i2v/t2v schemas. <c>sr</c> is the on/off toggle; the rest
     /// carry the SR file names (literal, like the MoE <c>unet_low</c>) and the refine settings.</summary>
     public static readonly ParamSpec[] Schema =
-    {
+    [
         new() { Key = WorkflowParamKeys.Sr,           Type = ParamType.Bool,   Label = "Super-resolution (1080p)" },
         new() { Key = WorkflowParamKeys.SrModel,     Type = ParamType.String, IsModelRef = true },   // SR distilled UNet filename
         new() { Key = WorkflowParamKeys.SrUpsampler, Type = ParamType.String, IsModelRef = true },   // latent upsampler filename
@@ -49,7 +49,7 @@ internal static class HunyuanSr
         new() { Key = WorkflowParamKeys.SrNoiseAug, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.SrCfg,       Type = ParamType.Double, Min = 1.0, Max = 12.0 },
         new() { Key = WorkflowParamKeys.SrShift,     Type = ParamType.Double, Min = 1.0, Max = 12.0 },
-    };
+    ];
 
     /// <summary>The SR pass for these params, or null when SR is off — the toggle is the params SHAPE (a concrete SR
     /// subtype implements <see cref="IHunyuanSrPass"/>) plus a supplied SR model file. Callers gate <see cref="Refine"/>

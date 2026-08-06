@@ -49,12 +49,12 @@ public sealed class TagModelParityTests : IDisposable
         int compared = 0;
         foreach (JsonElement recorded in snapshot.GetProperty("suggest").EnumerateArray())
         {
-            string[] context = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string[] context = [.. recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString())];
             string fragment = recorded.GetProperty("q").RequireString();
             int limit = recorded.GetProperty("k").GetInt32();
 
             SuggestEngine.SuggestResult actual = engine.Query(context, fragment, limit);
-            JsonElement[] expected = recorded.GetProperty("results").EnumerateArray().ToArray();
+            JsonElement[] expected = [.. recorded.GetProperty("results").EnumerateArray()];
 
             Assert.Equal(expected.Length, actual.Results.Count);
             for (int i = 0; i < expected.Length; i++)
@@ -88,9 +88,9 @@ public sealed class TagModelParityTests : IDisposable
         int compared = 0;
         foreach (JsonElement recorded in snapshot.GetProperty("greedy").EnumerateArray())
         {
-            string[] seed = recorded.GetProperty("seed").EnumerateArray().Select(e => e.RequireString()).ToArray();
-            string[] types = recorded.GetProperty("types").EnumerateArray().Select(e => e.RequireString()).ToArray();
-            string[] expected = recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString()).ToArray();
+            string[] seed = [.. recorded.GetProperty("seed").EnumerateArray().Select(e => e.RequireString())];
+            string[] types = [.. recorded.GetProperty("types").EnumerateArray().Select(e => e.RequireString())];
+            string[] expected = [.. recorded.GetProperty("tags").EnumerateArray().Select(e => e.RequireString())];
 
             GenerateEngine.Result actual = engine.Generate(
                 seed, seed: 0, temperature: 0, bannedTags: null, typeMask: TypeMask.FromAllowedNames(types));
@@ -115,8 +115,8 @@ public sealed class TagModelParityTests : IDisposable
         Assert.NotNull(_bundle);
         GenerateEngine engine = new(_bundle);
         TagVocab vocab = _bundle.Vocab;
-        string[] seed = new[] { "1girl", "solo" };
-        string[] banned = new[] { "long_hair", "smile" };
+        string[] seed = ["1girl", "solo"];
+        string[] banned = ["long_hair", "smile"];
 
         for (int draw = 0; draw < 8; draw++)
         {

@@ -193,5 +193,5 @@ public sealed class PromptFinalizerGatingTests
     public void A_single_axis_tag_model_still_strips_markers(WorkflowTagging tg) => Assert.Equal("foo, bar", PromptFinalizer.Finalize("#foo, @bar", tg).Rendered);
 
     /// <summary>The tags-only and artists-only blocks, for <see cref="A_single_axis_tag_model_still_strips_markers"/>.</summary>
-    public static TheoryData<WorkflowTagging> SingleAxisTagModels() => [TagsOnly, ArtistsOnly];
+    public static TheoryData<WorkflowTagging> SingleAxisTagModels() => new(TagsOnly, ArtistsOnly);
 }

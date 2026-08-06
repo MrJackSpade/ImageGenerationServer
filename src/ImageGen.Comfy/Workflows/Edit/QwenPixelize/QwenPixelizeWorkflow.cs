@@ -16,8 +16,8 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => QwenPixelizeSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> QwenPixelizeSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> QwenPixelizeSchema =
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
@@ -50,7 +50,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(QwenPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

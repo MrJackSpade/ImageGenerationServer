@@ -62,32 +62,17 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
 
     /// <summary>Knobs common to both directions. The shared <c>denoise</c> label ("Denoise (source ↔ motion)") is
     /// wrong here, so it is dropped and re-added per subclass.</summary>
-    protected static readonly IReadOnlyList<ParamSpec> ControlNetSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
+    protected static readonly IReadOnlyList<ParamSpec> ControlNetSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Negative,       Type = ParamType.String },
-        // Shift for ModelSamplingAuraFlow. Qwen-Image's trained value; the template ships 3.1.
         new() { Key = WorkflowParamKeys.Auraflow,       Type = ParamType.Double, Min = 0.0, Max = 10.0 },
         new() { Key = WorkflowParamKeys.CnStrength,    Type = ParamType.Double, Min = 0.0, Max = 2.0,  Step = 0.05, Label = "Fill control strength" },
         new() { Key = WorkflowParamKeys.CnStart,       Type = ParamType.Double, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control start %" },
         new() { Key = WorkflowParamKeys.CnEnd,         Type = ParamType.Double, Min = 0.0, Max = 1.0,  Step = 0.01, Label = "Control end %" },
-        // mask_grow is declared PER DIRECTION (0 inpaint / 24 outpaint) — see each subclass's schema; they are not
-        // interchangeable.
-        //
-        // Gaussian blur applied to the mask through the IMAGE round-trip in SoftenMask, matching the reference
-        // template's "Grow and Blur Mask" subgraph: ImageBlur[radius 31, sigma MaskBlurSigma]. This knob is only the
-        // kernel WINDOW; the ramp width is set by the per-direction sigma (see MaskBlurSigma — narrow for inpaint,
-        // latent-cell-wide for outpaint, always paired with a grow that keeps the ramp off the 0.5-grey pad fill).
-        // Do not "simplify" this to FeatherMask — that node ramps in from the CANVAS EDGES, not from the mask's own
-        // boundary.
         new() { Key = WorkflowParamKeys.MaskBlur,      Type = ParamType.Int,    Min = 0,   Max = 31,   Label = "Mask edge blur (px)" },
-        // Long-edge ceiling for the sampled canvas. 0 = no ceiling (run native). This is a CEILING, not a target: an
-        // image already under it is passed through untouched and is never upscaled to meet it. Comfy's template uses
-        // ImageScaleToMaxDimension, which forces the long edge to EXACTLY largest_size and so scales small sources UP;
-        // that wastes VRAM on a 20B model + a 4.2GB ControlNet and silently changes the user's resolution, so the
-        // decision is made here in C# (the source dims are known at submit) and a scale node is emitted only when the
-        // canvas genuinely exceeds the ceiling.
         new() { Key = WorkflowParamKeys.MaxDimension,  Type = ParamType.Int,    Min = 0,  Max = 4096, Label = "Max long edge (px)" },
-    }).ToArray();
+    ];
 
     /// <summary>Produce the canvas to fill and the region to fill in it. Inpaint uses the source as-is plus the
     /// painted mask; outpaint pads the source and uses the added border as the mask.</summary>
@@ -124,7 +109,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     /// fill region touches those edges) it drove the mask toward 0 exactly where the fill had to be strongest, and
     /// <c>ImagePadForOutpaint</c>'s 0.5-grey fill showed through as a grey frame.</para>
     /// </summary>
-    private Output<Slot.Mask> SoftenMask(ComfyWorkflowGraph g, QwenInpaintParams p, Output<Slot.Mask> rawMask)
+    private static Output<Slot.Mask> SoftenMask(ComfyWorkflowGraph g, QwenInpaintParams p, Output<Slot.Mask> rawMask)
     {
         Output<Slot.Mask> m = rawMask;
         int grow = p.MaskGrow;   // 0 = no grow; range enforced by the DTO's [Range] at the ParamsCodec boundary
@@ -165,7 +150,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     /// <summary>Emit the ceiling scale for the canvas AND its mask, or return them untouched. Both must be resized
     /// together: the ControlNet apply and the sampler's noise mask resize a mismatched mask internally, but
     /// <c>ImageCompositeMasked</c> does not, so a mask left at the original size would break the paste-back.</summary>
-    private static void ApplyCeiling(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
+    private static void ApplyCeiling(ComfyWorkflowGraph g, QwenInpaintParams p,
         (int W, int H) canvas, ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
         int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
@@ -213,9 +198,9 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
-        ApplyCeiling(g, p, inputs, CanvasSize(p, inputs), ref image, ref rawMask);
+        ApplyCeiling(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
 
-        Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);
+        Output<Slot.Mask> softMask = QwenInstantXInpaintBase<TParams>.SoftenMask(g, p, rawMask);
 
         // Base Qwen-Image is txt2img: a plain CLIPTextEncode, NOT TextEncodeQwenImageEdit(Plus).
         // The negative runs at CFG ~2.5 and must not be empty — Comfy's own template ships a single space.

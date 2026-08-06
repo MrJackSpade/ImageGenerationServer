@@ -7,7 +7,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
 {
     public override string Name => "hunyuanvideo15-t2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
-    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(HunyuanSr.Schema).ToArray();
+    public override IReadOnlyList<ParamSpec> Schema => [.. Txt2ImgWorkflowBase.SharedSchema, .. HunyuanSr.Schema];
 
     protected override ComfyWorkflowGraph Build(HunyuanVideo15T2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

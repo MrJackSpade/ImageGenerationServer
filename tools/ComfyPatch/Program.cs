@@ -145,7 +145,7 @@ public static class Program
             throw new ArgumentException("Name what to act on: --all, or --id <id>.");
         }
 
-        List<string> unknown = ids.Where(id => catalog.All(p => p.Id != id)).ToList();
+        List<string> unknown = [.. ids.Where(id => catalog.All(p => p.Id != id))];
         if (unknown.Count > 0)
         {
             throw new ArgumentException($"No such patch: {string.Join(Format.IdSeparator, unknown)}. Run 'list' to see the ids.");

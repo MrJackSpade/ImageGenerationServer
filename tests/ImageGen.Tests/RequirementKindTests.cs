@@ -58,10 +58,10 @@ public sealed class RequirementKindTests
     public void Every_kind_a_slot_declares_is_served_by_a_loader()
     {
         // CustomNode is met by a registered node rather than a file, so it draws from no loader by design.
-        HashSet<RequirementKind> served = LoaderInputs().Select(l => l.Kind).Distinct().Append(RequirementKind.CustomNode).ToHashSet();
-        List<RequirementKind> declared = SlotKinds().Values.Distinct().ToList();
+        HashSet<RequirementKind> served = [.. LoaderInputs().Select(l => l.Kind).Distinct(), RequirementKind.CustomNode];
+        List<RequirementKind> declared = [.. SlotKinds().Values.Distinct()];
 
-        List<RequirementKind> unserved = declared.Where(k => !served.Contains(k)).ToList();
+        List<RequirementKind> unserved = [.. declared.Where(k => !served.Contains(k))];
         Assert.True(unserved.Count == 0,
             "Slots declare kinds that no loader serves, so nothing can ever fill them: "
             + string.Join(", ", unserved));
@@ -98,13 +98,13 @@ public sealed class RequirementKindTests
         Dictionary<string, RequirementKind> kinds = SlotKinds();
         foreach (string[]? family in new[] { new[] { "seedvr2-3b", "seedvr2-vae" } })
         {
-            List<string> present = family.Where(kinds.ContainsKey).ToList();
+            List<string> present = [.. family.Where(kinds.ContainsKey)];
             if (present.Count < 2)
             {
                 continue;
             }
 
-            List<RequirementKind> distinct = present.Select(id => kinds[id]).Distinct().ToList();
+            List<RequirementKind> distinct = [.. present.Select(id => kinds[id]).Distinct()];
             Assert.True(distinct.Count == 1,
                 $"{string.Join(" and ", present)} belong to one model but declare "
                 + string.Join(" / ", distinct) + "; a slot's kind decides which pool it is offered.");

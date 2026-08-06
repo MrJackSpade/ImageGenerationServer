@@ -37,14 +37,16 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
     /// as the polish strength, plus Krea 2's rebalance knobs. Step 0.01 so the 0.35 default is reachable. Floor 0 (a
     /// single-pass KSampler at denoise 0 passes the source latent through) = "don't polish".</summary>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
-    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> RedrawSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.0, Max = 0.9, Step = 0.01,
                 Label = "Polish strength",
                 Help = "How hard Turbo reworks the source image. ~0.25–0.40 polishes texture and aesthetic while keeping "
                      + "the source's composition; higher redraws more of the image (and drifts toward the prompt rather "
                      + "than the source)." },
-    }).Concat(Krea2Rebalance.Schema).ToArray();
+        .. Krea2Rebalance.Schema,
+    ];
 
     protected override ComfyWorkflowGraph Build(Krea2RedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

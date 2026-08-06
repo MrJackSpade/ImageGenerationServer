@@ -7,5 +7,5 @@
 internal static class PixelPalettes
 {
     public static readonly string[] Choices =
-        { "adaptive", "chroma-256", "vibrant-256", "xterm-256", "town-adaptive-256", "aap-splendor128" };
+        ["adaptive", "chroma-256", "vibrant-256", "xterm-256", "town-adaptive-256", "aap-splendor128"];
 }

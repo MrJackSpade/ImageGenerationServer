@@ -28,14 +28,15 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = FillSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema =
+    [
+        .. FillSchema,
         new() { Key = WorkflowParamKeys.PadLeft,   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
         new() { Key = WorkflowParamKeys.PadTop,    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
         new() { Key = WorkflowParamKeys.PadRight,  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
         new() { Key = WorkflowParamKeys.PadBottom, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
         new() { Key = WorkflowParamKeys.MaskGrow,  Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-    }).ToArray();
+    ];
 
     protected override void ResolveCanvas(ComfyWorkflowGraph g, FluxFillParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)

@@ -10,7 +10,7 @@ public sealed class MiniMaxH3T2VWorkflow : Txt2ImgWorkflow<MiniMaxH3Params>
     public override bool HasAudio => true;
     /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
     public override FrameRule? FrameRule => new(5, 17);
-    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
+    public override IReadOnlyList<ParamSpec> Schema => [.. Txt2ImgWorkflowBase.SharedSchema, .. H3.ExtraSchema];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Params p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.Build(req, inputs, H3Mode.T2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,

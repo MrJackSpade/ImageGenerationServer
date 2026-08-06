@@ -27,7 +27,7 @@ public sealed class ImageViewService(IImageViewRepository views, TimeProvider cl
     /// <summary>The viewed set for a page of history, keyed the way the callers hold it.</summary>
     public Task<IReadOnlySet<string>> ViewedAsync(
         long userId, IEnumerable<HistoryEntry> entries, CancellationToken ct) =>
-        _views.ViewedAsync(userId, entries.Select(e => e.GatewayImageId).ToList(), ct);
+        _views.ViewedAsync(userId, [.. entries.Select(e => e.GatewayImageId)], ct);
 
     /// <summary>Clear the whole backlog: mark every image in the user's history viewed. Answers how many that
     /// newly covered, so the caller can report what it did rather than claiming a number it guessed.</summary>

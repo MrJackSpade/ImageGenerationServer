@@ -32,9 +32,9 @@ public sealed class LiveComfySmokeTests
             CatalogPath = Path.Combine(root, "configurations"),
         }, NullLogger<WorkflowCatalog>.Instance);
         // Full registry via reflection (every concrete parameterless IWorkflow in the Forge assembly).
-        IWorkflow[] all = typeof(IWorkflow).Assembly.GetTypes()
+        IWorkflow[] all = [.. typeof(IWorkflow).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && typeof(IWorkflow).IsAssignableFrom(t) && t.GetConstructor(Type.EmptyTypes) != null)
-            .Select(t => (IWorkflow)(Activator.CreateInstance(t) ?? throw new InvalidOperationException($"could not instantiate {t}"))).ToArray();
+            .Select(t => (IWorkflow)(Activator.CreateInstance(t) ?? throw new InvalidOperationException($"could not instantiate {t}")))];
         WorkflowRegistry registry = new(all);
 
         using HttpClient http = new() { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(20) };

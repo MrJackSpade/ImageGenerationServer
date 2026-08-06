@@ -7,6 +7,8 @@ namespace ImageGen.Tests;
 public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
+    private static readonly string[] expected = ["Favorites", "Post-Impressionism"];
+    private static readonly string[] expectedImageCategories = ["Landscapes", "Refs"];
 
     [Fact]
     public async Task Token_add_is_deduped_and_split_by_kind()
@@ -72,7 +74,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
         IReadOnlyList<TokenBookmark> tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
         _ = Assert.Single(tokens);
         Assert.Equal(
-            new[] { "Favorites", "Post-Impressionism" },
+            expected,
             tokens[0].Categories.OrderBy(c => c).ToArray());
 
         // A second set replaces (not merges) the whole set.
@@ -94,11 +96,11 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
 
         IReadOnlyList<ImageBookmark> images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
         _ = Assert.Single(images);
-        Assert.Equal(new[] { "Landscapes", "Refs" }, images[0].Categories.OrderBy(c => c).ToArray());
+        Assert.Equal(expectedImageCategories, images[0].Categories.OrderBy(c => c).ToArray());
 
         // The distinct list spans both bookmark kinds, deduped and name-sorted.
         IReadOnlyList<string> all = await fixture.Bookmarks.GetAllCategoriesAsync(user.Id, Ct);
-        Assert.Equal(new[] { "Landscapes", "Refs" }, all);
+        Assert.Equal(["Landscapes", "Refs"], all);
     }
 
     [Fact]

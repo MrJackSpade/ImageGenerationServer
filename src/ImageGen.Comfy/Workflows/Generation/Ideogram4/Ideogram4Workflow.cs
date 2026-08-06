@@ -20,12 +20,13 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 {
     public override string Name => "ideogram4";
 
-    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. Txt2ImgWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.CfgOverride, Type = ParamType.Double, Min = 1,   Max = 30, Label = "Late-step CFG" },
         new() { Key = WorkflowParamKeys.Mu,          Type = ParamType.Double, Min = -10, Max = 10, Label = "Schedule shift (mu)" },
         new() { Key = WorkflowParamKeys.Std,         Type = ParamType.Double, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(Ideogram4Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {

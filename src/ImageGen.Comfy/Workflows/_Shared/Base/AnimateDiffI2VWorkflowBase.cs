@@ -23,16 +23,15 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
     public override bool PromptDirectsMotion => false;
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
-        new() { Key = WorkflowParamKeys.LcmLora, Type = ParamType.String, IsModelRef = true },                 // null = no LoRA (Lightning); set = AnimateLCM
-        // sparsectrl_name is inherited from SharedSchema now (IsModelRef, no Default — a default there would be a
-        // filename sitting where a slot id belongs). Only the strength/end knobs are AnimateDiff-i2v-specific.
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. EditWorkflowBase.SharedSchema,
+        new() { Key = WorkflowParamKeys.LcmLora, Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.SparsectrlStrength, Type = ParamType.Double, Step = 0.01 },
         new() { Key = WorkflowParamKeys.SparsectrlEnd, Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.IpadapterPreset, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Step = 0.01, Label = "Identity strength" },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(AnimateDiffI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

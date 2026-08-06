@@ -344,7 +344,7 @@ public static class ForgeApi
                     if (hidden.Count > 0)
                     {
                         HashSet<string> drop = hidden.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                        list = list.Where(w => !drop.Contains(w.Id)).ToList();
+                        list = [.. list.Where(w => !drop.Contains(w.Id))];
                     }
                 }
 
@@ -382,7 +382,7 @@ public static class ForgeApi
                 long userId = OwnerOf(http);
                 // The picker is offered only for a single selected model, so compatibility is judged against that one.
                 IReadOnlyList<LoraCatalogEntry> entries = await catalog.ListLorasAsync(workflow, ct);
-                List<string> names = entries.Select(e => e.Name).ToList();
+                List<string> names = [.. entries.Select(e => e.Name)];
                 IReadOnlyDictionary<string, string> covers = await loras.GetCoversAsync(userId, names, ct);
                 // Cached metadata + this user's overrides — never blocking. A file that isn't cached yet comes back as
                 // a stub (ready:false), and Request() kicks its background population off; the client polls /loras/meta.
@@ -424,7 +424,7 @@ public static class ForgeApi
             {
                 long userId = OwnerOf(http);
                 IReadOnlyList<LoraCatalogEntry> entries = await catalog.ListLorasAsync(null, ct);   // all LoRAs; compatibility isn't relevant here
-                List<string> names = entries.Select(e => e.Name).ToList();
+                List<string> names = [.. entries.Select(e => e.Name)];
                 IReadOnlyDictionary<string, LoraMeta> metaByName = await meta.GetManyAsync(names, ct);
                 IReadOnlyDictionary<string, string> previewTypes = await previews.GetContentTypesAsync(names, ct);
                 IReadOnlyDictionary<string, LoraUserSetting> settings = await userSettings.GetManyAsync(userId, names, ct);
@@ -469,7 +469,7 @@ public static class ForgeApi
             ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             long userId = OwnerOf(http);
-            List<string> names = (body.Names ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            List<string> names = [.. (body.Names ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase)];
             if (names.Count == 0)
             {
                 return Results.Ok(new { items = Array.Empty<object>(), pending = false });
@@ -508,8 +508,8 @@ public static class ForgeApi
                 }
 
                 List<string> names = body.Names is { Count: > 0 }
-                    ? body.Names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
-                    : (await catalog.ListLorasAsync(null, ct)).Select(e => e.Name).ToList();
+                    ? [.. body.Names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase)]
+                    : [.. (await catalog.ListLorasAsync(null, ct)).Select(e => e.Name)];
                 if (names.Count == 0)
                 {
                     return Results.Ok(new { refreshed = Array.Empty<string>() });
@@ -627,11 +627,10 @@ public static class ForgeApi
             long userId = OwnerOf(http);
             TokenKind kind = artist ? TokenKind.Artist : TokenKind.Tag;
             IReadOnlyList<TokenBookmark> saved = await bookmarks.GetTokensAsync(userId, ct);
-            List<TagSuggestionItem> pinned = saved
+            List<TagSuggestionItem> pinned = [.. saved
                 .Where(b => b.Kind == kind && b.Name.Contains(frag, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(b => BookmarkItem(b.Name, tags))
-                .ToList();
+                .Select(b => BookmarkItem(b.Name, tags))];
 
             return Results.Ok(MergePinnedFirst(pinned, ranked, n));
         });
@@ -663,7 +662,7 @@ public static class ForgeApi
         IReadOnlyList<TagSuggestionItem> pinned, IReadOnlyList<TagSuggestionItem> ranked, int n)
     {
         HashSet<string> pinnedNames = pinned.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return pinned.Concat(ranked.Where(r => !pinnedNames.Contains(r.Name))).Take(n).ToList();
+        return [.. pinned.Concat(ranked.Where(r => !pinnedNames.Contains(r.Name))).Take(n)];
     }
 
     /// <summary>The ranked autocomplete suggestions, exactly as the endpoint has always produced them: model-ranked for
@@ -680,17 +679,15 @@ public static class ForgeApi
                 // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours it;
                 // without it the model-ranked path would return whatever the tag server sent, so the SAME request would
                 // yield 10 or up to 100 results depending on which branch ran -- invisible to the caller.
-                return sug.Take(n).Select(s =>
+                return [.. sug.Take(n).Select(s =>
                 {
                     TagEntry? meta = tags.Lookup(s.Name);
                     return new TagSuggestionItem(s.Name, meta?.Count ?? 0, meta?.Type ?? 0, false, new Ranking(s.P, s.Lift));
-                }).ToList();
+                })];
             }
         }
 
-        return tags.Query(frag, artist, n)
-            .Select(t => new TagSuggestionItem(t.Name, t.Count, t.Type, false, Ranking: null))
-            .ToList();
+        return [.. tags.Query(frag, artist, n).Select(t => new TagSuggestionItem(t.Name, t.Count, t.Type, false, Ranking: null))];
     }
 
     /// <summary>A bookmarked token as a suggestion item: no model probability (it wasn't ranked), decorated with its
@@ -727,7 +724,7 @@ public static class ForgeApi
 
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec(), req.Background) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), [RenderItem.ForGenerate(req.ToSpec(), req.Background)]);
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -751,7 +748,7 @@ public static class ForgeApi
 
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec(), req.Background) });
+                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), [RenderItem.ForEdit(req.ToSpec(), req.Background)]);
                 return Results.Ok(new { jobId = job.JobId, promptId = job.JobId, total = job.Total, notice = job.Slots.FirstOrDefault()?.Notice });
             });
         });
@@ -772,7 +769,7 @@ public static class ForgeApi
                 }
             }
 
-            List<RenderItem> items = (req.Jobs ?? []).Select(it => it.ToRenderItem()).OfType<RenderItem>().ToList();
+            List<RenderItem> items = [.. (req.Jobs ?? []).Select(it => it.ToRenderItem()).OfType<RenderItem>()];
             if (items.Count == 0)
             {
                 return Results.BadRequest(new { error = "No valid jobs in the batch." });
@@ -855,10 +852,9 @@ public static class ForgeApi
                 return r.Status == JobStatus.Active || live.ContainsKey(r.JobId);
             }
 
-            List<object> rows = pr.Items.Where(Unfinished).OrderBy(SubmittedAt)
+            List<object> rows = [.. pr.Items.Where(Unfinished).OrderBy(SubmittedAt)
                 .Concat(pr.Items.Where(r => !Unfinished(r)).OrderByDescending(SubmittedAt))
-                .Select(r => live.TryGetValue(r.JobId, out RenderJob? lj) ? QueueRowOf(lj, queue, me) : CompletedQueueRowOf(r, me))
-                .ToList();
+                .Select(r => live.TryGetValue(r.JobId, out RenderJob? lj) ? QueueRowOf(lj, queue, me) : CompletedQueueRowOf(r, me))];
             return Results.Ok(new
             {
                 jobs = rows,
@@ -1077,7 +1073,7 @@ public static class ForgeApi
     private static object CompletedQueueRowOf(JobRecord r, long me)
     {
         bool mine = r.UserId == me;
-        List<JobSlotRecord> ordered = r.Slots.OrderBy(s => s.SlotIndex).ToList();
+        List<JobSlotRecord> ordered = [.. r.Slots.OrderBy(s => s.SlotIndex)];
         bool isEdit = ordered.Count > 0 && ordered[0].IsEdit;
         int produced = ordered.Count(s => s.ImageId is not null);
         int progress = ordered.Count(s => s.State is JobSlotState.Done or JobSlotState.Error or JobSlotState.Cancelled);
@@ -1433,11 +1429,10 @@ public static class ForgeApi
             // so a dropped id is absent from the map, cached as false, and rendered as "not a video" for the life of
             // the page -- no loop, no scrubber, no poster. The blob lookup chunks its parameters, so an id list of any
             // size is answered in full (SQL Server caps a command at 2100 parameters).
-            List<string> list = (body?.Ids ?? Array.Empty<string>())
+            List<string> list = [.. (body?.Ids ?? [])
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Select(id => id.Trim())
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
+                .Distinct(StringComparer.Ordinal)];
             if (list.Count == 0)
             {
                 return Results.Ok(new Dictionary<string, string>());

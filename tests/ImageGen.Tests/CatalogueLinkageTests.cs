@@ -28,7 +28,7 @@ public sealed class CatalogueLinkageTests
     public void No_slot_is_required_by_nothing()
     {
         (Dictionary<string, string>? slots, Dictionary<string, List<string>>? required) = Load();
-        List<string> orphans = slots.Keys.Where(id => !required.ContainsKey(id)).OrderBy(x => x).ToList();
+        List<string> orphans = [.. slots.Keys.Where(id => !required.ContainsKey(id)).OrderBy(x => x)];
 
         Assert.True(orphans.Count == 0,
             "These slots are required by no configuration, so binding them cannot affect anything and they are "
@@ -40,11 +40,10 @@ public sealed class CatalogueLinkageTests
     public void No_configuration_requires_a_slot_that_does_not_exist()
     {
         (Dictionary<string, string>? slots, Dictionary<string, List<string>>? required) = Load();
-        List<string> dangling = required
+        List<string> dangling = [.. required
             .Where(kv => !slots.ContainsKey(kv.Key))
             .Select(kv => $"{kv.Key} <- {string.Join(", ", kv.Value.Order())}")
-            .OrderBy(x => x)
-            .ToList();
+            .OrderBy(x => x)];
 
         Assert.True(dangling.Count == 0,
             "These configurations require a slot with no definition. It resolves to an empty filename and the "
@@ -118,7 +117,7 @@ public sealed class CatalogueLinkageTests
                     {
                         JsonValueKind.Array => prop.Value.EnumerateArray().Select(e => e.RequireString()),
                         JsonValueKind.String => [prop.Value.RequireString()],
-                        _ => Array.Empty<string>(),
+                        _ => [],
                     };
                     foreach (string n in names)
                     {

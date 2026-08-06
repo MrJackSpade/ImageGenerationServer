@@ -187,7 +187,7 @@ public sealed class ModelMatcherTests
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
             JsonElement root = doc.RootElement;
             List<string> patterns = root.TryGetProperty("match", out JsonElement m) && m.ValueKind == JsonValueKind.Array
-                ? m.EnumerateArray().Select(e => e.RequireString()).ToList()
+                ? [.. m.EnumerateArray().Select(e => e.RequireString())]
                 : [];
             // Mirrors ParseKind: an unrecognised kind is a failure, not a bucket. If this throws, a shipped
             // slot names a kind that no loader serves.

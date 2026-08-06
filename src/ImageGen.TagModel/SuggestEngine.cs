@@ -110,7 +110,7 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             Array.Copy(conditional, score, score.Length);
         }
 
-        HashSet<int> junk = _bundle.JunkIds.ToHashSet();
+        HashSet<int> junk = [.. _bundle.JunkIds];
         List<int> ordered;
         int total;
 
@@ -127,7 +127,7 @@ public sealed class SuggestEngine(TagModelBundle bundle)
 
             candidates.Sort((x, y) => score[y].CompareTo(score[x]));
             total = candidates.Count;
-            ordered = candidates.Take(limit).ToList();
+            ordered = [.. candidates.Take(limit)];
         }
         else
         {

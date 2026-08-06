@@ -20,8 +20,8 @@ namespace ImageGen.Comfy;
 public static class Krea2Rebalance
 {
     /// <summary>The two knobs, concatenated into every Krea 2 workflow's schema.</summary>
-    public static readonly IReadOnlyList<ParamSpec> Schema = new ParamSpec[]
-    {
+    public static readonly IReadOnlyList<ParamSpec> Schema =
+    [
         new() { Key = WorkflowParamKeys.RebalanceMultiplier, Type = ParamType.Double, Min = 1.0, Max = 8.0,
                 Label = "Uncensor strength",
                 Help = "Global conditioning multiplier on Krea 2's per-layer rebalance. 1.0 = off. ~2–4 progressively "
@@ -29,7 +29,7 @@ public static class Krea2Rebalance
         new() { Key = WorkflowParamKeys.PerLayerWeights, Type = ParamType.String,
                 Label = "Per-layer weights",
                 Help = "12 comma-separated gains for Krea 2's tapped Qwen3-VL layers. All 1.0 = neutral. Uncensor preset: " + Krea2RebalanceWeights.UncensorWeights },
-    };
+    ];
 
     /// <summary>Splice the rebalance node at <paramref name="nodeId"/> between the positive conditioning and the
     /// sampler when either knob is non-neutral; otherwise return <paramref name="positive"/> untouched (no node

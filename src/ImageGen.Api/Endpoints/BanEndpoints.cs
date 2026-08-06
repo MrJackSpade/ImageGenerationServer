@@ -17,15 +17,14 @@ public static class BanEndpoints
         {
             long userId = context.User.GetRequiredUserId();
             IReadOnlyList<BannedToken> list = await bans.GetAllAsync(userId, context.RequestAborted);
-            List<ModelBansGroup> groups = list
+            List<ModelBansGroup> groups = [.. list
                 .GroupBy(b => b.ModelId, StringComparer.Ordinal)
                 .Select(g => new ModelBansGroup
                 {
                     ModelId = g.Key,
-                    Artists = g.Where(b => b.Kind == TokenKind.Artist).Select(b => b.Name).ToList(),
-                    Tags = g.Where(b => b.Kind == TokenKind.Tag).Select(b => b.Name).ToList(),
-                })
-                .ToList();
+                    Artists = [.. g.Where(b => b.Kind == TokenKind.Artist).Select(b => b.Name)],
+                    Tags = [.. g.Where(b => b.Kind == TokenKind.Tag).Select(b => b.Name)],
+                })];
             return Results.Ok(groups);
         });
 

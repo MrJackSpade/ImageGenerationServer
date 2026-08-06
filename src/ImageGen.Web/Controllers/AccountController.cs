@@ -124,7 +124,7 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         return RedirectToAction(nameof(Login));
     }
 
-    private IActionResult Fail(
+    private ViewResult Fail(
         RegisterViewModel vm,
         [AllowMagicStrings("User-facing validation messages are prose shown in the UI, not identifiers to name as constants.")] string error)
     {
@@ -143,7 +143,7 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
             new AuthenticationProperties { IsPersistent = true });
     }
 
-    private IActionResult RedirectToLocalOrHome(string? returnUrl) =>
+    private RedirectResult RedirectToLocalOrHome(string? returnUrl) =>
         !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : Redirect(Routes.Home);
 
     /// <summary>Names of the fields read from the login and registration forms.</summary>

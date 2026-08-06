@@ -15,10 +15,9 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflow<PixelAnimaParams>
     public override string Name => "pixelanima";
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
-        // Virtual resolution = the sprite's pixel count on its longest edge; the grid follows the render aspect. This is
-        // the knob the UI exposes. 0 = use explicit grid_w/grid_h instead.
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. Txt2ImgWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096 },
         new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096 },
@@ -30,7 +29,7 @@ public sealed class PixelAnimaWorkflow : Txt2ImgWorkflow<PixelAnimaParams>
         new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
-    }).ToArray();
+    ];
 
     /// <summary>Patch the denoise model with the per-step pixel-manifold projection (the base's reserved patch node).</summary>
     protected override Output<Slot.Model> PatchDenoiseModel(ComfyWorkflowGraph g, Output<Slot.Model> model, Output<Slot.Vae> vae, PixelAnimaParams p)

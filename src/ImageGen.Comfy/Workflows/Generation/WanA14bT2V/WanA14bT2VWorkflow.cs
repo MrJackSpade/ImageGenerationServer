@@ -5,12 +5,11 @@ namespace ImageGen.Comfy.Generation.WanA14bT2V;
 public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
 {
     /// <inheritdoc/>
-    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
-        // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
-        // put a model reference outside the binding system where nobody could change it.
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. Txt2ImgWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.UnetLow, Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
-    }).ToArray();
+    ];
 
     public override string Name => "wan22-t2v-a14b";
     public override WorkflowMedia Media => WorkflowMedia.Video;

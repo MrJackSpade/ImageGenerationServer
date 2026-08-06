@@ -73,10 +73,9 @@ internal static class PixelVideoGraph
         Output<Slot.Vae> vae = ReadVae(decode);
 
         (int gw, int gh) = Grid(p);
-        List<(string id, ComfyNode node)> consumers = g.Nodes
+        List<(string id, ComfyNode node)> consumers = [.. g.Nodes
             .Where(kv => kv.Value is ComfyNode n && ModelConsumers.Contains(n.ClassType))
-            .Select(kv => (kv.Key, (ComfyNode)kv.Value))
-            .ToList();
+            .Select(kv => (kv.Key, (ComfyNode)kv.Value))];
 
         int next = 710;
         foreach ((string id, ComfyNode node) in consumers)
@@ -175,7 +174,7 @@ internal static class PixelVideoGraph
     /// consistent). start_percent defaults to 0.6 because projecting the noisy early steps of a full-denoise video
     /// destroys the image — the projection must engage only on the low-noise tail.</summary>
     public static readonly ParamSpec[] Params =
-    {
+    [
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
@@ -191,5 +190,5 @@ internal static class PixelVideoGraph
         new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project from %", Help = "Step % to begin projecting (skips the noisy early steps)" },
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0, Label = "Project until %", Help = "Step % to stop projecting" },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1,   Max = 8,   Label = "Project every", Help = "Project every Nth step (higher = faster, less faithful)" },
-    };
+    ];
 }

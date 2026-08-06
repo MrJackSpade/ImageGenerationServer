@@ -130,7 +130,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
 
         _log.LogInformation("Installing {Requirements} with {Python}", requirements, python);
 
-        string constraints = PinInstalledTorch(python, ct);
+        string constraints = PinInstalledTorch(python);
 
         Process process = new()
         {
@@ -167,7 +167,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// with — and the GPU stack is silently replaced by an install nobody asked for. This pins nothing of its own:
     /// the versions come back out of the environment, so pip may add packages but can never move these.</para>
     /// </summary>
-    private string PinInstalledTorch(string python, CancellationToken ct)
+    private static string PinInstalledTorch(string python)
     {
         Process freeze = new()
         {

@@ -124,13 +124,12 @@ public sealed class ImageDetailViewModel
 
             // Chips (Kind non-null) first, plain prose (Kind null) last; within the chips: state, then type, then name.
             // OrderBy is stable, so plain runs keep the order they were written in — prose is grouped, never reordered.
-            return chips
+            return [.. chips
                 .OrderBy(c => c.Chip.Kind is null ? 1 : 0)
                 .ThenBy(c => StateRank(c.Chip))
                 .ThenBy(c => c.TypeRank)
                 .ThenBy(c => c.Chip.Key, StringComparer.Ordinal)
-                .Select(c => c.Chip)
-                .ToList();
+                .Select(c => c.Chip)];
         }
     }
 

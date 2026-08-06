@@ -16,15 +16,15 @@ public sealed class LineThickenXDoGWorkflow : EditWorkflow<LineThickenXDoGParams
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => XDoGSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> XDoGSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> XDoGSchema =
+    [
         new() { Key = WorkflowParamKeys.Thickness, Type = ParamType.Int,    Min = 0,    Max = 32,  Label = "Line thickness (px)" },
         new() { Key = WorkflowParamKeys.Sigma,     Type = ParamType.Double, Min = 0.3,  Max = 8.0, Label = "Line scale (sigma)" },
         new() { Key = WorkflowParamKeys.K,         Type = ParamType.Double, Min = 1.0,  Max = 4.0 },
         new() { Key = WorkflowParamKeys.Tau,       Type = ParamType.Double, Min = 0.5,  Max = 1.0 },
         new() { Key = WorkflowParamKeys.Epsilon,   Type = ParamType.Double, Min = -1.0, Max = 1.0, Label = "Edge threshold (0=flats stay clean)" },
         new() { Key = WorkflowParamKeys.Phi,       Type = ParamType.Double, Min = 0.1,  Max = 50.0 },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(LineThickenXDoGParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

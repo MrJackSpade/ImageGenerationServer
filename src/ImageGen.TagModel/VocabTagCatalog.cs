@@ -136,7 +136,7 @@ public sealed class VocabTagCatalog : ITagCatalog
 
         // The draw kept hitting excluded artists, so fall back to an exact weighted pick over what is left. Reached
         // only when the exclusion set covers most of the corpus weight -- a user who has banned the popular artists.
-        int[] eligible = _artistsByCount.Where(id => exclude is null || !exclude.Contains(_vocab.Tags[id])).ToArray();
+        int[] eligible = [.. _artistsByCount.Where(id => exclude is null || !exclude.Contains(_vocab.Tags[id]))];
         if (eligible.Length == 0)
         {
             return null;

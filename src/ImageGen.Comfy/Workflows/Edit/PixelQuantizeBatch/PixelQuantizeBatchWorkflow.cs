@@ -24,8 +24,8 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
 
     /// <summary>The fp knobs mirror pixel-quantize-video's fp branch (this is the batch equivalent of that derivation
     /// pass); engine defaults to 'fp' because the whole reason to batch is deriving the global palette the fp engine needs.</summary>
-    private static readonly IReadOnlyList<ParamSpec> QuantizeSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> QuantizeSchema =
+    [
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid width" },
         new() { Key = WorkflowParamKeys.GridH, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Grid height" },
@@ -43,7 +43,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         // sprites — so there's no separate downstream matte to chain. Off = the frames enter opaque.
         new() { Key = WorkflowParamKeys.KeyBackground, Type = ParamType.Bool, Label = "Key background", Help = "Matte (BiRefNet) before pixelizing → transparent-background sprites" },
         new() { Key = WorkflowParamKeys.MatteThreshold, Type = ParamType.Double, Min = 0, Max = 1, Label = "Matte cutoff", Help = "0 = soft matte (quantizer hard-cuts per cell); >0 = hard BiRefNet cutoff" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(PixelQuantizeBatchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

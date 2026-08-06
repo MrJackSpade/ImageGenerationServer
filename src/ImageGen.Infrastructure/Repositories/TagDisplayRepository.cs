@@ -52,7 +52,7 @@ public sealed class TagDisplayRepository(IDbConnectionFactory connectionFactory,
             return result;
         }
 
-        List<string> names = tagNames.ToList();
+        List<string> names = [.. tagNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {

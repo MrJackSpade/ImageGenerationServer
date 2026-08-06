@@ -16,13 +16,13 @@ public sealed partial class WorkflowCatalogService
     {
         IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = await _comfy.GetPresentFilesByKindAsync(ct);
         IReadOnlyList<string> loras = byKind.TryGetValue(RequirementKind.Lora, out IReadOnlyList<string>? files) ? files : [];
-        List<string> names = loras.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+        List<string> names = [.. loras.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)];
 
         // Without a workflow to check against, compatibility isn't evaluated — the picker shows the full list.
         WorkflowConfiguration? cfg = workflowId is null ? null : _catalog.FindConfig(workflowId);
         if (cfg is null)
         {
-            return names.Select(n => new LoraCatalogEntry(n, Compatible: true, ClipCapable: true)).ToList();
+            return [.. names.Select(n => new LoraCatalogEntry(n, Compatible: true, ClipCapable: true))];
         }
 
         // Resolve the workflow's bound checkpoint and ComfyUI's on-disk roots, read the checkpoint's layer dimensions
@@ -32,7 +32,7 @@ public sealed partial class WorkflowCatalogService
         IReadOnlySet<long>? checkpointDims = ResolveCheckpointDims(checkpointFile, folders);
         IReadOnlyList<string> loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? lr) ? lr : [];
 
-        return names.Select(n =>
+        return [.. names.Select(n =>
         {
             string? path = ResolveInRoots(loraRoots, n);
             if (path is null)
@@ -42,7 +42,7 @@ public sealed partial class WorkflowCatalogService
 
             LoraCompatibility.Result r = LoraCompatibility.Evaluate(path, checkpointDims);
             return new LoraCatalogEntry(n, r.Compatible, r.ClipCapable);
-        }).ToList();
+        })];
     }
 
     /// <summary>The set of layer dimensions in the workflow's bound checkpoint, or null when it can't be located/read.

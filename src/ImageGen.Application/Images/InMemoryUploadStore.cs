@@ -16,7 +16,7 @@ namespace ImageGen.Application.Images;
 /// </summary>
 public sealed class InMemoryUploadStore : IUploadStore
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, UploadedImage> _index = new(StringComparer.Ordinal);
     private long _bytes;
 

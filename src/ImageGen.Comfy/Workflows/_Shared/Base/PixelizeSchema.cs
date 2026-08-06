@@ -5,7 +5,7 @@
 internal static class PixelizeSchema
 {
     private static readonly ParamSpec[] Common =
-    {
+    [
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW,       Type = ParamType.Int,    Min = 0, Max = 4096 },
         new() { Key = WorkflowParamKeys.GridH,       Type = ParamType.Int,    Min = 0, Max = 4096 },
@@ -23,10 +23,10 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
-    };
+    ];
 
-    public static IReadOnlyList<ParamSpec> KontextLike() => new ParamSpec[]
-    {
+    public static IReadOnlyList<ParamSpec> KontextLike() =>
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
         // default would be silently wrong for any configuration that omits it -- pixelize-hidream would
@@ -40,10 +40,11 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Instruction" },
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
-    }.Concat(Common).ToArray();
+        .. Common,
+    ];
 
-    public static IReadOnlyList<ParamSpec> KleinLike() => new ParamSpec[]
-    {
+    public static IReadOnlyList<ParamSpec> KleinLike() =>
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
@@ -55,17 +56,19 @@ internal static class PixelizeSchema
         new() { Key = WorkflowParamKeys.Megapixels, Type = ParamType.Double, Min = 0.1, Max = 4.0 },
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Instruction" },
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
-    }.Concat(Common).ToArray();
+        .. Common,
+    ];
 
-    public static IReadOnlyList<ParamSpec> DreamOmniLike() => new ParamSpec[]
-    {
+    public static IReadOnlyList<ParamSpec> DreamOmniLike() =>
+    [
         new() { Key = WorkflowParamKeys.Steps, Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
         new() { Key = WorkflowParamKeys.Cfg,   Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "Guidance scale" },
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Instruction" },
         new() { Key = WorkflowParamKeys.Reference, Type = ParamType.Int, Min = 0, Max = 100, Label = "Reference %", Help = "0 = generate fresh · 100 = copy the source" },
-    }.Concat(Common).ToArray();
+        .. Common,
+    ];
 
     /// <summary>The per-step PixelManifoldProjection model patch (node "35"), identical across pixelizers: the projection
     /// model-patch node from the ramp values (the caller reads them off its typed params DTO).</summary>

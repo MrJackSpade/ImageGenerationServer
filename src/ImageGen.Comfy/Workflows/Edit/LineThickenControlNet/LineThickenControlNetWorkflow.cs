@@ -13,8 +13,8 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => ControlNetSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> ControlNetSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> ControlNetSchema =
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.Steps,      Type = ParamType.Int,    Min = ParamBounds.StepsMin,    Max = ParamBounds.StepsMax, Label = "Steps" },
         new() { Key = WorkflowParamKeys.Cfg,        Type = ParamType.Double, Min = ParamBounds.CfgMin,    Max = ParamBounds.CfgMax,  Label = "CFG scale" },
@@ -23,10 +23,10 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
         new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = ParamBounds.DenoiseMin, Max = ParamBounds.DenoiseMax, Step = 0.01, Label = "Redraw amount" },
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Style prompt" },
         new() { Key = WorkflowParamKeys.Negative,   Type = ParamType.String },
-        new() { Key = WorkflowParamKeys.Coarse,     Type = ParamType.Enum,   Choices = new[] { ComfyWidgets.Toggle.Enable, ComfyWidgets.Toggle.Disable }, Label = "Coarse (bolder) lineart" },
+        new() { Key = WorkflowParamKeys.Coarse,     Type = ParamType.Enum,   Choices = [ComfyWidgets.Toggle.Enable, ComfyWidgets.Toggle.Disable], Label = "Coarse (bolder) lineart" },
         new() { Key = WorkflowParamKeys.ControlnetStrength, Type = ParamType.Double, Min = 0.0, Max = 2.0, Step = 0.01, Label = "ControlNet strength" },
         new() { Key = WorkflowParamKeys.Resolution, Type = ParamType.Int,    Min = 256,  Max = 2048, Label = "Lineart resolution" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(LineThickenControlNetParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

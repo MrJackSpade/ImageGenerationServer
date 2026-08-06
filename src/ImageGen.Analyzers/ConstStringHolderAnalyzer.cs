@@ -50,7 +50,7 @@ public sealed class ConstStringHolderAnalyzer : DiagnosticAnalyzer
             + "canonical shape). There is no opt-out attribute.");
 
     /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

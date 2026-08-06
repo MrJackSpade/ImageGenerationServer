@@ -56,7 +56,7 @@ internal static class LoaderKinds
 internal static class LoaderKindWire
 {
     /// <summary>The wire vocabulary in dropdown order, for a schema's <see cref="ParamSpec.Choices"/>.</summary>
-    public static readonly string[] Choices = { LoaderKinds.Checkpoint, LoaderKinds.Unet, LoaderKinds.UnetGguf };
+    public static readonly string[] Choices = [LoaderKinds.Checkpoint, LoaderKinds.Unet, LoaderKinds.UnetGguf];
 
     /// <summary>Wire string → kind, or a refusal naming the value — a loader outside the closed set is a broken
     /// configuration, not a silent fall-through to the split-loader branch.</summary>
@@ -220,7 +220,7 @@ public static class ParamsCodec
         List<string> problems = [];
         foreach (ValidationResult r in results)
         {
-            IEnumerable<string> members = r.MemberNames.Any() ? r.MemberNames : new[] { string.Empty };
+            IEnumerable<string> members = r.MemberNames.Any() ? r.MemberNames : [string.Empty];
             foreach (string member in members)
             {
                 PropertyInfo? prop = member.Length > 0 ? t.GetProperty(member) : null;
@@ -301,7 +301,7 @@ public sealed class WorkflowInputs
     /// derive the target aspect from the source without a UI width/height field.</summary>
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
-    public IReadOnlyList<string> ReferenceImageNames { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ReferenceImageNames { get; init; } = [];
     /// <summary>Inpaint only: the uploaded white-on-black mask's ComfyUI filename (the region to regenerate).</summary>
     public string? MaskImageName { get; init; }
     /// <summary>Image→video first/last-frame conditioning only: the uploaded ComfyUI filename of the LAST frame the
@@ -312,7 +312,7 @@ public sealed class WorkflowInputs
     /// <summary>The user's LoRA stack for THIS generation (empty for none): each a subfolder-qualified <c>lora_name</c>
     /// + strength, chained through <c>LoraLoader</c> (model + CLIP) on top of any preset LoRA. Consumed by
     /// <c>Txt2ImgWorkflowBase.Build</c>; edit workflows ignore it.</summary>
-    public IReadOnlyList<LoraSelection> Loras { get; init; } = Array.Empty<LoraSelection>();
+    public IReadOnlyList<LoraSelection> Loras { get; init; } = [];
 }
 
 /// <summary>The concrete on-disk filenames a workflow loads, resolved from a configuration's requirement-id links
@@ -320,7 +320,7 @@ public sealed class WorkflowInputs
 public sealed class ResolvedRequirements
 {
     public string Checkpoint { get; init; } = "";
-    public IReadOnlyList<string> TextEncoders { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> TextEncoders { get; init; } = [];
     public string? Vae { get; init; }
     public string? MotionModel { get; init; }
     public string? ControlNet { get; init; }
@@ -419,7 +419,7 @@ public sealed class Requirement
     /// Published-name patterns used to recognise this model among the files ComfyUI reports, or empty. Empty is
     /// the common case: most slots are bound by hand, and a wrong guess is worse than no guess.
     /// </summary>
-    public IReadOnlyList<string> Match { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> Match { get; init; } = [];
 
     /// <summary>
     /// A node type whose presence in <c>object_info</c> IS this requirement being met — for a custom-node pack
@@ -442,14 +442,14 @@ public sealed class Requirement
 public sealed class RequirementLinks
 {
     public string Checkpoint { get; init; } = "";
-    public IReadOnlyList<string> TextEncoders { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> TextEncoders { get; init; } = [];
     public string? Vae { get; init; }
     public string? MotionModel { get; init; }
     public string? ControlNet { get; init; }
     /// <summary>Any other linked requirements that don't fit the named slots (e.g. IP-Adapter, CLIP-vision, a LoRA),
     /// for presence-gating. Not consumed by the graph build directly — the workflow reads filenames from params —
     /// they exist so the config is hidden when a dependency file is missing.</summary>
-    public IReadOnlyList<string> Extra { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> Extra { get; init; } = [];
 
     /// <summary>Every linked requirement id (non-empty), for presence-gating.</summary>
     public IEnumerable<string> All()

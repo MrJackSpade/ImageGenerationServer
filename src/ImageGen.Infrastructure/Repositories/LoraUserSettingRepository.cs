@@ -24,7 +24,7 @@ public sealed class LoraUserSettingRepository(IDbConnectionFactory connectionFac
             return result;
         }
 
-        List<string> names = loraNames.ToList();
+        List<string> names = [.. loraNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {

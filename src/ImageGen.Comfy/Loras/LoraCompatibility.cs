@@ -101,7 +101,7 @@ public static class LoraCompatibility
             return cached;
         }
 
-        IReadOnlyDictionary<string, long[]>? shapes = ReadShapes(path);
+        Dictionary<string, long[]>? shapes = ReadShapes(path);
         if (shapes is null)
         {
             return null;
@@ -154,7 +154,7 @@ public static class LoraCompatibility
 
     /// <summary>Tensor name → dimensions, dispatched by extension: the safetensors JSON header, or the GGUF binary
     /// header. Null when neither format applies or the header is unreadable.</summary>
-    private static IReadOnlyDictionary<string, long[]>? ReadShapes(string path)
+    private static Dictionary<string, long[]>? ReadShapes(string path)
     {
         try
         {
@@ -178,7 +178,7 @@ public static class LoraCompatibility
 
     /// <summary>The safetensors header: 8-byte little-endian length, then that many bytes of JSON mapping each tensor to
     /// its <c>shape</c>. Only the header is read — never the weights.</summary>
-    private static IReadOnlyDictionary<string, long[]> ReadSafetensors(string path)
+    private static Dictionary<string, long[]> ReadSafetensors(string path)
     {
         using FileStream fs = File.OpenRead(path);
         Span<byte> lenBuf = stackalloc byte[8];
@@ -186,7 +186,7 @@ public static class LoraCompatibility
         ulong headerLen = BinaryPrimitives.ReadUInt64LittleEndian(lenBuf);
         if (headerLen is 0 or > 200_000_000)   // a sane guard; real headers are KBs–low MBs
         {
-            return new Dictionary<string, long[]>();
+            return [];
         }
 
         byte[] json = new byte[headerLen];
@@ -222,14 +222,14 @@ public static class LoraCompatibility
     /// <summary>The GGUF header: magic, version, tensor/KV counts, the metadata KVs (skipped), then the tensor infos —
     /// each a name, dimension list, type and offset. Only the header region is read; the quantised data is never touched,
     /// and the dimensions are the logical (unquantised) tensor shapes.</summary>
-    private static IReadOnlyDictionary<string, long[]> ReadGguf(string path)
+    private static Dictionary<string, long[]> ReadGguf(string path)
     {
         using FileStream fs = File.OpenRead(path);
         using BinaryReader br = new(fs);   // BinaryReader is little-endian; GGUF is little-endian
 
         if (br.ReadUInt32() != 0x46554747)   // "GGUF"
         {
-            return new Dictionary<string, long[]>();
+            return [];
         }
 
         uint version = br.ReadUInt32();

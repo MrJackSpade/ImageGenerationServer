@@ -19,8 +19,8 @@ public sealed class WorkflowCatalog
     private readonly string _workflowsDir;
     private readonly string _modelsDir;
     private readonly ILogger<WorkflowCatalog> _log;
-    private readonly object _lock = new();
-    private readonly object _reloadGate = new();
+    private readonly Lock _lock = new();
+    private readonly Lock _reloadGate = new();
     private Dictionary<string, WorkflowConfiguration> _byId = new(StringComparer.OrdinalIgnoreCase);
     private List<WorkflowConfiguration> _all = [];
     private Dictionary<string, Requirement> _reqById = new(StringComparer.OrdinalIgnoreCase);
@@ -266,7 +266,7 @@ public sealed class WorkflowCatalog
         ReloadIfChanged();
         lock (_lock)
         {
-            return _reqById.Values.ToList();
+            return [.. _reqById.Values];
         }
     }
 
@@ -275,7 +275,7 @@ public sealed class WorkflowCatalog
         ReloadIfChanged();
         lock (_lock)
         {
-            return _all.ToList();
+            return [.. _all];
         }
     }
 
@@ -311,7 +311,7 @@ public sealed class WorkflowCatalog
             return new ResolvedRequirements
             {
                 Checkpoint = Name(cfg.Requirements.Checkpoint),
-                TextEncoders = cfg.Requirements.TextEncoders.Select(Name).Where(n => n.Length > 0).ToList(),
+                TextEncoders = [.. cfg.Requirements.TextEncoders.Select(Name).Where(n => n.Length > 0)],
                 Vae = string.IsNullOrEmpty(cfg.Requirements.Vae) ? null : Name(cfg.Requirements.Vae),
                 MotionModel = string.IsNullOrEmpty(cfg.Requirements.MotionModel) ? null : Name(cfg.Requirements.MotionModel),
                 ControlNet = string.IsNullOrEmpty(cfg.Requirements.ControlNet) ? null : Name(cfg.Requirements.ControlNet),
@@ -326,10 +326,9 @@ public sealed class WorkflowCatalog
         ReloadIfChanged();
         lock (_lock)
         {
-            return cfg.Requirements.All()
+            return [.. cfg.Requirements.All()
                       .Select(id => _reqById.GetValueOrDefault(id))
-                      .OfType<Requirement>()
-                      .ToList();
+                      .OfType<Requirement>()];
         }
     }
 
@@ -342,7 +341,7 @@ public sealed class WorkflowCatalog
         ReloadIfChanged();
         lock (_lock)
         {
-            return _all.Select(c => c.Card).ToList();
+            return [.. _all.Select(c => c.Card)];
         }
     }
 
@@ -752,7 +751,7 @@ public sealed class WorkflowCatalog
     /// <summary>A catalog string array as the domain wants it: an independent, non-empty-entry array (never null).
     /// Empty and null entries are dropped, matching the loaders' "an empty filename is not a slot" contract.</summary>
     private static string[] Arr(string[]? a) =>
-        a is null ? Array.Empty<string>() : a.Where(x => !string.IsNullOrEmpty(x)).ToArray();
+        a is null ? [] : [.. a.Where(x => !string.IsNullOrEmpty(x))];
 }
 
 /// <summary>LLM/UI-facing decision info for a configuration (its prompting guide + selection hints). Carried in the
@@ -770,24 +769,24 @@ public sealed class ModelCard
     public string? Summary { get; init; }
     /// <summary>Free-form authoring note about the model (e.g. a licence caveat), or null. Card <c>notes</c>.</summary>
     public string? Notes { get; init; }
-    public string[] UseCases { get; init; } = Array.Empty<string>();
+    public string[] UseCases { get; init; } = [];
     public string? PromptFormat { get; init; }
     public string? RequiredPrefix { get; init; }
     /// <summary>Optional booru tag groups a tag-model prompt may draw from — each entry a pipe-delimited option set,
     /// or empty. Card <c>prompt.optional_tags</c>.</summary>
-    public string[] PromptOptionalTags { get; init; } = Array.Empty<string>();
+    public string[] PromptOptionalTags { get; init; } = [];
     public string? PromptGuidance { get; init; }
     public string? PromptOverview { get; init; }
     public string? PromptInstructions { get; init; }
     public string? PromptExample { get; init; }
-    public string[] PromptDo { get; init; } = Array.Empty<string>();
-    public string[] PromptDont { get; init; } = Array.Empty<string>();
-    public string[] PromptExamples { get; init; } = Array.Empty<string>();
+    public string[] PromptDo { get; init; } = [];
+    public string[] PromptDont { get; init; } = [];
+    public string[] PromptExamples { get; init; } = [];
     public string? PromptSource { get; init; }
     [AllowNullable("null = the card doesn't declare negative-prompt support (unknown); distinct from an explicit false")]
     public bool? NegativeSupported { get; init; }
     public string? NegativeGuidance { get; init; }
-    public string[] EditUseCases { get; init; } = Array.Empty<string>();
+    public string[] EditUseCases { get; init; } = [];
     public int EditReferenceMax { get; init; }
     public string? EditReferenceHint { get; init; }
     public string? Speed { get; init; }

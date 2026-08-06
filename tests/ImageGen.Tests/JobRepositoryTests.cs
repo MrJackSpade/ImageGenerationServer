@@ -171,7 +171,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
 
         JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
-        Assert.Equal([0, 2], after.Slots.Select(s => s.SlotIndex).OrderBy(i => i).ToArray());
+        Assert.Equal([0, 2], [.. after.Slots.Select(s => s.SlotIndex).OrderBy(i => i)]);
     }
 
     /// <summary>When the sweep removes the last slot, the job row goes with it rather than lingering as an empty shell.</summary>

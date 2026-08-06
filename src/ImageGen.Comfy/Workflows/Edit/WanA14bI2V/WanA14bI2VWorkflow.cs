@@ -24,18 +24,16 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
     /// below, so the clip's resolution does NOT grow — the character just occupies less of the frame. See
     /// <see cref="PadGeom"/>. The <c>end_pad_*_pct</c> free overrides pad an END frame the same way.
     /// </summary>
-    public override IReadOnlyList<ParamSpec> Schema => base.Schema.Concat(new ParamSpec[]
-    {
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. base.Schema,
         new() { Key = WorkflowParamKeys.PadLeftPct,   Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad left %",   Help = "Whitespace on the left, % of source width" },
         new() { Key = WorkflowParamKeys.PadRightPct,  Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad right %",  Help = "Whitespace on the right, % of source width" },
         new() { Key = WorkflowParamKeys.PadTopPct,    Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad top %",    Help = "Whitespace on top, % of source height" },
         new() { Key = WorkflowParamKeys.PadBottomPct, Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
-        // Draft/commit knob (see Vid.MoESample): motion is fixed by the structure phase; this only buys sharpness.
         new() { Key = WorkflowParamKeys.RefinerSteps, Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
-        // The second MoE expert. A slot id, resolved to this machine's bound file — a literal filename would
-        // put a model reference outside the binding system where nobody could change it.
         new() { Key = WorkflowParamKeys.UnetLow, Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
-    }).ToArray();
+    ];
 
     /// <summary>
     /// The padded-canvas geometry for the four side-percentages: the white canvas size and the (X,Y) offset the source

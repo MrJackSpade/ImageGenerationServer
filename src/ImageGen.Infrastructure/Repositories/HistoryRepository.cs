@@ -81,7 +81,7 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
             ? await OffsetPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, page, pageSize, ct)
             : await SearchPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, terms, page, pageSize, ct);
 
-        List<long> ids = rows.Select(r => r.Id).ToList();
+        List<long> ids = [.. rows.Select(r => r.Id)];
         Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
         Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, Sql.LoraTable, Sql.LoraParent, ids, userId, _cipher, ct);
         List<HistoryEntry> items = new(rows.Count);
@@ -159,7 +159,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
             }
         }
 
-        List<HistoryEntry> rows = matches.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        List<HistoryEntry> rows = [.. matches.Skip((page - 1) * pageSize).Take(pageSize)];
         return (rows, matches.Count);
     }
 
@@ -214,7 +214,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
             return result;
         }
 
-        List<string> list = names.ToList();
+        List<string> list = [.. names];
         string[] ps = new string[list.Count];
         for (int i = 0; i < list.Count; i++)
         {
@@ -436,8 +436,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
     };
 
     private async Task<HistoryEntry> WithChildrenAsync(
-        HistoryEntry e, IReadOnlyDictionary<long, List<Mark>> marks,
-        IReadOnlyDictionary<long, List<HistoryLora>> loras, CancellationToken ct) => new()
+        HistoryEntry e, Dictionary<long, List<Mark>> marks,
+        Dictionary<long, List<HistoryLora>> loras, CancellationToken ct) => new()
         {
             Id = e.Id,
             UserId = e.UserId,

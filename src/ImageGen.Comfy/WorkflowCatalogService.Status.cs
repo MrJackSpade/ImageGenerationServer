@@ -46,7 +46,7 @@ public sealed partial class WorkflowCatalogService
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
 
         Dictionary<string, IReadOnlyList<string>> candidatesBySlot = matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
-        List<ModelSlotStatus> slotStatus = slots
+        List<ModelSlotStatus> slotStatus = [.. slots
             .OrderBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
             .Select(s => new ModelSlotStatus(
                 s.Id,
@@ -55,13 +55,12 @@ public sealed partial class WorkflowCatalogService
                 bindings.TryGetValue(s.Id, out ModelBinding? b) ? b.FileName : null,
                 b?.IsAuto ?? false,
                 candidatesBySlot.TryGetValue(s.Id, out IReadOnlyList<string>? c) ? c : [],
-                byKind.TryGetValue(s.Kind, out IReadOnlyList<string>? files) ? files : []))
-            .ToList();
+                byKind.TryGetValue(s.Kind, out IReadOnlyList<string>? files) ? files : []))];
 
         // A requirement that names a node is a custom-node PACK, not a file: there is nothing to bind, and it is
         // met exactly when ComfyUI has that node registered. Asked separately because the file lists cannot answer
         // it — a node that loads nothing contributes no filenames to disappear when the pack does.
-        List<Requirement> nodeRequirements = slots.Where(s => !string.IsNullOrWhiteSpace(s.Node)).ToList();
+        List<Requirement> nodeRequirements = [.. slots.Where(s => !string.IsNullOrWhiteSpace(s.Node))];
         IReadOnlySet<string> presentNodes = nodeRequirements.Count == 0
             ? new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node).OfType<string>(), ct);
@@ -94,8 +93,8 @@ public sealed partial class WorkflowCatalogService
                 continue;
             }
 
-            List<string> required = cfg.Requirements.All().ToList();
-            List<string> missing = required.Where(id => !Satisfied(id)).ToList();
+            List<string> required = [.. cfg.Requirements.All()];
+            List<string> missing = [.. required.Where(id => !Satisfied(id))];
 
             workflows.Add(new WorkflowStatus(
                 cfg.Id,
@@ -106,7 +105,7 @@ public sealed partial class WorkflowCatalogService
         }
 
         return new CatalogStatus(
-            workflows.OrderByDescending(w => w.Ready).ThenBy(w => w.FriendlyName, StringComparer.OrdinalIgnoreCase).ToList(),
+            [.. workflows.OrderByDescending(w => w.Ready).ThenBy(w => w.FriendlyName, StringComparer.OrdinalIgnoreCase)],
             slotStatus);
     }
 

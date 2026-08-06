@@ -42,8 +42,8 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
 
     /// <summary>Diffusion, but not text-conditioned: SeedVR2 takes no prompt. Only sizing and memory knobs.</summary>
     public override IReadOnlyList<ParamSpec> Schema => SeedVr2Schema;
-    private static readonly IReadOnlyList<ParamSpec> SeedVr2Schema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> SeedVr2Schema =
+    [
         // Weight files in models/SEEDVR2. Locked per config; the node pack fetches them on first use if absent.
         new() { Key = WorkflowParamKeys.DitModel,  Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.VaeModel,  Type = ParamType.String, IsModelRef = true },
@@ -55,8 +55,8 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         new() { Key = WorkflowParamKeys.MaxResolution, Type = ParamType.Int },
         // How the output's colour is re-matched to the source. Diffusion restorers drift; 'lab' is the pack's default.
         new() { Key = WorkflowParamKeys.ColorCorrection, Type = ParamType.Enum,
-                Choices = new[] { ComfyWidgets.ColorMatch.Lab, ComfyWidgets.ColorMatch.Wavelet, ComfyWidgets.ColorMatch.WaveletAdaptive,
-                                  ComfyWidgets.ColorMatch.Hsv, ComfyWidgets.ColorMatch.Adain, ComfyWidgets.ColorMatch.None }, Label = "Colour match" },
+                Choices = [ ComfyWidgets.ColorMatch.Lab, ComfyWidgets.ColorMatch.Wavelet, ComfyWidgets.ColorMatch.WaveletAdaptive,
+                                  ComfyWidgets.ColorMatch.Hsv, ComfyWidgets.ColorMatch.Adain, ComfyWidgets.ColorMatch.None ], Label = "Colour match" },
         // Compute + memory placement. cuda:0 / cpu on this single-GPU box.
         new() { Key = WorkflowParamKeys.Device,         Type = ParamType.String },
         new() { Key = WorkflowParamKeys.OffloadDevice, Type = ParamType.String },
@@ -71,7 +71,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         new() { Key = WorkflowParamKeys.VaeTileOverlap, Type = ParamType.Int },
         // A still is a one-frame clip. 4n+1 => 1. Never raise this for an image editor.
         new() { Key = WorkflowParamKeys.BatchSize, Type = ParamType.Int },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(SeedVr2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {

@@ -166,7 +166,7 @@ public sealed class RenderJob
 
     /// <summary>The positional image-id array the client diffs: <c>imageIds[i]</c> is slot i's produced image (or null
     /// until it lands / if it failed).</summary>
-    public List<string?> ImageIds() => Slots.OrderBy(s => s.Index).Select(s => s.ImageId).ToList();
+    public List<string?> ImageIds() => [.. Slots.OrderBy(s => s.Index).Select(s => s.ImageId)];
 }
 
 /// <summary>The mutable outcome of an edit render: whether the model changed the image, and the pHash distance from the

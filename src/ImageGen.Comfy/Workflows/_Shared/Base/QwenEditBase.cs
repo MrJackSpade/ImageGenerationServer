@@ -36,13 +36,14 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     /// rectangle lands at the character's native scale with her head intact. The reference latent and <c>image1</c>
     /// still carry the FULL source, so identity and native scale are preserved. See <see cref="MaskGeom"/>.
     /// </summary>
-    public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.MaskLeftPct,   Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask left %",   Help = "Fence the model out of the left N% of the canvas" },
         new() { Key = WorkflowParamKeys.MaskRightPct,  Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask right %",  Help = "Fence the model out of the right N% of the canvas" },
         new() { Key = WorkflowParamKeys.MaskTopPct,    Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask top %",    Help = "Fence the model out of the top N% of the canvas" },
         new() { Key = WorkflowParamKeys.MaskBottomPct, Type = ParamType.Int, Min = CanvasMaskConstants.MinSidePct, Max = CanvasMaskConstants.MaxSidePct, Step = 1, Label = "Mask bottom %", Help = "Fence the model out of the bottom N% of the canvas" },
-    }).ToArray();
+    ];
 
     /// <summary>
     /// The largest multiple of <see cref="CanvasMaskConstants.LatentAlignPx"/> that is <c>&lt;= n</c> — the sampled
@@ -111,7 +112,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // per-turn resample -> no compounding blur over a multi-turn conversation.
         g[Nodes.KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
 
-        string[] qInputs = p.ReferenceInputs ?? Array.Empty<string>();
+        string[] qInputs = p.ReferenceInputs ?? [];
         // Capacity is the smaller of the model's reference_max and the graph's available image slots — both hard
         // structural limits. More references than that is REFUSED, not silently truncated to fit.
         int refCapacity = Math.Min(p.ReferenceMax ?? 0, qInputs.Length);
@@ -159,7 +160,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // rectangle's offset. The model's fill-the-frame bias then works FOR us: given a 66%-tall frame it draws a
         // crouch at native scale. The conditioning is untouched — node 13 still encodes the FULL source and node 30's
         // reference latent is still the full-frame latent — so identity and the character's true scale are preserved.
-        int Pct(int? v)
+        static int Pct(int? v)
         {
             return v ?? 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
         }

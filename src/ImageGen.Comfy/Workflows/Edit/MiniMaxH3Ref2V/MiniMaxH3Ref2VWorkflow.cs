@@ -12,7 +12,7 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     public override bool HasAudio => true;
     /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
     public override FrameRule? FrameRule => new(5, 17);
-    public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema.Concat(H3.ExtraSchema).ToArray();
+    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.Build(req, inputs, H3Mode.Ref2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null, refMax: p.ReferenceMax ?? 0);

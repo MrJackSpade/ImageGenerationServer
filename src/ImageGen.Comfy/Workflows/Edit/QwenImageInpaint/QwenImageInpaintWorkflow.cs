@@ -14,14 +14,12 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
     protected override double DefaultDenoise => 1.0;
 
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> InpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> InpaintSchema =
+    [
+        .. ControlNetSchema,
         new() { Key = WorkflowParamKeys.Denoise, Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Change amount" },
-        // 16 = 2σ, same shape as outpaint: with the clamp holding the painted region at a hard 1, grow only places
-        // the one-sided ramp's midpoint 16px OUTSIDE the painted region. The painted pixels are always fully
-        // replaced; the ramp is the crossfade band over the surrounding original.
         new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-    }).ToArray();
+    ];
 
     protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)

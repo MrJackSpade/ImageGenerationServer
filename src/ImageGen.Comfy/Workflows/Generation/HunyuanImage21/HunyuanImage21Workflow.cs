@@ -13,10 +13,11 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
 {
     public override string Name => "hunyuanimage21";
     public override WorkflowMedia Media => WorkflowMedia.Image;
-    public override IReadOnlyList<ParamSpec> Schema => Txt2ImgWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. Txt2ImgWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(HunyuanImage21Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {

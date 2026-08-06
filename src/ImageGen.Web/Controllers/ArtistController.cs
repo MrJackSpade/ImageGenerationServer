@@ -30,7 +30,7 @@ public sealed class ArtistController(ArtistService artists, ImageViewService vie
             Name = name,
             DisplayImageId = displayId,
             HasOverride = isOverride,
-            Items = gens.Items.Select(e => e.ToItemView(viewed)).ToList(),
+            Items = [.. gens.Items.Select(e => e.ToItemView(viewed))],
             Page = gens.Page,
             PageSize = gens.PageSize,
             Total = gens.Total,

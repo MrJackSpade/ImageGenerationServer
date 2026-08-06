@@ -36,7 +36,7 @@ public sealed class GalleryController(HistoryService history, ImageViewService v
         IReadOnlySet<string> viewed = await _views.ViewedAsync(userId, result.Items, ct);
         return View(new GalleryViewModel
         {
-            Items = result.Items.Select(e => e.ToItemView(viewed)).ToList(),
+            Items = [.. result.Items.Select(e => e.ToItemView(viewed))],
             Page = result.Page,
             PageSize = result.PageSize,
             Total = result.Total,

@@ -105,7 +105,7 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
             return result;
         }
 
-        List<string> ids = imageIds.ToList();
+        List<string> ids = [.. imageIds];
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
         // Chunked so the id list can be any length: the caller asks about every image on the page at once, and one

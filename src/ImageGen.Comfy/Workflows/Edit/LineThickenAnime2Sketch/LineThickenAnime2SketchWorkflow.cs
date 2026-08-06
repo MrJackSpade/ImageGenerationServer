@@ -16,11 +16,11 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
     public override bool RequiresModel => false;
     public override IReadOnlyList<ParamSpec> Schema => AnimeSchema;
 
-    private static readonly IReadOnlyList<ParamSpec> AnimeSchema = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> AnimeSchema =
+    [
         new() { Key = WorkflowParamKeys.Thickness,  Type = ParamType.Int, Min = 0,   Max = 32,   Label = "Line thickness (px)" },
         new() { Key = WorkflowParamKeys.Resolution, Type = ParamType.Int, Min = 256, Max = 2048, Label = "Detector resolution" },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(LineThickenAnime2SketchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

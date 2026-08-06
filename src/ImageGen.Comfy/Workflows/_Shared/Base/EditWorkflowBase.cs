@@ -7,8 +7,8 @@ namespace ImageGen.Comfy;
 /// </summary>
 internal static class EditWorkflowBase
 {
-    internal static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
-    {
+    internal static readonly IReadOnlyList<ParamSpec> SharedSchema =
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // UNETLoader cast-at-load. "default" keeps the file's own dtype; fp8_e4m3fn halves a bf16's VRAM so a 12B
         // model fits a 24GB card alongside its text encoder instead of swapping against it.
@@ -41,13 +41,13 @@ internal static class EditWorkflowBase
         // garbage, so it's a per-module setting, not an artistic one — exposed for iterative testing, to be locked
         // down once dialed in. No schema default: each AnimateDiff workflow falls back to its module's correct value.
         new() { Key = WorkflowParamKeys.BetaSchedule, Type = ParamType.Enum, Label = "AnimateDiff schedule",
-                Choices = new[] { ComfyWidgets.BetaSchedule.Autoselect, ComfyWidgets.BetaSchedule.UseExisting,
+                Choices = [ ComfyWidgets.BetaSchedule.Autoselect, ComfyWidgets.BetaSchedule.UseExisting,
                                   ComfyWidgets.BetaSchedule.SqrtLinearAnimateDiff, ComfyWidgets.BetaSchedule.LinearAnimateDiffSdxl,
                                   ComfyWidgets.BetaSchedule.LinearHotshotXlDefault, ComfyWidgets.BetaSchedule.AvgSqrtLinearLinear,
                                   ComfyWidgets.BetaSchedule.LcmAvgSqrtLinearLinear, ComfyWidgets.BetaSchedule.Lcm,
                                   ComfyWidgets.BetaSchedule.Lcm100Ots, ComfyWidgets.BetaSchedule.LcmThenSqrtLinear,
                                   ComfyWidgets.BetaSchedule.Sqrt, ComfyWidgets.BetaSchedule.Cosine,
-                                  ComfyWidgets.BetaSchedule.SquaredcosCapV2 } },
+                                  ComfyWidgets.BetaSchedule.SquaredcosCapV2 ] },
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
@@ -55,5 +55,5 @@ internal static class EditWorkflowBase
         // variant (e.g. WAN i2v + Flat Color) with no new graph code.
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.EditLoraStrengthMin, Max = ParamBounds.EditLoraStrengthMax, Step = 0.01, Label = "LoRA strength" },
-    };
+    ];
 }

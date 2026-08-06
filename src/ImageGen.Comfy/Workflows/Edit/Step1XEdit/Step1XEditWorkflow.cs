@@ -17,11 +17,12 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
     public override bool RequiresModel => false;
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
-    private static readonly IReadOnlyList<ParamSpec> _schema = EditWorkflowBase.SharedSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.DiffusionModel, Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.Step1xVae,      Type = ParamType.String, IsModelRef = true },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(Step1XParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

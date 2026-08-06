@@ -7,8 +7,8 @@ namespace ImageGen.Comfy;
 /// </summary>
 internal static class Txt2ImgWorkflowBase
 {
-    internal static readonly IReadOnlyList<ParamSpec> SharedSchema = new ParamSpec[]
-    {
+    internal static readonly IReadOnlyList<ParamSpec> SharedSchema =
+    [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
@@ -16,7 +16,7 @@ internal static class Txt2ImgWorkflowBase
         // directly on RGB and have no VAE (PixelDiT, Chroma Radiance). Such a model is paired with the
         // identity "VAE" (pixel_space_vae.safetensors -> comfy's PixelspaceConversionVAE), so the VAEDecode
         // in the shared topology is a no-op passthrough and the graph stays byte-identical elsewhere.
-        new() { Key = WorkflowParamKeys.Latent,    Type = ParamType.Enum,   Choices = new[] { LatentKind.Std, LatentKind.Sd3, LatentKind.Flux2, LatentKind.Pixel } },
+        new() { Key = WorkflowParamKeys.Latent,    Type = ParamType.Enum,   Choices = [LatentKind.Std, LatentKind.Sd3, LatentKind.Flux2, LatentKind.Pixel] },
         new() { Key = WorkflowParamKeys.Auraflow,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.ClipSkip, Type = ParamType.Int },
@@ -38,7 +38,7 @@ internal static class Txt2ImgWorkflowBase
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.LoraStrength, Type = ParamType.Double, Min = ParamBounds.GenLoraStrengthMin, Max = ParamBounds.GenLoraStrengthMax, Step = 0.01, Label = "LoRA strength" },
-    };
+    ];
 
     /// <summary>The <c>latent</c> param's kind values — which empty-latent node the topology emits. Written once so
     /// the schema's choice list and <see cref="Txt2ImgWorkflow{TParams}"/>'s emit-time selection share one spelling.</summary>

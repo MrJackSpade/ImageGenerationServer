@@ -43,7 +43,7 @@ public sealed class WorkflowGraphTests
         // The FULL workflow set from the real DI registration — the exact set the app serves, including the
         // factory-registered decorators (the PixelVideoWorkflow wrappers). A hardcoded list would drift out of date
         // (new workflows would silently escape the graph tests); this stays complete on its own.
-        IWorkflow[] all = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetServices<IWorkflow>().ToArray();
+        IWorkflow[] all = [.. new ServiceCollection().AddWorkflows().BuildServiceProvider().GetServices<IWorkflow>()];
         return (catalog, new WorkflowRegistry(all));
     }
 
@@ -54,7 +54,7 @@ public sealed class WorkflowGraphTests
     /// <para>The duplication is a known wart — this has to stay in step with <c>MergeParamsDict</c> by hand, and
     /// falling out of step lets a rule like model-ref resolution be present there and missing here.</para>
     /// </summary>
-    private static IReadOnlyDictionary<string, object?> Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
+    private static Dictionary<string, object?> Merge(WorkflowCatalog catalog, IWorkflow wf, WorkflowConfiguration cfg)
     {
         Dictionary<string, object?> v = new(StringComparer.OrdinalIgnoreCase);
         foreach (ParamSpec s in wf.Schema)
@@ -192,7 +192,7 @@ public sealed class WorkflowGraphTests
             SourceVideoName = "src.mp4",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = new[] { "ref1.png", "ref2.png" },
+            ReferenceImageNames = ["ref1.png", "ref2.png"],
         };
 
         List<string> failures = [];
@@ -227,11 +227,10 @@ public sealed class WorkflowGraphTests
     {
         (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
 
-        List<string> dangling = catalog.AllConfigs()
+        List<string> dangling = [.. catalog.AllConfigs()
             .SelectMany(c => c.Requirements.All().Select(slot => (Config: c.Id, Slot: slot)))
             .Where(x => catalog.FindRequirement(x.Slot) is null)
-            .Select(x => $"{x.Config} -> {x.Slot}")
-            .ToList();
+            .Select(x => $"{x.Config} -> {x.Slot}")];
 
         Assert.Empty(dangling);
     }
@@ -306,7 +305,7 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = new[] { "ref1.png", "ref2.png" },
+            ReferenceImageNames = ["ref1.png", "ref2.png"],
         };
         string json = BuildJson("minimax-h3-ref2v", inputs);
         Assert.Contains("MiniMaxH3ReferenceToVideo", json);      // the ref2va conditioning+latent node
@@ -337,7 +336,7 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            ReferenceImageNames = new[] { "r1.png", "r2.png", "r3.png", "r4.png" },
+            ReferenceImageNames = ["r1.png", "r2.png", "r3.png", "r4.png"],
         };
         _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }
@@ -1736,15 +1735,14 @@ public sealed class WorkflowGraphTests
     {
         (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
 
-        List<string> duplicates = catalog.AllConfigs()
+        List<string> duplicates = [.. catalog.AllConfigs()
             .GroupBy(c => string.Join("|",
                 c.WorkflowName,
                 string.Join(",", c.Requirements.All().OrderBy(x => x, StringComparer.Ordinal)),
                 string.Join(",", c.Params.OrderBy(kv => kv.Key, StringComparer.Ordinal)
                                          .Select(kv => kv.Key + "=" + kv.Value.Value))))
             .Where(g => g.Count() > 1)
-            .Select(g => string.Join(" == ", g.Select(c => c.Id)))
-            .ToList();
+            .Select(g => string.Join(" == ", g.Select(c => c.Id)))];
 
         Assert.Empty(duplicates);
     }
@@ -2161,7 +2159,7 @@ public sealed class WorkflowGraphTests
         ResolvedRequirements req = new()
         {
             Checkpoint = "qwen.gguf",
-            TextEncoders = new[] { "te.gguf" },
+            TextEncoders = ["te.gguf"],
             Vae = "vae.safetensors",
             Resolution = new ModelResolution { MinW = 928, MinH = 928, MaxW = 1664, MaxH = 1664, Step = 16 },
         };

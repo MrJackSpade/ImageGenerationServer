@@ -14,7 +14,7 @@ public sealed class PendingJobRepositoryTests(TestDatabaseFixture fixture)
         await fixture.Pending.AddAsync(Job(user.Id, "job-1"), Ct);
 
         IReadOnlyList<PendingJob> all = await fixture.Pending.ListAllAsync(Ct);
-        List<PendingJob> mine = all.Where(j => j.UserId == user.Id).ToList();
+        List<PendingJob> mine = [.. all.Where(j => j.UserId == user.Id)];
         _ = Assert.Single(mine);
         Assert.Equal("job-1", mine[0].JobId);
         Assert.Equal("a prompt", mine[0].Prompt);
@@ -43,7 +43,7 @@ public sealed class PendingJobRepositoryTests(TestDatabaseFixture fixture)
         PendingJob drop = (await fixture.Pending.ListAllAsync(Ct)).Single(j => j.UserId == user.Id && j.JobId == "drop");
         await fixture.Pending.RemoveAsync(drop.Id, Ct);
 
-        List<string> mine = (await fixture.Pending.ListAllAsync(Ct)).Where(j => j.UserId == user.Id).Select(j => j.JobId).ToList();
+        List<string> mine = [.. (await fixture.Pending.ListAllAsync(Ct)).Where(j => j.UserId == user.Id).Select(j => j.JobId)];
         Assert.Equal(["keep"], mine);
     }
 

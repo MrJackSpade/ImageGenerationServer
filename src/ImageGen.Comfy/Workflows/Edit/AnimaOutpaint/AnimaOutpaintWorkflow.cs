@@ -30,8 +30,9 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
     /// to a full regenerate), plus the per-side pad amounts, the seam feather, the mask grow (mirrors inpaint), and the
     /// Anima prefix/negative/clip-skip knobs.</summary>
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Fill strength" },
         new() { Key = WorkflowParamKeys.PadLeft,        Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
         new() { Key = WorkflowParamKeys.PadTop,         Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
@@ -45,7 +46,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(AnimaOutpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

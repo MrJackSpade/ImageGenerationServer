@@ -27,16 +27,15 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
     /// "Denoise (source ↔ motion)" is wrong here) and re-add it as "Change amount", plus the inpaint-specific knobs.
     /// </summary>
     public override IReadOnlyList<ParamSpec> Schema => InpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> InpaintSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
-        // Step 0.01, not the UI's 0.1 default for doubles: how far the masked region drifts is the knob you tune most
-        // finely here, and 0.1 is too coarse to land between (e.g.) 0.55 and 0.65.
+    private static readonly IReadOnlyList<ParamSpec> InpaintSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Change amount" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.MaskGrow,       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

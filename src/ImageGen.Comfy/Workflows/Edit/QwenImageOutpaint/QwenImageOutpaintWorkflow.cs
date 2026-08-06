@@ -30,21 +30,16 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
     }
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
-    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema = ControlNetSchema.Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> OutpaintSchema =
+    [
+        .. ControlNetSchema,
         new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Fill strength" },
         new() { Key = WorkflowParamKeys.PadLeft,   Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend left (px)" },
         new() { Key = WorkflowParamKeys.PadTop,    Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend top (px)" },
         new() { Key = WorkflowParamKeys.PadRight,  Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend right (px)" },
         new() { Key = WorkflowParamKeys.PadBottom, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Extend bottom (px)" },
-        // With the clamp holding the pad at 1, grow only places the ramp's midpoint: 16 = 2σ puts the 50% blend
-        // 16px inside the original and has the descent begin right at the boundary — the shape the seam-free
-        // hand-ramp measurement used. The crossfade band sits over ground where the ControlNet saw real adjacent
-        // pixels.
         new() { Key = WorkflowParamKeys.MaskGrow, Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
-        // NOTE: no "feather" knob. ImagePadForOutpaint's own feathering stays 0 (see ResolveCanvas) — the template
-        // sets it to 0 too — so seam softening happens in exactly one place: mask_grow + mask_blur.
-    }).ToArray();
+    ];
 
     protected override void ResolveCanvas(ComfyWorkflowGraph g, QwenInpaintParams p, WorkflowInputs inputs,
         out Output<Slot.Image> image, out Output<Slot.Mask> rawMask)

@@ -18,8 +18,8 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchemaSpec;
 
-    private static readonly IReadOnlyList<ParamSpec> PixelizeSchemaSpec = new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> PixelizeSchemaSpec =
+    [
         // model loading (consumed by EditWorkflow.LoadModel)
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         // No default. A GENERIC workflow cannot know which CLIP family a configuration is for; a "flux"
@@ -60,7 +60,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.StartPercent, Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
-    };
+    ];
 
     protected override ComfyWorkflowGraph Build(PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

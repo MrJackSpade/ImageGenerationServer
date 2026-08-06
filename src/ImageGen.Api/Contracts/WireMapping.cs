@@ -27,7 +27,7 @@ public static class WireMapping
             return [];
         }
 
-        return marks.Select(kv => new Mark(kv.Key, ParseKind(kv.Value))).ToList();
+        return [.. marks.Select(kv => new Mark(kv.Key, ParseKind(kv.Value)))];
     }
 
     public static Dictionary<string, string>? MarksToMap(IReadOnlyList<Mark> marks)

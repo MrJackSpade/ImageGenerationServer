@@ -37,18 +37,16 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
     /// strength, plus the prompt-prefix/negative/clip-skip knobs the edit path doesn't supply and the model's native
     /// pixel budget.</summary>
     public override IReadOnlyList<ParamSpec> Schema => RedrawSchema;
-    private static readonly IReadOnlyList<ParamSpec> RedrawSchema = EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise).Concat(new ParamSpec[]
-    {
+    private static readonly IReadOnlyList<ParamSpec> RedrawSchema =
+    [
+        .. EditWorkflowBase.SharedSchema.Where(s => s.Key != WorkflowParamKeys.Denoise),
         new() { Key = WorkflowParamKeys.Denoise,         Type = ParamType.Double, Min = 0.0, Max = 1.0, Step = 0.01, Label = "Redraw strength" },
         new() { Key = WorkflowParamKeys.RequiredPrefix, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
-        // Flow-shift for the models that carry one (Chroma's ModelSamplingAuraFlow). Unset = omit the node.
         new() { Key = WorkflowParamKeys.Shift,           Type = ParamType.Double },
-        // The model's trained pixel budget (width × height of one of its native aspect buckets). A source meaningfully
-        // over it is downscaled to it before the encode; 0 = sample the source at its own resolution, no rescale.
         new() { Key = WorkflowParamKeys.NativePixels,   Type = ParamType.Int },
-    }).ToArray();
+    ];
 
     protected override ComfyWorkflowGraph Build(Img2ImgRedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

@@ -52,7 +52,7 @@ public sealed class LoraDisplayRepository(IDbConnectionFactory connectionFactory
             return result;
         }
 
-        List<string> names = loraNames.ToList();
+        List<string> names = [.. loraNames];
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
         {

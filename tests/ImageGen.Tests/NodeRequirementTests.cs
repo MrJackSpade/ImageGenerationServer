@@ -72,7 +72,7 @@ public sealed class NodeRequirementTests
         foreach (string file in Directory.EnumerateFiles(workflowsDir, "*.cs", SearchOption.AllDirectories))
         {
             string src = File.ReadAllText(file);
-            List<Match> starts = classRe.Matches(src).Select(m => m).ToList();
+            List<Match> starts = [.. classRe.Matches(src).Select(m => m)];
             for (int i = 0; i < starts.Count; i++)
             {
                 int from = starts[i].Index;
@@ -91,7 +91,7 @@ public sealed class NodeRequirementTests
                     nameOfClass[cls] = nm.Groups[1].Value;
                 }
 
-                HashSet<string> packs = PackNodes.Where(p => Regex.IsMatch(body, p.Pattern)).Select(p => p.Slot).ToHashSet();
+                HashSet<string> packs = [.. PackNodes.Where(p => Regex.IsMatch(body, p.Pattern)).Select(p => p.Slot)];
                 if (packs.Count > 0)
                 {
                     packsByClass[cls] = packs;
