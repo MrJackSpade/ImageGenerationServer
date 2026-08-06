@@ -84,12 +84,7 @@
                 <input type="file" id="editLastFrameFile" class="hidden" accept="image/*" />
             </div>
         </form>
-        <div class="bar-row">
-            <div class="bar" id="bar"><i></i></div>
-            <button type="button" id="cancelEdit" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
-        </div>
-        <div class="eta" id="eta" hidden></div>
-        <div id="result"></div>
+        <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "bar", EtaId: "eta", CancelId: "cancelEdit", ResultId: "result")' />
     </div>
 
     @* INPAINT mode — purpose-built: paint a region, edit the full (tag) prompt, regenerate only that region. *@
@@ -127,12 +122,7 @@
                 <button id="inpaintGo" class="primary-btn" type="submit" title="Hold to make several">Generate</button>
             </div>
         </form>
-        <div class="bar-row">
-            <div class="bar" id="inpaintBar"><i></i></div>
-            <button type="button" id="cancelInpaint" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
-        </div>
-        <div class="eta" id="inpaintEta" hidden></div>
-        <div id="inpaintResult"></div>
+        <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "inpaintBar", EtaId: "inpaintEta", CancelId: "cancelInpaint", ResultId: "inpaintResult")' />
     </div>
 
     @* OUTPAINT mode — purpose-built, and deliberately NOT the inpaint editor: you don't paint a region, you drag the
@@ -188,12 +178,7 @@
                 <button id="outpaintGo" class="primary-btn" type="submit">Generate</button>
             </div>
         </form>
-        <div class="bar-row">
-            <div class="bar" id="outpaintBar"><i></i></div>
-            <button type="button" id="cancelOutpaint" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
-        </div>
-        <div class="eta" id="outpaintEta" hidden></div>
-        <div id="outpaintResult"></div>
+        <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "outpaintBar", EtaId: "outpaintEta", CancelId: "cancelOutpaint", ResultId: "outpaintResult")' />
     </div>
 
     @* Source picker, shared by every mode: shown in the image area when the editor is opened with no source. Accepts a

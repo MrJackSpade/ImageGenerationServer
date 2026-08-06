@@ -99,13 +99,7 @@
     </form>
 
     <div class="status" id="status"></div>
-    @* Cancels the in-flight render. A small × inline beside the bar (not on Generate) so Generate stays Generate while
-       busy — click it again to queue more. compose.js toggles .show with the busy state. *@
-    <div class="bar-row">
-        <div class="bar" id="bar"><i></i></div>
-        <button type="button" id="cancelGen" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
-    </div>
-    <div class="gen-model" id="genModel" hidden></div>
-    <div class="eta" id="eta" hidden></div>
-    <div id="result"></div>
+    @* Shared status/progress/cancel/preview block — the same partial every page renders. Cancel is a small × beside
+       the bar (not on Generate) so Generate stays Generate while busy; compose.js toggles .show with the busy state. *@
+    <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "bar", EtaId: "eta", CancelId: "cancelGen", ResultId: "result", GenModelId: "genModel")' />
 </div>

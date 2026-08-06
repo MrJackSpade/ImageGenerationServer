@@ -443,6 +443,84 @@ function newBatchProgress() {
     value(total) { return Math.min(0.99, Math.max(0.02, (done + frac) / Math.max(1, total))); },
   };
 }
+
+// The ONE render-progress/preview engine (#145), shared by every page so status·ETA·bar·cancel·preview behave
+// identically and can never drift again. Tracks ONE multi-slot job to completion: opens /ws for live fraction, polls
+// /jobs, records each finished slot (diffing on slot id, skipping `changed === false` no-ops), drives the bar via
+// newBatchProgress, restarts the ETA when the running slot changes, and finishes when the job leaves the active feed
+// (then reads /job/{id} for stragglers). Resolves the number of images actually made.
+//
+// The page supplies only what is page-specific, via `o`:
+//   onProgress(fraction)                paint the bar (0..1)
+//   onSlot(slot)                        render one finished slot into the preview box
+//   onRunning(slot|null, job)           optional: called each poll with the running slot (e.g. show its model)
+//   eta                                 optional .eta element to drive on running-slot change
+//   activeStatus(recorded, total)       optional -> status string while running (null = leave)
+//   finalStatus(made, total, cancelled) -> status string on finish (null = leave)
+//   setStatus(text)                     write the page's status line
+//   onCancelHandle(handle)              receive { cancel } so the page's Cancel button can reach this job
+//   onSettle(made)                      optional page cleanup after finish (before resolve)
+function trackJobBatch(jobId, o) {
+  const N = o.total || 1;
+  return new Promise(resolve => {
+    let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
+    const recorded = new Set();
+    const prog = newBatchProgress();
+    const draw = () => { if (o.onProgress) o.onProgress(prog.value(N)); };
+    const recordSlot = s => {
+      if (!s || !s.id || s.changed === false || recorded.has(s.id)) return;
+      recorded.add(s.id);
+      if (o.onSlot) o.onSlot(s);
+    };
+    const finish = cancelled => {
+      if (settled) return; settled = true;
+      if (timer) clearInterval(timer);
+      try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); }
+      document.removeEventListener("visibilitychange", onVis);
+      if (o.eta) stopEta(o.eta);
+      const status = o.finalStatus ? o.finalStatus(recorded.size, N, cancelled) : null;
+      if (status != null && o.setStatus) o.setStatus(status);
+      if (o.onSettle) o.onSettle(recorded.size);
+      resolve(recorded.size);
+    };
+    function openWs() {
+      if (settled || ws) return;
+      try {
+        ws = new WebSocket(gwWs("/ws"));
+        ws.onmessage = ev => {
+          if (typeof ev.data !== "string") return;
+          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("batch ws non-JSON:", e); return; }
+          const id = m.data && m.data.prompt_id;
+          if (id && id === runningId) { const f = wsFraction(m); if (f != null) { prog.fraction(f); draw(); } }
+          if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") poll();
+        };
+        ws.onclose = () => { ws = null; }; ws.onerror = () => { try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
+      } catch (e) { console.debug("batch ws open failed:", e); ws = null; }
+    }
+    async function poll() {
+      if (settled) return;
+      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
+      const job = (res.jobs || []).find(j => j.jobId === jobId);
+      if (!job) {
+        let final = null;
+        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (e) { console.debug("final job fetch failed:", e); }
+        finish(!!(final && final.status === "cancelled"));
+        return;
+      }
+      const runSlot = (job.slots || []).find(s => s.status === "running");
+      runningId = runSlot ? job.jobId : null;   // /ws frames carry the job id (every slot maps to it)
+      if (o.onRunning) o.onRunning(runSlot || null, job);
+      if (o.eta && runSlot && runSlot.index !== lastEtaIdx) { lastEtaIdx = runSlot.index; startEta(o.eta, job.expectedSeconds, job.startedAt); }
+      (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); });
+      prog.finished(recorded.size); draw();
+      if (o.activeStatus && o.setStatus) { const t = o.activeStatus(recorded.size, N); if (t != null) o.setStatus(t); }
+    }
+    const onVis = () => { if (document.visibilityState === "visible" && !settled) { poll(); openWs(); } };
+    if (o.onCancelHandle) o.onCancelHandle({ cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } } });
+    document.addEventListener("visibilitychange", onVis);
+    timer = setInterval(poll, 2000); poll(); openWs();
+  });
+}
 // Poll /result for a single prompt until done/error; the ws is best-effort live progress. Page-agnostic: the
 // caller supplies hooks — onFraction(0..1) to drive its bar, onStart(res) when the render begins (to start the
 // ETA), and setActiveGen(obj|null) so the page's Cancel button can reach the in-flight job. Resolves the final

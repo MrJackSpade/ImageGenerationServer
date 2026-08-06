@@ -255,68 +255,22 @@ function editModeSpec(mode) {
     sourceId: () => editCurrent, mine: id => { const inp = inpaintWorkflowIds(), out = outpaintWorkflowIds(); return !inp.has(id) && !out.has(id); } };
 }
 
-// Track ONE multi-slot edit job to completion: poll /jobs, render each finished slot as it lands (diffing on slot id),
-// drive the mode's bar + ETA, and finish when the job leaves the active feed (then read /job/{id} for stragglers).
-// A mirror of the gen page's trackBatch. `changed === false` slots produced no image, so they are skipped.
+// Track ONE multi-slot edit job through the SHARED engine (core.js trackJobBatch) — the same one the composer uses, so
+// status·ETA·bar·cancel·preview behave identically. This only supplies the edit-specific bits: how to paint the bar
+// (width + tab title), how to render a finished slot into the mode's preview box, the status wording, and cleanup.
 function trackEditJob(jobId, N, spec) {
-  return new Promise(resolve => {
-    let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1, made = 0;
-    const recorded = new Set();
-    const bar = spec.bar.querySelector("i");
-    const paint = f => { const pct = Math.round(Math.min(1, f) * 100); if (bar) bar.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; };
-    const recordSlot = s => {
-      if (!s || !s.id || s.changed === false || recorded.has(s.id)) return;
-      recorded.add(s.id); made++;
-      spec.onSlot(s);
-      document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: { id: s.id } }));   // Recent reconciles from history
-    };
-    const finish = status => {
-      if (settled) return; settled = true;
-      if (timer) clearInterval(timer);
-      try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); }
-      document.removeEventListener("visibilitychange", onVis);
-      document.title = "Edit · Make a Picture"; stopEta(spec.eta); spec.show(false);
-      if (!made && spec.onNoneMade) spec.onNoneMade();
-      activeGen = null; editActiveJobId = null;
-      if (status != null) setStatus(status);
-      resolve(made);
-    };
-    function openWs() {
-      if (settled || ws) return;
-      try {
-        ws = new WebSocket(gwWs("/ws"));
-        ws.onmessage = ev => {
-          if (typeof ev.data !== "string") return;
-          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("edit ws non-JSON:", e); return; }
-          const id = m.data && m.data.prompt_id;
-          if (id && id === runningId) { const f = wsFraction(m); if (f != null) paint((recorded.size + f) / Math.max(1, N)); }
-          if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") poll();
-        };
-        ws.onclose = () => { ws = null; }; ws.onerror = () => { try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
-      } catch (e) { console.debug("edit ws open failed:", e); ws = null; }
-    }
-    async function poll() {
-      if (settled) return;
-      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
-      const job = (res.jobs || []).find(j => j.jobId === jobId);
-      if (!job) {
-        let final = null;
-        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (e) { console.debug("final job fetch failed:", e); }
-        finish(final && final.status === "cancelled" ? (made ? `Cancelled — made ${made} of ${N}.` : "Cancelled.")
-          : N > 1 ? (made === N ? `Done — made all ${N}.` : `Done — made ${made} of ${N}.`)
-          : made ? "" : "No visible change — try rephrasing, a bigger change, or a different workflow.");
-        return;
-      }
-      const runSlot = (job.slots || []).find(s => s.status === "running");
-      runningId = runSlot ? job.jobId : null;   // /ws frames carry the job id (every slot maps to it)
-      if (runSlot && runSlot.index !== lastEtaIdx) { lastEtaIdx = runSlot.index; startEta(spec.eta, job.expectedSeconds, job.startedAt); }
-      (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); });
-      paint(recorded.size / Math.max(1, N));
-      if (N > 1) setStatus(`Making ${Math.min(recorded.size + 1, N)} of ${N}…`);
-    }
-    const onVis = () => { if (document.visibilityState === "visible" && !settled) { poll(); openWs(); } };
-    document.addEventListener("visibilitychange", onVis);
-    timer = setInterval(poll, 2000); poll(); openWs();
+  const barFill = spec.bar.querySelector("i");
+  return trackJobBatch(jobId, {
+    total: N, eta: spec.eta,
+    onProgress: f => { const pct = Math.round(Math.min(1, f) * 100); if (barFill) barFill.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; },
+    onSlot: s => { spec.onSlot(s); document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: { id: s.id } })); },   // Recent reconciles from history
+    activeStatus: recorded => N > 1 ? `Making ${Math.min(recorded + 1, N)} of ${N}…` : null,
+    finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+      : total > 1 ? (made === total ? `Done — made all ${total}.` : `Done — made ${made} of ${total}.`)
+      : made ? "" : "No visible change — try rephrasing, a bigger change, or a different workflow.",
+    setStatus: t => setStatus(t),
+    onCancelHandle: h => { activeGen = h; },
+    onSettle: made => { document.title = "Edit · Make a Picture"; spec.show(false); editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },
   });
 }
 

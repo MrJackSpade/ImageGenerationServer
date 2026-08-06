@@ -418,67 +418,27 @@ async function generateMulti(prompt, models, n) {
   }
   await submitItems(items, { prompt, modelFriendly: `${models.length} workflows`, modelId: "", aspect: slotAspects[0] || primaryAspect(), slotModels, slotAspects });
 }
-// Track ONE multi-slot job: poll /jobs, record each slot as its image lands (diffing on slot id), and finish when the
-// job leaves the active feed — its disappearance IS "finalized", after which /forge/job/{id} gives the final array.
+// Track ONE multi-slot job through the SHARED engine (core.js trackJobBatch) — the same one the edit page uses, so the
+// status·ETA·bar·cancel·preview block behaves identically on every page. The composer supplies only its own bits: how
+// to paint the bar (showBar, which also drives the tab-title/favicon ring), how to record a finished slot (recordResult
+// → the Recent strip), the "generating with X" model label for a multi-model batch, and the status wording.
 function trackBatch(b) {
   if (!b || !b.jobId) return Promise.resolve();
-  const jobId = b.jobId, N = b.total || 1, recorded = new Set();   // recorded = image ids done (this run only)
-  activeGen = { cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } } };
-  return new Promise((resolve) => {
-    let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
-    const prog = newBatchProgress();
-    const drawBar = () => showBar(prog.value(N));
-    const finish = () => { if (settled) return; settled = true; if (timer) clearInterval(timer); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } document.removeEventListener("visibilitychange", onVis); activeGen = null; resolve(); };
-    function recordSlot(s) {
-      if (!s || !s.id || recorded.has(s.id)) return;
-      recorded.add(s.id);
-      recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, b.prompt || "", b.model || "", b.modelId || "", (b.slotAspects && b.slotAspects[s.index]) || "");
-    }
-    function openWs() {
-      if (settled || ws) return;
-      try {
-        ws = new WebSocket(gwWs("/ws"));
-        ws.onmessage = (ev) => {
-          if (typeof ev.data !== "string") return;
-          let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("gen ws non-JSON message:", e); return; }
-          const id = m.data && m.data.prompt_id;
-          if (id && id === runningId) { const f = wsFraction(m); if (f != null) { prog.fraction(f); drawBar(); } }
-          if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") poll();
-        };
-        ws.onclose = () => { ws = null; }; ws.onerror = (ev) => { console.debug("gen ws error:", ev); try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
-      } catch (e) { console.debug("gen ws open failed:", e); ws = null; }
-    }
-    async function poll() {
-      if (settled) return;
-      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
-      const job = (res.jobs || []).find(j => j.jobId === jobId);
-      if (!job) {
-        // Vanished from the active feed -> finalized. Collect the final array, record any stragglers, then finish.
-        let final = null;
-        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (e) { console.debug("final job fetch failed:", e); }
-        const failed = N - recorded.size;
-        // The job's own final status, not this tab's cancel flag: the batch may have been stopped from another
-        // device, and either way the missing images weren't images that "couldn't be made" — they weren't asked for
-        // any more. Reporting a deliberate stop as a batch of failures would itself be a defect.
-        setStatus(final && final.status === "cancelled"
-          ? (recorded.size ? `Cancelled — made ${recorded.size} of ${N}.` : "Cancelled.")
-          : failed > 0 ? `Done — made ${recorded.size} of ${N} (${failed} couldn't be made).`
-          : `Done — made all ${recorded.size}.`);
-        hideBar(); finish(); return;
-      }
-      const runSlot = (job.slots || []).find(s => s.status === "running");
-      runningId = runSlot ? job.jobId : null;   // /ws frames carry the job id (every slot maps to it)
-      if (runSlot && b.slotModels) setGenModel(b.slotModels[runSlot.index] || "");   // multi-model: show the current model
-
-      // Each image has its own ETA; restart the countdown when the rendering slot changes.
-      if (runSlot && runSlot.index !== lastEtaIdx) { lastEtaIdx = runSlot.index; startEta($("eta"), job.expectedSeconds, job.startedAt); }
-      (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); });
-      prog.finished(recorded.size);
-      drawBar(); setStatus(`Creating ${Math.min(recorded.size + 1, N)} of ${N}…`);   // 1-indexed: the one being made now
-    }
-    const onVis = () => { if (document.visibilityState === "visible" && !settled) { poll(); openWs(); } };
-    document.addEventListener("visibilitychange", onVis);
-    timer = setInterval(poll, 2000); poll(); openWs();
+  const N = b.total || 1;
+  return trackJobBatch(b.jobId, {
+    total: N, eta: $("eta"),
+    onProgress: showBar,
+    onSlot: s => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, b.prompt || "", b.model || "", b.modelId || "", (b.slotAspects && b.slotAspects[s.index]) || ""),
+    onRunning: runSlot => { if (runSlot && b.slotModels) setGenModel(b.slotModels[runSlot.index] || ""); },   // multi-model: show the current model
+    activeStatus: recorded => `Creating ${Math.min(recorded + 1, N)} of ${N}…`,   // 1-indexed: the one being made now
+    // The job's OWN final status, not this tab's cancel flag: the batch may have been stopped from another device, and
+    // the missing images weren't ones that "couldn't be made" — they weren't asked for any more.
+    finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+      : (total - made) > 0 ? `Done — made ${made} of ${total} (${total - made} couldn't be made).`
+      : `Done — made all ${made}.`,
+    setStatus: t => setStatus(t),
+    onCancelHandle: h => { activeGen = h; },
+    onSettle: () => { hideBar(); activeGen = null; },
   });
 }
 

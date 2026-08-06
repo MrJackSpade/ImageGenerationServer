@@ -1,0 +1,19 @@
+@model ProgressPanel
+@*
+    The one render-progress/preview block, shared by every page (composer + the edit page's chat/inpaint/outpaint
+    panels). It is deliberately identical everywhere: the progress bar and its inline × cancel share a centered row
+    (.bar-row) so the × sits beside the bar; the ETA countdown sits under it; and the preview container stays EMPTY
+    until a real result lands — no "working" placeholder card. Status text lives above the bar in the page's own
+    #status element (one per page), driven by the page's JS. The element ids are parameterised because a page may
+    host several panels (the edit page has three), each needing its own bar/eta/cancel/result.
+*@
+<div class="bar-row">
+    <div class="bar" id="@Model.BarId"><i></i></div>
+    <button type="button" id="@Model.CancelId" class="cancel-gen" title="Cancel" aria-label="Cancel">×</button>
+</div>
+@if (Model.GenModelId is not null)
+{
+    <div class="gen-model" id="@Model.GenModelId" hidden></div>
+}
+<div class="eta" id="@Model.EtaId" hidden></div>
+<div id="@Model.ResultId"></div>
