@@ -1350,6 +1350,10 @@ async function recoverOutpaintJob() {
 (async () => {
   const settings = await loadEditModels();   // also seeds savedMode/savedBrushSize/editParamPrefs/selectedEditIds from the account blob
   setTagBoxPinBookmarks(settings.pinBookmarks);   // one account toggle governs every tag box on this page
+  // Favorited/banned marks in the '#'/'@' popup: one-time snapshots, applied when they resolve. Detached so they
+  // never gate boot, un-caught so a real endpoint failure surfaces rather than being swallowed.
+  fetchBookmarks().then(setTagBoxFavorites);
+  fetchAllBans().then(setTagBoxBans);
   editCurrent = seed.id;
   srcIsVideo = await detectSrcVideo(seed.id);   // a clip seed → collapse the editor to the single V2V mode
   if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders

@@ -1068,5 +1068,10 @@ function startLiveSync() {
   }
   buildTagTypes(s);   // same response carries the generation mask + its options
   if (s) setTagBoxPinBookmarks(s.pinBookmarks);   // one account toggle governs every tag box on this page
+  // Favorited/banned marks in the '#'/'@' popup: a one-time snapshot each, applied when they resolve. Detached (not
+  // awaited) so the cosmetic decoration never gates boot, and left un-caught so a real endpoint failure surfaces in
+  // the console rather than being swallowed — a missing set just means no star/cross that keystroke, nothing worse.
+  fetchBookmarks().then(setTagBoxFavorites);
+  fetchAllBans().then(setTagBoxBans);
   startLiveSync();
 })();

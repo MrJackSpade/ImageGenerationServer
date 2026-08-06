@@ -218,6 +218,9 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 /* The ★ marking a pinned bookmark: small, before the marker, coloured like the count (neutral) so it doesn't fight
    the category-coloured name. */
 .tag-pop .opt .nm .pin{color:var(--accent-2);font-size:11px;margin-right:4px}
+/* The ✕ marking a tag banned for the active model: same size/placement as the star, in danger so it reads as
+   excluded — an icon, not a colour on the name (colour is the tag TYPE's). */
+.tag-pop .opt .nm .ban{color:var(--danger);font-size:11px;margin-right:4px}
 .tag-pop .opt .ct{flex:none;color:var(--ink-faint);font:12px var(--mono)}
 .tag-pop .opt.sel,.tag-pop .opt:hover{background:var(--panel)}
 /* Category-color a suggestion's name (a left bar would jump on select) so it matches its future chip's border. */

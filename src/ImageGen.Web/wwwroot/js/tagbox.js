@@ -20,6 +20,28 @@
 // per-box option; a page that has loaded /api/settings calls setTagBoxPinBookmarks(s.pinBookmarks) once at boot.
 let tagBoxPinBookmarks = false;
 function setTagBoxPinBookmarks(on) { tagBoxPinBookmarks = !!on; }
+
+// Favorited (bookmarked) token names, and per-model banned token names, so the popup can mark a suggestion with a ★
+// (favorited) or a ✕ (banned) — icons, not colours, since colour is reserved for the tag TYPE. Like the pin toggle
+// these are page-wide module state loaded ONCE at boot (from /api/bookmarks and /api/bans/all), never per keystroke:
+// the star must show on a favorited tag whether or not pinning is on, so it can't ride the opt-in pin path. Names are
+// matched case-insensitively — the catalog, bookmarks and bans all store the same canonical token name.
+const tagBoxFavorites = { tag: new Set(), artist: new Set() };
+const tagBoxBans = new Map();   // modelId -> { tag: Set, artist: Set }
+const normTok = s => String(s == null ? "" : s).toLowerCase();
+// { artists:[name], tags:[name] } from /api/bookmarks.
+function setTagBoxFavorites(bm) {
+  tagBoxFavorites.tag = new Set(((bm && bm.tags) || []).map(normTok));
+  tagBoxFavorites.artist = new Set(((bm && bm.artists) || []).map(normTok));
+}
+// [{ modelId, artists:[name], tags:[name] }] from /api/bans/all — bans are per model, so keyed by model id.
+function setTagBoxBans(groups) {
+  tagBoxBans.clear();
+  for (const g of (groups || [])) {
+    if (!g || !g.modelId) continue;
+    tagBoxBans.set(g.modelId, { tag: new Set((g.tags || []).map(normTok)), artist: new Set((g.artists || []).map(normTok)) });
+  }
+}
 function initTagBox(opts) {
   const input = opts.input, pop = opts.pop;
   const getModel = opts.getModel || (() => null), onAccept = opts.onAccept || (() => {});
@@ -40,15 +62,26 @@ function initTagBox(opts) {
   function position() { pop.style.left = input.offsetLeft + "px"; pop.style.top = (input.offsetTop + input.offsetHeight + 2) + "px"; pop.style.width = input.offsetWidth + "px"; }
   function render() {
     pop.innerHTML = "";
+    const kind = state.tok.marker === "@" ? "artist" : "tag";
+    const favSet = tagBoxFavorites[kind];
+    const active = getModel();
+    const banSet = (active && active.id && tagBoxBans.get(active.id)) || null;
     state.items.forEach((it, i) => {
       const cat = tagCategoryClass(it.type);
-      const o = document.createElement("div"); o.className = "opt" + (i === state.sel ? " sel" : "") + (cat ? " " + cat : "") + (it.bookmarked ? " bookmarked" : ""); o.setAttribute("role", "option"); o.dataset.i = i;
+      const key = normTok(it.name);
+      // it.bookmarked is the server's pinned-bookmark flag (#105); favSet covers a favorited tag that merely ranked
+      // without being pinned. Either way it's a favorite, so it gets the star.
+      const fav = it.bookmarked || favSet.has(key);
+      const banned = !!(banSet && banSet[kind].has(key));
+      const o = document.createElement("div"); o.className = "opt" + (i === state.sel ? " sel" : "") + (cat ? " " + cat : "") + (fav ? " bookmarked" : "") + (banned ? " banned" : ""); o.setAttribute("role", "option"); o.dataset.i = i;
       const rk = it.ranking;
       const meta = (rk != null) ? `${(rk.p * 100).toFixed(rk.p >= 0.01 ? 1 : 2)}%` + (rk.lift != null ? ` · ×${rk.lift >= 10 ? Math.round(rk.lift) : rk.lift.toFixed(1)}` : "") : Number(it.count || 0).toLocaleString();
-      // The ★ IS the "bookmarked" indicator — no label. Inside .nm (before the marker) so the row keeps its two-group
-      // name↔count layout and the star inherits the name's category colour.
-      const pin = it.bookmarked ? `<span class="pin" title="Bookmarked" aria-label="Bookmarked">★</span>` : "";
-      o.innerHTML = `<span class="nm">${pin}<span class="mk">${state.tok.marker}</span>${escapeHtml(it.name)}</span><span class="ct">${meta}</span>`;
+      // Icons, not colour — colour is the tag TYPE's. Both sit inside .nm before the marker so the row keeps its
+      // two-group name↔count layout; each carries its own fixed hue (star = accent, cross = danger). A tag can be
+      // both favorited and banned, so both may show.
+      const star = fav ? `<span class="pin" title="Favorited" aria-label="Favorited">★</span>` : "";
+      const cross = banned ? `<span class="ban" title="Banned" aria-label="Banned">✕</span>` : "";
+      o.innerHTML = `<span class="nm">${star}${cross}<span class="mk">${state.tok.marker}</span>${escapeHtml(it.name)}</span><span class="ct">${meta}</span>`;
       pop.appendChild(o);
     });
     position(); pop.classList.remove("hidden");
