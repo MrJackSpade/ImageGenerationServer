@@ -112,6 +112,7 @@ function updatePlaceholder() {
   syncTagTypesBar();   // the mask hides with the slider when the model can't take random tags
   updateNegativeField();   // reveal the negative field iff any checked model supports one (independent of primary)
   updateLoraSection();     // the LoRA accordion shows only when a selected model produces images
+  updateShapeEdit();       // the inline "Edit sizes" toggle shows only for a single picked workflow
   const ex = m && exampleFor(m);
   $prompt.placeholder = ex || "Describe the picture you'd like to make…";
   const help = m && m.ui_help;
@@ -129,6 +130,125 @@ function updatePlaceholder() {
   $modelTip.innerHTML = parts.join("");
   $modelTip.hidden = false;
   renderParams(m);
+}
+
+// --- inline per-workflow size editor (#139) -------------------------------------------------------
+// "Edit" next to Shape opens the current workflow's three render sizes (square/landscape/portrait) inline, so a
+// resolution tweak doesn't mean a trip to the settings page. It edits the SAME per-machine config that page does
+// (param.aspect via /catalog/override), bounded by the model's declared envelope: Done saves the three pairs,
+// Reset clears the override so the shipped sizes come back. Shown only when exactly one generate workflow is
+// picked — "the current workflow" is meaningless with a multi-pick, each of which carries its own sizes.
+const $shapeEdit = $("shapeEdit"), $shapeSizes = $("shapeSizes");
+let shapeEditOpen = false, shapeInputs = null, shapeConfigId = null, shapeKey = null;
+
+// The single generate workflow whose sizes we'd edit, or null (0 or 2+ picked, or an edit workflow).
+function shapeEditable() { const m = primaryModel(); return m && m.kind === "generate" ? m : null; }
+
+function updateShapeEdit() {
+  const m = shapeEditable();
+  if ($shapeEdit) $shapeEdit.hidden = !m;
+  // Close on any selection change away from the workflow being edited — otherwise the open fields would still write
+  // to the previously-picked workflow's config.
+  if (shapeEditOpen && (!m || m.id !== shapeConfigId)) closeShapeEditor();
+}
+
+function closeShapeEditor() {
+  shapeEditOpen = false; shapeInputs = null;
+  if ($shapeSizes) { $shapeSizes.hidden = true; $shapeSizes.innerHTML = ""; }
+  if ($shapeEdit) $shapeEdit.textContent = "Edit";
+}
+
+// Build the three width/height pairs from the workflow's effective sizes, bounded by its declared envelope. Mirrors
+// the settings page's aspect editor (wf-aspect grid) so the two surfaces read and validate the same way.
+function buildShapeEditor(m, s, env) {
+  shapeConfigId = m.id; shapeKey = s.key;
+  const eff = ((s.override !== null && s.override !== undefined) ? s.override : s.shipped) || {};
+  $shapeSizes.innerHTML = "";
+  const box = document.createElement("div"); box.className = "wf-aspect";
+  shapeInputs = {};
+  for (const name of ASPECTS) {
+    const pair = eff[name] || [];
+    const cell = document.createElement("div"); cell.className = "wf-aspect-cell";
+    const nm = document.createElement("span"); nm.className = "wf-aspect-name"; nm.textContent = name;
+    const w = document.createElement("input"), h = document.createElement("input");
+    for (const [el, v, lo, hi] of [[w, pair[0], env && env.minW, env && env.maxW],
+                                    [h, pair[1], env && env.minH, env && env.maxH]]) {
+      el.type = "number"; el.className = "fld-input";
+      if (lo) el.min = lo;
+      if (hi) el.max = hi;
+      if (env && env.step) el.step = env.step;
+      el.value = v == null ? "" : v;
+    }
+    shapeInputs[name] = [w, h];
+    const x = document.createElement("span"); x.className = "wf-aspect-x"; x.textContent = "×";
+    cell.append(nm, w, x, h);
+    box.appendChild(cell);
+  }
+  if (env) {
+    const note = document.createElement("p"); note.className = "wf-aspect-note";
+    note.textContent = `This model supports ${env.minW}–${env.maxW} wide and ${env.minH}–${env.maxH} tall, `
+      + `in multiples of ${env.step}.`;
+    box.appendChild(note);
+  }
+  const reset = document.createElement("button");
+  reset.type = "button"; reset.className = "wf-reset shape-reset"; reset.textContent = "Reset to defaults";
+  reset.addEventListener("click", resetShapeEditor);
+  box.appendChild(reset);
+  $shapeSizes.appendChild(box);
+}
+
+async function openShapeEditor() {
+  const m = shapeEditable(); if (!m) return;
+  let data;
+  try {
+    const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/settings`);
+    if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    data = await r.json();
+  } catch (e) { console.error("load workflow sizes failed:", e); toast("Couldn't load this workflow's sizes"); return; }
+  const aspect = (data.settings || []).find(s => s.type === "aspect");
+  if (!aspect) { toast("This workflow has no adjustable sizes"); return; }
+  buildShapeEditor(m, aspect, data.resolution);
+  shapeEditOpen = true; $shapeSizes.hidden = false; $shapeEdit.textContent = "Done";
+}
+
+// Write (or clear, on null) the aspect override for the workflow being edited. The server re-validates against the
+// model's envelope and answers a bad size with the model's own numbers, which we surface verbatim.
+async function putAspectOverride(value) {
+  try {
+    const r = await fetch(`${GATEWAY}/catalog/override`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ configId: shapeConfigId, key: `param.${shapeKey}`, value }),
+    });
+    if (!r.ok) {
+      let msg = "Couldn't save that size";
+      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch { /* keep the generic message */ }
+      toast(msg); return false;
+    }
+    toast(value == null ? "Sizes reset to defaults" : "Sizes saved");
+    return true;
+  } catch (e) { console.error("save workflow sizes failed:", e); toast("Couldn't save that size"); return false; }
+}
+
+async function saveShapeEditor() {
+  if (!shapeInputs) { closeShapeEditor(); return; }
+  const out = {};
+  for (const name of ASPECTS) {
+    const [w, h] = shapeInputs[name].map(el => parseInt(el.value, 10));
+    if (Number.isFinite(w) && Number.isFinite(h)) out[name] = [w, h];
+  }
+  if (await putAspectOverride(JSON.stringify(out))) closeShapeEditor();
+}
+
+// Clear the override, then re-open so the fields show the freshly restored shipped sizes.
+async function resetShapeEditor() {
+  if (await putAspectOverride(null)) await openShapeEditor();
+}
+
+if ($shapeEdit) {
+  $shapeEdit.addEventListener("click", async () => {
+    if (shapeEditOpen) await saveShapeEditor();
+    else await openShapeEditor();
+  });
 }
 
 // Adapt a /workflows configuration row into the model shape the rest of this page expects. The server already
