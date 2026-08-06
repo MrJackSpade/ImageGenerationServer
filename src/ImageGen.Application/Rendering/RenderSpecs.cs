@@ -26,10 +26,10 @@ public sealed record LoraSelection(string Name, double Weight);
 /// falls back to the owner's stored mask; an EMPTY list is a real choice meaning every switchable type is off.
 /// </param>
 /// <param name="OriginalPrompt">
-/// The prompt as the user TYPED it, carried alongside <paramref name="Prompt"/> because the composer resolves its own
-/// syntax before submitting — <c>[a|b]</c> collapsed to the option it rolled, <c>{a|b}</c> fanned into separate slots,
-/// an artist page's locked artist appended — and none of that is recoverable from the result. Purely a record: nothing
-/// renders from it. Null when the caller sent none (an API-key client, or a slot queued before this field existed).
+/// The prompt as the user TYPED it, carried alongside <paramref name="Prompt"/> because that syntax is resolved before
+/// this slot renders — the orchestrator fans a <c>{a|b}</c> into one slot per combo and picks each <c>[a|b]</c> at
+/// enqueue (so <paramref name="Prompt"/> is the RESOLVED text), and an artist page's locked artist is appended — none
+/// of it recoverable from the result. Purely a record: nothing renders from it. Null when the caller sent none.
 /// </param>
 /// <param name="Loras">
 /// The user's LoRA stack for THIS render (empty/null for none): each a subfolder-qualified <c>lora_name</c> + weight,

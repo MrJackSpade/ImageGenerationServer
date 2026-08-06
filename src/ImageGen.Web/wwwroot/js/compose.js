@@ -348,12 +348,13 @@ function buildComposerItems(n) {
   return { items, meta: { prompt, model: `${models.length} workflows`, modelId: "", slotModels, slotAspects } };
 }
 
-// The slots for one model: every explode variant ({a|b} sets), n times each, each rolling its own aspect from the
-// picked set (so a batch comes back mixed when several shapes are selected). `exact` (Reload) reproduces a picture
-// verbatim — the image's own prompt/negative/loras/shape, no new random artist/prompt and no re-roll.
+// The slots for one model: n copies of the prompt, each rolling its own aspect from the picked set (so a batch comes
+// back mixed when several shapes are selected). The prompt is sent RAW — the SERVER resolves its `[a|b]`/`{a|b}` groups
+// now (one job slot per `{a|b}` combo, `[a|b]` picked per combo), so a `{a|b}` copy fans out server-side. `exact`
+// (Reload) reproduces a picture verbatim — its own (already-resolved) prompt/negative/loras/shape, no re-roll.
 function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   const rollAspect = () => aspect || pickAspect();
-  const slotAspects = [];   // slotAspects[i] = the shape slot i was submitted with (= slot.index), for the record
+  const slotAspects = [];   // slotAspects[i] = the shape copy i was submitted with; the record (best-effort once the server fans a {a|b} copy)
   const ov = currentOverrides();
   let items;
   if (exact) {
@@ -363,27 +364,26 @@ function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   } else {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), overrides: ov, loras: lorasPayload() };
     items = [];
-    for (const variant of explodePrompts(prompt))
-      for (let i = 0; i < n; i++) {
-        const asp = rollAspect(); slotAspects.push(asp);
-        items.push({ ...base, aspect: asp, prompt: lockArtist(model, expandRandomPrompt(variant)), originalPrompt: prompt });
-      }
+    for (let i = 0; i < n; i++) {
+      const asp = rollAspect(); slotAspects.push(asp);
+      items.push({ ...base, aspect: asp, prompt: lockArtist(model, prompt), originalPrompt: prompt });
+    }
   }
   return { items, slotAspects };
 }
-// Fan ONE prompt across several models — n slots per model. The shared-param panel (params common to every selected
-// model) applies to all; random artist/prompt stay single-model affordances (off here). Artist-mode locks per model.
+// Fan ONE prompt across several models — n copies per model, sent RAW (the server resolves the groups). The shared-param
+// panel (params common to every selected model) applies to all; random artist/prompt stay single-model affordances
+// (off here). Artist-mode locks per model.
 function buildMultiItems(prompt, models, n) {
   const ov = currentOverrides();
-  const items = [], slotModels = [], slotAspects = [];   // [i] = friendly name / shape for slot i, in submission order (= slot.index)
+  const items = [], slotModels = [], slotAspects = [];   // [i] = friendly name / shape for copy i (best-effort once the server fans a {a|b} copy)
   for (const model of models) {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: lorasPayload() };
-    for (const variant of explodePrompts(prompt))
-      for (let i = 0; i < n; i++) {
-        const asp = pickAspect();   // each slot rolls its own shape from the picked set
-        items.push({ ...base, aspect: asp, prompt: lockArtist(model, expandRandomPrompt(variant)), originalPrompt: prompt });
-        slotModels.push(model.friendly_name); slotAspects.push(asp);
-      }
+    for (let i = 0; i < n; i++) {
+      const asp = pickAspect();   // each copy rolls its own shape from the picked set
+      items.push({ ...base, aspect: asp, prompt: lockArtist(model, prompt), originalPrompt: prompt });
+      slotModels.push(model.friendly_name); slotAspects.push(asp);
+    }
   }
   return { items, slotModels, slotAspects };
 }

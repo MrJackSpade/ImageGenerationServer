@@ -1,4 +1,5 @@
 using ImageGen.Application.Prompting.Tags;
+using ImageGen.Application.Rendering;
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 
@@ -121,6 +122,32 @@ public sealed class TagCompilerTests
         // The whole pipeline: '{a|b}' explodes, each combo renders as the image model would see it.
         List<string> images = [.. TagGroup.Parse("#1girl, {#red_hair|#blue_hair}").Generate().Select(g => g.ToImageModel(Booru))];
         Assert.Equal(["1girl, red_hair", "1girl, blue_hair"], images);
+    }
+
+    /// <summary>Enqueue-time cutover: a generate item's `{a|b}` fans into one render item per combo, resolved.</summary>
+    [Fact]
+    public void Enqueue_expands_an_explode_prompt_into_one_item_per_combo()
+    {
+        IReadOnlyList<RenderItem> items = RenderOrchestrator.ExpandGenerateGroups(
+            [RenderItem.ForGenerate(new GenerateSpec("wf", "#1girl, {#red|#blue}", null, "square"))]);
+
+        Assert.Equal(["#1girl, #red", "#1girl, #blue"], items.Select(i => i.Gen?.Prompt));
+    }
+
+    /// <summary>A group-free generate item is passed through untouched (no needless re-parse).</summary>
+    [Fact]
+    public void Enqueue_leaves_a_group_free_generate_item_untouched()
+    {
+        RenderItem one = RenderItem.ForGenerate(new GenerateSpec("wf", "#1girl, #solo", null, "square"));
+        Assert.Same(one, Assert.Single(RenderOrchestrator.ExpandGenerateGroups([one])));
+    }
+
+    /// <summary>Edit items are never group-expanded — only generate prompts fan into slots.</summary>
+    [Fact]
+    public void Enqueue_never_expands_an_edit_item()
+    {
+        RenderItem edit = RenderItem.ForEdit(new EditSpec("wf", "make it [red|blue]", "img1"));
+        Assert.Same(edit, Assert.Single(RenderOrchestrator.ExpandGenerateGroups([edit])));
     }
 
     /// <summary>Parse one segment, failing the test if it is empty.</summary>

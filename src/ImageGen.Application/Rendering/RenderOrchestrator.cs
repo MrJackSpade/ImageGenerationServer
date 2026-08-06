@@ -2,6 +2,7 @@ using ImageGen.Application.Images;
 using ImageGen.Application.Media;
 using ImageGen.Application.Platform;
 using ImageGen.Application.Prompting;
+using ImageGen.Application.Prompting.Tags;
 using ImageGen.Application.Tags;
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
@@ -129,6 +130,11 @@ public sealed class RenderOrchestrator
     /// then make the slots schedulable and wake the worker. One item = a lone job; many = a batch.</summary>
     public async Task<RenderJob> EnqueueJobAsync(long owner, IReadOnlyList<RenderItem> items)
     {
+        // The prompt DSL is resolved HERE, not on the client: '{a|b}' fans a generate item into one slot per combo and
+        // '[a|b]' picks one per combo, so the job's slot count reflects the real number of images. Each slot renders and
+        // records its RESOLVED prompt, so a reload (no groups left) reproduces exactly the picture it was.
+        items = ExpandGenerateGroups(items);
+
         RenderJob job = new()
         {
             JobId = Guid.NewGuid().ToString(GuidFormats.NoDashes),
@@ -2189,6 +2195,36 @@ public sealed class RenderOrchestrator
     /// </summary>
     internal static (string Seed, HashSet<string> SuppressKeys) TagSeed(string? raw, WorkflowTagging tagging) =>
         PromptParse.TagSeed(raw, tagging);
+
+    /// <summary>
+    /// Resolve the prompt DSL for every generate item into concrete render slots: a <c>{a|b}</c> explode fans one item
+    /// into one slot per combo, a <c>[a|b]</c> choice picks one option per combo (independently, so copies vary). The
+    /// resolved prompt is what each slot renders and records. Edit items and prompts with no groups pass through
+    /// unchanged, so this is a no-op for the common case and for a reload/requeue of an already-resolved prompt.
+    /// </summary>
+    internal static IReadOnlyList<RenderItem> ExpandGenerateGroups(IReadOnlyList<RenderItem> items)
+    {
+        List<RenderItem> expanded = [];
+        foreach (RenderItem item in items)
+        {
+            if (item.Gen is { } gen && gen.Prompt.IndexOfAny(GroupChars) >= 0)
+            {
+                foreach (GeneratedTagGroup g in TagGroup.Parse(gen.Prompt).Generate())
+                {
+                    expanded.Add(RenderItem.ForGenerate(gen with { Prompt = g.RawResolved }, item.Background));
+                }
+            }
+            else
+            {
+                expanded.Add(item);
+            }
+        }
+
+        return expanded;
+    }
+
+    /// <summary>The characters that open a prompt-DSL group — a cheap gate so a group-free prompt is never re-parsed.</summary>
+    private static readonly char[] GroupChars = ['{', '['];
 
     /// <summary>Split banned tokens into the canonical tag/artist key sets the random samplers honour (the tag model
     /// zeroes these during sampling; RandomArtist rejects them). A key is canonicalized exactly like a prompt token —
