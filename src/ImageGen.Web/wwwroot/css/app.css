@@ -788,6 +788,8 @@ body.auth .page{max-width:none;padding:0}
 .listrow-badge{flex:none;font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;border-radius:5px;
   background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent-hi)}
 .listrow-badge.is-edit{background:color-mix(in srgb,var(--accent-2) 16%,transparent);color:var(--accent-2)}
+/* A user-created duplicate, not a shipped workflow — a dashed neutral badge, distinct from the gen/edit kind badges. */
+.listrow-badge.is-variant{background:transparent;color:var(--ink-soft);border:1px dashed var(--line)}
 .listrow-tags{display:flex;gap:4px;flex-wrap:wrap;overflow:hidden}
 .wftag{font:11px var(--mono);color:var(--ink-soft);background:var(--elev);border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
 .listrow-stat{flex:none;width:62px;text-align:right;font:12px var(--mono);color:var(--ink-faint);font-variant-numeric:tabular-nums}
@@ -801,6 +803,7 @@ body.auth .page{max-width:none;padding:0}
   font:inherit;font-size:13px;padding:6px 12px;border-radius:9px;cursor:pointer}
 .wf-toggle:hover{border-color:var(--accent);color:#fff}
 .wf-toggle.on{border-color:var(--warn);color:var(--warn)}
+.wf-toggle.danger:hover{border-color:var(--danger);color:var(--danger)}
 .wf-meta{display:flex;flex-wrap:wrap;gap:14px;color:var(--ink-soft);font-size:13px;margin-bottom:10px}
 .wf-summary{color:var(--ink-soft);font-size:14px;line-height:1.55;margin:0 0 16px;max-width:70ch}
 .wf-tags-edit{margin:0 0 8px}

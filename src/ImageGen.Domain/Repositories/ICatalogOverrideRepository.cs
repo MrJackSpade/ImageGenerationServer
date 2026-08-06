@@ -56,4 +56,8 @@ public interface ICatalogOverrideRepository
     /// </summary>
     Task SetOverrideAsync(
         string machineName, string configId, string settingKey, string? settingValue, CancellationToken ct);
+
+    /// <summary>Removes every override for one configuration on this machine. Used when a DB-backed variant is deleted,
+    /// so its per-variant tweaks don't outlive it (and can't be inherited by a later variant that reuses the id).</summary>
+    Task ClearOverridesAsync(string machineName, string configId, CancellationToken ct);
 }

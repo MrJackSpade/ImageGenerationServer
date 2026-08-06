@@ -79,6 +79,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Machine-scoped catalogue overrides (model bindings, per-config settings). Singleton for the same reason
         // as GenTiming: stateless, a fresh connection per call, and resolved by the singleton catalog service.
         _ = services.AddSingleton<ICatalogOverrideRepository, CatalogOverrideRepository>();
+        // DB-backed workflow variants (duplicates of shipped configs). Same machine-scoped, stateless-singleton shape.
+        _ = services.AddSingleton<IWorkflowVariantRepository, WorkflowVariantRepository>();
         // This machine's own configuration. Same reasoning again — and note it is read before the host is built
         // (the configuration provider that surfaces it uses CreateConnectionFactory below, not this registration).
         _ = services.AddSingleton<IMachineSettingRepository, MachineSettingRepository>();

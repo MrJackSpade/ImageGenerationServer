@@ -111,6 +111,7 @@
       + `<a class="listrow-main" href="/settings/workflows/${encodeURIComponent(m.id)}">`
       + `<span class="listrow-name">${escapeHtml(nameOf(m))}</span>`
       + kindBadge(m.kind)
+      + (m.isVariant ? `<span class="listrow-badge is-variant" title="A duplicate you created on this machine">variant</span>` : "")
       + (t.length ? `<span class="listrow-tags">${t.map(x => `<span class="wftag">${escapeHtml(x)}</span>`).join("")}</span>` : "")
       + `</a>`
       + (missing

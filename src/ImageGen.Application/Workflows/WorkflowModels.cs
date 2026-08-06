@@ -130,7 +130,8 @@ public sealed record WorkflowDescriptor(
     WorkflowCardSummary Card,
     string? LoraFolder = null,
     bool HasAudio = false,
-    bool CustomSizeEnabled = false);
+    bool CustomSizeEnabled = false,
+    bool IsVariant = false);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(

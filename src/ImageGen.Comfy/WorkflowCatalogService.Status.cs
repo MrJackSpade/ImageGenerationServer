@@ -44,6 +44,8 @@ public sealed partial class WorkflowCatalogService
         }
 
         _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
+        // Fold in this machine's DB-backed variants so the status list includes them alongside the shipped configs.
+        await PushVariantsAsync(machine, ct);
 
         Dictionary<string, IReadOnlyList<string>> candidatesBySlot = matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
         List<ModelSlotStatus> slotStatus = [.. slots

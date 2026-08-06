@@ -149,4 +149,21 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         Assert.Empty(await Repo.BindingsAsync("never-seen", Ct));
         Assert.Empty(await Repo.OverridesAsync("never-seen", Ct));
     }
+
+    /// <summary>When a DB-backed variant is deleted, every override keyed on its id is dropped in one call — so its
+    /// tweaks don't outlive it (or get inherited by a later variant that reuses the id).</summary>
+    [Fact]
+    public async Task Clearing_a_config_removes_all_of_its_overrides_and_no_others()
+    {
+        const string machine = "ovr-clear-all";
+        await Repo.SetOverrideAsync(machine, "variant", "param.steps", "40", Ct);
+        await Repo.SetOverrideAsync(machine, "variant", "vram.min", "12000", Ct);
+        await Repo.SetOverrideAsync(machine, "other", "param.steps", "20", Ct);
+
+        await Repo.ClearOverridesAsync(machine, "variant", Ct);
+
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> all = await Repo.OverridesAsync(machine, Ct);
+        Assert.False(all.ContainsKey("variant"));
+        Assert.Equal("20", all["other"]["param.steps"]);
+    }
 }

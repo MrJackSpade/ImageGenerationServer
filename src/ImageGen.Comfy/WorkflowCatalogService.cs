@@ -15,13 +15,14 @@ namespace ImageGen.Comfy;
 /// </summary>
 public sealed partial class WorkflowCatalogService(
     WorkflowCatalog catalog, WorkflowRegistry registry, ComfyClient comfy, IGenTimingRepository timings,
-    ICatalogOverrideRepository overrides, ILogger<WorkflowCatalogService> log) : IWorkflowCatalog
+    ICatalogOverrideRepository overrides, IWorkflowVariantRepository variants, ILogger<WorkflowCatalogService> log) : IWorkflowCatalog
 {
     private readonly WorkflowCatalog _catalog = catalog;
     private readonly WorkflowRegistry _registry = registry;
     private readonly ComfyClient _comfy = comfy;
     private readonly IGenTimingRepository _timings = timings;
     private readonly ICatalogOverrideRepository _overrides = overrides;
+    private readonly IWorkflowVariantRepository _variants = variants;
     private readonly ILogger<WorkflowCatalogService> _log = log;
 
     /// <inheritdoc/>
@@ -45,6 +46,118 @@ public sealed partial class WorkflowCatalogService(
     private static WorkflowReference? BuildReference(ModelCard card) =>
         card.EditReferenceTypes.Count > 0 ? new WorkflowReference(card.EditReferenceTypes, card.EditReferenceHint) : null;
 
+    /// <summary>Load this machine's variants from the store and fold them into the in-memory catalogue. Pushed
+    /// alongside the bindings/overrides for the same reason: the sync submit path resolves a variant id without a
+    /// query, so the push has to have happened first.</summary>
+    private async Task PushVariantsAsync(string machine, CancellationToken ct)
+    {
+        IReadOnlyList<WorkflowVariant> rows = await _variants.VariantsAsync(machine, ct);
+        List<VariantSpec> specs = [];
+        foreach (WorkflowVariant v in rows)
+        {
+            Dictionary<string, JsonElement> snap = ParseSnapshot(v.VariantId, v.ParamsJson);
+            specs.Add(new VariantSpec(v.VariantId, v.BaseConfigId, v.FriendlyName, snap));
+        }
+
+        _catalog.SetVariants(specs);
+    }
+
+    /// <summary>Parse a variant's stored parameter snapshot; a corrupt blob yields an empty snapshot (the variant then
+    /// renders the base's own values) rather than taking the whole catalogue load down.</summary>
+    private Dictionary<string, JsonElement> ParseSnapshot(string variantId, string paramsJson)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(paramsJson) ?? [];
+        }
+        catch (JsonException ex)
+        {
+            _log.LogError(ex, "Workflow variant '{Id}' has an unreadable parameter snapshot; using the base's values.", variantId);
+            return [];
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<string> DuplicateWorkflowAsync(string baseConfigId, string friendlyName, CancellationToken ct)
+    {
+        WorkflowConfiguration? baseCfg = _catalog.FindConfig(baseConfigId)
+            ?? throw new ArgumentException($"Unknown workflow '{baseConfigId}'.", nameof(baseConfigId));
+        string name = friendlyName?.Trim() ?? "";
+        if (name.Length == 0)
+        {
+            throw new ArgumentException("A variant name is required.", nameof(friendlyName));
+        }
+
+        // A variant's stored base is ALWAYS a shipped file — that is the invariant SetVariants resolves against. When
+        // duplicating a variant, root the copy at the SAME file (not the variant, which no file table knows), while
+        // snapshotting the source's current effective params below. So a copy-of-a-copy is still a file-rooted variant.
+        string fileBaseId = await FileRootOfAsync(baseCfg.Id, ct);
+        string variantId = NextVariantId(baseCfg.Id);
+        string paramsJson = JsonSerializer.Serialize(SnapshotParams(baseCfg));
+        await _variants.AddAsync(Environment.MachineName, new WorkflowVariant(variantId, fileBaseId, name, paramsJson), ct);
+        await PushVariantsAsync(Environment.MachineName, ct);
+        return variantId;
+    }
+
+    /// <inheritdoc/>
+    public async Task DeleteVariantAsync(string variantId, CancellationToken ct)
+    {
+        // A shipped file config cannot be deleted — only a DB-backed variant. Refuse rather than silently no-op, so
+        // the UI never offers delete on something it can't remove.
+        if (!_catalog.IsVariant(variantId))
+        {
+            throw new ArgumentException($"'{variantId}' is not a deletable variant.", nameof(variantId));
+        }
+
+        await _variants.DeleteAsync(Environment.MachineName, variantId, ct);
+        // Its per-variant tweaks are overrides keyed on the variant id; drop them so they can't outlive it.
+        await _overrides.ClearOverridesAsync(Environment.MachineName, variantId, ct);
+        await PushVariantsAsync(Environment.MachineName, ct);
+    }
+
+    /// <summary>The shipped-file id a config is ultimately rooted at: itself when it is a file, else the base its
+    /// variant row names (a variant's base is always a file, so this is one hop, never a chain).</summary>
+    private async Task<string> FileRootOfAsync(string configId, CancellationToken ct)
+    {
+        if (!_catalog.IsVariant(configId))
+        {
+            return configId;
+        }
+
+        IReadOnlyList<WorkflowVariant> rows = await _variants.VariantsAsync(Environment.MachineName, ct);
+        return rows.FirstOrDefault(r => string.Equals(r.VariantId, configId, StringComparison.OrdinalIgnoreCase))?.BaseConfigId
+            ?? configId;
+    }
+
+    /// <summary>The first free <c>&lt;base&gt;-2</c>, <c>&lt;base&gt;-3</c>… id — unique against both the shipped files
+    /// and the variants already on this machine (an exact-id check, not <see cref="WorkflowCatalog.FindConfig"/>'s
+    /// loose match, which a numbered suffix would always satisfy against its own base).</summary>
+    private string NextVariantId(string baseId)
+    {
+        for (int n = 2; ; n++)
+        {
+            string candidate = $"{baseId}-{n}";
+            if (!_catalog.HasConfigId(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    /// <summary>Snapshot the base's EFFECTIVE parameters at copy time: each param's value with this machine's override
+    /// applied, so the variant starts identical to the base as it stands and stays frozen against later base edits.</summary>
+    private Dictionary<string, JsonElement> SnapshotParams(WorkflowConfiguration baseCfg)
+    {
+        IReadOnlyDictionary<string, JsonElement> overrides = _catalog.ParamOverridesFor(baseCfg.Id);
+        Dictionary<string, JsonElement> snap = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string key, ConfigParam param) in baseCfg.Params)
+        {
+            snap[key] = overrides.TryGetValue(key, out JsonElement ov) ? ov.Clone() : JsonSerializer.SerializeToElement(param.Value);
+        }
+
+        return snap;
+    }
+
     /// <inheritdoc/>
     public async Task<IReadOnlyList<WorkflowDescriptor>> ListEligibleAsync(CancellationToken ct)
     {
@@ -59,6 +172,8 @@ public sealed partial class WorkflowCatalogService(
         // from the in-memory catalog, so without pushing them here every override would silently do nothing. Pushed
         // alongside the bindings, for the same reason.
         _catalog.SetParamOverrides(await _overrides.OverridesAsync(Environment.MachineName, ct));
+        // And this machine's DB-backed variants, folded into the catalogue so they list and resolve like any config.
+        await PushVariantsAsync(Environment.MachineName, ct);
 
         // Which custom nodes this ComfyUI has, asked once: the file lists cannot answer it, because a pack that
         // loads no weights contributes no filenames to look for.
@@ -398,7 +513,9 @@ public sealed partial class WorkflowCatalogService(
             LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder),
             // Opt-in per-machine toggle: when set, the composer offers a "Custom" aspect with width/height boxes for
             // this workflow. Read from the same per-machine override store as the settings toggle that sets it.
-            CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize));
+            CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize),
+            // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
+            IsVariant: _catalog.IsVariant(cfg.Id));
     }
 
     /// <summary>Settings-page override keys (persisted per machine).</summary>

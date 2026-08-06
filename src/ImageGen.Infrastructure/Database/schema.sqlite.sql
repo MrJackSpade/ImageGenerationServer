@@ -556,3 +556,19 @@ ALTER TABLE dbo.JobSlot ADD COLUMN IsBackground INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE dbo.HistoryMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE dbo.ImageBookmarkMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE dbo.JobSlotMark ADD COLUMN Generated INTEGER NOT NULL DEFAULT 0;
+
+-- DB-backed workflow variants: a duplicate of a shipped configuration held as a coexisting, independently selectable
+-- catalogue entry. Per-MACHINE, like ConfigOverride/ModelBinding. A new table, so a plain CREATE IF NOT EXISTS (the
+-- runner replays it as a no-op once it exists). ParamsJson is a snapshot of the base's effective params at copy time;
+-- per-variant tweaks after duplication ride dbo.ConfigOverride keyed on VariantId.
+CREATE TABLE IF NOT EXISTS dbo.WorkflowVariant
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    MachineName  TEXT NOT NULL,
+    VariantId    TEXT NOT NULL,
+    BaseConfigId TEXT NOT NULL,
+    FriendlyName TEXT NOT NULL,
+    ParamsJson   TEXT NOT NULL,
+    CreatedAtUtc TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_WorkflowVariant_Machine_Variant ON WorkflowVariant (MachineName, VariantId);

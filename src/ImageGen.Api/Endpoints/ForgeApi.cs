@@ -64,6 +64,10 @@ public static class ForgeApi
         public const string CatalogBinding = "/catalog/binding";
         /// <summary><c>PUT /catalog/override</c> — set or remove one per-configuration override.</summary>
         public const string CatalogOverride = "/catalog/override";
+        /// <summary><c>POST /catalog/duplicate</c> — duplicate a workflow into a new DB-backed variant on this machine.</summary>
+        public const string CatalogDuplicate = "/catalog/duplicate";
+        /// <summary><c>DELETE /catalog/variant/{id}</c> — remove a DB-backed variant on this machine.</summary>
+        public const string CatalogVariant = "/catalog/variant";
         /// <summary><c>GET /catalog/config/{id}/settings</c> — a configuration's effective and shipped settings.</summary>
         public const string CatalogConfigSettings = "/catalog/config/{id}/settings";
         /// <summary><c>GET /prompting/{model}</c> — one configuration's prompting guide.</summary>
@@ -550,6 +554,43 @@ public static class ForgeApi
             }
             // A value the model does not support is the caller's mistake, not a server fault — answered with the
             // model's own numbers so the form can say what is allowed.
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+
+            return Results.NoContent();
+        });
+
+        // Duplicate a workflow into a new DB-backed variant on this machine — a coexisting, independently selectable
+        // catalogue entry snapshotting the base's current params. Returns the new variant's id so the UI can open it.
+        _ = app.MapPost(Routes.CatalogDuplicate, async (DuplicateRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.BaseConfigId) || string.IsNullOrWhiteSpace(body.FriendlyName))
+            {
+                return Results.BadRequest(new { error = "baseConfigId and friendlyName are required." });
+            }
+
+            try
+            {
+                string id = await catalog.DuplicateWorkflowAsync(body.BaseConfigId, body.FriendlyName, ct);
+                return Results.Ok(new { id });
+            }
+            // An unknown base or a blank name is the caller's mistake, not a server fault.
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        // Remove a DB-backed variant on this machine (and its per-variant overrides). Only variants can be deleted;
+        // a shipped file config answers 400.
+        _ = app.MapDelete(Routes.CatalogVariant + "/{id}", async (string id, IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            try
+            {
+                await catalog.DeleteVariantAsync(id, ct);
+            }
             catch (ArgumentException ex)
             {
                 return Results.BadRequest(new { error = ex.Message });
@@ -1659,3 +1700,8 @@ public sealed record BindingRequest(string SlotId, string? FileName = null);
 /// <param name="Key">Namespaced setting key.</param>
 /// <param name="Value">The value, or blank/null to remove the override.</param>
 public sealed record OverrideRequest(string ConfigId, string Key, string? Value = null);
+
+/// <summary>Body of POST /forge/catalog/duplicate.</summary>
+/// <param name="BaseConfigId">The workflow to duplicate.</param>
+/// <param name="FriendlyName">The display name for the new variant.</param>
+public sealed record DuplicateRequest(string BaseConfigId, string FriendlyName);

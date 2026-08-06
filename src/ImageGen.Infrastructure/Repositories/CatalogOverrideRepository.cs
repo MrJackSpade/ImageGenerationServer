@@ -167,4 +167,15 @@ VALUES (@m, @c, @k, @v, @now);");
 
         await tx.CommitAsync(ct);
     }
+
+    /// <inheritdoc/>
+    public async Task ClearOverridesAsync(string machineName, string configId, CancellationToken ct)
+    {
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command(
+            "DELETE FROM dbo.ConfigOverride WHERE MachineName = @m AND ConfigId = @c;");
+        _ = cmd.AddParam("@m", machineName);
+        _ = cmd.AddParam("@c", configId);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
+    }
 }

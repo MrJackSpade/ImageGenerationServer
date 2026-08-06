@@ -74,8 +74,11 @@
       + `<button id="mdStar" class="listrow-star${fav ? " on" : ""}" title="Favorite" aria-label="Favorite">★</button>`
       + `<h2>${escapeHtml(workflow.friendlyName || workflow.id)}</h2>`
       + kindBadge(workflow.kind)
+      + (workflow.isVariant ? `<span class="listrow-badge is-variant" title="A duplicate you created on this machine">variant</span>` : "")
       + `<button id="mdHide" class="wf-toggle${hid ? " on" : ""}">${hid ? "Unhide from picker" : "Hide from picker"}</button>`
       + `<button id="mdHideApi" class="wf-toggle${hidApi ? " on" : ""}">${hidApi ? "Unhide from API" : "Hide from API"}</button>`
+      + `<button id="mdDuplicate" class="wf-toggle" title="Duplicate into an independently editable variant">Duplicate</button>`
+      + (workflow.isVariant ? `<button id="mdDelete" class="wf-toggle danger" title="Delete this variant">Delete variant</button>` : "")
       + `</div>`
       + `<div class="wf-meta">`
       + `<span>⏱ ${workflow.avgSeconds ? fmtDuration(workflow.avgSeconds) + " avg" : "no timing yet"}</span>`
@@ -93,8 +96,39 @@
     document.getElementById("mdStar").addEventListener("click", toggleFav);
     document.getElementById("mdHide").addEventListener("click", toggleHide);
     document.getElementById("mdHideApi").addEventListener("click", toggleHideApi);
+    document.getElementById("mdDuplicate").addEventListener("click", duplicate);
+    const del = document.getElementById("mdDelete");
+    if (del) del.addEventListener("click", deleteVariant);
     document.getElementById("mdTagForm").addEventListener("submit", addTag);
     renderTags();
+  }
+
+  // Duplicate this workflow into a DB-backed variant: a coexisting, independently editable catalogue entry
+  // snapshotting the current parameters. The server derives a unique id; the user supplies the display name.
+  async function duplicate() {
+    const name = (window.prompt("Name for the duplicate", (workflow.friendlyName || workflow.id) + " copy") || "").trim();
+    if (!name) return;
+    let r;
+    try {
+      r = await fetch(`${GATEWAY}/catalog/duplicate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseConfigId: id, friendlyName: name }),
+      });
+    } catch (e) { console.error("duplicate failed:", e); toast("Couldn't duplicate"); return; }
+    if (!r.ok) { toast("Couldn't duplicate"); return; }
+    const { id: newId } = await r.json();
+    location.href = `/settings/workflows/${encodeURIComponent(newId)}`;
+  }
+
+  // Delete this variant (only variants are deletable; the button is not rendered for a shipped workflow).
+  async function deleteVariant() {
+    if (!window.confirm(`Delete the variant “${workflow.friendlyName || id}”? This can't be undone.`)) return;
+    let r;
+    try {
+      r = await fetch(`${GATEWAY}/catalog/variant/${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch (e) { console.error("delete variant failed:", e); toast("Couldn't delete"); return; }
+    if (!r.ok) { toast("Couldn't delete"); return; }
+    location.href = "/settings/workflows";
   }
 
   function renderTags() {

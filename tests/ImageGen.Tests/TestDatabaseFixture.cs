@@ -84,6 +84,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public IImageDeletionRepository ImageDeletions => new ImageDeletionRepository(ConnectionFactory);
     public IImageViewRepository ImageViews => new ImageViewRepository(ConnectionFactory);
     public ICatalogOverrideRepository CatalogOverrides => new CatalogOverrideRepository(ConnectionFactory);
+    public IWorkflowVariantRepository WorkflowVariants => new WorkflowVariantRepository(ConnectionFactory);
     public IMachineSettingRepository MachineSettings => new MachineSettingRepository(ConnectionFactory);
 
     public async Task InitializeAsync()

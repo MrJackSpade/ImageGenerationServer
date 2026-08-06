@@ -23,8 +23,20 @@ public sealed class WorkflowCatalog
     private readonly ILogger<WorkflowCatalog> _log;
     private readonly Lock _lock = new();
     private readonly Lock _reloadGate = new();
+    /// <summary>The EFFECTIVE catalogue every reader sees: the file configs with this machine's DB variants folded in.
+    /// Rebuilt from <see cref="_fileById"/>/<see cref="_fileAll"/> plus <see cref="_variants"/> on every load and edit.</summary>
     private Dictionary<string, WorkflowConfiguration> _byId = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The effective catalogue as a list (see <see cref="_byId"/>).</summary>
     private List<WorkflowConfiguration> _all = [];
+    /// <summary>The pure FILE catalogue, kept apart from the effective one so a file reload can re-fold the retained
+    /// variants back in rather than silently dropping them.</summary>
+    private Dictionary<string, WorkflowConfiguration> _fileById = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The pure file catalogue as a list (see <see cref="_fileById"/>).</summary>
+    private List<WorkflowConfiguration> _fileAll = [];
+    /// <summary>This machine's DB-backed variants, retained across file reloads and folded into the effective catalogue.</summary>
+    private IReadOnlyList<WorkflowConfiguration> _variants = [];
+    /// <summary>The ids in <see cref="_variants"/>, for the "is this a deletable variant" test.</summary>
+    private HashSet<string> _variantIds = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, Requirement> _reqById = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Slot id -> the file bound to it on this machine. Refreshed with the catalog and after a UI edit.</summary>
     private Dictionary<string, string> _bindings = new(StringComparer.OrdinalIgnoreCase);
@@ -481,11 +493,132 @@ public sealed class WorkflowCatalog
         lock (_lock)
         {
             _reqById = reqById;
-            _all = all;
-            _byId = byId;
+            _fileAll = all;
+            _fileById = byId;
             _modelStamp = modelStamp;
             _wfStamp = wfStamp;
+            RebuildEffectiveLocked();
         }
+    }
+
+    /// <summary>Recompute the effective catalogue (<see cref="_byId"/>/<see cref="_all"/>) from the file snapshot plus
+    /// the retained DB variants. Caller holds <see cref="_lock"/>. A variant whose id collides with a shipped file is
+    /// dropped with a warning (the file wins), mirroring the loader's own duplicate-id refusal.</summary>
+    private void RebuildEffectiveLocked()
+    {
+        Dictionary<string, WorkflowConfiguration> byId = new(_fileById, StringComparer.OrdinalIgnoreCase);
+        List<WorkflowConfiguration> all = [.. _fileAll];
+        foreach (WorkflowConfiguration v in _variants)
+        {
+            if (byId.ContainsKey(v.Id))
+            {
+                _log.LogWarning("Workflow variant id '{Id}' collides with a shipped configuration; ignoring the variant.", v.Id);
+                continue;
+            }
+
+            byId[v.Id] = v;
+            all.Add(v);
+        }
+
+        _byId = byId;
+        _all = all;
+    }
+
+    /// <summary>
+    /// Replace this machine's DB-backed variants. Each spec is a duplicate of a shipped configuration: it inherits the
+    /// base's workflow class, requirements and card live, and carries its own snapshotted parameters (frozen at copy).
+    /// A spec whose base is unknown is skipped with a warning. Held in memory and folded into the effective catalogue,
+    /// so <see cref="FindConfig"/> and the sync submit path resolve a variant id without a query — the same contract
+    /// <see cref="SetBindings"/>/<see cref="SetParamOverrides"/> give bindings and overrides.
+    /// </summary>
+    public void SetVariants(IReadOnlyList<VariantSpec> specs)
+    {
+        List<WorkflowConfiguration> built = [];
+        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+        lock (_lock)
+        {
+            foreach (VariantSpec spec in specs)
+            {
+                if (!_fileById.TryGetValue(spec.BaseConfigId, out WorkflowConfiguration? baseCfg))
+                {
+                    _log.LogWarning("Workflow variant '{Id}' names an unknown base configuration '{Base}'; skipping it.",
+                        spec.VariantId, spec.BaseConfigId);
+                    continue;
+                }
+
+                built.Add(BuildVariant(baseCfg, spec));
+                _ = ids.Add(spec.VariantId);
+            }
+
+            _variants = built;
+            _variantIds = ids;
+            RebuildEffectiveLocked();
+        }
+    }
+
+    /// <summary>True when the id names a DB-backed variant on this machine (not a shipped file).</summary>
+    public bool IsVariant(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        lock (_lock)
+        {
+            return _variantIds.Contains(id);
+        }
+    }
+
+    /// <summary>True when the EXACT id is a known configuration (file or variant). Unlike <see cref="FindConfig"/> this
+    /// does no loose contains-match, so it is the right test for choosing a fresh, unused variant id.</summary>
+    public bool HasConfigId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        lock (_lock)
+        {
+            return _byId.ContainsKey(id);
+        }
+    }
+
+    /// <summary>Build a variant configuration: the base's structure (workflow class, requirements, card, resolution)
+    /// with the variant's own id, friendly name, and snapshotted parameter values. A snapshot value replaces the base
+    /// param's value (through <see cref="CloneValue"/>, so it is byte-identical to a file-loaded one); the exposed/
+    /// locked/range structure stays the base's. A snapshot key the base no longer has is dropped (a stale param).</summary>
+    private static WorkflowConfiguration BuildVariant(WorkflowConfiguration baseCfg, VariantSpec spec)
+    {
+        Dictionary<string, ConfigParam> pars = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string key, ConfigParam bp) in baseCfg.Params)
+        {
+            object? value = spec.Params.TryGetValue(key, out JsonElement snap) ? CloneValue(snap) : bp.Value;
+            pars[key] = new ConfigParam
+            {
+                Value = value,
+                Exposed = bp.Exposed,
+                Locked = bp.Locked,
+                Min = bp.Min,
+                Max = bp.Max,
+                Step = bp.Step,
+            };
+        }
+
+        return new WorkflowConfiguration
+        {
+            Id = spec.VariantId,
+            WorkflowName = baseCfg.WorkflowName,
+            FriendlyName = spec.FriendlyName,
+            Params = pars,
+            Requirements = baseCfg.Requirements,
+            EffectType = baseCfg.EffectType,
+            EditGroup = baseCfg.EditGroup,
+            Default = false,
+            Card = baseCfg.Card,
+            Resolution = baseCfg.Resolution,
+        };
     }
 
     /// <summary>
@@ -784,6 +917,12 @@ public sealed class WorkflowCatalog
     private static string[] Arr(string[]? a) =>
         a is null ? [] : [.. a.Where(x => !string.IsNullOrEmpty(x))];
 }
+
+/// <summary>One DB-backed workflow variant, resolved for the catalogue: its own id and friendly name, the shipped
+/// configuration it duplicates, and the snapshotted parameter values (canonical key → JSON value) frozen at copy time.
+/// <see cref="WorkflowCatalog.SetVariants"/> turns each into a full <see cref="WorkflowConfiguration"/> over its base.</summary>
+public sealed record VariantSpec(
+    string VariantId, string BaseConfigId, string FriendlyName, IReadOnlyDictionary<string, JsonElement> Params);
 
 /// <summary>LLM/UI-facing decision info for a configuration (its prompting guide + selection hints). Carried in the
 /// configuration's <c>card</c> block; surfaced by GET /prompting and GET /workflows.</summary>

@@ -853,6 +853,27 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_MachineSetting_Machine
 CREATE UNIQUE INDEX UX_MachineSetting_Machine_Key ON dbo.MachineSetting (MachineName, SettingKey);
 GO
 
+-- DB-backed workflow variants: a duplicate of a shipped configuration held as a coexisting, independently selectable
+-- catalogue entry (e.g. a hi-res and a low-res version of one model). Per-MACHINE, like ModelBinding/ConfigOverride:
+-- a variant is a property of this box's catalogue, and the shipped files are immutable. ParamsJson is a SNAPSHOT of the
+-- base's effective params at copy time; later per-variant tweaks ride dbo.ConfigOverride keyed on VariantId.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'WorkflowVariant' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.WorkflowVariant
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_WorkflowVariant PRIMARY KEY,
+    MachineName  NVARCHAR(128) NOT NULL,
+    VariantId    NVARCHAR(128) NOT NULL,   -- the variant's own catalogue id (what the client sends as 'model')
+    BaseConfigId NVARCHAR(128) NOT NULL,   -- the shipped configuration it was duplicated from
+    FriendlyName NVARCHAR(256) NOT NULL,
+    ParamsJson   NVARCHAR(MAX) NOT NULL,   -- snapshot of the base's effective params { key: value } at copy time
+    CreatedAtUtc DATETIME2(3)  NOT NULL CONSTRAINT DF_WorkflowVariant_Created DEFAULT SYSUTCDATETIME()
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_WorkflowVariant_Machine_Variant')
+CREATE UNIQUE INDEX UX_WorkflowVariant_Machine_Variant ON dbo.WorkflowVariant (MachineName, VariantId);
+GO
+
 -- Mark PROVENANCE: 1 when a random sampler (random-prompt tag or random-artist) APPENDED the token, 0 when the user
 -- typed it. The viewer dashes the border of generated chips. New column on the three pre-existing mark tables, so it
 -- MUST be a guarded ALTER (an existing database skips the CREATEs above). NOT NULL with a constant default -- 0 = "not

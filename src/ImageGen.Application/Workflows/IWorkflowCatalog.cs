@@ -57,6 +57,15 @@ public interface IWorkflowCatalog
     /// <summary>Sets or clears one per-configuration override (VRAM, visibility, a parameter default).</summary>
     Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct);
 
+    /// <summary>Duplicates a workflow into a new DB-backed variant on this machine — a coexisting, independently
+    /// selectable catalogue entry snapshotting the base's current parameters. Returns the new variant's id. Throws
+    /// <see cref="ArgumentException"/> for an unknown base or a blank name.</summary>
+    Task<string> DuplicateWorkflowAsync(string baseConfigId, string friendlyName, CancellationToken ct);
+
+    /// <summary>Removes a DB-backed variant (and its per-variant overrides) on this machine. Throws
+    /// <see cref="ArgumentException"/> when the id is not a variant — a shipped file config cannot be deleted.</summary>
+    Task DeleteVariantAsync(string variantId, CancellationToken ct);
+
     /// <summary>Validate a caller-supplied explicit render size (a width+height override — the composer's Custom size)
     /// against the configuration's declared resolution envelope, at submit. Returns a human-readable refusal naming the
     /// model's own min/max/step, or null when the size is within the envelope, the caller supplied no explicit
