@@ -229,6 +229,16 @@ function setBusy(b) {
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
 
+// Each mode's submit is enabled only when that mode has BOTH a source image AND ≥1 available workflow — so it can't
+// be clicked (or hold-picked: the browser suppresses pointer events on a disabled button) into the "Select a file
+// first" error. Called whenever the source or the workflow set for a mode changes, and on mode switch. A running
+// batch keeps its source, so the button stays enabled while busy (a click then queues more).
+function updateSubmitEnabled() {
+  if ($editSend) $editSend.disabled = !editCurrent || editModels().length === 0;
+  if ($inpaintGo) $inpaintGo.disabled = !inpaintBase || inpaintModelList().length === 0;
+  if ($outpaintGo) $outpaintGo.disabled = !outpaintBase || outpaintModelList().length === 0;
+}
+
 // --- growable batch (queue-while-busy) ----------------------------------------------------------
 // A batch of edit/inpaint/outpaint runs stays alive until every run it has spawned settles — a running outstanding
 // count, not a fixed Promise.all — so more runs can JOIN it mid-flight. That is what lets the button stay a Generate
@@ -390,7 +400,7 @@ editPicker = createModelPicker({
   // never collide: a config with an effectType only ever appears in the Effects bucket.
   groupBy: m => m.effectType || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup) || null,
   hint: "Long-press a workflow to pick several and compare",
-  onChange: ids => { selectedEditIds = ids; updateEditRefBtn(); updateEditRefHint(); renderEditLastFrame(); updateEditParams(); updateInstructionPlaceholder(); updateEditNeg(); },
+  onChange: ids => { selectedEditIds = ids; updateEditRefBtn(); updateEditRefHint(); renderEditLastFrame(); updateEditParams(); updateInstructionPlaceholder(); updateEditNeg(); updateSubmitEnabled(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
 });
 function populateChatMenu() {
@@ -502,6 +512,7 @@ function clearSource() {
   srcIsVideo = false;                                     // no clip source anymore
   renderSrc(); renderEditLastFrame();
   applySourceMediaUi();
+  updateSubmitEnabled();   // no source now → every mode's submit disables
   if (activeMode === "video") setMode("edit");            // leave V2V-only mode — there's no clip to quantize now
   else if (activeMode === "inpaint") setupMaskStage();
   else if (activeMode === "outpaint") setupOutpaintStage();
@@ -536,6 +547,7 @@ async function handleEditSrcFiles(files) {
     srcIsVideo = isVid;                                       // a clip upload flips the editor into V2V-only mode
     renderSrc(); renderEditLastFrame();
     applySourceMediaUi();
+    updateSubmitEnabled();   // a source is now set → enable the submit(s) whose workflows are available
     if (srcIsVideo) setMode("video");                         // clip → the single Pixelize (V2V) mode
     else if (activeMode === "video") setMode("edit");         // switched back to an image source
     else if (activeMode === "inpaint") { setupMaskStage(); stagedBase = inpaintBase; }
@@ -823,7 +835,7 @@ if ($instruction && $instructionTagPop) initTagBox({ input: $instruction, pop: $
 function populateInpaintMenu() {
   const models = inpaintModelList();
   if (!models.length) { $inpaintModelToggle.textContent = "No inpaint workflows installed"; $inpaintGo.disabled = true; return; }
-  $inpaintGo.disabled = false;
+  updateSubmitEnabled();   // enabled only when a source is also present
   // Restore the last-used inpaint workflow from the account; else the catalog default / first.
   if (!models.some(m => m.id === selectedInpaintId)) {
     selectedInpaintId = (models.find(m => m.id === savedInpaintWorkflowId) || models.find(m => m.edit && m.edit.default) || models[0]).id;
@@ -1051,7 +1063,7 @@ const padsTotal = () => pads.left + pads.top + pads.right + pads.bottom;
 function populateOutpaintMenu() {
   const models = outpaintModelList();
   if (!models.length) { $outpaintModelToggle.textContent = "No outpaint workflows installed"; $outpaintGo.disabled = true; return; }
-  $outpaintGo.disabled = false;
+  updateSubmitEnabled();   // enabled only when a source is also present
   if (!models.some(m => m.id === selectedOutpaintId)) {
     selectedOutpaintId = (models.find(m => m.id === savedOutpaintWorkflowId) || models.find(m => m.edit && m.edit.default) || models[0]).id;
   }
@@ -1304,6 +1316,7 @@ function setMode(mode) {
   if (chat) { chatBucket = mode; populateChatMenu(); }   // chat modes: edit | redraw | upscale | effects | animate | video
   else if (mode === "inpaint") enterInpaint();
   else enterOutpaint();
+  updateSubmitEnabled();   // reflect the newly-active mode's source/workflow presence on its submit
   refreshTabSelect();   // keep the mobile mirror's selected option on the active mode
 }
 // Whether a tab's group has ≥1 available (non-hidden) workflow. Chat buckets reuse chatHasModels; inpaint/outpaint
