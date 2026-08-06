@@ -21,29 +21,44 @@ public sealed class LoraPreviewRepository(IDbConnectionFactory connectionFactory
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("SELECT Bytes, ContentType FROM dbo.LoraPreview WHERE LoraName = @name;");
-        cmd.AddParam("@name", loraName);
+        _ = cmd.AddParam("@name", loraName);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
+        {
             return null;
+        }
+
         return new LoraPreviewBlob(reader.GetFieldValue<byte[]>(0), reader.GetString(1));
     }
 
     public async Task<IReadOnlyDictionary<string, string>> GetContentTypesAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (loraNames.Count == 0) return result;
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
+        if (loraNames.Count == 0)
+        {
+            return result;
+        }
 
         List<string> names = loraNames.ToList();
         string[] ps = new string[names.Count];
-        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        for (int i = 0; i < names.Count; i++)
+        {
+            ps[i] = "@n" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command($"SELECT LoraName, ContentType FROM dbo.LoraPreview WHERE LoraName IN ({string.Join(',', ps)});");
-        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
+        for (int i = 0; i < names.Count; i++)
+        {
+            _ = cmd.AddParam(ps[i], names[i]);
+        }
 
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
+        {
             result[reader.GetString(0)] = reader.GetString(1);
+        }
+
         return result;
     }
 
@@ -55,34 +70,46 @@ public sealed class LoraPreviewRepository(IDbConnectionFactory connectionFactory
         await using (DbCommand cmd = conn.Command(
             "UPDATE dbo.LoraPreview SET Bytes = @bytes, ContentType = @ct, FetchedAtUtc = @at WHERE LoraName = @name;"))
         {
-            cmd.AddParam("@name", loraName);
-            cmd.AddLargeParam("@bytes", bytes);
-            cmd.AddParam("@ct", contentType);
-            cmd.AddParam("@at", nowUtc);
+            _ = cmd.AddParam("@name", loraName);
+            _ = cmd.AddLargeParam("@bytes", bytes);
+            _ = cmd.AddParam("@ct", contentType);
+            _ = cmd.AddParam("@at", nowUtc);
             updated = await cmd.ExecuteNonQueryAsync(ct);
         }
+
         if (updated == 0)
         {
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.LoraPreview (LoraName, Bytes, ContentType, FetchedAtUtc) VALUES (@name, @bytes, @ct, @at);");
-            cmd.AddParam("@name", loraName);
-            cmd.AddLargeParam("@bytes", bytes);
-            cmd.AddParam("@ct", contentType);
-            cmd.AddParam("@at", nowUtc);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@name", loraName);
+            _ = cmd.AddLargeParam("@bytes", bytes);
+            _ = cmd.AddParam("@ct", contentType);
+            _ = cmd.AddParam("@at", nowUtc);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
     public async Task DeleteAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
-        if (loraNames.Count == 0) return;
+        if (loraNames.Count == 0)
+        {
+            return;
+        }
+
         List<string> names = loraNames.ToList();
         string[] ps = new string[names.Count];
-        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        for (int i = 0; i < names.Count; i++)
+        {
+            ps[i] = "@n" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command($"DELETE FROM dbo.LoraPreview WHERE LoraName IN ({string.Join(',', ps)});");
-        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
-        await cmd.ExecuteNonQueryAsync(ct);
+        for (int i = 0; i < names.Count; i++)
+        {
+            _ = cmd.AddParam(ps[i], names[i]);
+        }
+
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 }

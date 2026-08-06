@@ -47,10 +47,12 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         {
             // A limit below 1 is refused, not floored to 1 — an empty ask is the caller's mistake to see, not to have
             // silently turned into a one-result response (the /tags endpoint already rejects it before we get here).
-            Ensure.GreaterThanZero(limit);
+            _ = Ensure.GreaterThanZero(limit);
             SuggestEngine.SuggestResult result = _suggest.Query(contextTags, fragment, limit);
             if (result.Results.Count == 0)
+            {
                 return null;   // "no match" is a non-failure, and the port says null for it
+            }
 
             return result.Results
                 .Select(r => new TagSuggestion(r.Tag, r.P, r.Lift))
@@ -58,7 +60,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         }
         finally
         {
-            _gate.Release();
+            _ = _gate.Release();
         }
     }
 
@@ -97,7 +99,7 @@ public sealed class OnnxTagModelClient : ITagModelClient, IDisposable
         }
         finally
         {
-            _gate.Release();
+            _ = _gate.Release();
         }
     }
 

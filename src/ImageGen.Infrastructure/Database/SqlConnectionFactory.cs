@@ -12,7 +12,7 @@ public sealed class SqlConnectionFactory(string connectionString) : IDbConnectio
     /// <inheritdoc />
     public async Task<DbConnection> OpenAsync(CancellationToken ct)
     {
-        SqlConnection connection = new SqlConnection(_connectionString);
+        SqlConnection connection = new(_connectionString);
         await connection.OpenAsync(ct);
         return connection;
     }

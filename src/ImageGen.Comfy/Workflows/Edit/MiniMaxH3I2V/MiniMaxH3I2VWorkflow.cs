@@ -1,9 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.MiniMaxH3I2V;
 
 /// <summary>MiniMax-H3 image→video (with native audio). The source image is the first frame; an optional last frame

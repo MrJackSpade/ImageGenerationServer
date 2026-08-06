@@ -108,7 +108,7 @@ public static class UnifiedDiff
     public static IReadOnlyList<FileDiff> Parse(string diff)
     {
         string[] lines = SplitLines(diff);
-        List<FileDiff> files = new List<FileDiff>();
+        List<FileDiff> files = [];
         int i = 0;
 
         while (i < lines.Length)
@@ -120,9 +120,15 @@ public static class UnifiedDiff
             {
                 if (lines[i].StartsWith(DiffMarker.BinaryFilesPrefix, StringComparison.Ordinal) ||
                     lines[i].StartsWith(DiffMarker.GitBinaryPatch, StringComparison.Ordinal))
+                {
                     throw new FormatException($"line {i + 1}: binary patches are not supported.");
+                }
+
                 if (lines[i].StartsWith(DiffMarker.Rename, StringComparison.Ordinal))
+                {
                     throw new FormatException($"line {i + 1}: renames are not supported — express it as a delete and an add.");
+                }
+
                 i++;
                 continue;
             }
@@ -130,7 +136,10 @@ public static class UnifiedDiff
             string? oldPath = HeaderPath(lines[i], DiffMarker.OldFileHeader, i);
             i++;
             if (i >= lines.Length || !lines[i].StartsWith(DiffMarker.NewFileHeader, StringComparison.Ordinal))
+            {
                 throw new FormatException($"line {i + 1}: a '--- ' line must be followed by '+++ '.");
+            }
+
             string? newPath = HeaderPath(lines[i], DiffMarker.NewFileHeader, i);
             i++;
 
@@ -143,7 +152,7 @@ public static class UnifiedDiff
             };
             string path = newPath ?? oldPath ?? throw new InvalidOperationException("A diff entry has neither an old nor a new path.");
 
-            List<Hunk> hunks = new List<Hunk>();
+            List<Hunk> hunks = [];
             bool oldNoNewline = false;
             bool newNoNewline = false;
 
@@ -152,8 +161,8 @@ public static class UnifiedDiff
                 (int oldStart, int oldCount, int newStart, int newCount) = ParseHunkHeader(lines[i], i);
                 i++;
 
-                List<string> oldLines = new List<string>();
-                List<string> newLines = new List<string>();
+                List<string> oldLines = [];
+                List<string> newLines = [];
 
                 while ((oldLines.Count < oldCount || newLines.Count < newCount) && i < lines.Length)
                 {
@@ -172,8 +181,16 @@ public static class UnifiedDiff
                     if (line == Sentinel.NoNewline)
                     {
                         // Applies to whichever side's last line we just read.
-                        if (newLines.Count > 0 && (oldLines.Count == 0 || newLines.Count >= oldLines.Count)) newNoNewline = true;
-                        if (oldLines.Count > 0 && (newLines.Count == 0 || oldLines.Count >= newLines.Count)) oldNoNewline = true;
+                        if (newLines.Count > 0 && (oldLines.Count == 0 || newLines.Count >= oldLines.Count))
+                        {
+                            newNoNewline = true;
+                        }
+
+                        if (oldLines.Count > 0 && (newLines.Count == 0 || oldLines.Count >= newLines.Count))
+                        {
+                            oldNoNewline = true;
+                        }
+
                         i++;
                         continue;
                     }
@@ -187,18 +204,23 @@ public static class UnifiedDiff
                         default:
                             throw new FormatException($"line {i + 1}: '{line[0]}' is not a diff marker (expected ' ', '-', '+' or '@@').");
                     }
+
                     i++;
                 }
 
                 if (oldLines.Count != oldCount || newLines.Count != newCount)
+                {
                     throw new FormatException(
                         $"hunk at line {i}: header promised {oldCount} old / {newCount} new lines but the body has {oldLines.Count} / {newLines.Count}.");
+                }
 
                 hunks.Add(new Hunk(oldStart, oldLines, newStart, newLines));
             }
 
             if (hunks.Count == 0)
+            {
                 throw new FormatException($"'{path}' has a file header but no hunks.");
+            }
 
             files.Add(new FileDiff(path, change, hunks)
             {
@@ -207,7 +229,11 @@ public static class UnifiedDiff
             });
         }
 
-        if (files.Count == 0) throw new FormatException("this patch contains no file diffs.");
+        if (files.Count == 0)
+        {
+            throw new FormatException("this patch contains no file diffs.");
+        }
+
         return files;
     }
 
@@ -218,19 +244,34 @@ public static class UnifiedDiff
 
         // git appends a tab and a timestamp on some outputs; the path is everything before it.
         int tab = value.IndexOf('\t');
-        if (tab >= 0) value = value[..tab];
+        if (tab >= 0)
+        {
+            value = value[..tab];
+        }
 
-        if (value is DiffMarker.DevNull) return null;
+        if (value is DiffMarker.DevNull)
+        {
+            return null;
+        }
+
         if (value.StartsWith(DiffMarker.OldPathPrefix, StringComparison.Ordinal) || value.StartsWith(DiffMarker.NewPathPrefix, StringComparison.Ordinal))
+        {
             value = value[2..];
-        if (value.Length == 0) throw new FormatException($"line {index + 1}: empty path in '{prefix.Trim()}'.");
+        }
+
+        if (value.Length == 0)
+        {
+            throw new FormatException($"line {index + 1}: empty path in '{prefix.Trim()}'.");
+        }
 
         // A path escaping the target directory would let a patch write anywhere on the disk. This engine
         // applies patches the app ships, but "we only load our own" is not a property that survives, and the
         // check costs nothing.
         string normalised = value.Replace('\\', '/');
         if (Path.IsPathRooted(normalised) || normalised.Split('/').Contains(DiffMarker.ParentDirectory))
+        {
             throw new FormatException($"line {index + 1}: '{value}' leaves the target directory.");
+        }
 
         return normalised;
     }
@@ -239,11 +280,16 @@ public static class UnifiedDiff
     {
         // @@ -oldStart,oldCount +newStart,newCount @@ optional heading
         int end = line.IndexOf(DiffMarker.HunkMarker, 2, StringComparison.Ordinal);
-        if (end < 0) throw new FormatException($"line {index + 1}: unterminated hunk header.");
+        if (end < 0)
+        {
+            throw new FormatException($"line {index + 1}: unterminated hunk header.");
+        }
 
         string[] parts = line[2..end].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || parts[0][0] != '-' || parts[1][0] != '+')
+        {
             throw new FormatException($"line {index + 1}: '{line}' is not a hunk header.");
+        }
 
         (int oldStart, int oldCount) = ParseRange(parts[0][1..], index);
         (int newStart, int newCount) = ParseRange(parts[1][1..], index);
@@ -258,7 +304,10 @@ public static class UnifiedDiff
         string countText = comma < 0 ? "1" : range[(comma + 1)..];
 
         if (!int.TryParse(startText, out int start) || !int.TryParse(countText, out int count) || start < 0 || count < 0)
+        {
             throw new FormatException($"line {index + 1}: '{range}' is not a line range.");
+        }
+
         return (start, count);
     }
 
@@ -272,7 +321,10 @@ public static class UnifiedDiff
         List<string> lines = SplitLines(content).ToList();
 
         // A file ending in a newline splits to a trailing empty element that is not a line of the file.
-        if (!endsWithoutNewline && lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
+        if (!endsWithoutNewline && lines.Count > 0 && lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
 
         return new FileDiff(path.Replace('\\', '/'), FileChange.Add, [new Hunk(0, [], 1, lines)])
         {
@@ -287,29 +339,37 @@ public static class UnifiedDiff
     /// <summary>Render back to unified-diff text — what the UI shows when someone asks what a patch contains.</summary>
     public static string Write(IEnumerable<FileDiff> files)
     {
-        StringBuilder text = new StringBuilder();
+        StringBuilder text = new();
         foreach (FileDiff file in files)
         {
             if (file.IsBinary)
             {
                 // Named and measured, not dumped: nobody reads a megabyte of base64, and pretending it is a diff
                 // would make the output useless for the text around it.
-                text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
-                text.Append(DiffMarker.BinaryFilePrefix).Append(file.Bytes?.Length ?? throw new InvalidOperationException($"Binary file '{file.Path}' carries no bytes.")).Append(DiffMarker.ByteSuffix);
+                _ = text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
+                _ = text.Append(DiffMarker.BinaryFilePrefix).Append(file.Bytes?.Length ?? throw new InvalidOperationException($"Binary file '{file.Path}' carries no bytes.")).Append(DiffMarker.ByteSuffix);
                 continue;
             }
 
             string oldSide = file.Change == FileChange.Add ? DiffMarker.DevNull : DiffMarker.OldPathPrefix + file.Path;
             string newSide = file.Change == FileChange.Delete ? DiffMarker.DevNull : DiffMarker.NewPathPrefix + file.Path;
-            text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
-            if (file.Change == FileChange.Add) text.Append(DiffMarker.NewFileMode);
-            if (file.Change == FileChange.Delete) text.Append(DiffMarker.DeletedFileMode);
-            text.Append(DiffMarker.OldFileHeader).Append(oldSide).Append('\n');
-            text.Append(DiffMarker.NewFileHeader).Append(newSide).Append('\n');
+            _ = text.Append(DiffMarker.DiffGitPrefix).Append(file.Path).Append(DiffMarker.NewSidePrefix).Append(file.Path).Append('\n');
+            if (file.Change == FileChange.Add)
+            {
+                _ = text.Append(DiffMarker.NewFileMode);
+            }
+
+            if (file.Change == FileChange.Delete)
+            {
+                _ = text.Append(DiffMarker.DeletedFileMode);
+            }
+
+            _ = text.Append(DiffMarker.OldFileHeader).Append(oldSide).Append('\n');
+            _ = text.Append(DiffMarker.NewFileHeader).Append(newSide).Append('\n');
 
             foreach (Hunk hunk in file.Hunks)
             {
-                text.Append(DiffMarker.HunkHeaderStart).Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
+                _ = text.Append(DiffMarker.HunkHeaderStart).Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
                     .Append(DiffMarker.NewRangePrefix).Append(hunk.NewLines.Count == 0 ? 0 : hunk.NewStart).Append(',').Append(hunk.NewLines.Count)
                     .Append(DiffMarker.HunkHeaderEnd);
 
@@ -319,25 +379,39 @@ public static class UnifiedDiff
                 {
                     if (o < hunk.OldLines.Count && n < hunk.NewLines.Count && hunk.OldLines[o] == hunk.NewLines[n])
                     {
-                        text.Append(' ').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
-                        o++; n++;
+                        _ = text.Append(' ').Append(hunk.OldLines[o]).Append('\n');
+                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
+                        {
+                            _ = text.Append(Sentinel.NoNewline).Append('\n');
+                        }
+
+                        o++;
+                        n++;
                     }
                     else if (o < hunk.OldLines.Count && (n >= hunk.NewLines.Count || hunk.OldLines[o] != hunk.NewLines[n]))
                     {
-                        text.Append('-').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
+                        _ = text.Append('-').Append(hunk.OldLines[o]).Append('\n');
+                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
+                        {
+                            _ = text.Append(Sentinel.NoNewline).Append('\n');
+                        }
+
                         o++;
                     }
                     else
                     {
-                        text.Append('+').Append(hunk.NewLines[n]).Append('\n');
-                        if (n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline) text.Append(Sentinel.NoNewline).Append('\n');
+                        _ = text.Append('+').Append(hunk.NewLines[n]).Append('\n');
+                        if (n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline)
+                        {
+                            _ = text.Append(Sentinel.NoNewline).Append('\n');
+                        }
+
                         n++;
                     }
                 }
             }
         }
+
         return text.ToString();
     }
 }

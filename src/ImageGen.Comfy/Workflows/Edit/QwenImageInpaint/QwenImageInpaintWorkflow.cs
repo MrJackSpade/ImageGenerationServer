@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.QwenImageInpaint;
 
 /// <summary>
@@ -35,7 +31,10 @@ public sealed class QwenImageInpaintWorkflow : QwenInstantXInpaintBase<QwenImage
             g[Nodes.MaskLoad] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
             rawMask = LoadImageMask.Out(Nodes.MaskLoad);
         }
-        else rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
+        else
+        {
+            rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
+        }
 
         // Same pre-fill as outpaint, for the same reason: this app's inpaint masks cover flat WHITE space to be
         // filled — non-scene content under the fill region, grey's twin. Two chained blurs (σ10 each ≈ σ14) pull

@@ -1,6 +1,6 @@
+using ImageGen.Application.Rendering;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy;
 
@@ -36,7 +36,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
 
     protected override ComfyWorkflowGraph Build(AnimateDiffI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
@@ -146,22 +146,22 @@ file static class Nodes
 /// <c>weight_dtype</c>/<c>clip_type</c> are not read.</summary>
 public sealed record AnimateDiffI2VParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Length)]             public required int Length { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Fps)]                public required double Fps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.BetaSchedule)]       public required string BetaSchedule { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.MotionModel)]        public string? MotionModel { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.LcmLora)]            public string? LcmLora { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SparsectrlName)]     public required string SparsectrlName { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.BetaSchedule)] public required string BetaSchedule { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MotionModel)] public string? MotionModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.LcmLora)] public string? LcmLora { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlName)] public required string SparsectrlName { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SparsectrlStrength)] public required double SparsectrlStrength { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SparsectrlEnd)]      public required double SparsectrlEnd { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.IpadapterPreset)]    public required string IpadapterPreset { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SparsectrlEnd)] public required double SparsectrlEnd { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.IpadapterPreset)] public required string IpadapterPreset { get; init; }
     [JsonPropertyName(WorkflowParamKeys.IpadapterWeight)]
-    [Range(0.0, 1.5)]                                        public required double IpadapterWeight { get; init; }
+    [Range(0.0, 1.5)] public required double IpadapterWeight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]      public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]          public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]               public long Seed { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Sd35TripleClip;
 
 /// <summary>SD3.5 Large / Large-Turbo loaded as the diffusion-only checkpoint (CheckpointLoaderSimple gives MODEL +
@@ -14,7 +11,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflow<Txt2ImgParams>
 
     protected override ComfyWorkflowGraph Build(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         g[Nodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
         Output<Slot.Model> model0 = CheckpointLoaderSimple.ModelOut(Nodes.Model);
         Output<Slot.Vae> vae0 = CheckpointLoaderSimple.VaeOut(Nodes.Model);

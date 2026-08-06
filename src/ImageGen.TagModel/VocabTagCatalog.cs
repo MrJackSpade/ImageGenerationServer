@@ -34,17 +34,21 @@ public sealed class VocabTagCatalog : ITagCatalog
     {
         _vocab = vocab;
 
-        List<int> tags = new List<int>();
-        List<int> artists = new List<int>();
+        List<int> tags = [];
+        List<int> artists = [];
         for (int id = 0; id < vocab.Count; id++)
+        {
             (vocab.IsArtist(id) ? artists : tags).Add(id);
+        }
 
         _tagsByCount = [.. tags.OrderByDescending(id => vocab.Counts[id])];
         _artistsByCount = [.. artists.OrderByDescending(id => vocab.Counts[id])];
 
         _byName = new Dictionary<string, int>(vocab.Count, StringComparer.OrdinalIgnoreCase);
         for (int id = 0; id < vocab.Count; id++)
-            _byName.TryAdd(vocab.Tags[id], id);
+        {
+            _ = _byName.TryAdd(vocab.Tags[id], id);
+        }
 
         _artistCumulative = new long[_artistsByCount.Length];
         long running = 0;
@@ -75,21 +79,28 @@ public sealed class VocabTagCatalog : ITagCatalog
     /// <inheritdoc />
     public IReadOnlyList<TagEntry> Query(string query, bool artist, int limit)
     {
-        Ensure.GreaterThanZero(limit);   // an empty ask is the caller's mistake to see, not a silent [] (as the model path also refuses)
+        _ = Ensure.GreaterThanZero(limit);   // an empty ask is the caller's mistake to see, not a silent [] (as the model path also refuses)
         string needle = query.Trim();
 
         // Pre-sorted by count, so the first `limit` substring matches ARE the top `limit` by count -- no scoring pass
         // over ~639k entries per keystroke.
         int[] source = artist ? _artistsByCount : _tagsByCount;
-        List<TagEntry> results = new List<TagEntry>(Math.Min(limit, 32));
+        List<TagEntry> results = new(Math.Min(limit, 32));
         foreach (int id in source)
         {
             if (needle.Length > 0 &&
                 !_vocab.Tags[id].Contains(needle, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
+
             results.Add(Entry(id));
-            if (results.Count >= limit) break;
+            if (results.Count >= limit)
+            {
+                break;
+            }
         }
+
         return results;
     }
 
@@ -104,7 +115,10 @@ public sealed class VocabTagCatalog : ITagCatalog
     /// <inheritdoc />
     public string? RandomArtist(IReadOnlySet<string>? exclude)
     {
-        if (_artistsByCount.Length == 0) return null;
+        if (_artistsByCount.Length == 0)
+        {
+            return null;
+        }
 
         long total = _artistCumulative[^1];
         // Bounded retries on the weighted draw: with a handful of exclusions against ~294k artists a redraw almost
@@ -115,22 +129,35 @@ public sealed class VocabTagCatalog : ITagCatalog
             int index = UpperBound(_artistCumulative, target);
             string name = _vocab.Tags[_artistsByCount[index]];
             if (exclude is null || !exclude.Contains(name))
+            {
                 return name;
+            }
         }
 
         // The draw kept hitting excluded artists, so fall back to an exact weighted pick over what is left. Reached
         // only when the exclusion set covers most of the corpus weight -- a user who has banned the popular artists.
         int[] eligible = _artistsByCount.Where(id => exclude is null || !exclude.Contains(_vocab.Tags[id])).ToArray();
-        if (eligible.Length == 0) return null;
+        if (eligible.Length == 0)
+        {
+            return null;
+        }
 
         long remaining = 0;
-        foreach (int id in eligible) remaining += Math.Max(1, _vocab.Counts[id]);
+        foreach (int id in eligible)
+        {
+            remaining += Math.Max(1, _vocab.Counts[id]);
+        }
+
         long pick = Random.Shared.NextInt64(remaining);
         foreach (int id in eligible)
         {
             pick -= Math.Max(1, _vocab.Counts[id]);
-            if (pick < 0) return _vocab.Tags[id];
+            if (pick < 0)
+            {
+                return _vocab.Tags[id];
+            }
         }
+
         return _vocab.Tags[eligible[^1]];
     }
 
@@ -145,9 +172,16 @@ public sealed class VocabTagCatalog : ITagCatalog
         while (lo < hi)
         {
             int mid = lo + ((hi - lo) / 2);
-            if (cumulative[mid] > target) hi = mid;
-            else lo = mid + 1;
+            if (cumulative[mid] > target)
+            {
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
         }
+
         return lo;
     }
 }

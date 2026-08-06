@@ -71,7 +71,7 @@ public sealed class NullableValueTypePropertyAnalyzer : DiagnosticAnalyzer
 
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(Rule, JustificationRule);
+        [Rule, JustificationRule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -97,15 +97,23 @@ public sealed class NullableValueTypePropertyAnalyzer : DiagnosticAnalyzer
             _ => null,
         };
         if (type is not INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
+        {
             return;
+        }
+
         if (IsExempt(context.Symbol))
+        {
             return;
+        }
+
         foreach (Location location in context.Symbol.Locations)
+        {
             if (location.IsInSource)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Rule, location, context.Symbol.Name));
                 return;
             }
+        }
     }
 
     /// <summary>
@@ -117,15 +125,25 @@ public sealed class NullableValueTypePropertyAnalyzer : DiagnosticAnalyzer
     {
         AttributeSyntax attribute = (AttributeSyntax)context.Node;
         if (context.SemanticModel.GetSymbolInfo(attribute, context.CancellationToken).Symbol is not IMethodSymbol ctor)
+        {
             return;
+        }
+
         if (ctor.ContainingType?.Name != AllowAttributeName)
+        {
             return;
+        }
+
         if (attribute.ArgumentList?.Arguments.FirstOrDefault() is not { } argument)
+        {
             return;
+        }
 
         Optional<object?> justification = context.SemanticModel.GetConstantValue(argument.Expression, context.CancellationToken);
         if (justification is { HasValue: true, Value: string text } && string.IsNullOrWhiteSpace(text))
+        {
             context.ReportDiagnostic(Diagnostic.Create(JustificationRule, argument.GetLocation()));
+        }
     }
 
     /// <summary>True when <paramref name="symbol"/> carries <c>[AllowNullable]</c> directly.</summary>
@@ -139,8 +157,13 @@ public sealed class NullableValueTypePropertyAnalyzer : DiagnosticAnalyzer
     private static bool IsExempt(ISymbol? symbol)
     {
         for (ISymbol? current = symbol; current is not null; current = current.ContainingSymbol)
+        {
             if (HasAllowAttribute(current))
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 }

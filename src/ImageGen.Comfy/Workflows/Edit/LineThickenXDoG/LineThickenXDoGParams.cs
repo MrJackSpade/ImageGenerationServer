@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenXDoG;
 
@@ -10,15 +8,15 @@ namespace ImageGen.Comfy.Edit.LineThickenXDoG;
 public sealed record LineThickenXDoGParams
 {
     [JsonPropertyName(WorkflowParamKeys.Thickness)]
-    [Range(0, 32)]                                  public required int Thickness { get; init; }
+    [Range(0, 32)] public required int Thickness { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sigma)]
-    [Range(0.3, 8.0)]                               public required double Sigma { get; init; }
+    [Range(0.3, 8.0)] public required double Sigma { get; init; }
     [JsonPropertyName(WorkflowParamKeys.K)]
-    [Range(1.0, 4.0)]                               public required double K { get; init; }
+    [Range(1.0, 4.0)] public required double K { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Tau)]
-    [Range(0.5, 1.0)]                               public required double Tau { get; init; }
+    [Range(0.5, 1.0)] public required double Tau { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Epsilon)]
-    [Range(-1.0, 1.0)]                              public required double Epsilon { get; init; }
+    [Range(-1.0, 1.0)] public required double Epsilon { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Phi)]
-    [Range(0.1, 50.0)]                              public required double Phi { get; init; }
+    [Range(0.1, 50.0)] public required double Phi { get; init; }
 }

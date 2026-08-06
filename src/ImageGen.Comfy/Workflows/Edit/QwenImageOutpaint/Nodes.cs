@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain;
-
 namespace ImageGen.Comfy.Edit.QwenImageOutpaint;
 
 /// <summary>QwenImageOutpaintWorkflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>

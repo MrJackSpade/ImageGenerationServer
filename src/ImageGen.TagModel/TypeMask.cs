@@ -104,7 +104,9 @@ public static class TypeMask
     public static int FromAllowedNames(IReadOnlyCollection<string>? allowedNames)
     {
         if (allowedNames is null)
+        {
             return NoArtist;
+        }
 
         HashSet<string> allowed = allowedNames
             .Select(n => n.Trim().ToLowerInvariant())
@@ -114,15 +116,22 @@ public static class TypeMask
         Dictionary<string, int> suppressible = Droppable.ToDictionary(c => Names[c], c => c, StringComparer.Ordinal);
         string[] unknown = allowed.Where(n => !suppressible.ContainsKey(n)).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length > 0)
+        {
             throw new ArgumentException(
                 $"unknown tag type(s) {string.Join(Separators.NameListSeparator, unknown)}; the suppressible types are "
                 + string.Join(Separators.NameListSeparator, suppressible.Keys.Order(StringComparer.Ordinal)),
                 nameof(allowedNames));
+        }
 
         int mask = AllTypes;
         foreach ((string? name, int category) in suppressible)
+        {
             if (!allowed.Contains(name))
+            {
                 mask &= ~(1 << category);
+            }
+        }
+
         return mask;
     }
 

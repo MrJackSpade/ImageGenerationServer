@@ -30,17 +30,16 @@ public sealed class MachineSettingsConfigurationProvider(IMachineSettingReposito
     : ConfigurationProvider
 {
     private readonly IMachineSettingRepository _repository = repository;
-    private readonly string _machineName = machineName;
 
     /// <summary>The machine these settings belong to — shown in the UI, since a shared database holds several.</summary>
-    public string MachineName => _machineName;
+    public string MachineName { get; } = machineName;
 
     /// <summary>
     /// Blocking, because configuration sources load synchronously while the host is being built. This runs once at
     /// startup and again after each write; it is a handful of rows.
     /// </summary>
     public override void Load() =>
-        Data = _repository.AllAsync(_machineName, CancellationToken.None).GetAwaiter().GetResult()
+        Data = _repository.AllAsync(MachineName, CancellationToken.None).GetAwaiter().GetResult()
             .ToDictionary(kv => kv.Key, kv => (string?)kv.Value, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -50,7 +49,7 @@ public sealed class MachineSettingsConfigurationProvider(IMachineSettingReposito
     /// </summary>
     public async Task WriteAsync(string key, string? value, CancellationToken ct)
     {
-        await _repository.SetAsync(_machineName, key, value, ct);
+        await _repository.SetAsync(MachineName, key, value, ct);
         Load();
         OnReload();
     }

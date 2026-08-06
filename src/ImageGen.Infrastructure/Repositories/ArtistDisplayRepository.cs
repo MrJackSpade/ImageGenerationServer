@@ -23,11 +23,13 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT {Sql.Columns} FROM dbo.ArtistDisplay WHERE UserId = @userId AND ArtistName = @name;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, artistName, ct));
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, artistName, ct));
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
+        {
             return null;
+        }
         // ArtistName is the deterministic ciphertext; hand back the plaintext the caller queried with.
         return new ArtistDisplay
         {
@@ -42,28 +44,42 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
     public async Task<IReadOnlyDictionary<string, string>> GetManyAsync(
         long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
         if (artistNames.Count == 0)
+        {
             return result;
+        }
 
         List<string> names = artistNames.ToList();
         string[] ps = new string[names.Count];
         for (int i = 0; i < names.Count; i++)
+        {
             ps[i] = "@a" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT ArtistName, GatewayImageId FROM dbo.ArtistDisplay WHERE UserId = @userId AND ArtistName IN ({string.Join(',', ps)});");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         for (int i = 0; i < names.Count; i++)
-            cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, names[i], ct));
+        {
+            _ = cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, names[i], ct));
+        }
 
-        List<ArtistNameImageRow> raw = new List<ArtistNameImageRow>();
+        List<ArtistNameImageRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new ArtistNameImageRow(reader.GetString(0), reader.GetString(1)));
+            }
+        }
+
         foreach (ArtistNameImageRow row in raw)
+        {
             result[await _cipher.DecryptDeterministicAsync(userId, row.Name, ct)] = row.ImageId;
+        }
+
         return result;
     }
 
@@ -85,10 +101,10 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
             "UPDATE dbo.ArtistDisplay SET GatewayImageId = @img, SetAtUtc = @at " +
             "WHERE UserId = @userId AND ArtistName = @name;"))
         {
-            cmd.AddParam("@userId", d.UserId);
-            cmd.AddParam("@name", name);
-            cmd.AddParam("@img", d.GatewayImageId);
-            cmd.AddParam("@at", d.SetAtUtc);
+            _ = cmd.AddParam("@userId", d.UserId);
+            _ = cmd.AddParam("@name", name);
+            _ = cmd.AddParam("@img", d.GatewayImageId);
+            _ = cmd.AddParam("@at", d.SetAtUtc);
             updated = await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -97,11 +113,11 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.ArtistDisplay (UserId, ArtistName, GatewayImageId, SetAtUtc) " +
                 "VALUES (@userId, @name, @img, @at);");
-            cmd.AddParam("@userId", d.UserId);
-            cmd.AddParam("@name", name);
-            cmd.AddParam("@img", d.GatewayImageId);
-            cmd.AddParam("@at", d.SetAtUtc);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@userId", d.UserId);
+            _ = cmd.AddParam("@name", name);
+            _ = cmd.AddParam("@img", d.GatewayImageId);
+            _ = cmd.AddParam("@at", d.SetAtUtc);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -110,8 +126,8 @@ public sealed class ArtistDisplayRepository(IDbConnectionFactory connectionFacto
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.ArtistDisplay WHERE UserId = @userId AND ArtistName = @name;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, artistName, ct));
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, artistName, ct));
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 }

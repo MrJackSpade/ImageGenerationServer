@@ -1,5 +1,5 @@
-using System.Runtime.CompilerServices;
 using ImageGen.Domain.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace ImageGen.Domain;
 
@@ -26,7 +26,10 @@ public static class Ensure
         where T : class
     {
         if (value is null)
+        {
             throw new ArgumentNullException(name, $"{name} must not be null.");
+        }
+
         return value;
     }
 
@@ -34,7 +37,10 @@ public static class Ensure
     public static string NotNullOrEmpty(string? value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (string.IsNullOrEmpty(value))
+        {
             throw new ArgumentException($"{name} must not be null or empty.", name);
+        }
+
         return value;
     }
 
@@ -42,7 +48,10 @@ public static class Ensure
     public static string NotNullOrWhiteSpace(string? value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (string.IsNullOrWhiteSpace(value))
+        {
             throw new ArgumentException($"{name} must not be null or whitespace.", name);
+        }
+
         return value;
     }
 
@@ -51,7 +60,10 @@ public static class Ensure
         IReadOnlyCollection<T> value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value.Count == 0)
+        {
             throw new ArgumentException($"{name} must not be empty.", name);
+        }
+
         return value;
     }
 
@@ -59,7 +71,10 @@ public static class Ensure
     public static T Equal<T>(T value, T expected, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (!EqualityComparer<T>.Default.Equals(value, expected))
+        {
             throw new ArgumentException($"{name} must equal {expected}.", name);
+        }
+
         return value;
     }
 
@@ -67,7 +82,10 @@ public static class Ensure
     public static T NotEqual<T>(T value, T forbidden, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(value, forbidden))
+        {
             throw new ArgumentException($"{name} must not equal {forbidden}.", name);
+        }
+
         return value;
     }
 
@@ -77,7 +95,10 @@ public static class Ensure
         T value, IReadOnlyCollection<T> allowed, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (!allowed.Contains(value))
+        {
             throw new ArgumentException($"{name} must be one of: {string.Join(", ", allowed)}.", name);
+        }
+
         return value;
     }
 
@@ -86,7 +107,10 @@ public static class Ensure
         where TEnum : struct, Enum
     {
         if (!Enum.IsDefined(value))
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be a defined {typeof(TEnum).Name} value.");
+        }
+
         return value;
     }
 
@@ -94,7 +118,10 @@ public static class Ensure
     public static T NotDefault<T>(T value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(value, default))
+        {
             throw new ArgumentException($"{name} must not be its default value.", name);
+        }
+
         return value;
     }
 
@@ -102,7 +129,10 @@ public static class Ensure
     public static int GreaterThanZero(int value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value <= 0)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be greater than zero.");
+        }
+
         return value;
     }
 
@@ -110,7 +140,10 @@ public static class Ensure
     public static int NotNegative(int value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < 0)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must not be negative.");
+        }
+
         return value;
     }
 
@@ -118,7 +151,10 @@ public static class Ensure
     public static int AtLeast(int value, int min, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < min)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be at least {min}.");
+        }
+
         return value;
     }
 
@@ -126,7 +162,10 @@ public static class Ensure
     public static int AtMost(int value, int max, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value > max)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be at most {max}.");
+        }
+
         return value;
     }
 
@@ -134,7 +173,10 @@ public static class Ensure
     public static int LessThan(int value, int max, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value >= max)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be less than {max}.");
+        }
+
         return value;
     }
 
@@ -142,7 +184,10 @@ public static class Ensure
     public static int Between(int value, int min, int max, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < min || value > max)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be between {min} and {max}.");
+        }
+
         return value;
     }
 
@@ -150,7 +195,10 @@ public static class Ensure
     public static double GreaterThanZero(double value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value <= 0)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be greater than zero.");
+        }
+
         return value;
     }
 
@@ -158,7 +206,10 @@ public static class Ensure
     public static double NotNegative(double value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < 0)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must not be negative.");
+        }
+
         return value;
     }
 
@@ -166,7 +217,10 @@ public static class Ensure
     public static double AtLeast(double value, double min, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < min)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be at least {min}.");
+        }
+
         return value;
     }
 
@@ -174,7 +228,10 @@ public static class Ensure
     public static double AtMost(double value, double max, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value > max)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be at most {max}.");
+        }
+
         return value;
     }
 
@@ -182,7 +239,10 @@ public static class Ensure
     public static double Between(double value, double min, double max, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
         if (value < min || value > max)
+        {
             throw new ArgumentOutOfRangeException(name, value, $"{name} must be between {min} and {max}.");
+        }
+
         return value;
     }
 }

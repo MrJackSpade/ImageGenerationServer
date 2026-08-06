@@ -33,9 +33,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task GetPage_refuses_an_out_of_range_window_rather_than_clamping()
     {
         User user = await fixture.NewUserAsync("hist-badwindow");
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, HistoryQuery.MaxPageSize + 1), Ct));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => fixture.History.GetPageAsync(new HistoryQuery(user.Id, 0, 40), Ct));
     }
 
@@ -48,7 +48,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         User user = await fixture.NewUserAsync("hist-rawprompt");
         string raw = "#long_hair, @Greg_Rutkowski, score_9, a plain phrase";
 
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "img-raw", marks: [new Mark("long_hair", TokenKind.Tag)], rawPrompt: raw), Ct);
 
         HistoryEntry? fetched = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-raw", Ct);
@@ -65,8 +65,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         User user = await fixture.NewUserAsync("hist-rawneg");
         string negative = "#bad_anatomy, @some_artist, blurry";
 
-        await fixture.History.AddAsync(Entry(user.Id, "img-neg", rawNegative: negative), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "img-noneg"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "img-neg", rawNegative: negative), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "img-noneg"), Ct);
 
         HistoryEntry? withNegative = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-neg", Ct);
         HistoryEntry? without = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-noneg", Ct);
@@ -83,7 +83,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         // Rows predating the column (and anything the backfill has not reached) must read as null, not "" — the caller
         // can then tell "never captured" apart from "captured, and it was empty".
         User user = await fixture.NewUserAsync("hist-rawnull");
-        await fixture.History.AddAsync(Entry(user.Id, "img-norow"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "img-norow"), Ct);
 
         HistoryEntry? fetched = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-norow", Ct);
         Assert.NotNull(fetched);
@@ -107,7 +107,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("hist-alice");
         User bob = await fixture.NewUserAsync("hist-bob");
-        await fixture.History.AddAsync(Entry(alice.Id, "shared-id"), Ct);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "shared-id"), Ct);
 
         PagedResult<HistoryEntry> bobPage = await fixture.History.GetPageAsync(new HistoryQuery(bob.Id, 1, 40), Ct);
         Assert.Equal(0, bobPage.Total);
@@ -120,8 +120,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_filters_by_artist_mark()
     {
         User user = await fixture.NewUserAsync("hist-filter");
-        await fixture.History.AddAsync(Entry(user.Id, "with-artist", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "no-artist"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "with-artist", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "no-artist"), Ct);
 
         PagedResult<HistoryEntry> filtered = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, Artist: "monet"), Ct);
         Assert.Equal(1, filtered.Total);
@@ -138,9 +138,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task The_original_prompt_is_stored_apart_from_the_one_that_rendered()
     {
         User user = await fixture.NewUserAsync("hist-original");
-        await fixture.History.AddAsync(Entry(user.Id, "img-original",
+        _ = await fixture.History.AddAsync(Entry(user.Id, "img-original",
             prompt: "1girl, blue hair", rawPrompt: "1girl, #blue_hair", original: "1girl, #[blue|red]_hair"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "img-no-original", rawPrompt: "1girl"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "img-no-original", rawPrompt: "1girl"), Ct);
 
         HistoryEntry? typed = await fixture.History.GetByGatewayImageIdAsync(user.Id, "img-original", Ct);
         Assert.NotNull(typed);
@@ -162,8 +162,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_excludes_an_image_made_with_a_second_artist()
     {
         User user = await fixture.NewUserAsync("hist-multi-artist");
-        await fixture.History.AddAsync(Entry(user.Id, "monet-only", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "blended", marks:
+        _ = await fixture.History.AddAsync(Entry(user.Id, "monet-only", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "blended", marks:
         [
             new Mark("monet", TokenKind.Artist),
             new Mark("picasso", TokenKind.Artist),
@@ -182,7 +182,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_keeps_a_single_artist_image_that_also_carries_tags()
     {
         User user = await fixture.NewUserAsync("hist-artist-with-tags");
-        await fixture.History.AddAsync(Entry(user.Id, "monet-snow", marks:
+        _ = await fixture.History.AddAsync(Entry(user.Id, "monet-snow", marks:
         [
             new Mark("monet", TokenKind.Artist),
             new Mark("snow", TokenKind.Tag),
@@ -204,9 +204,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Latest_per_artist_skips_a_blended_image_for_the_newest_single_artist_one()
     {
         User user = await fixture.NewUserAsync("hist-latest-multi-artist");
-        await fixture.History.AddAsync(Entry(user.Id, "monet-old", marks: [new Mark("monet", TokenKind.Artist)],
+        _ = await fixture.History.AddAsync(Entry(user.Id, "monet-old", marks: [new Mark("monet", TokenKind.Artist)],
             created: new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "blended-new", marks:
+        _ = await fixture.History.AddAsync(Entry(user.Id, "blended-new", marks:
         [
             new Mark("monet", TokenKind.Artist),
             new Mark("picasso", TokenKind.Artist),
@@ -228,9 +228,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Latest_per_tag_claims_an_image_that_also_carries_other_tags()
     {
         User user = await fixture.NewUserAsync("hist-latest-tags");
-        await fixture.History.AddAsync(Entry(user.Id, "snow-only", marks: [new Mark("snow", TokenKind.Tag)],
+        _ = await fixture.History.AddAsync(Entry(user.Id, "snow-only", marks: [new Mark("snow", TokenKind.Tag)],
             created: new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "snowy-forest", marks:
+        _ = await fixture.History.AddAsync(Entry(user.Id, "snowy-forest", marks:
         [
             new Mark("snow", TokenKind.Tag),
             new Mark("forest", TokenKind.Tag),
@@ -247,7 +247,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Latest_per_tag_ignores_artist_marks_on_the_image()
     {
         User user = await fixture.NewUserAsync("hist-latest-tag-artist");
-        await fixture.History.AddAsync(Entry(user.Id, "monet-snow", marks:
+        _ = await fixture.History.AddAsync(Entry(user.Id, "monet-snow", marks:
         [
             new Mark("monet", TokenKind.Artist),
             new Mark("snow", TokenKind.Tag),
@@ -268,9 +268,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_search_keeps_only_prompts_containing_every_term()
     {
         User user = await fixture.NewUserAsync("hist-search");
-        await fixture.History.AddAsync(Entry(user.Id, "both", prompt: "hatsune miku, standing in snow"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "one", prompt: "hatsune miku, on a beach"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "neither", prompt: "a red car"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "both", prompt: "hatsune miku, standing in snow"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "one", prompt: "hatsune miku, on a beach"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "neither", prompt: "a red car"), Ct);
 
         PagedResult<HistoryEntry> hits = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, Search: "MIKU snow"), Ct);
 
@@ -284,9 +284,12 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     {
         User user = await fixture.NewUserAsync("hist-search-paging");
         for (int i = 0; i < 3; i++)
-            await fixture.History.AddAsync(
+        {
+            _ = await fixture.History.AddAsync(
                 Entry(user.Id, $"m{i}", prompt: "a cat", created: new DateTime(2026, 1, 1, 12, i, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "other", prompt: "a dog"), Ct);
+        }
+
+        _ = await fixture.History.AddAsync(Entry(user.Id, "other", prompt: "a dog"), Ct);
 
         PagedResult<HistoryEntry> first = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 2, Search: "cat"), Ct);
         PagedResult<HistoryEntry> second = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 2, 2, Search: "cat"), Ct);
@@ -301,10 +304,10 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_search_combines_with_the_artist_filter()
     {
         User user = await fixture.NewUserAsync("hist-search-artist");
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "monet-cat", prompt: "a cat", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "plain-cat", prompt: "a cat"), Ct);
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(Entry(user.Id, "plain-cat", prompt: "a cat"), Ct);
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "monet-dog", prompt: "a dog", marks: [new Mark("monet", TokenKind.Artist)]), Ct);
 
         PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(
@@ -312,7 +315,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
 
         Assert.Equal(1, page.Total);
         Assert.Equal("monet-cat", page.Items[0].GatewayImageId);
-        Assert.Single(page.Items[0].Marks);   // the page's marks still load for the matched rows
+        _ = Assert.Single(page.Items[0].Marks);   // the page's marks still load for the matched rows
     }
 
     /// <summary>The workflow filter, and that it composes with the search rather than replacing it.</summary>
@@ -320,9 +323,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_filters_by_workflow_and_combines_with_search()
     {
         User user = await fixture.NewUserAsync("hist-workflow");
-        await fixture.History.AddAsync(Entry(user.Id, "a-cat", prompt: "a cat", modelId: "wf-a"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "a-dog", prompt: "a dog", modelId: "wf-a"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "b-cat", prompt: "a cat", modelId: "wf-b"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "a-cat", prompt: "a cat", modelId: "wf-a"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "a-dog", prompt: "a dog", modelId: "wf-a"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "b-cat", prompt: "a cat", modelId: "wf-b"), Ct);
 
         PagedResult<HistoryEntry> byWorkflow = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, Model: "wf-a"), Ct);
         PagedResult<HistoryEntry> both = await fixture.History.GetPageAsync(
@@ -341,12 +344,12 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Used_workflows_are_counted_most_used_first_under_their_latest_name()
     {
         User user = await fixture.NewUserAsync("hist-used-workflows");
-        DateTime noon = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-        await fixture.History.AddAsync(
+        DateTime noon = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "old-name", modelId: "wf-a", modelFriendly: "Old Name", created: noon), Ct);
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "new-name", modelId: "wf-a", modelFriendly: "New Name", created: noon.AddMinutes(1)), Ct);
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "other", modelId: "wf-b", modelFriendly: "Other", created: noon.AddMinutes(2)), Ct);
 
         IReadOnlyList<HistoryWorkflowUse> used = await fixture.History.GetUsedWorkflowsAsync(user.Id, Ct);
@@ -362,10 +365,10 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("hist-used-alice");
         User bob = await fixture.NewUserAsync("hist-used-bob");
-        await fixture.History.AddAsync(Entry(alice.Id, "a", modelId: "wf-alice"), Ct);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "a", modelId: "wf-alice"), Ct);
 
         Assert.Empty(await fixture.History.GetUsedWorkflowsAsync(bob.Id, Ct));
-        Assert.Single(await fixture.History.GetUsedWorkflowsAsync(alice.Id, Ct));
+        _ = Assert.Single(await fixture.History.GetUsedWorkflowsAsync(alice.Id, Ct));
     }
 
     /// <summary>The raw (marker-form) prompt is searched too, so an image is findable by what was actually typed.</summary>
@@ -373,7 +376,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Get_page_search_reaches_the_raw_prompt()
     {
         User user = await fixture.NewUserAsync("hist-search-raw");
-        await fixture.History.AddAsync(
+        _ = await fixture.History.AddAsync(
             Entry(user.Id, "raw-hit", prompt: "1girl, smile", rawPrompt: "#long_hair, 1girl, smile"), Ct);
 
         PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, Search: "long_hair"), Ct);
@@ -384,7 +387,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Delete_removes_entry_and_marks()
     {
         User user = await fixture.NewUserAsync("hist-delete");
-        await fixture.History.AddAsync(Entry(user.Id, "del", marks: [new Mark("x", TokenKind.Tag)]), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "del", marks: [new Mark("x", TokenKind.Tag)]), Ct);
 
         Assert.True(await fixture.ImageDeletions.DeleteEverywhereAsync(user.Id, "del", Ct));
         Assert.False(await fixture.ImageDeletions.DeleteEverywhereAsync(user.Id, "del", Ct));
@@ -400,8 +403,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         string imageId = await fixture.Blobs.AddAsync(
             new NewImageBlob([1, 2, 3, 4], "image/png", 64, 64, ImageBlobKind.Generated), Ct);
 
-        await fixture.History.AddAsync(Entry(user.Id, imageId, marks: [new Mark("monet", TokenKind.Artist)]), Ct);
-        await fixture.Bookmarks.AddImageAsync(new ImageBookmark
+        _ = await fixture.History.AddAsync(Entry(user.Id, imageId, marks: [new Mark("monet", TokenKind.Artist)]), Ct);
+        _ = await fixture.Bookmarks.AddImageAsync(new ImageBookmark
         {
             UserId = user.Id,
             GatewayImageId = imageId,
@@ -434,8 +437,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("hist-delete-alice");
         User bob = await fixture.NewUserAsync("hist-delete-bob");
-        await fixture.History.AddAsync(Entry(alice.Id, "shared-delete"), Ct);
-        await fixture.History.AddAsync(Entry(bob.Id, "shared-delete"), Ct);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "shared-delete"), Ct);
+        _ = await fixture.History.AddAsync(Entry(bob.Id, "shared-delete"), Ct);
 
         Assert.True(await fixture.ImageDeletions.DeleteEverywhereAsync(alice.Id, "shared-delete", Ct));
 
@@ -450,10 +453,10 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Neighbors_walk_the_users_history_in_both_directions()
     {
         User user = await fixture.NewUserAsync("hist-neighbors");
-        DateTime t0 = new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc);
-        await fixture.History.AddAsync(Entry(user.Id, "n-old", created: t0), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "n-mid", created: t0.AddMinutes(1)), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "n-new", created: t0.AddMinutes(2)), Ct);
+        DateTime t0 = new(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "n-old", created: t0), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "n-mid", created: t0.AddMinutes(1)), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "n-new", created: t0.AddMinutes(2)), Ct);
 
         HistoryNeighbors mid = await fixture.History.GetNeighborsAsync(user.Id, "n-mid", Ct);
         Assert.Equal("n-new", mid.NewerId);
@@ -477,10 +480,10 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     public async Task Neighbors_break_a_timestamp_tie_on_id()
     {
         User user = await fixture.NewUserAsync("hist-neighbors-tie");
-        DateTime same = new DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc);
-        await fixture.History.AddAsync(Entry(user.Id, "tie-a", created: same), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "tie-b", created: same), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "tie-c", created: same), Ct);
+        DateTime same = new(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "tie-a", created: same), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "tie-b", created: same), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "tie-c", created: same), Ct);
 
         HistoryNeighbors b = await fixture.History.GetNeighborsAsync(user.Id, "tie-b", Ct);
         Assert.Equal("tie-c", b.NewerId);
@@ -493,9 +496,9 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("hist-neighbors-alice");
         User bob = await fixture.NewUserAsync("hist-neighbors-bob");
-        DateTime t0 = new DateTime(2026, 3, 3, 8, 0, 0, DateTimeKind.Utc);
-        await fixture.History.AddAsync(Entry(alice.Id, "a-only", created: t0), Ct);
-        await fixture.History.AddAsync(Entry(bob.Id, "b-newer", created: t0.AddMinutes(5)), Ct);
+        DateTime t0 = new(2026, 3, 3, 8, 0, 0, DateTimeKind.Utc);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "a-only", created: t0), Ct);
+        _ = await fixture.History.AddAsync(Entry(bob.Id, "b-newer", created: t0.AddMinutes(5)), Ct);
 
         HistoryNeighbors alone = await fixture.History.GetNeighborsAsync(alice.Id, "a-only", Ct);
         Assert.Null(alone.NewerId);

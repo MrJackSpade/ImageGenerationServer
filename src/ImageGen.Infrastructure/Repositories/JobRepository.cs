@@ -56,16 +56,16 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
 
         await using (DbCommand cmd = conn.Command(jobSql, tx))
         {
-            cmd.AddParam("@jobId", job.JobId);
-            cmd.AddParam("@userId", job.UserId);
-            cmd.AddParam("@machine", job.MachineName);
-            cmd.AddParam("@model", job.Model);
-            cmd.AddParam("@prompt", await _cipher.EncryptAsync(job.UserId, job.Prompt, ct));
-            cmd.AddParam("@total", job.Total);
-            cmd.AddParam("@status", (byte)job.Status);
-            cmd.AddParam("@created", job.CreatedAtUtc);
-            cmd.AddParam("@finished", (object?)job.FinishedAtUtc ?? DBNull.Value);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@jobId", job.JobId);
+            _ = cmd.AddParam("@userId", job.UserId);
+            _ = cmd.AddParam("@machine", job.MachineName);
+            _ = cmd.AddParam("@model", job.Model);
+            _ = cmd.AddParam("@prompt", await _cipher.EncryptAsync(job.UserId, job.Prompt, ct));
+            _ = cmd.AddParam("@total", job.Total);
+            _ = cmd.AddParam("@status", (byte)job.Status);
+            _ = cmd.AddParam("@created", job.CreatedAtUtc);
+            _ = cmd.AddParam("@finished", (object?)job.FinishedAtUtc ?? DBNull.Value);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         // Keyed on the (JobId, SlotIndex) unique constraint, which both dialects' upserts rely on existing.
@@ -74,38 +74,38 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
         foreach (JobSlotRecord slot in job.Slots)
         {
             await using DbCommand cmd = conn.Command(slotSql, tx);
-            cmd.AddParam("@jobId", slot.JobId);
-            cmd.AddParam("@idx", slot.SlotIndex);
-            cmd.AddParam("@isEdit", slot.IsEdit);
-            cmd.AddParam("@isBackground", slot.IsBackground);
-            cmd.AddParam("@state", (byte)slot.State);
-            cmd.AddParam("@comfy", (object?)slot.ComfyPromptId ?? DBNull.Value);
-            cmd.AddParam("@imageId", (object?)slot.ImageId ?? DBNull.Value);
-            cmd.AddParam("@width", (object?)slot.Width ?? DBNull.Value);
-            cmd.AddParam("@height", (object?)slot.Height ?? DBNull.Value);
-            cmd.AddParam("@changed", slot.Edit?.Changed ?? true);
-            cmd.AddParam("@score", (object?)slot.Edit?.ChangeScore ?? DBNull.Value);
-            cmd.AddParam("@error", (object?)slot.Error ?? DBNull.Value);
-            cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@started", (object?)slot.GenStartedAtUtc ?? DBNull.Value);
-            cmd.AddParam("@expected", (object?)slot.ExpectedGenSeconds ?? DBNull.Value);
+            _ = cmd.AddParam("@jobId", slot.JobId);
+            _ = cmd.AddParam("@idx", slot.SlotIndex);
+            _ = cmd.AddParam("@isEdit", slot.IsEdit);
+            _ = cmd.AddParam("@isBackground", slot.IsBackground);
+            _ = cmd.AddParam("@state", (byte)slot.State);
+            _ = cmd.AddParam("@comfy", (object?)slot.ComfyPromptId ?? DBNull.Value);
+            _ = cmd.AddParam("@imageId", (object?)slot.ImageId ?? DBNull.Value);
+            _ = cmd.AddParam("@width", (object?)slot.Width ?? DBNull.Value);
+            _ = cmd.AddParam("@height", (object?)slot.Height ?? DBNull.Value);
+            _ = cmd.AddParam("@changed", slot.Edit?.Changed ?? true);
+            _ = cmd.AddParam("@score", (object?)slot.Edit?.ChangeScore ?? DBNull.Value);
+            _ = cmd.AddParam("@error", (object?)slot.Error ?? DBNull.Value);
+            _ = cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@started", (object?)slot.GenStartedAtUtc ?? DBNull.Value);
+            _ = cmd.AddParam("@expected", (object?)slot.ExpectedGenSeconds ?? DBNull.Value);
             // The spec, per field: the user's text encrypted, everything else plain and therefore queryable.
-            cmd.AddParam("@workflow", (object?)slot.Workflow ?? DBNull.Value);
-            cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@aspect", (object?)slot.Generate?.Aspect ?? DBNull.Value);
-            cmd.AddParam("@randomArtist", (slot.Generate?.RandomArtist ?? TriState.Unspecified).ToNullableBitParam());
-            cmd.AddParam("@randomPrompt", (slot.Generate?.RandomPrompt ?? TriState.Unspecified).ToNullableBitParam());
-            cmd.AddParam("@temperature", (object?)slot.Generate?.Temperature ?? DBNull.Value);
-            cmd.AddParam("@tagTypes", (object?)slot.Generate?.TagTypesJson ?? DBNull.Value);
-            cmd.AddParam("@overrides", (object?)slot.OverridesJson ?? DBNull.Value);
-            cmd.AddParam("@loras", (object?)slot.LorasJson ?? DBNull.Value);
-            cmd.AddParam("@source", (object?)slot.Edit?.SourceImageId ?? DBNull.Value);
-            cmd.AddParam("@mask", (object?)slot.Edit?.MaskImageId ?? DBNull.Value);
-            cmd.AddParam("@lastFrame", (object?)slot.Edit?.LastFrameImageId ?? DBNull.Value);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@workflow", (object?)slot.Workflow ?? DBNull.Value);
+            _ = cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@aspect", (object?)slot.Generate?.Aspect ?? DBNull.Value);
+            _ = cmd.AddParam("@randomArtist", (slot.Generate?.RandomArtist ?? TriState.Unspecified).ToNullableBitParam());
+            _ = cmd.AddParam("@randomPrompt", (slot.Generate?.RandomPrompt ?? TriState.Unspecified).ToNullableBitParam());
+            _ = cmd.AddParam("@temperature", (object?)slot.Generate?.Temperature ?? DBNull.Value);
+            _ = cmd.AddParam("@tagTypes", (object?)slot.Generate?.TagTypesJson ?? DBNull.Value);
+            _ = cmd.AddParam("@overrides", (object?)slot.OverridesJson ?? DBNull.Value);
+            _ = cmd.AddParam("@loras", (object?)slot.LorasJson ?? DBNull.Value);
+            _ = cmd.AddParam("@source", (object?)slot.Edit?.SourceImageId ?? DBNull.Value);
+            _ = cmd.AddParam("@mask", (object?)slot.Edit?.MaskImageId ?? DBNull.Value);
+            _ = cmd.AddParam("@lastFrame", (object?)slot.Edit?.LastFrameImageId ?? DBNull.Value);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
 
             // The slot's child rows are REPLACED, not merged: this is a write-through of the whole in-memory slot,
             // and a reference list that shrank must not leave the dropped rows behind.
@@ -123,20 +123,27 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             "SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc " +
             "FROM dbo.Job WHERE JobId = @jobId;"))
         {
-            cmd.AddParam("@jobId", jobId);
+            _ = cmd.AddParam("@jobId", jobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) return null;
+            if (!await reader.ReadAsync(ct))
+            {
+                return null;
+            }
+
             job = MapJob(reader);
         }
 
         await using (DbCommand cmd = conn.Command(
             $"SELECT {Sql.SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
         {
-            cmd.AddParam("@jobId", jobId);
+            _ = cmd.AddParam("@jobId", jobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 job.Slots.Add(MapSlot(reader));
+            }
         }
+
         await LoadSlotChildrenAsync(conn, job, ct);
         await DecryptInPlaceAsync(job, ct);
         return job;
@@ -155,41 +162,45 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@take", 1);
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@take", 1);
+        _ = cmd.AddParam("@userId", userId);
         return await cmd.ScalarInt32Async(ct);
     }
 
     public async Task<IReadOnlyList<JobRecord>> ListActiveForMachineAsync(string machineName, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        List<JobRecord> jobs = new List<JobRecord>();
+        List<JobRecord> jobs = [];
         await using (DbCommand cmd = conn.Command(
             "SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc " +
             "FROM dbo.Job WHERE MachineName = @machine AND Status = 0 ORDER BY CreatedAtUtc ASC;"))
         {
-            cmd.AddParam("@machine", machineName);
+            _ = cmd.AddParam("@machine", machineName);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 jobs.Add(MapJob(reader));
+            }
         }
 
         foreach (JobRecord job in jobs)
         {
-            await using (DbCommand cmd = conn.Command(
-                $"SELECT {Sql.SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;"))
+            await using DbCommand cmd = conn.Command(
+                $"SELECT {Sql.SlotColumns} FROM dbo.JobSlot WHERE JobId = @jobId ORDER BY SlotIndex ASC;");
+            _ = cmd.AddParam("@jobId", job.JobId);
+            await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
             {
-                cmd.AddParam("@jobId", job.JobId);
-                await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                    job.Slots.Add(MapSlot(reader));
+                job.Slots.Add(MapSlot(reader));
             }
         }
+
         foreach (JobRecord job in jobs)
         {
             await LoadSlotChildrenAsync(conn, job, ct);
             await DecryptInPlaceAsync(job, ct);
         }
+
         return jobs;
     }
 
@@ -201,7 +212,7 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         int total;
         await using (DbCommand cmd = conn.Command("SELECT COUNT(*) FROM dbo.Job WHERE MachineName = @machine;"))
         {
-            cmd.AddParam("@machine", machineName);
+            _ = cmd.AddParam("@machine", machineName);
             total = await cmd.ScalarInt32Async(ct);
         }
 
@@ -213,7 +224,7 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         // BOTTOM of the backlog — page 3 of a 64-job burst — while page 1, the only page the client polls, would hold
         // 25 jobs that cannot change until the drain is nearly over. The queue page would look frozen for as long as
         // the backlog takes, and any live row a user scrolled to would be on a page that never refreshes.
-        List<JobRecord> jobs = new List<JobRecord>();
+        List<JobRecord> jobs = [];
         await using (DbCommand cmd = conn.Command(
             "SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc " +
             "FROM dbo.Job WHERE MachineName = @machine " +
@@ -222,12 +233,14 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
             "         CreatedAtUtc DESC, JobId DESC " +                    // finished: newest first
             _dialect.Paginate("@offset", "@take") + ";"))
         {
-            cmd.AddParam("@machine", machineName);
-            cmd.AddParam("@offset", (page - 1) * pageSize);
-            cmd.AddParam("@take", pageSize);
+            _ = cmd.AddParam("@machine", machineName);
+            _ = cmd.AddParam("@offset", (page - 1) * pageSize);
+            _ = cmd.AddParam("@take", pageSize);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 jobs.Add(MapJob(reader));
+            }
         }
 
         // Lightweight slots for the page in one batched read — only the columns a queue row needs (no encrypted
@@ -239,12 +252,20 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
             await using DbCommand cmd = conn.Command(
                 $"SELECT JobId, SlotIndex, IsEdit, State, ImageId FROM dbo.JobSlot " +
                 $"WHERE JobId IN ({string.Join(",", names)}) ORDER BY SlotIndex ASC;");
-            for (int i = 0; i < jobs.Count; i++) cmd.AddParam(names[i], jobs[i].JobId);
+            for (int i = 0; i < jobs.Count; i++)
+            {
+                _ = cmd.AddParam(names[i], jobs[i].JobId);
+            }
+
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
                 string jobId = reader.GetString(0);
-                if (!byId.TryGetValue(jobId, out JobRecord? job)) continue;
+                if (!byId.TryGetValue(jobId, out JobRecord? job))
+                {
+                    continue;
+                }
+
                 job.Slots.Add(new JobSlotRecord
                 {
                     JobId = jobId,
@@ -259,7 +280,9 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         // Privacy: decrypt only the viewer's OWN prompt (each key is per-user; another owner's prompt must never be
         // shown on this cross-user page). Everyone else's prompt is blanked so it never leaves the server in cleartext.
         foreach (JobRecord job in jobs)
+        {
             job.Prompt = job.UserId == viewerUserId ? await _cipher.DecryptAsync(job.UserId, job.Prompt, ct) : "";
+        }
 
         return new PagedResult<JobRecord>(jobs, total, page, pageSize);
     }
@@ -296,13 +319,14 @@ UPDATE dbo.Job
         await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
         await using (DbCommand cmd = conn.Command(sql, tx))
         {
-            cmd.AddParam("@jobId", jobId);
-            cmd.AddParam("@reason", reason);
-            cmd.AddParam("@slotState", (byte)slotState);
-            cmd.AddParam("@jobStatus", (byte)jobStatus);
-            cmd.AddParam("@finishedAt", _clock.GetUtcNow().UtcDateTime);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@jobId", jobId);
+            _ = cmd.AddParam("@reason", reason);
+            _ = cmd.AddParam("@slotState", (byte)slotState);
+            _ = cmd.AddParam("@jobStatus", (byte)jobStatus);
+            _ = cmd.AddParam("@finishedAt", _clock.GetUtcNow().UtcDateTime);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
+
         await tx.CommitAsync(ct);
     }
 
@@ -331,9 +355,10 @@ WHERE JobId = @jobId
         await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
         await using (DbCommand cmd = conn.Command(sql, tx))
         {
-            cmd.AddParam("@jobId", jobId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@jobId", jobId);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
+
         await tx.CommitAsync(ct);
     }
 
@@ -360,9 +385,13 @@ WHERE JobId = @jobId
             "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson " +
             "FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId WHERE s.ImageId = @id;"))
         {
-            cmd.AddParam("@id", imageId);
+            _ = cmd.AddParam("@id", imageId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) return null;
+            if (!await reader.ReadAsync(ct))
+            {
+                return null;
+            }
+
             userId = reader.GetInt64(0);
             jobId = reader.GetString(1);
             slotIndex = reader.AsInt32(2);
@@ -381,17 +410,23 @@ WHERE JobId = @jobId
             lastFrame = reader.IsDBNull(15) ? null : reader.GetString(15);
             loras = reader.IsDBNull(16) ? null : reader.GetString(16);
         }
-        if (workflow is null) return null;   // a slot written before the spec had columns
 
-        List<string> references = new List<string>();
+        if (workflow is null)
+        {
+            return null;   // a slot written before the spec had columns
+        }
+
+        List<string> references = [];
         await using (DbCommand cmd = conn.Command(
             "SELECT ImageId FROM dbo.JobSlotReference WHERE JobId = @jobId AND SlotIndex = @idx ORDER BY Ordinal;"))
         {
-            cmd.AddParam("@jobId", jobId);
-            cmd.AddParam("@idx", slotIndex);
+            _ = cmd.AddParam("@jobId", jobId);
+            _ = cmd.AddParam("@idx", slotIndex);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 references.Add(reader.GetString(0));
+            }
         }
 
         // Only the two text fields were ever encrypted; decrypting is keyed by the owning user.
@@ -416,8 +451,10 @@ WHERE JobId = @jobId
         return new ImageRequestRecord(userId, json);
 
         // The two value bags are stored as JSON text; re-emit them as JSON rather than as a quoted string.
-        static JsonElement? Raw(string? stored) =>
-            string.IsNullOrWhiteSpace(stored) ? null : JsonDocument.Parse(stored).RootElement.Clone();
+        static JsonElement? Raw(string? stored)
+        {
+            return string.IsNullOrWhiteSpace(stored) ? null : JsonDocument.Parse(stored).RootElement.Clone();
+        }
     }
 
     /// <summary>
@@ -459,9 +496,9 @@ WHERE JobId = @jobId
             "DELETE FROM dbo.JobSlotReference WHERE JobId = @jobId AND SlotIndex = @idx;" +
             "DELETE FROM dbo.JobSlotMark WHERE JobId = @jobId AND SlotIndex = @idx;", tx))
         {
-            del.AddParam("@jobId", slot.JobId);
-            del.AddParam("@idx", slot.SlotIndex);
-            await del.ExecuteNonQueryAsync(ct);
+            _ = del.AddParam("@jobId", slot.JobId);
+            _ = del.AddParam("@idx", slot.SlotIndex);
+            _ = await del.ExecuteNonQueryAsync(ct);
         }
 
         // References belong to an edit slot; a generate carries none.
@@ -471,11 +508,11 @@ WHERE JobId = @jobId
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.JobSlotReference (JobId, SlotIndex, Ordinal, ImageId) VALUES (@jobId, @idx, @ord, @img);",
                 tx);
-            cmd.AddParam("@jobId", slot.JobId);
-            cmd.AddParam("@idx", slot.SlotIndex);
-            cmd.AddParam("@ord", i);
-            cmd.AddParam("@img", references[i]);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@jobId", slot.JobId);
+            _ = cmd.AddParam("@idx", slot.SlotIndex);
+            _ = cmd.AddParam("@ord", i);
+            _ = cmd.AddParam("@img", references[i]);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         // Deterministic, so the token stays comparable — the whole reason marks are a table and not a blob. The
@@ -487,11 +524,11 @@ WHERE JobId = @jobId
                 "SELECT @jobId, @idx, @token, @kind WHERE NOT EXISTS (" +
                 "  SELECT 1 FROM dbo.JobSlotMark WHERE JobId = @jobId AND SlotIndex = @idx AND Token = @token AND Kind = @kind);",
                 tx);
-            cmd.AddParam("@jobId", slot.JobId);
-            cmd.AddParam("@idx", slot.SlotIndex);
-            cmd.AddParam("@token", await _cipher.DeterministicAsync(userId, mark.Token, ct));
-            cmd.AddParam("@kind", (byte)mark.Kind);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@jobId", slot.JobId);
+            _ = cmd.AddParam("@idx", slot.SlotIndex);
+            _ = cmd.AddParam("@token", await _cipher.DeterministicAsync(userId, mark.Token, ct));
+            _ = cmd.AddParam("@kind", (byte)mark.Kind);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -499,33 +536,47 @@ WHERE JobId = @jobId
     private async Task LoadSlotChildrenAsync(DbConnection conn, JobRecord job, CancellationToken ct)
     {
         if (job.Slots.Count == 0)
+        {
             return;
+        }
+
         Dictionary<int, JobSlotRecord> bySlot = job.Slots.ToDictionary(s => s.SlotIndex);
 
         await using (DbCommand cmd = conn.Command(
             "SELECT SlotIndex, ImageId FROM dbo.JobSlotReference WHERE JobId = @jobId ORDER BY SlotIndex, Ordinal;"))
         {
-            cmd.AddParam("@jobId", job.JobId);
+            _ = cmd.AddParam("@jobId", job.JobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 if (bySlot.TryGetValue(reader.AsInt32(0), out JobSlotRecord? slot) && slot.Edit is { } e)
+                {
                     e.ReferenceImageIds.Add(reader.GetString(1));
+                }
+            }
         }
 
         // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection, which
         // it does on a cold key-cache miss. Same ordering MarkIo uses, for the same reason.
-        List<(int Slot, string Token, TokenKind Kind)> raw = new List<(int Slot, string Token, TokenKind Kind)>();
+        List<(int Slot, string Token, TokenKind Kind)> raw = [];
         await using (DbCommand cmd = conn.Command(
             "SELECT SlotIndex, Token, Kind FROM dbo.JobSlotMark WHERE JobId = @jobId;"))
         {
-            cmd.AddParam("@jobId", job.JobId);
+            _ = cmd.AddParam("@jobId", job.JobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add((reader.AsInt32(0), reader.GetString(1), (TokenKind)reader.AsByte(2)));
+            }
         }
+
         foreach ((int slotIndex, string? token, TokenKind kind) in raw)
+        {
             if (bySlot.TryGetValue(slotIndex, out JobSlotRecord? slot))
+            {
                 slot.Marks.Add(new Mark(await _cipher.DecryptDeterministicAsync(job.UserId, token, ct), kind));
+            }
+        }
     }
 
     private static JobSlotRecord MapSlot(DbDataReader r)

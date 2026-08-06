@@ -45,12 +45,21 @@ public sealed class PendingJobReconciler(
             Ensure.Between(_config.GetValue(Keys.MaxAgeHoursKey, DefaultMaxAgeHours), MinMaxAgeHours, MaxMaxAgeHours, Keys.MaxAgeHoursKey));
 
         _logger.LogInformation("PendingJobReconciler started (poll {Poll}s, history is worker-written; this only reaps pending rows).", pollSeconds);
-        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(pollSeconds));
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(pollSeconds));
         do
         {
-            try { await ReconcileOnceAsync(maxAge, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception ex) { _logger.LogError(ex, "PendingJobReconciler cycle failed."); }
+            try
+            {
+                await ReconcileOnceAsync(maxAge, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PendingJobReconciler cycle failed.");
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
@@ -63,7 +72,9 @@ public sealed class PendingJobReconciler(
 
         IReadOnlyList<PendingJob> rows = await pending.ListAllAsync(ct);
         if (rows.Count == 0)
+        {
             return;
+        }
 
         DateTime now = DateTime.UtcNow;
         foreach (PendingJob pj in rows)
@@ -77,9 +88,20 @@ public sealed class PendingJobReconciler(
             }
 
             JobRecord? job = await jobs.GetAsync(pj.JobId, ct);
-            if (job is null) continue;                       // not persisted yet (race) — next cycle
-            if (job.MachineName != _machine) continue;       // another instance's job — leave it (invariant #4)
-            if (job.Status == JobStatus.Active) continue;    // still rendering — leave it
+            if (job is null)
+            {
+                continue;                       // not persisted yet (race) — next cycle
+            }
+
+            if (job.MachineName != _machine)
+            {
+                continue;       // another instance's job — leave it (invariant #4)
+            }
+
+            if (job.Status == JobStatus.Active)
+            {
+                continue;    // still rendering — leave it
+            }
 
             // Finalized: the worker already wrote this job's history at completion. Nothing to persist here — just
             // clear the vestigial pending row. (No history write => no resurrection of a since-deleted image.)

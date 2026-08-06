@@ -32,7 +32,7 @@ public abstract class Workflow<TParams> : IWorkflow
     /// <see cref="IWorkflow.Normalize"/> default.</summary>
     public virtual IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
     {
-        List<string> notices = new List<string>();
+        List<string> notices = [];
 
         if (FrameRule is { } fr && p.TryGetValue(WorkflowParamKeys.Length, out object? raw) && raw is not null)
         {

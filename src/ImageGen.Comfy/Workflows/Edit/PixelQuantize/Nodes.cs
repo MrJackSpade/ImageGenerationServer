@@ -1,9 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.PixelQuantize;
 
 /// <summary>This workflow's own node ids (source LoadImage is the inherited EditNodes.Source; flatten-on-white nodes live in PixelHarnessGraph).</summary>

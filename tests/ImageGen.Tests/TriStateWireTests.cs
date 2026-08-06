@@ -48,8 +48,5 @@ public sealed class TriStateWireTests
     [InlineData(TriState.True, "true")]
     [InlineData(TriState.False, "false")]
     [InlineData(TriState.Unspecified, "null")]
-    public void It_serializes_back_to_a_boolean_or_null_never_an_enum_name(TriState state, string expected)
-    {
-        Assert.Equal(expected, JsonSerializer.Serialize(state));
-    }
+    public void It_serializes_back_to_a_boolean_or_null_never_an_enum_name(TriState state, string expected) => Assert.Equal(expected, JsonSerializer.Serialize(state));
 }

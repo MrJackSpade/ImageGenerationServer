@@ -26,7 +26,11 @@ public sealed partial class WorkflowCatalogService(
     public WorkflowInfo? ResolveInfo(string? configId)
     {
         WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
-        if (cfg is null) return null;
+        if (cfg is null)
+        {
+            return null;
+        }
+
         ModelCard card = cfg.Card;
         string friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
@@ -58,17 +62,23 @@ public sealed partial class WorkflowCatalogService(
             .Distinct()
             .ToList();
         IReadOnlySet<string> presentNodes = declaredNodes.Count == 0
-            ? (IReadOnlySet<string>)new HashSet<string>()
+            ? new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(declaredNodes, ct);
 
-        List<(WorkflowConfiguration cfg, IWorkflow wf)> eligible = new List<(WorkflowConfiguration cfg, IWorkflow wf)>();
+        List<(WorkflowConfiguration cfg, IWorkflow wf)> eligible = [];
         foreach (WorkflowConfiguration cfg in _catalog.AllConfigs())
         {
             IWorkflow? wf = _registry.Find(cfg.WorkflowName);
-            if (wf is null) continue;
+            if (wf is null)
+            {
+                continue;
+            }
 
             // A model workflow with no checkpoint is misconfigured; a model-free one (quantizer) is fine.
-            if (wf.RequiresModel && string.IsNullOrEmpty(cfg.Requirements.Checkpoint)) continue;
+            if (wf.RequiresModel && string.IsNullOrEmpty(cfg.Requirements.Checkpoint))
+            {
+                continue;
+            }
             // A slot is satisfied when this machine has BOUND a file to it and that file is still present. Shipping
             // the filename in the catalogue would make anyone whose copy is named differently fail this check and
             // lose the workflow with no explanation.
@@ -80,14 +90,24 @@ public sealed partial class WorkflowCatalogService(
             bool ok = cfg.Requirements.All().Concat(_catalog.ModelRefSlots(wf, cfg)).All(id =>
             {
                 Requirement? r = _catalog.FindRequirement(id);
-                if (r is null) return false;
+                if (r is null)
+                {
+                    return false;
+                }
                 // A node requirement is met by ComfyUI having the node registered. It has no file, so it can never
                 // have a binding — demanding one would exclude EVERY configuration that declares a node pack from the
                 // picker, however well installed the pack is, while /forge/catalog/status reports it ready.
-                if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
+                if (!string.IsNullOrWhiteSpace(r.Node))
+                {
+                    return presentNodes.Contains(r.Node);
+                }
+
                 return bindings.TryGetValue(id, out ModelBinding? bound) && present.Contains(bound.FileName);
             });
-            if (!ok) continue;
+            if (!ok)
+            {
+                continue;
+            }
 
             eligible.Add((cfg, wf));
         }
@@ -97,7 +117,10 @@ public sealed partial class WorkflowCatalogService(
         // picker down with it. It is reported, though: swallowing it in a bare catch would present a
         // permanently-broken timings table as "no model has ever been run here", with nothing anywhere to disagree.
         IReadOnlyDictionary<string, double> avgs;
-        try { avgs = await _timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct); }
+        try
+        {
+            avgs = await _timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct);
+        }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Recent-average lookup failed; listing workflows without their ETAs.");
@@ -119,9 +142,16 @@ public sealed partial class WorkflowCatalogService(
     public WorkflowSettings? GetSettings(string? configId)
     {
         WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
-        if (cfg is null) return null;
+        if (cfg is null)
+        {
+            return null;
+        }
+
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
-        if (wf is null) return null;
+        if (wf is null)
+        {
+            return null;
+        }
 
         IReadOnlyDictionary<string, JsonElement> overrides = _catalog.ParamOverridesFor(cfg.Id);
 
@@ -155,12 +185,14 @@ public sealed partial class WorkflowCatalogService(
         // it's surfaced here as a synthetic string setting the settings page renders and saves through the same
         // override path (param.targetLoraFolder) as every other setting — no new settings UI needed.
         if (wf.Kind == WorkflowKind.Generate && wf.Media == WorkflowMedia.Image)
+        {
             settings.Add(new ConfigSetting(
                 SettingKeys.TargetLoraFolder, "Default LoRA folder",
                 "The composer's LoRA picker opens to this subfolder for this workflow. Blank = a folder matching the workflow, else all LoRAs.",
                 ControlTokens.String, null, null, null, null,
                 Shipped: null,
                 Override: overrides.TryGetValue(SettingKeys.TargetLoraFolder, out JsonElement lf) ? (object?)lf : null));
+        }
 
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
@@ -278,7 +310,11 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>Read a string-valued per-machine param override, or null when unset/blank.</summary>
     private static string? OverrideString(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)
     {
-        if (!machine.TryGetValue(key, out JsonElement v)) return null;
+        if (!machine.TryGetValue(key, out JsonElement v))
+        {
+            return null;
+        }
+
         string? s = v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString();
         return string.IsNullOrWhiteSpace(s) ? null : s;
     }

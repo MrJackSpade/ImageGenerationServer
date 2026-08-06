@@ -16,10 +16,7 @@ public sealed class PasswordHasherTests
     }
 
     [Fact]
-    public void Each_hash_is_salted_uniquely()
-    {
-        Assert.NotEqual(PasswordHasher.Hash("same"), PasswordHasher.Hash("same"));
-    }
+    public void Each_hash_is_salted_uniquely() => Assert.NotEqual(PasswordHasher.Hash("same"), PasswordHasher.Hash("same"));
 
     /// <summary>A damaged stored hash is a corrupt record, not a failed login. Answering false for it would tell the
     /// account holder "wrong password" about a row they could never authenticate against no matter what they typed, and
@@ -31,17 +28,11 @@ public sealed class PasswordHasherTests
     [InlineData("PBKDF2$notanumber$c2FsdA==$aGFzaA==")] // unreadable iteration count
     [InlineData("PBKDF2$200000$not!base64$aGFzaA==")]   // corrupt salt
     [InlineData("PBKDF2$200000$c2FsdA==$not!base64")]   // corrupt digest
-    public void Malformed_stored_hash_throws(string stored)
-    {
-        Assert.Throws<InvalidOperationException>(() => PasswordHasher.Verify("x", stored));
-    }
+    public void Malformed_stored_hash_throws(string stored) => Assert.Throws<InvalidOperationException>(() => PasswordHasher.Verify("x", stored));
 
     /// <summary>The one meaning left for false: the record is fine and the password simply does not match.</summary>
     [Fact]
-    public void A_real_hash_still_answers_false_for_the_wrong_password()
-    {
-        Assert.False(PasswordHasher.Verify("wrong", PasswordHasher.Hash("right")));
-    }
+    public void A_real_hash_still_answers_false_for_the_wrong_password() => Assert.False(PasswordHasher.Verify("wrong", PasswordHasher.Hash("right")));
 }
 
 [Collection("db")]
@@ -100,7 +91,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
     public async Task Wrong_password_and_unknown_user_fail()
     {
         UserService svc = Service();
-        await svc.RegisterAsync("bob_auth", "rightpass1", "", Ct);
+        _ = await svc.RegisterAsync("bob_auth", "rightpass1", "", Ct);
         Assert.Null(await svc.AuthenticateAsync("bob_auth", "wrongpass", Ct));
         Assert.Null(await svc.AuthenticateAsync("nobody_auth", "whatever1", Ct));
     }
@@ -167,14 +158,14 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
         await using (DbCommand cmd = conn.Command(
             "SELECT COUNT(*) FROM dbo.UserFavoriteWorkflow WHERE WorkflowId = 'anima' AND UserId = @id;"))
         {
-            cmd.AddParam("@id", user.Id);
+            _ = cmd.AddParam("@id", user.Id);
             Assert.Equal(1, Convert.ToInt32(await cmd.ExecuteScalarAsync(Ct)));
         }
 
         await using (DbCommand cmd = conn.Command(
             "SELECT Tag FROM dbo.UserWorkflowTag WHERE UserId = @id;"))
         {
-            cmd.AddParam("@id", user.Id);
+            _ = cmd.AddParam("@id", user.Id);
             object? scalar = await cmd.ExecuteScalarAsync(Ct);
             Assert.NotNull(scalar);
             Assert.NotEqual("my private label", (string)scalar);

@@ -1,9 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 
 /// <summary>MiniMax-H3 reference→video (ref2va, with native audio). The open image is the primary subject reference and

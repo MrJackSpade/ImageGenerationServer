@@ -43,10 +43,10 @@ public static class TagModelServiceCollectionExtensions
     {
         TagModelBundle bundle = TagModelBundle.Load(ArtifactsDirectory);
 
-        services.AddSingleton(bundle);
-        services.AddSingleton(bundle.Vocab);
-        services.AddSingleton<ITagCatalog>(_ => new VocabTagCatalog(bundle.Vocab));
-        services.AddSingleton<ITagModelClient>(_ => new OnnxTagModelClient(bundle));
+        _ = services.AddSingleton(bundle);
+        _ = services.AddSingleton(bundle.Vocab);
+        _ = services.AddSingleton<ITagCatalog>(_ => new VocabTagCatalog(bundle.Vocab));
+        _ = services.AddSingleton<ITagModelClient>(_ => new OnnxTagModelClient(bundle));
         return services;
     }
 }

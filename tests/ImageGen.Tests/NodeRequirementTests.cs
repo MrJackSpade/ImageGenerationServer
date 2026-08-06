@@ -31,17 +31,22 @@ public sealed class NodeRequirementTests
         string root = RepoRoot();
         Dictionary<string, HashSet<string>> needsByWorkflow = EmittedPacksByWorkflowName(Path.Combine(root, "src", "ImageGen.Comfy", "Workflows"));
 
-        List<string> missing = new List<string>();
+        List<string> missing = [];
         foreach (string file in Directory.EnumerateFiles(Path.Combine(root, "configurations", "workflows"), "*.json"))
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
             JsonElement cfg = doc.RootElement;
             string workflow = cfg.GetProperty("workflow").RequireString();
-            if (!needsByWorkflow.TryGetValue(workflow, out HashSet<string>? needed)) continue;
+            if (!needsByWorkflow.TryGetValue(workflow, out HashSet<string>? needed))
+            {
+                continue;
+            }
 
             HashSet<string> declared = DeclaredRequirements(cfg);
             foreach (string? slot in needed.Where(n => !declared.Contains(n)))
+            {
                 missing.Add($"{cfg.GetProperty("id").GetString()} (workflow {workflow}) does not declare {slot}");
+            }
         }
 
         Assert.True(missing.Count == 0,
@@ -57,12 +62,12 @@ public sealed class NodeRequirementTests
     /// </summary>
     private static Dictionary<string, HashSet<string>> EmittedPacksByWorkflowName(string workflowsDir)
     {
-        Regex classRe = new Regex(@"public\s+(?:sealed|abstract)\s+class\s+(\w+)(?:\s*:\s*(\w+))?");
-        Regex nameRe = new Regex(@"public\s+override\s+string\s+Name\s*=>\s*""([^""]+)""");
+        Regex classRe = new(@"public\s+(?:sealed|abstract)\s+class\s+(\w+)(?:\s*:\s*(\w+))?");
+        Regex nameRe = new(@"public\s+override\s+string\s+Name\s*=>\s*""([^""]+)""");
 
-        Dictionary<string, HashSet<string>> packsByClass = new Dictionary<string, HashSet<string>>();
-        Dictionary<string, string> baseOfClass = new Dictionary<string, string>();
-        Dictionary<string, string> nameOfClass = new Dictionary<string, string>();
+        Dictionary<string, HashSet<string>> packsByClass = [];
+        Dictionary<string, string> baseOfClass = [];
+        Dictionary<string, string> nameOfClass = [];
 
         foreach (string file in Directory.EnumerateFiles(workflowsDir, "*.cs", SearchOption.AllDirectories))
         {
@@ -75,37 +80,70 @@ public sealed class NodeRequirementTests
                 string body = src[from..to];
                 string cls = starts[i].Groups[1].Value;
 
-                if (starts[i].Groups[2].Success) baseOfClass[cls] = starts[i].Groups[2].Value;
+                if (starts[i].Groups[2].Success)
+                {
+                    baseOfClass[cls] = starts[i].Groups[2].Value;
+                }
+
                 Match nm = nameRe.Match(body);
-                if (nm.Success) nameOfClass[cls] = nm.Groups[1].Value;
+                if (nm.Success)
+                {
+                    nameOfClass[cls] = nm.Groups[1].Value;
+                }
 
                 HashSet<string> packs = PackNodes.Where(p => Regex.IsMatch(body, p.Pattern)).Select(p => p.Slot).ToHashSet();
-                if (packs.Count > 0) packsByClass[cls] = packs;
+                if (packs.Count > 0)
+                {
+                    packsByClass[cls] = packs;
+                }
             }
         }
 
         // Roll base-class emissions down to the concrete workflows.
-        Dictionary<string, HashSet<string>> result = new Dictionary<string, HashSet<string>>();
+        Dictionary<string, HashSet<string>> result = [];
         foreach ((string? cls, string? name) in nameOfClass)
         {
-            HashSet<string> packs = new HashSet<string>();
+            HashSet<string> packs = [];
             for (string? c = cls; c is not null; c = baseOfClass.TryGetValue(c, out string? b) ? b : null)
-                if (packsByClass.TryGetValue(c, out HashSet<string>? p)) packs.UnionWith(p);
-            if (packs.Count > 0) result[name] = packs;
+            {
+                if (packsByClass.TryGetValue(c, out HashSet<string>? p))
+                {
+                    packs.UnionWith(p);
+                }
+            }
+
+            if (packs.Count > 0)
+            {
+                result[name] = packs;
+            }
         }
+
         return result;
     }
 
     private static HashSet<string> DeclaredRequirements(JsonElement cfg)
     {
-        HashSet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!cfg.TryGetProperty("requirements", out JsonElement req)) return set;
+        HashSet<string> set = new(StringComparer.OrdinalIgnoreCase);
+        if (!cfg.TryGetProperty("requirements", out JsonElement req))
+        {
+            return set;
+        }
+
         foreach (JsonProperty prop in req.EnumerateObject())
         {
-            if (prop.Value.ValueKind == JsonValueKind.String) set.Add(prop.Value.RequireString());
+            if (prop.Value.ValueKind == JsonValueKind.String)
+            {
+                _ = set.Add(prop.Value.RequireString());
+            }
             else if (prop.Value.ValueKind == JsonValueKind.Array)
-                foreach (JsonElement e in prop.Value.EnumerateArray()) set.Add(e.RequireString());
+            {
+                foreach (JsonElement e in prop.Value.EnumerateArray())
+                {
+                    _ = set.Add(e.RequireString());
+                }
+            }
         }
+
         return set;
     }
 
@@ -114,9 +152,14 @@ public sealed class NodeRequirementTests
         string? dir = AppContext.BaseDirectory;
         while (dir is not null)
         {
-            if (Directory.Exists(Path.Combine(dir, "configurations", "workflows"))) return dir;
+            if (Directory.Exists(Path.Combine(dir, "configurations", "workflows")))
+            {
+                return dir;
+            }
+
             dir = Path.GetDirectoryName(dir);
         }
+
         throw new DirectoryNotFoundException("repo root not found above the test binary.");
     }
 }

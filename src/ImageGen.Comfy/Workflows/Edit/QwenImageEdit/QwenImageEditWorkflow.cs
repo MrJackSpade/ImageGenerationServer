@@ -1,5 +1,3 @@
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Edit.QwenImageEdit;
 
 /// <summary>Standard split Qwen-Image-Edit.</summary>

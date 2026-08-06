@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.FluxKontextPixelize;
 
 /// <summary>
@@ -20,7 +15,7 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
 
     protected override ComfyWorkflowGraph Build(FluxKontextPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4/5/6 + LoadImage 10
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 

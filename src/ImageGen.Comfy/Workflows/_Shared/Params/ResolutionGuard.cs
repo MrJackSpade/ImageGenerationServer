@@ -20,9 +20,15 @@ internal static class ResolutionGuard
     public static string? Violation(ModelResolution env, int w, int h, string subject)
     {
         if (w < env.MinW || w > env.MaxW || h < env.MinH || h > env.MaxH)
+        {
             return $"{subject} is {w}x{h}, outside what this model supports ({env.MinW}-{env.MaxW} wide, {env.MinH}-{env.MaxH} tall)";
+        }
+
         if (env.Step > 0 && (w % env.Step != 0 || h % env.Step != 0))
+        {
             return $"{subject} is {w}x{h}; this model needs both sides to be a multiple of {env.Step}";
+        }
+
         return null;
     }
 
@@ -31,6 +37,8 @@ internal static class ResolutionGuard
     public static void EnsureWithin(ModelResolution? env, int w, int h)
     {
         if (env is not null && Violation(env, w, h, "the render size") is { } msg)
+        {
             throw new RenderValidationException(msg + ".");
+        }
     }
 }

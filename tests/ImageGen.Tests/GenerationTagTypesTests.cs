@@ -83,10 +83,10 @@ public sealed class GenerationTagTypesTests
     [Fact]
     public void Corrupt_stored_value_throws_rather_than_silently_masking()
     {
-        Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("not json"));
-        Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("[\"seiyuu\"]"));
-        Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("{\"v\":99,\"types\":[\"meta\"]}"));
-        Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("42"));
+        _ = Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("not json"));
+        _ = Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("[\"seiyuu\"]"));
+        _ = Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("{\"v\":99,\"types\":[\"meta\"]}"));
+        _ = Assert.Throws<InvalidOperationException>(() => GenerationTagTypes.Resolve("42"));
     }
 }
 

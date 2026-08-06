@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.AnimateDiffSd15;
 
 /// <summary>SD1.5 AnimateDiff + SparseCtrl-RGB: the source conditions frame 0 (faithful anime i2v).</summary>
@@ -14,7 +10,7 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
 
     protected override ComfyWorkflowGraph Build(AnimateDiffSd15Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;

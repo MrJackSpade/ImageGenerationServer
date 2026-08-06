@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -10,19 +9,19 @@ namespace ImageGen.Comfy;
 public sealed record KSamplerAdvanced : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.KSamplerAdvanced;
-    [JsonPropertyName("add_noise")]                  public required string AddNoise { get; init; }
-    [JsonPropertyName("noise_seed")]                 public required long NoiseSeed { get; init; }
-    [JsonPropertyName("steps")]                      public required int Steps { get; init; }
-    [JsonPropertyName("cfg")]                        public required double Cfg { get; init; }
-    [JsonPropertyName("sampler_name")]               public required string SamplerName { get; init; }
-    [JsonPropertyName("scheduler")]                  public required string Scheduler { get; init; }
-    [JsonPropertyName("start_at_step")]              public required int StartAtStep { get; init; }
-    [JsonPropertyName("end_at_step")]                public required int EndAtStep { get; init; }
+    [JsonPropertyName("add_noise")] public required string AddNoise { get; init; }
+    [JsonPropertyName("noise_seed")] public required long NoiseSeed { get; init; }
+    [JsonPropertyName("steps")] public required int Steps { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
+    [JsonPropertyName("sampler_name")] public required string SamplerName { get; init; }
+    [JsonPropertyName("scheduler")] public required string Scheduler { get; init; }
+    [JsonPropertyName("start_at_step")] public required int StartAtStep { get; init; }
+    [JsonPropertyName("end_at_step")] public required int EndAtStep { get; init; }
     [JsonPropertyName("return_with_leftover_noise")] public required string ReturnWithLeftoverNoise { get; init; }
-    [JsonPropertyName("model")]                      public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("positive")]                   public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]                   public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("latent_image")]               public required Output<Slot.Latent> LatentImage { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("latent_image")] public required Output<Slot.Latent> LatentImage { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
 
@@ -32,15 +31,15 @@ public sealed record KSamplerAdvanced : ComfyNode
 public sealed record WanFirstLastFrameToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.WanFirstLastFrameToVideo;
-    [JsonPropertyName("positive")]    public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]    public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("length")]      public required int Length { get; init; }
-    [JsonPropertyName("batch_size")]  public required int BatchSize { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     [JsonPropertyName("start_image")] public required Output<Slot.Image> StartImage { get; init; }
-    [JsonPropertyName("end_image")]   public required Output<Slot.Image> EndImage { get; init; }
+    [JsonPropertyName("end_image")] public required Output<Slot.Image> EndImage { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 2);
@@ -51,14 +50,14 @@ public sealed record WanFirstLastFrameToVideo : ComfyNode
 public sealed record HunyuanVideo15ImageToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.HunyuanVideo15ImageToVideo;
-    [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]           public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("width")]              public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]             public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("length")]             public required int Length { get; init; }
-    [JsonPropertyName("batch_size")]         public required int BatchSize { get; init; }
-    [JsonPropertyName("start_image")]        public required Output<Slot.Image> StartImage { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
+    [JsonPropertyName("start_image")] public required Output<Slot.Image> StartImage { get; init; }
     [JsonPropertyName("clip_vision_output")] public required Output<Slot.ClipVision> ClipVisionOutput { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
@@ -70,9 +69,9 @@ public sealed record HunyuanVideo15ImageToVideo : ComfyNode
 public sealed record EmptyHunyuanLatentVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptyHunyuanLatentVideo;
-    [JsonPropertyName("width")]      public required int Width { get; init; }
-    [JsonPropertyName("height")]     public required int Height { get; init; }
-    [JsonPropertyName("length")]     public required int Length { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -82,11 +81,11 @@ public sealed record EmptyHunyuanLatentVideo : ComfyNode
 public sealed record VAEDecodeTiled : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.VAEDecodeTiled;
-    [JsonPropertyName("samples")]          public required Output<Slot.Latent> Samples { get; init; }
-    [JsonPropertyName("vae")]              public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("tile_size")]        public required int TileSize { get; init; }
-    [JsonPropertyName("overlap")]          public required int Overlap { get; init; }
-    [JsonPropertyName("temporal_size")]    public required int TemporalSize { get; init; }
+    [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("tile_size")] public required int TileSize { get; init; }
+    [JsonPropertyName("overlap")] public required int Overlap { get; init; }
+    [JsonPropertyName("temporal_size")] public required int TemporalSize { get; init; }
     [JsonPropertyName("temporal_overlap")] public required int TemporalOverlap { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -96,10 +95,10 @@ public sealed record VAEDecodeTiled : ComfyNode
 public sealed record CFGGuider : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CFGGuider;
-    [JsonPropertyName("model")]    public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
     [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("cfg")]      public required double Cfg { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
     public static Output<Slot.Guider> Out(string id) => new(id, 0);
 }
 
@@ -117,12 +116,12 @@ public sealed record LatentUpscaleModelLoader : ComfyNode
 public sealed record HunyuanVideo15LatentUpscaleWithModel : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.HunyuanVideo15LatentUpscaleWithModel;
-    [JsonPropertyName("model")]          public required Output<Slot.UpscaleModel> Model { get; init; }
-    [JsonPropertyName("samples")]        public required Output<Slot.Latent> Samples { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.UpscaleModel> Model { get; init; }
+    [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
     [JsonPropertyName("upscale_method")] public required string UpscaleMethod { get; init; }
-    [JsonPropertyName("width")]          public required int Width { get; init; }
-    [JsonPropertyName("height")]         public required int Height { get; init; }
-    [JsonPropertyName("crop")]           public required string Crop { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
+    [JsonPropertyName("crop")] public required string Crop { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
 
@@ -142,13 +141,13 @@ public interface IHunyuanVideo15SuperResolution
 public sealed record HunyuanVideo15SuperResolutionI2V : ComfyNode, IHunyuanVideo15SuperResolution
 {
     internal override string ClassType => ComfyNodeTypes.HunyuanVideo15SuperResolution;
-    [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]           public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("latent")]             public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
     [JsonPropertyName("noise_augmentation")] public required double NoiseAugmentation { get; init; }
-    [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     /// <summary>The i2v start image (the SR consistency cue).</summary>
-    [JsonPropertyName("start_image")]        public required Output<Slot.Image> StartImage { get; init; }
+    [JsonPropertyName("start_image")] public required Output<Slot.Image> StartImage { get; init; }
     /// <summary>The i2v clip-vision cue.</summary>
     [JsonPropertyName("clip_vision_output")] public required Output<Slot.ClipVision> ClipVisionOutput { get; init; }
 }
@@ -159,9 +158,9 @@ public sealed record HunyuanVideo15SuperResolutionI2V : ComfyNode, IHunyuanVideo
 public sealed record HunyuanVideo15SuperResolutionT2V : ComfyNode, IHunyuanVideo15SuperResolution
 {
     internal override string ClassType => ComfyNodeTypes.HunyuanVideo15SuperResolution;
-    [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]           public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("latent")]             public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
     [JsonPropertyName("noise_augmentation")] public required double NoiseAugmentation { get; init; }
-    [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
 }

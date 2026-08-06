@@ -1,10 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Generation.HunyuanVideoT2V;
 
 /// <summary>Original HunyuanVideo 13B text→video. The diffusion loader follows the bound file; the LLaVA-Llama3/CLIP-L DualCLIPLoader
@@ -19,7 +12,7 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflow<HunyuanVideoT2VPar
 
     protected override ComfyWorkflowGraph Build(HunyuanVideoT2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         g[EditNodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[HunyuanVideoT2VWorkflowNodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(EditNodes.Model), Shift = p.Shift };
         Output<Slot.Model> model = ModelSamplingSD3.Out(HunyuanVideoT2VWorkflowNodes.ModelSampling);

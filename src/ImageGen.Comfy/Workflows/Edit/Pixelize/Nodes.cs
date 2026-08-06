@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.Pixelize;
 
 /// <summary>This workflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>

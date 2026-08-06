@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.Upscale;

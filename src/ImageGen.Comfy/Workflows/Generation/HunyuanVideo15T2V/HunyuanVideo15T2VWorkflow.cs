@@ -1,10 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Generation.HunyuanVideo15T2V;
 
 /// <summary>HunyuanVideo 1.5 text→video (720p). UNETLoader + the Qwen2.5-VL/ByT5 DualCLIPLoader (type
@@ -18,7 +11,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
 
     protected override ComfyWorkflowGraph Build(HunyuanVideo15T2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         long seed = ComfyGraph.Seed(p.Seed);

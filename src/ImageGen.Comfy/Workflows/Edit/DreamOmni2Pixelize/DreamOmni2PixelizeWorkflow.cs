@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.DreamOmni2Pixelize;
 
@@ -26,14 +22,21 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
 
     protected override ComfyWorkflowGraph Build(DreamOmni2PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
         Output<Slot.Image> refImg;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        if (refNames.Count > 0) { g[Nodes.Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Nodes.Reference); }
-        else refImg = LoadImage.ImageOut(EditNodes.Source);   // Editor requires a reference; the source doubles as its own.
+        if (refNames.Count > 0)
+        {
+            g[Nodes.Reference] = new LoadImage { Image = refNames[0] };
+            refImg = LoadImage.ImageOut(Nodes.Reference);
+        }
+        else
+        {
+            refImg = LoadImage.ImageOut(EditNodes.Source);   // Editor requires a reference; the source doubles as its own.
+        }
 
         string instruction = string.IsNullOrWhiteSpace(p.StylePrompt) ? inputs.Positive : p.StylePrompt;
         int gw = p.GridW;

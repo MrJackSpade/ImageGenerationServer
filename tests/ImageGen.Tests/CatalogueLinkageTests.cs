@@ -60,11 +60,14 @@ public sealed class CatalogueLinkageTests
     public void Every_configuration_names_a_workflow_that_exists()
     {
         WorkflowRegistry registry = Registry();
-        List<string> unknown = new List<string>();
+        List<string> unknown = [];
         foreach ((string? id, JsonElement root) in Configurations())
         {
             string? name = root.TryGetProperty("workflow", out JsonElement w) ? w.GetString() : null;
-            if (registry.Find(name) is null) unknown.Add($"{id} -> {name ?? "(none)"}");
+            if (registry.Find(name) is null)
+            {
+                unknown.Add($"{id} -> {name ?? "(none)"}");
+            }
         }
 
         Assert.True(unknown.Count == 0,
@@ -86,7 +89,7 @@ public sealed class CatalogueLinkageTests
 
     private static (Dictionary<string, string> Slots, Dictionary<string, List<string>> Required) Load()
     {
-        Dictionary<string, string> slots = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> slots = new(StringComparer.OrdinalIgnoreCase);
         foreach (string f in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(f));
@@ -94,10 +97,14 @@ public sealed class CatalogueLinkageTests
         }
 
         WorkflowRegistry registry = Registry();
-        Dictionary<string, List<string>> required = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>> required = new(StringComparer.OrdinalIgnoreCase);
         void Note(string slot, string by)
         {
-            if (!required.TryGetValue(slot, out List<string>? list)) required[slot] = list = [];
+            if (!required.TryGetValue(slot, out List<string>? list))
+            {
+                required[slot] = list = [];
+            }
+
             list.Add(by);
         }
 
@@ -113,23 +120,39 @@ public sealed class CatalogueLinkageTests
                         JsonValueKind.String => [prop.Value.RequireString()],
                         _ => Array.Empty<string>(),
                     };
-                    foreach (string n in names) Note(n, id);
+                    foreach (string n in names)
+                    {
+                        Note(n, id);
+                    }
                 }
             }
 
             // The second place a slot id lives. The workflow's own schema says which keys those are.
             IWorkflow? wf = registry.Find(root.TryGetProperty("workflow", out JsonElement w) ? w.GetString() : null);
-            if (wf is null || !root.TryGetProperty("params", out JsonElement ps)) continue;
+            if (wf is null || !root.TryGetProperty("params", out JsonElement ps))
+            {
+                continue;
+            }
 
             foreach (ParamSpec? spec in wf.Schema.Where(s => s.IsModelRef))
             {
-                if (!ps.TryGetProperty(spec.Key, out JsonElement p)) continue;
+                if (!ps.TryGetProperty(spec.Key, out JsonElement p))
+                {
+                    continue;
+                }
                 // A param is either the bare value or the {value, exposed, min, ...} envelope form.
-                if (p.ValueKind == JsonValueKind.Object && !p.TryGetProperty("value", out p)) continue;
+                if (p.ValueKind == JsonValueKind.Object && !p.TryGetProperty("value", out p))
+                {
+                    continue;
+                }
+
                 if (p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()))
+                {
                     Note(p.RequireString(), $"{id}.params.{spec.Key}");
+                }
             }
         }
+
         return (slots, required);
     }
 
@@ -137,7 +160,10 @@ public sealed class CatalogueLinkageTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
+        {
             dir = Path.GetDirectoryName(dir);
+        }
+
         return dir ?? throw new DirectoryNotFoundException("repo root not found.");
     }
 }

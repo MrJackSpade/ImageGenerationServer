@@ -9,11 +9,13 @@ public static class TagEndpoints
     public static void MapTagEndpoints(this RouteGroupBuilder api)
     {
         // Pick the image that represents a tag for this user (must be one of their own generations).
-        api.MapPost(Routes.TagDisplay, async (HttpContext context, TagService tags, TimeProvider clock) =>
+        _ = api.MapPost(Routes.TagDisplay, async (HttpContext context, TagService tags, TimeProvider clock) =>
         {
             TagDisplayRequest? req = await Json.ReadAsync<TagDisplayRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Tag) || string.IsNullOrWhiteSpace(req.Id))
+            {
                 return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             bool ok = await tags.SetAsync(userId, req.Tag, req.Id, clock.GetUtcNow().UtcDateTime, context.RequestAborted);
@@ -21,10 +23,13 @@ public static class TagEndpoints
         });
 
         // Clear the manual pick so the tag falls back to the user's most recent generation carrying it (else a placeholder).
-        api.MapDelete(Routes.TagDisplay, async (HttpContext context, TagService tags, string tag) =>
+        _ = api.MapDelete(Routes.TagDisplay, async (HttpContext context, TagService tags, string tag) =>
         {
             if (string.IsNullOrWhiteSpace(tag))
+            {
                 return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
             await tags.ClearAsync(userId, tag, context.RequestAborted);
             return Results.NoContent();

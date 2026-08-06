@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.LtxvI2V;
 
 /// <summary>Own node ids (source LoadImage is the inherited <c>EditNodes.Source</c>).</summary>

@@ -24,7 +24,7 @@ public sealed class DatabaseAvailabilityTests
     [Fact]
     public async Task An_unreachable_server_is_unavailable()
     {
-        await using SqlConnection conn = new SqlConnection(
+        await using SqlConnection conn = new(
             "Server=127.0.0.1,9;Database=nope;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False");
 
         Exception ex = await Record.ExceptionAsync(() => conn.OpenAsync());

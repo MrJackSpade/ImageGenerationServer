@@ -136,7 +136,7 @@ public sealed class RenderJob
     /// <summary>When the job was enqueued.</summary>
     public required DateTimeOffset CreatedAt { get; init; }
     /// <summary>The job's ordered slots.</summary>
-    public List<RenderSlot> Slots { get; } = new();
+    public List<RenderSlot> Slots { get; } = [];
 
     /// <summary>Set when finalized (all slots terminal).</summary>
     [AllowNullable("null = not finalized (slots still non-terminal); default(DateTimeOffset) would falsely read as finished in year 1")]

@@ -34,7 +34,10 @@ public sealed class SubmissionMemoryGate(ISystemMemory memory, Func<long> minAva
         long available = _memory.AvailableBytes();
         long floor = MinAvailableBytes;
         if (available >= floor)
+        {
             return null;
+        }
+
         return $"The renderer is low on memory ({available / (1024 * 1024)} MB free, {floor / (1024 * 1024)} MB required) "
              + "and is not accepting new work. Queued renders hold their source images in memory until they run; "
              + "wait for the queue to drain and submit again.";

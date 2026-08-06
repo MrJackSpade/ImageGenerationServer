@@ -27,7 +27,10 @@ public sealed class UserLogService(IUserCipher cipher, IUserLogRepository reposi
     public async Task LogAsync(long userId, string category, string text, CancellationToken ct)
     {
         if (!_enabled)
+        {
             return;
+        }
+
         try
         {
             string payload = await _cipher.EncryptAsync(userId, text, ct);

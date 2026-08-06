@@ -45,10 +45,14 @@ public static class ListenAddress
     /// </param>
     public static string? Resolve(string? configuredUrls, Action<string, int, int>? onMoved = null, Func<IPAddress, int, bool>? isPortFree = null)
     {
-        if (string.IsNullOrWhiteSpace(configuredUrls)) return configuredUrls;
+        if (string.IsNullOrWhiteSpace(configuredUrls))
+        {
+            return configuredUrls;
+        }
+
         isPortFree ??= CanListen;
 
-        List<string> resolved = new List<string>();
+        List<string> resolved = [];
         foreach (string raw in configuredUrls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (!TryParse(raw, out string? scheme, out string? host, out int port) || isPortFree(AddressFor(host), port))
@@ -77,7 +81,13 @@ public static class ListenAddress
     private static int? NextFreePort(IPAddress address, int from, Func<IPAddress, int, bool> isPortFree)
     {
         for (int port = from + 1; port <= IPEndPoint.MaxPort; port++)
-            if (isPortFree(address, port)) return port;
+        {
+            if (isPortFree(address, port))
+            {
+                return port;
+            }
+        }
+
         return null;
     }
 
@@ -85,7 +95,7 @@ public static class ListenAddress
     {
         try
         {
-            using TcpListener listener = new TcpListener(address, port);
+            using TcpListener listener = new(address, port);
             listener.Start();
             return true;
         }
@@ -106,14 +116,21 @@ public static class ListenAddress
 
     private static bool TryParse(string url, out string scheme, out string host, out int port)
     {
-        scheme = host = ""; port = 0;
+        scheme = host = "";
+        port = 0;
         int schemeEnd = url.IndexOf(Tokens.SchemeSeparator, StringComparison.Ordinal);
-        if (schemeEnd <= 0) return false;
+        if (schemeEnd <= 0)
+        {
+            return false;
+        }
 
         scheme = url[..schemeEnd];
         string rest = url[(schemeEnd + 3)..].TrimEnd('/');
         int portStart = rest.LastIndexOf(':');
-        if (portStart < 0 || !int.TryParse(rest[(portStart + 1)..], out port)) return false;
+        if (portStart < 0 || !int.TryParse(rest[(portStart + 1)..], out port))
+        {
+            return false;
+        }
 
         host = rest[..portStart];
         return host.Length > 0 && port is > 0 and <= IPEndPoint.MaxPort;

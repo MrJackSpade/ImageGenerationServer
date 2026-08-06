@@ -1,12 +1,11 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
+using ImageGen.Comfy.Generation.HunyuanVideo15T2V;
 using ImageGen.Domain.CodeAnalysis;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-
-using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
-using ImageGen.Comfy.Generation.HunyuanVideo15T2V;
 
 namespace ImageGen.Comfy;
 
@@ -91,9 +90,13 @@ public sealed record FrameRule(int Base, int Step)
     /// values are returned unchanged.</summary>
     public int Snap(int n)
     {
-        if (Step <= 0 || n <= Base) return Base >= n ? Base : n;
+        if (Step <= 0 || n <= Base)
+        {
+            return Base >= n ? Base : n;
+        }
+
         int k = (int)Math.Ceiling((n - Base) / (double)Step);
-        return Base + k * Step;
+        return Base + (k * Step);
     }
 }
 
@@ -207,12 +210,14 @@ public static class ParamsCodec
     [AllowMagicStrings("human-readable out-of-range parameter refusal message")]
     private static void ValidateBounds(object dto)
     {
-        List<ValidationResult> results = new List<ValidationResult>();
+        List<ValidationResult> results = [];
         if (Validator.TryValidateObject(dto, new ValidationContext(dto), results, validateAllProperties: true))
+        {
             return;
+        }
 
         Type t = dto.GetType();
-        List<string> problems = new List<string>();
+        List<string> problems = [];
         foreach (ValidationResult r in results)
         {
             IEnumerable<string> members = r.MemberNames.Any() ? r.MemberNames : new[] { string.Empty };
@@ -222,11 +227,16 @@ public static class ParamsCodec
                 string key = prop?.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? (member.Length > 0 ? member : t.Name);
                 RangeAttribute? range = prop?.GetCustomAttribute<RangeAttribute>();
                 if (prop is not null && range is not null)
+                {
                     problems.Add($"'{key}' must be between {range.Minimum} and {range.Maximum}, but was {prop.GetValue(dto)}");
+                }
                 else
+                {
                     problems.Add($"'{key}': {r.ErrorMessage}");
+                }
             }
         }
+
         throw new RenderValidationException(
             $"This request has out-of-range parameter value(s): {string.Join("; ", problems)}.");
     }
@@ -258,16 +268,16 @@ public sealed record SubmissionCommon
     [AllowNullable("null = the config didn't set steps in the merged bag; the client reads the value only when present, distinct from a real 0")] public int? Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]
     [AllowNullable("null = the config didn't set a clip length; distinct from a real 0-frame length")] public int? Length { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Width)]             public int Width { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Height)]            public int Height { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Aspect)]            public Dictionary<string, int[]>? Aspect { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)]   public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)] public int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Height)] public int Height { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Aspect)] public Dictionary<string, int[]>? Aspect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]
     [AllowNullable("null = the config didn't set CFG (a custom-build model supplies its own guidance); 0 is a real CFG value")] public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
-    [JsonPropertyName(WorkflowParamKeys.Negative)]         public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SnapResolution)]   public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SnapResolution)] public bool SnapResolution { get; init; }
 
     /// <summary>The ETA render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height (0,0
     /// when neither is set — the ETA falls back to the model average). Mirrors the size a workflow's Build lays out.</summary>
@@ -444,12 +454,41 @@ public sealed class RequirementLinks
     /// <summary>Every linked requirement id (non-empty), for presence-gating.</summary>
     public IEnumerable<string> All()
     {
-        if (!string.IsNullOrEmpty(Checkpoint)) yield return Checkpoint;
-        foreach (string te in TextEncoders) if (!string.IsNullOrEmpty(te)) yield return te;
-        if (!string.IsNullOrEmpty(Vae)) yield return Vae;
-        if (!string.IsNullOrEmpty(MotionModel)) yield return MotionModel;
-        if (!string.IsNullOrEmpty(ControlNet)) yield return ControlNet;
-        foreach (string x in Extra) if (!string.IsNullOrEmpty(x)) yield return x;
+        if (!string.IsNullOrEmpty(Checkpoint))
+        {
+            yield return Checkpoint;
+        }
+
+        foreach (string te in TextEncoders)
+        {
+            if (!string.IsNullOrEmpty(te))
+            {
+                yield return te;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Vae))
+        {
+            yield return Vae;
+        }
+
+        if (!string.IsNullOrEmpty(MotionModel))
+        {
+            yield return MotionModel;
+        }
+
+        if (!string.IsNullOrEmpty(ControlNet))
+        {
+            yield return ControlNet;
+        }
+
+        foreach (string x in Extra)
+        {
+            if (!string.IsNullOrEmpty(x))
+            {
+                yield return x;
+            }
+        }
     }
 }
 

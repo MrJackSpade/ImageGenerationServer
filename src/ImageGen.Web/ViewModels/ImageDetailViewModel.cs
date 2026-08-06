@@ -71,19 +71,28 @@ public sealed class ImageDetailViewModel
         get
         {
             if (string.IsNullOrWhiteSpace(Entry.Prompt))
+            {
                 return [new PromptChip(Labels.NoPromptText, null, string.Empty)];
+            }
 
             IReadOnlyDictionary<string, string> marks = Entry.Marks;
-            List<(PromptChip Chip, int TypeRank)> chips = new List<(PromptChip, int)>();
-            List<string> plain = new List<string>();
+            List<(PromptChip Chip, int TypeRank)> chips = [];
+            List<string> plain = [];
 
             void FlushPlain()
             {
-                if (plain.Count == 0) return;
+                if (plain.Count == 0)
+                {
+                    return;
+                }
                 // Rejoin the run on the original delimiter — split-then-join is identity, so the text is verbatim; only
                 // the run's outer edges are trimmed for display. Plain runs carry no type rank; they group last by Kind.
                 string text = string.Join(Delimiters.SegmentDelimiter, plain).Trim();
-                if (text.Length > 0) chips.Add((new PromptChip(text, null, string.Empty), 0));
+                if (text.Length > 0)
+                {
+                    chips.Add((new PromptChip(text, null, string.Empty), 0));
+                }
+
                 plain.Clear();
             }
 
@@ -105,10 +114,13 @@ public sealed class ImageDetailViewModel
                     plain.Add(seg);
                 }
             }
+
             FlushPlain();
 
             if (chips.Count == 0)
+            {
                 return [new PromptChip(Labels.NoPromptText, null, string.Empty)];
+            }
 
             // Chips (Kind non-null) first, plain prose (Kind null) last; within the chips: state, then type, then name.
             // OrderBy is stable, so plain runs keep the order they were written in — prose is grouped, never reordered.

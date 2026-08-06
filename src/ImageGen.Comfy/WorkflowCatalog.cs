@@ -22,7 +22,7 @@ public sealed class WorkflowCatalog
     private readonly object _lock = new();
     private readonly object _reloadGate = new();
     private Dictionary<string, WorkflowConfiguration> _byId = new(StringComparer.OrdinalIgnoreCase);
-    private List<WorkflowConfiguration> _all = new();
+    private List<WorkflowConfiguration> _all = [];
     private Dictionary<string, Requirement> _reqById = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Slot id -> the file bound to it on this machine. Refreshed with the catalog and after a UI edit.</summary>
     private Dictionary<string, string> _bindings = new(StringComparer.OrdinalIgnoreCase);
@@ -73,8 +73,11 @@ public sealed class WorkflowCatalog
     /// </summary>
     public void SetBindings(IReadOnlyDictionary<string, string> bindings)
     {
-        Dictionary<string, string> copy = new Dictionary<string, string>(bindings, StringComparer.OrdinalIgnoreCase);
-        lock (_lock) _bindings = copy;
+        Dictionary<string, string> copy = new(bindings, StringComparer.OrdinalIgnoreCase);
+        lock (_lock)
+        {
+            _bindings = copy;
+        }
     }
 
     /// <summary>
@@ -88,48 +91,81 @@ public sealed class WorkflowCatalog
     /// </summary>
     public void SetParamOverrides(IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> overrides)
     {
-        Dictionary<string, Dictionary<string, JsonElement>> copy = new Dictionary<string, Dictionary<string, JsonElement>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Dictionary<string, JsonElement>> copy = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string? configId, IReadOnlyDictionary<string, string>? settings) in overrides)
         {
-            Dictionary<string, JsonElement> parsed = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, JsonElement> parsed = new(StringComparer.OrdinalIgnoreCase);
             foreach ((string? key, string? raw) in settings)
             {
-                if (!key.StartsWith(CatalogText.ParamPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!key.StartsWith(CatalogText.ParamPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 parsed[key[CatalogText.ParamPrefix.Length..]] = AsJson(raw);
             }
-            if (parsed.Count > 0) copy[configId] = parsed;
+
+            if (parsed.Count > 0)
+            {
+                copy[configId] = parsed;
+            }
         }
-        lock (_lock) _paramOverrides = copy;
+
+        lock (_lock)
+        {
+            _paramOverrides = copy;
+        }
     }
 
     /// <summary>This machine's overrides for one configuration, or empty.</summary>
     public IReadOnlyDictionary<string, JsonElement> ParamOverridesFor(string configId)
     {
         lock (_lock)
+        {
             return _paramOverrides.TryGetValue(configId, out Dictionary<string, JsonElement>? v)
                 ? v
-                : (IReadOnlyDictionary<string, JsonElement>)new Dictionary<string, JsonElement>();
+                : [];
+        }
     }
 
     private static JsonElement AsJson(string raw)
     {
-        try { return JsonDocument.Parse(raw).RootElement.Clone(); }
-        catch (JsonException) { return JsonDocument.Parse(JsonSerializer.Serialize(raw)).RootElement.Clone(); }
+        try
+        {
+            return JsonDocument.Parse(raw).RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return JsonDocument.Parse(JsonSerializer.Serialize(raw)).RootElement.Clone();
+        }
     }
 
     /// <summary>Configuration by its (unique) id, or null. Resolution is by id, then a loose contains match so a
     /// caller can pass the same string it gave generate_image.</summary>
     public WorkflowConfiguration? FindConfig(string? id)
     {
-        if (string.IsNullOrWhiteSpace(id)) return null;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
         ReloadIfChanged();
         lock (_lock)
         {
-            if (_byId.TryGetValue(id, out WorkflowConfiguration? c)) return c;
+            if (_byId.TryGetValue(id, out WorkflowConfiguration? c))
+            {
+                return c;
+            }
+
             foreach (KeyValuePair<string, WorkflowConfiguration> kv in _byId)
+            {
                 if (kv.Key.Contains(id, StringComparison.OrdinalIgnoreCase)
                     || id.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                {
                     return kv.Value;
+                }
+            }
+
             return null;
         }
     }
@@ -140,9 +176,16 @@ public sealed class WorkflowCatalog
     /// </summary>
     public string ResolveSlot(string? slotId)
     {
-        if (string.IsNullOrWhiteSpace(slotId)) return "";
+        if (string.IsNullOrWhiteSpace(slotId))
+        {
+            return "";
+        }
+
         ReloadIfChanged();
-        lock (_lock) return _bindings.TryGetValue(slotId, out string? f) ? f : "";
+        lock (_lock)
+        {
+            return _bindings.TryGetValue(slotId, out string? f) ? f : "";
+        }
     }
 
     /// <summary>
@@ -160,16 +203,27 @@ public sealed class WorkflowCatalog
     {
         foreach (ParamSpec spec in wf.Schema)
         {
-            if (!spec.IsModelRef || !v.TryGetValue(spec.Key, out object? raw)) continue;
+            if (!spec.IsModelRef || !v.TryGetValue(spec.Key, out object? raw))
+            {
+                continue;
+            }
+
             string? slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
                                              : raw as string;
             // Not set at all is legitimate — an optional LoRA is absent, not unbound. Set-but-unresolvable is not.
-            if (string.IsNullOrWhiteSpace(slot)) continue;
+            if (string.IsNullOrWhiteSpace(slot))
+            {
+                continue;
+            }
+
             string file = ResolveSlot(slot);
             if (string.IsNullOrWhiteSpace(file))
+            {
                 throw new RenderValidationException(
                     $"Configuration '{configId}' needs a file for '{slot}' ({spec.Key}), and this machine has none bound. "
                     + "Bind it on the models page — or, if the slot no longer exists in the catalogue, the configuration is stale.");
+            }
+
             v[spec.Key] = file;
         }
     }
@@ -189,13 +243,20 @@ public sealed class WorkflowCatalog
         IReadOnlyDictionary<string, JsonElement> overrides = ParamOverridesFor(cfg.Id);
         foreach (ParamSpec spec in wf.Schema)
         {
-            if (!spec.IsModelRef) continue;
+            if (!spec.IsModelRef)
+            {
+                continue;
+            }
+
             object? raw = overrides.TryGetValue(spec.Key, out JsonElement ov) ? ov
                         : cfg.Params.TryGetValue(spec.Key, out ConfigParam? cp) ? cp.Value
                         : null;
             string? slot = raw is JsonElement je ? (je.ValueKind == JsonValueKind.String ? je.GetString() : null)
                                              : raw as string;
-            if (!string.IsNullOrWhiteSpace(slot)) yield return slot;
+            if (!string.IsNullOrWhiteSpace(slot))
+            {
+                yield return slot;
+            }
         }
     }
 
@@ -203,20 +264,33 @@ public sealed class WorkflowCatalog
     public IReadOnlyList<Requirement> AllRequirements()
     {
         ReloadIfChanged();
-        lock (_lock) return _reqById.Values.ToList();
+        lock (_lock)
+        {
+            return _reqById.Values.ToList();
+        }
     }
 
     public IReadOnlyList<WorkflowConfiguration> AllConfigs()
     {
         ReloadIfChanged();
-        lock (_lock) return _all.ToList();
+        lock (_lock)
+        {
+            return _all.ToList();
+        }
     }
 
     public Requirement? FindRequirement(string? id)
     {
-        if (string.IsNullOrWhiteSpace(id)) return null;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
         ReloadIfChanged();
-        lock (_lock) return _reqById.GetValueOrDefault(id);
+        lock (_lock)
+        {
+            return _reqById.GetValueOrDefault(id);
+        }
     }
 
     /// <summary>Resolve a configuration's requirement-id links into the concrete on-disk filenames a workflow
@@ -229,7 +303,11 @@ public sealed class WorkflowCatalog
         {
             // A slot resolves to whatever THIS MACHINE has bound to it. An unbound slot yields an empty filename;
             // presence-gating will already have hidden the configuration, and the diagnostics list says which slot.
-            string Name(string? rid) => rid is not null && _bindings.TryGetValue(rid, out string? f) ? f : "";
+            string Name(string? rid)
+            {
+                return rid is not null && _bindings.TryGetValue(rid, out string? f) ? f : "";
+            }
+
             return new ResolvedRequirements
             {
                 Checkpoint = Name(cfg.Requirements.Checkpoint),
@@ -247,10 +325,12 @@ public sealed class WorkflowCatalog
     {
         ReloadIfChanged();
         lock (_lock)
+        {
             return cfg.Requirements.All()
                       .Select(id => _reqById.GetValueOrDefault(id))
                       .OfType<Requirement>()
                       .ToList();
+        }
     }
 
     /// <summary>Decision card for a configuration by id (used by /prompting and the JobQueue's tagging rules).</summary>
@@ -260,7 +340,10 @@ public sealed class WorkflowCatalog
     public IReadOnlyList<ModelCard> AllCards()
     {
         ReloadIfChanged();
-        lock (_lock) return _all.Select(c => c.Card).ToList();
+        lock (_lock)
+        {
+            return _all.Select(c => c.Card).ToList();
+        }
     }
 
     /// <summary>Reload when either file's timestamp has moved. A file that is momentarily ABSENT is not a change —
@@ -273,8 +356,15 @@ public sealed class WorkflowCatalog
         lock (_reloadGate)
         {
             bool changed = (wfNow is { } w && w != _wfStamp) || (reqNow is { } r && r != _modelStamp);
-            if (!changed) return;
-            if (_badVersion == (wfNow, reqNow)) return;   // this exact version already failed and was reported
+            if (!changed)
+            {
+                return;
+            }
+
+            if (_badVersion == (wfNow, reqNow))
+            {
+                return;   // this exact version already failed and was reported
+            }
 
             try
             {
@@ -304,15 +394,23 @@ public sealed class WorkflowCatalog
     /// </summary>
     private static (DateTime, int)? PresentStamp(string dir)
     {
-        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return null;
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+        {
+            return null;
+        }
+
         DateTime newest = DateTime.MinValue;
         int count = 0;
         foreach (string file in Directory.EnumerateFiles(dir, CatalogText.JsonGlob))
         {
             count++;
             DateTime written = File.GetLastWriteTimeUtc(file);
-            if (written > newest) newest = written;
+            if (written > newest)
+            {
+                newest = written;
+            }
         }
+
         return (newest, count);
     }
 
@@ -322,18 +420,21 @@ public sealed class WorkflowCatalog
     private void Load()
     {
         // Models first (configurations link to them by slot id).
-        Dictionary<string, Requirement> reqById = new Dictionary<string, Requirement>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Requirement> reqById = new(StringComparer.OrdinalIgnoreCase);
         (DateTime Newest, int Count) modelStamp = _modelStamp;
         if (RequireConfiguredDirectory(_modelsDir, CatalogText.ModelsSection))
         {
             modelStamp = PresentStamp(_modelsDir)
                 ?? throw new InvalidOperationException($"The models catalog directory vanished while loading: {_modelsDir}");
-            Dictionary<string, string> seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> seen = new(StringComparer.OrdinalIgnoreCase);
             foreach ((string? path, ModelFileDto? dto) in ReadAll(_modelsDir, CatalogJsonContext.Default.ModelFileDto))
             {
                 string? id = dto.Id;
                 if (string.IsNullOrEmpty(id))
+                {
                     throw new InvalidOperationException($"{path}: a model file must have an 'id'.");
+                }
+
                 RequireIdMatchesFileName(path, id);
                 RequireUnique(seen, id, path, CatalogText.ModelEntity);
 
@@ -348,14 +449,14 @@ public sealed class WorkflowCatalog
             }
         }
 
-        Dictionary<string, WorkflowConfiguration> byId = new Dictionary<string, WorkflowConfiguration>(StringComparer.OrdinalIgnoreCase);
-        List<WorkflowConfiguration> all = new List<WorkflowConfiguration>();
+        Dictionary<string, WorkflowConfiguration> byId = new(StringComparer.OrdinalIgnoreCase);
+        List<WorkflowConfiguration> all = [];
         (DateTime Newest, int Count) wfStamp = _wfStamp;
         if (RequireConfiguredDirectory(_workflowsDir, CatalogText.WorkflowsSection))
         {
             wfStamp = PresentStamp(_workflowsDir)
                 ?? throw new InvalidOperationException($"The workflows catalog directory vanished while loading: {_workflowsDir}");
-            Dictionary<string, string> seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> seen = new(StringComparer.OrdinalIgnoreCase);
             foreach ((string? path, WorkflowFileDto? dto) in ReadAll(_workflowsDir, CatalogJsonContext.Default.WorkflowFileDto))
             {
                 string? id = dto.Id;
@@ -363,7 +464,10 @@ public sealed class WorkflowCatalog
                 // A configuration with no id or no workflow class cannot run, and dropping it silently is
                 // indistinguishable from this box not being able to afford it.
                 if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(wf))
+                {
                     throw new InvalidOperationException($"{path}: a workflow file must have 'id' and 'workflow'.");
+                }
+
                 RequireIdMatchesFileName(path, id);
                 RequireUnique(seen, id, path, CatalogText.WorkflowEntity);
 
@@ -375,8 +479,11 @@ public sealed class WorkflowCatalog
 
         lock (_lock)
         {
-            _reqById = reqById; _all = all; _byId = byId;
-            _modelStamp = modelStamp; _wfStamp = wfStamp;
+            _reqById = reqById;
+            _all = all;
+            _byId = byId;
+            _modelStamp = modelStamp;
+            _wfStamp = wfStamp;
         }
     }
 
@@ -429,8 +536,10 @@ public sealed class WorkflowCatalog
     {
         string stem = Path.GetFileNameWithoutExtension(path);
         if (!string.Equals(stem, id, StringComparison.OrdinalIgnoreCase))
+        {
             throw new InvalidOperationException(
                 $"{path}: the file is named '{stem}' but declares id '{id}'. Rename one to match the other.");
+        }
     }
 
     /// <summary>
@@ -440,7 +549,10 @@ public sealed class WorkflowCatalog
     private static void RequireUnique(Dictionary<string, string> seen, string id, string path, string what)
     {
         if (seen.TryGetValue(id, out string? first))
+        {
             throw new InvalidOperationException($"Two {what} files declare id '{id}': {first} and {path}.");
+        }
+
         seen[id] = path;
     }
 
@@ -450,9 +562,16 @@ public sealed class WorkflowCatalog
     /// is the whole distinction between "this box offers no models" and "nobody can find the files that list them".</summary>
     private static bool RequireConfiguredDirectory(string path, string what)
     {
-        if (string.IsNullOrWhiteSpace(path)) return false;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
         if (!Directory.Exists(path))
+        {
             throw new DirectoryNotFoundException($"The configured {what} catalog directory is not on disk: {path}");
+        }
+
         return true;
     }
 
@@ -470,9 +589,11 @@ public sealed class WorkflowCatalog
             }
             : new RequirementLinks();
 
-        Dictionary<string, ConfigParam> pars = new Dictionary<string, ConfigParam>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, ConfigParam> pars = new(StringComparer.OrdinalIgnoreCase);
         if (c.Params is { } pmap)
+        {
             foreach ((string? name, ConfigParamDto? p) in pmap)
+            {
                 pars[name] = new ConfigParam
                 {
                     Value = CloneValue(p.Value),
@@ -482,6 +603,8 @@ public sealed class WorkflowCatalog
                     Max = p.Max,
                     Step = p.Step,
                 };
+            }
+        }
 
         return new WorkflowConfiguration
         {
@@ -604,10 +727,18 @@ public sealed class WorkflowCatalog
     /// minimum — so the size the author actually meant is the one thing that must not be guessed here.</summary>
     private static ModelResolution? BuildResolution(ResolutionDto? res, string id)
     {
-        if (res is null) return null;
-        int Req(int? v, string k) => v ?? throw new InvalidOperationException(
+        if (res is null)
+        {
+            return null;
+        }
+
+        int Req(int? v, string k)
+        {
+            return v ?? throw new InvalidOperationException(
             $"{id}: the resolution block is missing '{k}'. A declared envelope must state min_w/min_h/max_w/max_h and step; "
             + "an omitted field would silently bound the size editor by a number the model never gave.");
+        }
+
         return new ModelResolution
         {
             MinW = Req(res.MinW, ResolutionMember.MinW),

@@ -97,7 +97,11 @@ public static class ComfyGraph
     /// "base model + LoRA" variant just by a configuration setting the <c>lora</c> param (a Civit LoRA filename).</summary>
     public static Output<Slot.Model> ApplyLora(ComfyWorkflowGraph g, Output<Slot.Model> model, string? lora, double loraStrength, string nodeId = "90")
     {
-        if (string.IsNullOrWhiteSpace(lora)) return model;
+        if (string.IsNullOrWhiteSpace(lora))
+        {
+            return model;
+        }
+
         g[nodeId] = new LoraLoaderModelOnly { Model = model, LoraName = lora, StrengthModel = loraStrength };
         return LoraLoaderModelOnly.Out(nodeId);
     }
@@ -110,7 +114,11 @@ public static class ComfyGraph
     public static (Output<Slot.Model> model, Output<Slot.Clip> clip) ApplyLoraStack(
         ComfyWorkflowGraph g, Output<Slot.Model> model, Output<Slot.Clip> clip, IReadOnlyList<LoraSelection>? loras, int startNodeId = 91)
     {
-        if (loras is not { Count: > 0 }) return (model, clip);
+        if (loras is not { Count: > 0 })
+        {
+            return (model, clip);
+        }
+
         int nodeId = startNodeId;
         foreach (LoraSelection lora in loras)
         {
@@ -119,6 +127,7 @@ public static class ComfyGraph
             model = LoraLoader.ModelOut(id);
             clip = LoraLoader.ClipOut(id);
         }
+
         return (model, clip);
     }
 
@@ -131,8 +140,16 @@ public static class ComfyGraph
     {
         string model = (modelNegative ?? "").Trim().TrimEnd(',').TrimEnd();
         string user = (userNegative ?? "").Trim().TrimEnd(',').TrimEnd();
-        if (user.Length == 0) return model;
-        if (model.Length == 0) return user;
+        if (user.Length == 0)
+        {
+            return model;
+        }
+
+        if (model.Length == 0)
+        {
+            return user;
+        }
+
         return user + ", " + model;
     }
 

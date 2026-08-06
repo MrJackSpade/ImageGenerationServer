@@ -21,17 +21,18 @@ public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory)
         // Replace any prior set (a re-store of the same id) so this is idempotent.
         await using (DbCommand del = conn.Command("DELETE FROM dbo.ImageFrame WHERE ImageId = @id;"))
         {
-            del.AddParam("@id", imageId);
-            await del.ExecuteNonQueryAsync(ct);
+            _ = del.AddParam("@id", imageId);
+            _ = await del.ExecuteNonQueryAsync(ct);
         }
+
         for (int i = 0; i < frames.Count; i++)
         {
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.ImageFrame (ImageId, FrameIndex, Bytes) VALUES (@id, @idx, @b);");
-            cmd.AddParam("@id", imageId);
-            cmd.AddParam("@idx", i);
-            cmd.AddLargeParam("@b", frames[i]);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@id", imageId);
+            _ = cmd.AddParam("@idx", i);
+            _ = cmd.AddLargeParam("@b", frames[i]);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -39,7 +40,7 @@ public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("SELECT COUNT(*) FROM dbo.ImageFrame WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
+        _ = cmd.AddParam("@id", imageId);
         return await cmd.ScalarInt32Async(ct);
     }
 
@@ -48,11 +49,14 @@ public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory)
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "SELECT Bytes FROM dbo.ImageFrame WHERE ImageId = @id ORDER BY FrameIndex;");
-        cmd.AddParam("@id", imageId);
-        List<byte[]> frames = new List<byte[]>();
+        _ = cmd.AddParam("@id", imageId);
+        List<byte[]> frames = [];
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
+        {
             frames.Add(reader.GetFieldValue<byte[]>(0));
+        }
+
         return frames;
     }
 }

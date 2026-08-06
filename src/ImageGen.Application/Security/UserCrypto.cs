@@ -82,9 +82,15 @@ public static class UserCrypto
     public static string DecryptTolerant(UserKeys keys, string stored)
     {
         if (stored.StartsWith(Prefixes.Randomized, StringComparison.Ordinal))
+        {
             return Open(keys.Randomized, stored.AsSpan(Prefixes.Randomized.Length));
+        }
+
         if (stored.StartsWith(Prefixes.Deterministic, StringComparison.Ordinal))
+        {
             return Open(keys.Deterministic, stored.AsSpan(Prefixes.Deterministic.Length));
+        }
+
         return stored;   // legacy plaintext
     }
 
@@ -95,8 +101,10 @@ public static class UserCrypto
     {
         byte[] cipher = new byte[plain.Length];
         byte[] tag = new byte[TagBytes];
-        using (AesGcm aes = new AesGcm(key, TagBytes))
+        using (AesGcm aes = new(key, TagBytes))
+        {
             aes.Encrypt(nonce, plain, cipher, tag);
+        }
 
         byte[] frame = new byte[NonceBytes + TagBytes + cipher.Length];
         nonce.CopyTo(frame, 0);
@@ -112,8 +120,11 @@ public static class UserCrypto
         Span<byte> tag = frame.AsSpan(NonceBytes, TagBytes);
         Span<byte> cipher = frame.AsSpan(NonceBytes + TagBytes);
         byte[] plain = new byte[cipher.Length];
-        using (AesGcm aes = new AesGcm(key, TagBytes))
+        using (AesGcm aes = new(key, TagBytes))
+        {
             aes.Decrypt(nonce, cipher, tag, plain);
+        }
+
         return Encoding.UTF8.GetString(plain);
     }
 }

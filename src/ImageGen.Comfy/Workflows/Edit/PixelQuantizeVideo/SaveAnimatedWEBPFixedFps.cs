@@ -1,6 +1,4 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.PixelQuantizeVideo;
 
@@ -11,10 +9,10 @@ namespace ImageGen.Comfy.Edit.PixelQuantizeVideo;
 public sealed record SaveAnimatedWEBPFixedFps : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SaveAnimatedWEBP;
-    [JsonPropertyName("images")]          public required Output<Slot.Image> Images { get; init; }
+    [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
     [JsonPropertyName("filename_prefix")] public required string FilenamePrefix { get; init; }
-    [JsonPropertyName("fps")]             public required double Fps { get; init; }
-    [JsonPropertyName("lossless")]        public required bool Lossless { get; init; }
-    [JsonPropertyName("quality")]         public required int Quality { get; init; }
-    [JsonPropertyName("method")]          public required string Method { get; init; }
+    [JsonPropertyName("fps")] public required double Fps { get; init; }
+    [JsonPropertyName("lossless")] public required bool Lossless { get; init; }
+    [JsonPropertyName("quality")] public required int Quality { get; init; }
+    [JsonPropertyName("method")] public required string Method { get; init; }
 }

@@ -46,12 +46,16 @@ public sealed class LinuxSystemMemory : ISystemMemory
         foreach (string line in lines)
         {
             if (!line.StartsWith(MemInfo.MemAvailablePrefix, StringComparison.Ordinal))
+            {
                 continue;
+            }
 
             // "MemAvailable:    1234567 kB"
             string[] fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (fields.Length >= 2 && long.TryParse(fields[1], CultureInfo.InvariantCulture, out long kilobytes))
+            {
                 return kilobytes * 1024L;
+            }
 
             throw new InvalidOperationException($"could not parse '{line}' from {MemInfo.MemInfoPath}.");
         }

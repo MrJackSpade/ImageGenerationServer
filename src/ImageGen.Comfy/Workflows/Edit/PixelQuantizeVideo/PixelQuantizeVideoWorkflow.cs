@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.PixelQuantizeVideo;
 
@@ -67,7 +63,7 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
     protected override ComfyWorkflowGraph Build(PixelQuantizeVideoParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // Source clip → frames (+ its frame rate). No model head: the quantizer is pure CPU.
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [Nodes.Source] = new LoadVideo { File = inputs.SourceVideoName ?? throw new RenderValidationException("The video quantizer needs a source clip, but none was provided.") },
             [Nodes.Frames] = new GetVideoComponents { Video = LoadVideo.VideoOut(Nodes.Source) },

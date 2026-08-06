@@ -113,10 +113,14 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
             _ => null,
         };
         if (target is null || !ScalarReplacements.TryGetValue(target, out string? replacement))
+        {
             return;
+        }
 
         if (!MentionsExecuteScalar(cast.Expression))
+        {
             return;
+        }
 
         context.ReportDiagnostic(Diagnostic.Create(ScalarRule, cast.GetLocation(), target, replacement));
     }
@@ -136,18 +140,26 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     {
         InvocationExpressionSyntax invocation = (InvocationExpressionSyntax)context.Node;
         if (invocation.Expression is not MemberAccessExpressionSyntax member)
+        {
             return;
+        }
 
         string name = member.Name.Identifier.ValueText;
         if (!Replacements.TryGetValue(name, out string? replacement))
+        {
             return;
+        }
 
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol method)
+        {
             return;
+        }
 
         // Only the DbDataReader family. A GetInt32 on some unrelated type is none of this rule's business.
         if (!IsDbDataReader(method.ContainingType))
+        {
             return;
+        }
 
         context.ReportDiagnostic(Diagnostic.Create(Rule, member.Name.GetLocation(), name, replacement));
     }
@@ -156,8 +168,13 @@ public sealed class ProviderTypedDbReadAnalyzer : DiagnosticAnalyzer
     private static bool IsDbDataReader(INamedTypeSymbol? type)
     {
         for (INamedTypeSymbol? t = type; t is not null; t = t.BaseType)
+        {
             if (t.ToDisplayString() == typeof(DbDataReader).FullName)
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 }

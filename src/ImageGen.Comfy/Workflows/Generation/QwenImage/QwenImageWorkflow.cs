@@ -1,5 +1,3 @@
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Generation.QwenImage;
 
 /// <summary>

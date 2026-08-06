@@ -1,7 +1,6 @@
+using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 

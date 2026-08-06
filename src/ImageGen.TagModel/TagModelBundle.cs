@@ -91,17 +91,21 @@ public sealed class TagModelBundle : IDisposable
         // confusing protobuf error if it is missing, so check for it here where the message can say what is wrong.
         string weights = Path.Combine(directory, Files.WeightsFileName);
         if (!File.Exists(weights))
+        {
             throw new FileNotFoundException(
                 $"'tag_s2srec2.onnx.data' (the model weights, ~870 MB) is missing from '{directory}'. The graph "
                 + "references it by name, so it must sit beside tag_s2srec2.onnx.", weights);
+        }
 
         TagVocab vocab = TagVocab.Load(vocabPath);
-        S2SRec2Session session = new S2SRec2Session(onnx, outIds, vocab.Count);
+        S2SRec2Session session = new(onnx, outIds, vocab.Count);
 
         if (session.EmittableCount > vocab.Count)
+        {
             throw new InvalidDataException(
                 $"the model can emit {session.EmittableCount:N0} tags but the vocabulary holds {vocab.Count:N0}. "
                 + "These artifacts are from different builds.");
+        }
 
         string junkPath = Path.Combine(directory, Files.JunkIdsFileName);
         int[] junkIds = File.Exists(junkPath) ? ReadInt32Array(junkPath) : [];
@@ -117,12 +121,17 @@ public sealed class TagModelBundle : IDisposable
     {
         string path = Path.Combine(directory, Files.CalibrationFileName);
         if (!File.Exists(path))
+        {
             return null;
+        }
 
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
         JsonElement root = document.RootElement;
         if (!root.TryGetProperty(CalibrationProps.CalibrationAProperty, out JsonElement a) || !root.TryGetProperty(CalibrationProps.CalibrationBProperty, out JsonElement b))
+        {
             return null;
+        }
+
         return new DisplayCalibration(a.GetDouble(), b.GetDouble());
     }
 
@@ -130,9 +139,12 @@ public sealed class TagModelBundle : IDisposable
     {
         string path = Path.Combine(directory, fileName);
         if (!File.Exists(path))
+        {
             throw new FileNotFoundException(
                 $"'{fileName}' ({what}) is missing from '{directory}'. Fetch the tag model artifacts, or set "
                 + "TagModel:DataDir to where they already are.", path);
+        }
+
         return path;
     }
 

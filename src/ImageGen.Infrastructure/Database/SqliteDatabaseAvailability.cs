@@ -40,14 +40,22 @@ public sealed class SqliteDatabaseAvailability : IDatabaseAvailability
         for (Exception? e = ex; e is not null; e = e.InnerException)
         {
             if (e is SqliteException sqlite && UnreachableCodes.Contains(sqlite.SqliteErrorCode))
+            {
                 return true;
+            }
             // The file is on a path that went away — an unmounted volume, a removed directory. Same meaning as
             // CANTOPEN: nothing ran, and it may well be there on the next attempt.
             if (e is IOException or UnauthorizedAccessException)
+            {
                 return true;
+            }
+
             if (e is TimeoutException)
+            {
                 return true;
+            }
         }
+
         return false;
     }
 }

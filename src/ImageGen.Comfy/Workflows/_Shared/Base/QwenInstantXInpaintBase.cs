@@ -1,6 +1,6 @@
+using ImageGen.Domain;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -110,8 +110,8 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     /// zero is refused rather than silently skipping the ceiling.</summary>
     protected virtual (int W, int H) CanvasSize(QwenInpaintParams p, WorkflowInputs inputs)
     {
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth, inputs.SourceHeight);
     }
 
@@ -135,7 +135,10 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         }
 
         int blur = p.MaskBlur;
-        if (blur == 0) return m;
+        if (blur == 0)
+        {
+            return m;
+        }
 
         g[Nodes.SoftenMaskImage] = new MaskToImage { Mask = m };
         g[Nodes.SoftenBlur] = new ImageBlur { Image = MaskToImage.Out(Nodes.SoftenMaskImage), BlurRadius = blur, Sigma = MaskBlurSigma };
@@ -167,7 +170,10 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
     {
         int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
         int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap == 0 || longEdge <= cap) return;   // native: ceiling off, or under it (CanvasSize guarantees real dims)
+        if (cap == 0 || longEdge <= cap)
+        {
+            return;   // native: ceiling off, or under it (CanvasSize guarantees real dims)
+        }
 
         // Preserve aspect, then snap DOWN to a multiple of 16 (Qwen: VAE /8 + patch /2) so the latent grid is exact.
         double f = (double)cap / longEdge;
@@ -203,7 +209,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
 
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
@@ -214,7 +220,11 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         // Base Qwen-Image is txt2img: a plain CLIPTextEncode, NOT TextEncodeQwenImageEdit(Plus).
         // The negative runs at CFG ~2.5 and must not be empty — Comfy's own template ships a single space.
         string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
-        if (string.IsNullOrWhiteSpace(neg)) neg = " ";
+        if (string.IsNullOrWhiteSpace(neg))
+        {
+            neg = " ";
+        }
+
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
@@ -328,40 +338,40 @@ file static class Nodes
 /// single-sourced seed (defaulted).</summary>
 public abstract record QwenInpaintParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     /// <summary>Change amount / fill strength — declared here without a range because the valid floor differs per
     /// direction (inpaint 0.2, outpaint 0.5); each concrete record overrides it with its own <c>[Range]</c>.</summary>
-    [JsonPropertyName(WorkflowParamKeys.Denoise)]      public virtual required double Denoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Negative)]     public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Denoise)] public virtual required double Denoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Auraflow)]
-    [Range(0.0, 10.0)]                                 public required double Auraflow { get; init; }
+    [Range(0.0, 10.0)] public required double Auraflow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CnStrength)]
-    [Range(0.0, 2.0)]                                  public required double CnStrength { get; init; }
+    [Range(0.0, 2.0)] public required double CnStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CnStart)]
-    [Range(0.0, 1.0)]                                  public required double CnStart { get; init; }
+    [Range(0.0, 1.0)] public required double CnStart { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CnEnd)]
-    [Range(0.0, 1.0)]                                  public required double CnEnd { get; init; }
+    [Range(0.0, 1.0)] public required double CnEnd { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskBlur)]
-    [Range(0, 31)]                                     public required int MaskBlur { get; init; }
+    [Range(0, 31)] public required int MaskBlur { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
-    [Range(0, 4096)]                                   public required int MaxDimension { get; init; }
+    [Range(0, 4096)] public required int MaxDimension { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
-    [Range(0, 64)]                                     public int MaskGrow { get; init; }
+    [Range(0, 64)] public int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
-    [Range(0, 4096)]                                   public int PadLeft { get; init; }
+    [Range(0, 4096)] public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]
-    [Range(0, 4096)]                                   public int PadTop { get; init; }
+    [Range(0, 4096)] public int PadTop { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadRight)]
-    [Range(0, 4096)]                                   public int PadRight { get; init; }
+    [Range(0, 4096)] public int PadRight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottom)]
-    [Range(0, 4096)]                                   public int PadBottom { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
+    [Range(0, 4096)] public int PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

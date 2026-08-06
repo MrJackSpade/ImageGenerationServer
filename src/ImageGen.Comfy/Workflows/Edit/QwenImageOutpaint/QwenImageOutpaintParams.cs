@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
 
 namespace ImageGen.Comfy.Edit.QwenImageOutpaint;
 

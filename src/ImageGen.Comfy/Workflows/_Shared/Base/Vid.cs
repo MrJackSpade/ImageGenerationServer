@@ -1,9 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -48,14 +42,19 @@ internal static class Vid
         // boundary/steps; total2 = round(N/t*) puts the refiner's start index on that same sigma (exact whenever N/t* is
         // whole). 0 = decode the handoff as-is; absent/negative = the legacy shared-schedule tail.
         int refiner = refinerSteps ?? -1;
-        if (refiner == 0) return KSamplerAdvanced.Out(VidNodes.HighSampler);
+        if (refiner == 0)
+        {
+            return KSamplerAdvanced.Out(VidNodes.HighSampler);
+        }
+
         int steps2 = steps, start2 = boundary;
         if (refiner > 0)
         {
-            double tStar = 1.0 - (double)boundary / steps;
+            double tStar = 1.0 - ((double)boundary / steps);
             steps2 = Math.Max(refiner + 1, (int)Math.Round(refiner / tStar));
             start2 = steps2 - refiner;
         }
+
         g[VidNodes.LowSampler] = new KSamplerAdvanced
         {
             AddNoise = ComfyWidgets.Toggle.Disable,

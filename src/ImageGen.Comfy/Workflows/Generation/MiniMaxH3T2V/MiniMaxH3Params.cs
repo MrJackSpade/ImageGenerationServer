@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Generation.MiniMaxH3T2V;
 
@@ -13,6 +9,6 @@ namespace ImageGen.Comfy.Generation.MiniMaxH3T2V;
 public sealed record MiniMaxH3Params : Txt2ImgParams
 {
     [JsonPropertyName(WorkflowParamKeys.AudioVae)] public required string AudioVae { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Length)]   public required int Length { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Fps)]      public required double Fps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
 }

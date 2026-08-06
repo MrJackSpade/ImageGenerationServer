@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.Upscale;
@@ -66,7 +63,7 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
         // Node ids stay clear of the shared edit head (3/4/5/6/8/9/10/13/14) — only LoadImage "10" and SaveImage "9"
         // are reused, since the edit save path keys off the "forgemcp_edit" prefix.
         string source = inputs.SourceImageName ?? throw new RenderValidationException("The upscaler needs a source image, but none was provided.");
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = source },
             [Nodes.UpscaleModel] = new UpscaleModelLoader { ModelName = p.UpscaleModel },

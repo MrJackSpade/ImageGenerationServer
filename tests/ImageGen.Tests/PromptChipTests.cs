@@ -59,7 +59,7 @@ public sealed class PromptChipTests
     [Fact]
     public void Bookmarked_leads_and_banned_trails_within_the_chip_group()
     {
-        ImageDetailViewModel vm = new ImageDetailViewModel
+        ImageDetailViewModel vm = new()
         {
             Entry = new ImageDetailView("img1", "bad anatomy, greg rutkowski", "Anima", "anima", "square", DateTime.UtcNow,
                 new Dictionary<string, string> { ["bad_anatomy"] = "tag", ["greg_rutkowski"] = "artist" }),
@@ -83,7 +83,7 @@ public sealed class PromptChipTests
     [Fact]
     public void A_banned_tag_precedes_the_plain_text_chip()
     {
-        ImageDetailViewModel vm = new ImageDetailViewModel
+        ImageDetailViewModel vm = new()
         {
             Entry = new ImageDetailView("img1", "bad anatomy, a plain phrase", "Anima", "anima", "square", DateTime.UtcNow,
                 new Dictionary<string, string> { ["bad_anatomy"] = "tag" }),
@@ -105,7 +105,7 @@ public sealed class PromptChipTests
     [Fact]
     public void Chips_group_before_prose_and_order_by_state_then_type()
     {
-        ImageDetailViewModel vm = new ImageDetailViewModel
+        ImageDetailViewModel vm = new()
         {
             Entry = new ImageDetailView("img1",
                 "a plain phrase, old tag, smile, some girl, some show, absurdres, some artist, starred tag",
@@ -148,7 +148,7 @@ public sealed class PromptChipTests
     [Fact]
     public void Banned_chips_trail_the_tags_and_prose_is_pulled_to_the_end()
     {
-        ImageDetailViewModel vm = new ImageDetailViewModel
+        ImageDetailViewModel vm = new()
         {
             Entry = new ImageDetailView("img1", "banned artist, smile, a plain phrase, banned meta, starred tag",
                 "Anima", "anima", "square", DateTime.UtcNow,
@@ -187,7 +187,7 @@ public sealed class PromptChipTests
     [Fact]
     public void Chips_of_the_same_type_are_ordered_by_name()
     {
-        ImageDetailViewModel vm = new ImageDetailViewModel
+        ImageDetailViewModel vm = new()
         {
             Entry = new ImageDetailView("img1", "zebra print, smile, apron, zoe artist, alice artist",
                 "Anima", "anima", "square", DateTime.UtcNow,
@@ -244,8 +244,8 @@ public sealed class PromptChipTests
 
         Assert.Equal(3, chips.Count);
         Assert.Equal(("long hair", "tag"), (chips[0].Text, chips[0].Kind));                                       // the tag leads
-        Assert.Equal(("a knight in the rain, holding a sword", (string?)null), (chips[1].Text, chips[1].Kind));   // first prose run, verbatim
-        Assert.Equal(("at night", (string?)null), (chips[2].Text, chips[2].Kind));                                // second prose run, in written order
+        Assert.Equal(("a knight in the rain, holding a sword", null), (chips[1].Text, chips[1].Kind));   // first prose run, verbatim
+        Assert.Equal(("at night", null), (chips[2].Text, chips[2].Kind));                                // second prose run, in written order
     }
 
     /// <summary>A blank prompt renders the single "(no prompt)" placeholder chip.</summary>

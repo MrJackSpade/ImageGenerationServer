@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Ideogram4;
 
 /// <summary>
@@ -34,7 +30,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
     protected override ComfyWorkflowGraph Build(Ideogram4Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
 
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());

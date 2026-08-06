@@ -23,7 +23,10 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
     {
         // Configured already: this page has nothing to ask. Sending people to the settings page rather than 404ing
         // means a bookmarked /setup still lands somewhere useful.
-        if (_machine.IsConfigured) return Redirect(Routes.MachineSettings);
+        if (_machine.IsConfigured)
+        {
+            return Redirect(Routes.MachineSettings);
+        }
 
         // The box is pre-filled with the address a local ComfyUI almost always uses — so say whether that is a
         // real find or just the usual guess. A pre-filled field that looks authoritative and is not is worse than
@@ -39,7 +42,10 @@ public sealed class SetupController(MachineConfigService machine, ComfyProbe pro
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string? baseUrl, bool useAnyway, CancellationToken ct)
     {
-        if (_machine.IsConfigured) return Redirect(Routes.MachineSettings);
+        if (_machine.IsConfigured)
+        {
+            return Redirect(Routes.MachineSettings);
+        }
 
         ViewData[ViewDataKeys.Address] = baseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl))

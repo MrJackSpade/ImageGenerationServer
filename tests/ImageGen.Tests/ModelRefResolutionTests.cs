@@ -68,7 +68,7 @@ public sealed class ModelRefResolutionTests
     {
         // A literal model filename in a graph builder would reintroduce exactly the bug above, on exactly one
         // machine, so the shape itself is banned rather than the instances.
-        List<string> offenders = new List<string>();
+        List<string> offenders = [];
         string dir = Path.Combine(RepoRoot(), "src", "ImageGen.Comfy", "Workflows");
         foreach (string f in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
         {
@@ -77,8 +77,16 @@ public sealed class ModelRefResolutionTests
             {
                 string line = lines[i];
                 string code = line.TrimStart();
-                if (code.StartsWith("//") || code.StartsWith("///")) continue;   // prose may name a file
-                if (!line.Contains(".safetensors\"") && !line.Contains(".ckpt\"") && !line.Contains(".pth\"")) continue;
+                if (code.StartsWith("//") || code.StartsWith("///"))
+                {
+                    continue;   // prose may name a file
+                }
+
+                if (!line.Contains(".safetensors\"") && !line.Contains(".ckpt\"") && !line.Contains(".pth\""))
+                {
+                    continue;
+                }
+
                 offenders.Add($"{Path.GetFileName(f)}:{i + 1}  {code.Trim()}");
             }
         }
@@ -131,13 +139,22 @@ public sealed class ModelRefResolutionTests
         // render, rather than silently producing a graph with an empty filename.
         (WorkflowCatalog? catalog, IWorkflow _) = Build(bindEverything: true);
         WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
-        List<string> dangling = new List<string>();
+        List<string> dangling = [];
         foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
         {
             IWorkflow? wf = registry.Find(cfg.WorkflowName);
-            if (wf is null) continue;
+            if (wf is null)
+            {
+                continue;
+            }
+
             foreach (string slot in catalog.ModelRefSlots(wf, cfg))
-                if (catalog.FindRequirement(slot) is null) dangling.Add($"{cfg.Id} -> {slot}");
+            {
+                if (catalog.FindRequirement(slot) is null)
+                {
+                    dangling.Add($"{cfg.Id} -> {slot}");
+                }
+            }
         }
 
         Assert.True(dangling.Count == 0,
@@ -147,19 +164,23 @@ public sealed class ModelRefResolutionTests
 
     private static Dictionary<string, object?> Bag(params (string Key, object? Value)[] pairs)
     {
-        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach ((string? k, object? val) in pairs) v[k] = val;
+        Dictionary<string, object?> v = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string? k, object? val) in pairs)
+        {
+            v[k] = val;
+        }
+
         return v;
     }
 
     private static (WorkflowCatalog Catalog, IWorkflow Workflow) Build(bool bindEverything)
     {
-        WorkflowCatalog catalog = new WorkflowCatalog(
+        WorkflowCatalog catalog = new(
             new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
             NullLogger<WorkflowCatalog>.Instance);
         catalog.SetBindings(bindEverything
             ? catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors")
-            : new Dictionary<string, string>());
+            : []);
 
         WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
         IWorkflow? wf = registry.Find("animatediff-sd15");
@@ -171,7 +192,10 @@ public sealed class ModelRefResolutionTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
+        {
             dir = Path.GetDirectoryName(dir);
+        }
+
         return dir ?? throw new DirectoryNotFoundException("repo root not found.");
     }
 }

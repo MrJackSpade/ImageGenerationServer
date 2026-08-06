@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.Upscale;
 
@@ -11,8 +9,8 @@ public sealed record UpscaleParams
 {
     [JsonPropertyName(WorkflowParamKeys.UpscaleModel)] public required string UpscaleModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ModelScale)]
-    [Range(1.0, 8.0)]                                  public required double ModelScale { get; init; }
+    [Range(1.0, 8.0)] public required double ModelScale { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scale)]
-    [Range(1.0, 4.0)]                                  public required double Scale { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Resample)]     public required string Resample { get; init; }
+    [Range(1.0, 4.0)] public required double Scale { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Resample)] public required string Resample { get; init; }
 }

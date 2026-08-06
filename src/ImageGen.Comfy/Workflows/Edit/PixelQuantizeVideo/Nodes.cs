@@ -1,9 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.PixelQuantizeVideo;
 
 /// <summary>Node ids named by role. Values preserved exactly.</summary>

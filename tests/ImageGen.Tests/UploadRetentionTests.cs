@@ -20,23 +20,28 @@ public sealed class UploadRetentionTests
     [Fact]
     public void Every_upload_resolves_however_many_follow_it()
     {
-        InMemoryUploadStore store = new InMemoryUploadStore();
+        InMemoryUploadStore store = new();
         // Far past any byte budget an evicting store would keep: 64 x 1MB. The first id must answer exactly like the last.
         List<string> ids = Enumerable.Range(0, 64).Select(_ => store.Add(Image(1024 * 1024))).ToList();
 
         Assert.Equal(64, store.Count);
         Assert.Equal(64L * 1024 * 1024, store.Bytes);
         foreach (string id in ids)
+        {
             Assert.NotNull(store.Get(id));
+        }
     }
 
     [Fact]
     public void A_cold_upload_survives_a_long_run_of_newer_ones()
     {
-        InMemoryUploadStore store = new InMemoryUploadStore();
+        InMemoryUploadStore store = new();
         string first = store.Add(Image(4 * 1024 * 1024));
         // Never touched again — under an LRU this is precisely the entry that would be dropped.
-        for (int i = 0; i < 200; i++) store.Add(Image(1024 * 1024));
+        for (int i = 0; i < 200; i++)
+        {
+            _ = store.Add(Image(1024 * 1024));
+        }
 
         Assert.NotNull(store.Get(first));
     }
@@ -44,21 +49,21 @@ public sealed class UploadRetentionTests
     [Fact]
     public void An_id_the_store_never_issued_is_null_not_an_error()
     {
-        InMemoryUploadStore store = new InMemoryUploadStore();
+        InMemoryUploadStore store = new();
         Assert.Null(store.Get(Guid.NewGuid().ToString("N")));
     }
 
     [Fact]
     public void The_gate_admits_work_while_the_box_has_room()
     {
-        SubmissionMemoryGate gate = new SubmissionMemoryGate(new FakeMemory(600L * 1024 * 1024), () => 500L * 1024 * 1024);
+        SubmissionMemoryGate gate = new(new FakeMemory(600L * 1024 * 1024), () => 500L * 1024 * 1024);
         Assert.Null(gate.Refusal());
     }
 
     [Fact]
     public void The_gate_refuses_below_the_floor_and_says_why()
     {
-        SubmissionMemoryGate gate = new SubmissionMemoryGate(new FakeMemory(120L * 1024 * 1024), () => 500L * 1024 * 1024);
+        SubmissionMemoryGate gate = new(new FakeMemory(120L * 1024 * 1024), () => 500L * 1024 * 1024);
 
         string? refusal = gate.Refusal();
         Assert.NotNull(refusal);
@@ -70,16 +75,16 @@ public sealed class UploadRetentionTests
     [Fact]
     public void Exactly_at_the_floor_is_admitted()
     {
-        SubmissionMemoryGate gate = new SubmissionMemoryGate(new FakeMemory(500L * 1024 * 1024), () => 500L * 1024 * 1024);
+        SubmissionMemoryGate gate = new(new FakeMemory(500L * 1024 * 1024), () => 500L * 1024 * 1024);
         Assert.Null(gate.Refusal());
     }
 
     [Fact]
     public void A_probe_that_cannot_read_the_box_fails_the_submission_rather_than_guessing()
     {
-        SubmissionMemoryGate gate = new SubmissionMemoryGate(new BrokenMemory(), () => 500L * 1024 * 1024);
+        SubmissionMemoryGate gate = new(new BrokenMemory(), () => 500L * 1024 * 1024);
         // "Unknown" must never resolve to "plenty of room" — that is how an unrenderable job gets accepted.
-        Assert.Throws<InvalidOperationException>(() => gate.Refusal());
+        _ = Assert.Throws<InvalidOperationException>(() => gate.Refusal());
     }
 
     private sealed class FakeMemory(long available) : ISystemMemory

@@ -24,10 +24,10 @@ public sealed record GetVideoComponents : ComfyNode
 public sealed record DeflickerAuto : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.DeflickerAuto;
-    [JsonPropertyName("image")]      public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("mad_k")]      public required double MadK { get; init; }
-    [JsonPropertyName("min_dev")]    public required double MinDev { get; init; }
-    [JsonPropertyName("alpha_cut")]  public required double AlphaCut { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("mad_k")] public required double MadK { get; init; }
+    [JsonPropertyName("min_dev")] public required double MinDev { get; init; }
+    [JsonPropertyName("alpha_cut")] public required double AlphaCut { get; init; }
     [JsonPropertyName("time_sigma")] public required double TimeSigma { get; init; }
     public static Output<Slot.Image> ImageOut(string id) => new(id, 0);
 }
@@ -36,10 +36,10 @@ public sealed record DeflickerAuto : ComfyNode
 public sealed record SaveAnimatedWEBP : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SaveAnimatedWEBP;
-    [JsonPropertyName("images")]          public required Output<Slot.Image> Images { get; init; }
+    [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
     [JsonPropertyName("filename_prefix")] public required string FilenamePrefix { get; init; }
-    [JsonPropertyName("fps")]             public required Output<Slot.Float> Fps { get; init; }
-    [JsonPropertyName("lossless")]        public required bool Lossless { get; init; }
-    [JsonPropertyName("quality")]         public required int Quality { get; init; }
-    [JsonPropertyName("method")]          public required string Method { get; init; }
+    [JsonPropertyName("fps")] public required Output<Slot.Float> Fps { get; init; }
+    [JsonPropertyName("lossless")] public required bool Lossless { get; init; }
+    [JsonPropertyName("quality")] public required int Quality { get; init; }
+    [JsonPropertyName("method")] public required string Method { get; init; }
 }

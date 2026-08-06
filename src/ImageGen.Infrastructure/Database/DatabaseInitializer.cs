@@ -54,9 +54,13 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     {
         await using DbConnection connection = await _connectionFactory.OpenAsync(ct);
         if (_provider == DatabaseProvider.Sqlite)
+        {
             await ApplySqliteAsync(connection, ReadEmbeddedSchema(Sql.SqliteSchemaResource), ct);
+        }
         else
+        {
             await ApplySqlServerAsync(connection, ReadEmbeddedSchema(Sql.SqlServerSchemaResource), ct);
+        }
     }
 
     /// <summary>
@@ -68,7 +72,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         foreach (string batch in SplitBatches(script))
         {
             await using DbCommand command = connection.Command(batch);
-            await command.ExecuteNonQueryAsync(ct);
+            _ = await command.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -83,10 +87,12 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         {
             Match add = AddColumn.Match(statement);
             if (add.Success && await SqliteColumnExistsAsync(connection, add.Groups[Sql.TableGroup].Value, add.Groups[Sql.ColumnGroup].Value, ct))
+            {
                 continue;   // already applied by an earlier run or an earlier version — replaying it is a no-op, not an error
+            }
 
             await using DbCommand command = connection.Command(statement);
-            await command.ExecuteNonQueryAsync(ct);
+            _ = await command.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -98,8 +104,13 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         command.CommandText = $"PRAGMA dbo.table_info({table});";
         await using DbDataReader reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
+        {
             if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))   // (cid, name, …) — name is ordinal 1
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 
@@ -111,7 +122,7 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
             .Single(n => n.EndsWith("." + fileName, StringComparison.OrdinalIgnoreCase));
         using Stream stream = assembly.GetManifestResourceStream(name)
             ?? throw new InvalidOperationException($"Embedded schema resource '{name}' was not found.");
-        using StreamReader reader = new StreamReader(stream);
+        using StreamReader reader = new(stream);
         return reader.ReadToEnd();
     }
 
@@ -124,18 +135,20 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
     /// </summary>
     private static IEnumerable<string> SqliteStatements(string script)
     {
-        StringBuilder code = new StringBuilder(script.Length);
+        StringBuilder code = new(script.Length);
         foreach (string line in script.Split('\n'))
         {
             int comment = line.IndexOf(Sql.LineCommentPrefix, StringComparison.Ordinal);
-            code.Append(comment >= 0 ? line[..comment] : line).Append('\n');
+            _ = code.Append(comment >= 0 ? line[..comment] : line).Append('\n');
         }
 
         foreach (string raw in code.ToString().Split(';'))
         {
             string statement = raw.Trim();
             if (statement.Length > 0)
+            {
                 yield return statement;
+            }
         }
     }
 
@@ -151,7 +164,9 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         {
             string trimmed = batch.Trim();
             if (trimmed.Length > 0)
+            {
                 yield return trimmed;
+            }
         }
     }
 }

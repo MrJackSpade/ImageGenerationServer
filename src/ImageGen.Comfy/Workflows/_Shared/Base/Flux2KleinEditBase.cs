@@ -1,7 +1,7 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
@@ -12,7 +12,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
 {
     protected override ComfyWorkflowGraph Build(Flux2KleinEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
@@ -28,7 +28,10 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         // truncated to the first rm — dropping the caller's extra references without a word is the anti-pattern.
         int rm = p.ReferenceMax ?? 0;
         if (refNames.Count > rm)
+        {
             throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        }
+
         int fn = refNames.Count;
         for (int i = 0; i < fn; i++)
         {
@@ -39,6 +42,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
             g[rl] = new ReferenceLatent { Conditioning = cond, Latent = VAEEncode.Out(enc) };
             cond = ReferenceLatent.Out(rl);
         }
+
         g[Nodes.Guider] = new BasicGuider { Model = model0, Conditioning = cond };
         g[Nodes.EmptyLatent] = new EmptyFlux2LatentImage { Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize), BatchSize = 1 };
         g[Nodes.Scheduler] = new Flux2Scheduler { Steps = p.Steps, Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize) };
@@ -77,14 +81,14 @@ file static class Nodes
 /// nullable strings; <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record Flux2KleinEditParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guidance)]     public required double Guidance { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guidance)] public required double Guidance { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
     [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

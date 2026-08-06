@@ -61,7 +61,10 @@ public static class GenerationTagTypes
     /// ever touched this setting. It is rewritten in v2 form the next time the user saves.</summary>
     public static IReadOnlyList<string> Resolve(string? storedJson)
     {
-        if (string.IsNullOrWhiteSpace(storedJson)) return Default;
+        if (string.IsNullOrWhiteSpace(storedJson))
+        {
+            return Default;
+        }
 
         string[]? parsed;
         bool legacy;
@@ -77,7 +80,10 @@ public static class GenerationTagTypes
                 case JsonValueKind.Object:
                     StoredMask? stored = doc.RootElement.Deserialize<StoredMask>();
                     if (stored is null || stored.V != StoredVersion)
+                    {
                         throw new InvalidOperationException($"Stored generation mask has an unknown version: {storedJson}");
+                    }
+
                     parsed = stored.Types;
                     legacy = false;
                     break;
@@ -85,10 +91,26 @@ public static class GenerationTagTypes
                     throw new InvalidOperationException($"Stored generation mask is not an array or object: {storedJson}");
             }
         }
-        catch (JsonException ex) { throw new InvalidOperationException($"Stored generation mask is not JSON: {storedJson}", ex); }
-        if (parsed is null) throw new InvalidOperationException($"Stored generation mask holds no types: {storedJson}");
-        if (legacy) parsed = parsed.Append(Tokens.GeneralType).ToArray();
-        if (!TryNormalize(parsed, out IReadOnlyList<string>? types, out string? error)) throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"Stored generation mask is not JSON: {storedJson}", ex);
+        }
+
+        if (parsed is null)
+        {
+            throw new InvalidOperationException($"Stored generation mask holds no types: {storedJson}");
+        }
+
+        if (legacy)
+        {
+            parsed = parsed.Append(Tokens.GeneralType).ToArray();
+        }
+
+        if (!TryNormalize(parsed, out IReadOnlyList<string>? types, out string? error))
+        {
+            throw new InvalidOperationException($"Stored generation mask is invalid: {error}");
+        }
+
         return types;
     }
 
@@ -104,19 +126,25 @@ public static class GenerationTagTypes
     /// valid: it means every switchable type is off.</summary>
     public static bool TryNormalize(IEnumerable<string>? requested, out IReadOnlyList<string> types, out string? error)
     {
-        HashSet<string> wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> wanted = new(StringComparer.OrdinalIgnoreCase);
         foreach (string raw in requested ?? Enumerable.Empty<string>())
         {
             string name = raw.Trim();
-            if (name.Length == 0) continue;
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
             if (!Selectable.Contains(name, StringComparer.OrdinalIgnoreCase))
             {
                 types = Default;
                 error = $"unknown tag type '{name}'; the switchable types are {string.Join(Tokens.ListSeparator, Selectable)}";
                 return false;
             }
-            wanted.Add(name);
+
+            _ = wanted.Add(name);
         }
+
         types = Selectable.Where(wanted.Contains).ToList();
         error = null;
         return true;

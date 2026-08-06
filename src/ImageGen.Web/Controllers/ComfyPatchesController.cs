@@ -31,7 +31,11 @@ public sealed class ComfyPatchesController(ComfyPatchService patches) : Controll
     [HttpPost("apply")]
     public async Task<IActionResult> Apply([FromBody] PatchRequest body, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(body?.Id)) return BadRequest(new { error = "A patch id is required." });
+        if (string.IsNullOrWhiteSpace(body?.Id))
+        {
+            return BadRequest(new { error = "A patch id is required." });
+        }
+
         return await GuardAsync(async () => Json(new { ok = true, note = await _patches.ApplyAsync(body.Id, body.Overwrite, ct) }));
     }
 
@@ -42,8 +46,16 @@ public sealed class ComfyPatchesController(ComfyPatchService patches) : Controll
     [HttpPost("remove")]
     public IActionResult Remove([FromBody] PatchRequest body)
     {
-        if (string.IsNullOrWhiteSpace(body?.Id)) return BadRequest(new { error = "A patch id is required." });
-        return Guard(() => { _patches.Remove(body.Id); return Json(new { ok = true }); });
+        if (string.IsNullOrWhiteSpace(body?.Id))
+        {
+            return BadRequest(new { error = "A patch id is required." });
+        }
+
+        return Guard(() =>
+        {
+            _patches.Remove(body.Id);
+            return Json(new { ok = true });
+        });
     }
 
     /// <summary>
@@ -51,7 +63,11 @@ public sealed class ComfyPatchesController(ComfyPatchService patches) : Controll
     /// elsewhere the page shows a note instead of a button, and this answers 400 if it is called anyway.
     /// </summary>
     [HttpPost("restart")]
-    public IActionResult Restart() => Guard(() => { _patches.Restart(); return Json(new { ok = true }); });
+    public IActionResult Restart() => Guard(() =>
+    {
+        _patches.Restart();
+        return Json(new { ok = true });
+    });
 
     private IActionResult Guard(Func<IActionResult> action)
     {

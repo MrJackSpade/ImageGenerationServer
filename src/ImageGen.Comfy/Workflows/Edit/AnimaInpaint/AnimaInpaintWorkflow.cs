@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.AnimaInpaint;
 
 /// <summary>
@@ -45,7 +40,7 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
 
     protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         // clip-skip applies only to a checkpoint's baked CLIP (Anima loads split → no-op there; kept for parity).
@@ -74,13 +69,18 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
             g[Nodes.MaskImage] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
             maskSrc = LoadImageMask.Out(Nodes.MaskImage);
         }
-        else maskSrc = LoadImage.MaskOut(EditNodes.Source);
+        else
+        {
+            maskSrc = LoadImage.MaskOut(EditNodes.Source);
+        }
+
         int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {
             g[Nodes.GrowMaskNode] = new GrowMask { Mask = maskSrc, Expand = grow, TaperedCorners = true };
             maskSrc = GrowMask.Out(Nodes.GrowMaskNode);
         }
+
         g[Nodes.NoiseMask] = new SetLatentNoiseMask { Samples = VAEEncode.Out(Nodes.Encode), Mask = maskSrc };
 
         double dn = p.Denoise;

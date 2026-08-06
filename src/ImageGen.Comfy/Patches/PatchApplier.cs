@@ -54,7 +54,7 @@ public static class PatchApplier
     {
         try
         {
-            Resolve(root, files, reverse, overwrite: false);
+            _ = Resolve(root, files, reverse, overwrite: false);
             return PatchProbe.Fine;
         }
         catch (PatchConflictException ex)
@@ -69,17 +69,24 @@ public static class PatchApplier
     /// </summary>
     public static IReadOnlyList<string> Occupied(string root, IReadOnlyList<FileDiff> files)
     {
-        List<string> occupied = new List<string>();
+        List<string> occupied = [];
         foreach (FileDiff? file in files.Where(f => f.Change == FileChange.Add))
         {
             string full = Path.Combine(root, file.Path.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(full)) continue;
+            if (!File.Exists(full))
+            {
+                continue;
+            }
 
             bool differs = file.IsBinary
                 ? !File.ReadAllBytes(full).AsSpan().SequenceEqual(file.Bytes)
                 : File.ReadAllText(full) != Content(file, reverse: false, ReadCrlf(full));
-            if (differs) occupied.Add(file.Path);
+            if (differs)
+            {
+                occupied.Add(file.Path);
+            }
         }
+
         return occupied;
     }
 
@@ -99,21 +106,25 @@ public static class PatchApplier
         foreach ((string? path, string? content) in outcome.Writes)
         {
             string full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             File.WriteAllText(full, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
 
         foreach ((string? path, byte[]? bytes) in outcome.BinaryWrites)
         {
             string full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             File.WriteAllBytes(full, bytes);
         }
 
         foreach (string path in outcome.Deletes)
         {
             string full = Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
-            if (File.Exists(full)) File.Delete(full);
+            if (File.Exists(full))
+            {
+                File.Delete(full);
+            }
+
             PruneEmptyDirectories(root, Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
         }
     }
@@ -129,7 +140,9 @@ public static class PatchApplier
         string current = Path.GetFullPath(directory);
 
         while (current.Length > stop.Length && current.StartsWith(stop, StringComparison.OrdinalIgnoreCase) && RemoveIfSpent(current))
+        {
             current = Path.GetFullPath(Path.Combine(current, PathTokens.ParentDirectory));
+        }
     }
 
     /// <summary>
@@ -139,13 +152,27 @@ public static class PatchApplier
     /// </summary>
     public static bool RemoveIfSpent(string directory)
     {
-        if (!Directory.Exists(directory)) return false;
-        if (Directory.EnumerateFiles(directory).Any()) return false;
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        if (Directory.EnumerateFiles(directory).Any())
+        {
+            return false;
+        }
 
         List<string> subdirectories = Directory.EnumerateDirectories(directory).ToList();
-        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PythonArtifact.PyCache, StringComparison.Ordinal))) return false;
+        if (subdirectories.Any(d => !string.Equals(Path.GetFileName(d), PythonArtifact.PyCache, StringComparison.Ordinal)))
+        {
+            return false;
+        }
 
-        foreach (string cache in subdirectories) Directory.Delete(cache, recursive: true);
+        foreach (string cache in subdirectories)
+        {
+            Directory.Delete(cache, recursive: true);
+        }
+
         Directory.Delete(directory);
         return true;
     }
@@ -155,13 +182,13 @@ public static class PatchApplier
     /// <summary>Work the whole patch out in memory. Every failure mode lands here, before anything is written.</summary>
     private static Outcome Resolve(string root, IReadOnlyList<FileDiff> files, bool reverse, bool overwrite)
     {
-        Dictionary<string, string> writes = new Dictionary<string, string>(StringComparer.Ordinal);
-        Dictionary<string, byte[]> binaryWrites = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        List<string> deletes = new List<string>();
+        Dictionary<string, string> writes = new(StringComparer.Ordinal);
+        Dictionary<string, byte[]> binaryWrites = new(StringComparer.Ordinal);
+        List<string> deletes = [];
 
         // Collected rather than thrown on sight: a node pack is dozens of files, and being told about the first
         // one that differs, once per attempt, is a bad way to find out that six of them do.
-        List<string> occupied = new List<string>();
+        List<string> occupied = [];
 
         foreach (FileDiff file in files)
         {
@@ -185,10 +212,26 @@ public static class PatchApplier
                         if (file.IsBinary)
                         {
                             byte[] bytes = file.Bytes ?? throw new InvalidOperationException($"Binary patch file '{file.Path}' carries no bytes.");
-                            if (!exists) { binaryWrites[file.Path] = bytes; break; }
-                            if (File.ReadAllBytes(full).AsSpan().SequenceEqual(bytes)) break;
-                            if (overwrite) binaryWrites[file.Path] = bytes;
-                            else occupied.Add(file.Path);
+                            if (!exists)
+                            {
+                                binaryWrites[file.Path] = bytes;
+                                break;
+                            }
+
+                            if (File.ReadAllBytes(full).AsSpan().SequenceEqual(bytes))
+                            {
+                                break;
+                            }
+
+                            if (overwrite)
+                            {
+                                binaryWrites[file.Path] = bytes;
+                            }
+                            else
+                            {
+                                occupied.Add(file.Path);
+                            }
+
                             break;
                         }
 
@@ -201,21 +244,37 @@ public static class PatchApplier
                         // There already. If it is byte-for-byte what this patch installs, there is nothing to do and
                         // nothing wrong — that is the ordinary state of an applied pack. Otherwise it is somebody
                         // else's file until they say so.
-                        if (File.ReadAllText(full) == Content(file, reverse, ReadCrlf(full))) break;
+                        if (File.ReadAllText(full) == Content(file, reverse, ReadCrlf(full)))
+                        {
+                            break;
+                        }
 
-                        if (overwrite) writes[file.Path] = Content(file, reverse, ReadCrlf(full));
-                        else occupied.Add(file.Path);
+                        if (overwrite)
+                        {
+                            writes[file.Path] = Content(file, reverse, ReadCrlf(full));
+                        }
+                        else
+                        {
+                            occupied.Add(file.Path);
+                        }
+
                         break;
                     }
 
                 case FileChange.Delete:
                     {
-                        if (!exists) throw new PatchConflictException($"{file.Path} is not there to remove.");
+                        if (!exists)
+                        {
+                            throw new PatchConflictException($"{file.Path} is not there to remove.");
+                        }
 
                         if (file.IsBinary)
                         {
                             if (!File.ReadAllBytes(full).AsSpan().SequenceEqual(file.Bytes))
+                            {
                                 throw new PatchConflictException($"{file.Path} is not the file this patch put there, so removing it would discard someone else's.");
+                            }
+
                             deletes.Add(file.Path);
                             break;
                         }
@@ -223,7 +282,10 @@ public static class PatchApplier
                         (List<string>? actual, bool _) = Read(full);
                         IReadOnlyList<string> expected = Side(file.Hunks[0], reverse, wanted: true);
                         if (!actual.SequenceEqual(expected))
+                        {
                             throw new PatchConflictException($"{file.Path} is not what this patch put there, so removing it would discard someone's changes.");
+                        }
+
                         deletes.Add(file.Path);
                         break;
                     }
@@ -231,8 +293,15 @@ public static class PatchApplier
                 default:
                     {
                         if (file.IsBinary)
+                        {
                             throw new PatchConflictException($"{file.Path} is carried whole; there is no way to modify part of it.");
-                        if (!exists) throw new PatchConflictException($"{file.Path} is missing.");
+                        }
+
+                        if (!exists)
+                        {
+                            throw new PatchConflictException($"{file.Path} is missing.");
+                        }
+
                         (List<string>? lines, bool crlf) = Read(full);
                         List<string> patched = ApplyHunks(file, lines, reverse);
                         writes[file.Path] = Join(patched, EndsWithoutNewline(file, reverse, pre: false), crlf);
@@ -242,10 +311,12 @@ public static class PatchApplier
         }
 
         if (occupied.Count > 0)
+        {
             throw new PatchConflictException(
                 occupied.Count == 1
                     ? $"{occupied[0]} is already there and differs from what this patch installs."
                     : $"{occupied.Count} files are already there and differ from what this patch installs: {string.Join(Format.ListSeparator, occupied)}.");
+        }
 
         return new Outcome(writes, binaryWrites, deletes);
     }
@@ -266,7 +337,7 @@ public static class PatchApplier
 
     private static List<string> ApplyHunks(FileDiff file, List<string> lines, bool reverse)
     {
-        List<string> result = new List<string>(lines.Count);
+        List<string> result = new(lines.Count);
         int cursor = 0;   // how far through `lines` we have copied
 
         foreach (Hunk hunk in file.Hunks)
@@ -281,14 +352,18 @@ public static class PatchApplier
                 // A pure insertion has no context to search for, so the recorded position is all there is.
                 at = Math.Max(recorded, cursor);
                 if (at > lines.Count)
+                {
                     throw new PatchConflictException($"{file.Path}: this patch inserts at line {at + 1}, past the end of a {lines.Count}-line file.");
+                }
             }
             else
             {
                 at = FindBlock(lines, wanted, Math.Max(recorded, cursor), cursor);
                 if (at < 0)
+                {
                     throw new PatchConflictException(
                         $"{file.Path}: the {wanted.Count} line(s) this patch expects around line {recorded + 1} are not there — that code has changed.");
+                }
             }
 
             result.AddRange(lines.GetRange(cursor, at - cursor));
@@ -308,26 +383,48 @@ public static class PatchApplier
     private static int FindBlock(List<string> lines, IReadOnlyList<string> block, int preferred, int floor)
     {
         int last = lines.Count - block.Count;
-        if (last < floor) return -1;
+        if (last < floor)
+        {
+            return -1;
+        }
 
         int start = Math.Clamp(preferred, floor, last);
-        if (Matches(lines, block, start)) return start;
+        if (Matches(lines, block, start))
+        {
+            return start;
+        }
 
         for (int distance = 1; ; distance++)
         {
             int forward = start + distance;
             int backward = start - distance;
-            if (forward > last && backward < floor) return -1;
-            if (forward <= last && Matches(lines, block, forward)) return forward;
-            if (backward >= floor && Matches(lines, block, backward)) return backward;
+            if (forward > last && backward < floor)
+            {
+                return -1;
+            }
+
+            if (forward <= last && Matches(lines, block, forward))
+            {
+                return forward;
+            }
+
+            if (backward >= floor && Matches(lines, block, backward))
+            {
+                return backward;
+            }
         }
     }
 
     private static bool Matches(List<string> lines, IReadOnlyList<string> block, int at)
     {
         for (int i = 0; i < block.Count; i++)
+        {
             if (!string.Equals(lines[at + i], block[i], StringComparison.Ordinal))
+            {
                 return false;
+            }
+        }
+
         return true;
     }
 
@@ -343,19 +440,27 @@ public static class PatchApplier
         List<string> lines = UnifiedDiff.SplitLines(text).ToList();
 
         // A trailing newline splits to an empty final element that is not a line of the file.
-        if (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
+        if (lines.Count > 0 && lines[^1].Length == 0)
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
         return (lines, crlf);
     }
 
     private static string Join(IReadOnlyList<string> lines, bool endsWithoutNewline, bool useCrlf)
     {
         string newline = useCrlf ? LineEnding.Crlf : LineEnding.Lf;
-        StringBuilder text = new StringBuilder();
+        StringBuilder text = new();
         for (int i = 0; i < lines.Count; i++)
         {
-            text.Append(lines[i]);
-            if (i < lines.Count - 1 || !endsWithoutNewline) text.Append(newline);
+            _ = text.Append(lines[i]);
+            if (i < lines.Count - 1 || !endsWithoutNewline)
+            {
+                _ = text.Append(newline);
+            }
         }
+
         return text.ToString();
     }
 }

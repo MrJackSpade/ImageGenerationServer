@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.HunyuanImage21;
 
 /// <summary>
@@ -24,7 +20,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
 
     protected override ComfyWorkflowGraph Build(HunyuanImage21Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());

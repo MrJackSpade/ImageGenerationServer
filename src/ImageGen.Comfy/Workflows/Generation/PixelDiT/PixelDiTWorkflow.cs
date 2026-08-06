@@ -1,5 +1,3 @@
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Generation.PixelDiT;
 
 /// <summary>NVIDIA PixelDiT-1300M — diffuses directly in pixel space, so it has no VAE: the shared txt2img

@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.Step1XEdit;
 
@@ -10,11 +8,11 @@ namespace ImageGen.Comfy.Edit.Step1XEdit;
 public sealed record Step1XParams
 {
     [JsonPropertyName(WorkflowParamKeys.DiffusionModel)] public required string DiffusionModel { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Step1xVae)]      public required string Step1xVae { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step1xVae)] public required string Step1xVae { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]  public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]      public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Width)]          public required int Width { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Width)] public required int Width { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

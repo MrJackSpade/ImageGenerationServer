@@ -20,15 +20,22 @@ public sealed class DeclaredEnvelopeTests
     [Fact]
     public void No_video_configuration_allows_a_length_that_renders_a_still()
     {
-        List<string> offenders = new List<string>();
+        List<string> offenders = [];
         foreach ((string? id, JsonElement root) in Configurations())
         {
-            if (!TryParam(root, "length", out JsonElement length)) continue;
+            if (!TryParam(root, "length", out JsonElement length))
+            {
+                continue;
+            }
 
             if (!length.TryGetProperty("min", out JsonElement min) || min.GetInt32() < 2)
+            {
                 offenders.Add($"{id}: length min {(length.TryGetProperty("min", out JsonElement m) ? m.GetInt32() : 1)}");
+            }
             else if (!length.TryGetProperty("step", out JsonElement step) || step.ValueKind == JsonValueKind.Null)
+            {
                 offenders.Add($"{id}: length declares no step, so the picker offers counts the sampler cannot use");
+            }
         }
 
         Assert.True(offenders.Count == 0,
@@ -41,15 +48,24 @@ public sealed class DeclaredEnvelopeTests
     public void An_i2v_configuration_cannot_declare_a_size_below_the_rescale_floor()
     {
         // For image-to-video, width x height is a pixel BUDGET the source is rescaled to, not an output size.
-        List<string> offenders = new List<string>();
+        List<string> offenders = [];
         foreach ((string? id, JsonElement root) in Configurations())
         {
-            if (!id.Contains("i2v", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!root.TryGetProperty("resolution", out JsonElement res)) continue;
+            if (!id.Contains("i2v", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!root.TryGetProperty("resolution", out JsonElement res))
+            {
+                continue;
+            }
 
             int w = res.GetProperty("min_w").GetInt32(), h = res.GetProperty("min_h").GetInt32();
             if (w * h < MinBudgetPixels)
+            {
                 offenders.Add($"{id}: {w}x{h} = {w * h} px, below the {MinBudgetPixels} px the rescale node accepts");
+            }
         }
 
         Assert.True(offenders.Count == 0,
@@ -69,8 +85,14 @@ public sealed class DeclaredEnvelopeTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "workflows")))
+        {
             dir = Path.GetDirectoryName(dir);
-        if (dir is null) throw new DirectoryNotFoundException("configurations/workflows not found.");
+        }
+
+        if (dir is null)
+        {
+            throw new DirectoryNotFoundException("configurations/workflows not found.");
+        }
 
         foreach (string file in Directory.EnumerateFiles(Path.Combine(dir, "configurations", "workflows"), "*.json"))
         {

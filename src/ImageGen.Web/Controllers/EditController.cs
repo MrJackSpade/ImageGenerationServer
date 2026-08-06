@@ -34,6 +34,7 @@ public sealed class EditController(HistoryService history) : Controller
             tagPrompt = entry.RawPrompt ?? "";
             negativePrompt = entry.RawNegativePrompt ?? "";
         }
+
         return View(new EditViewModel
         {
             ImageId = id,

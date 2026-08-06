@@ -75,7 +75,8 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
     private async Task SeedHistoryAsync(long userId, int count)
     {
         for (int i = 0; i < count; i++)
-            await fixture.History.AddAsync(new HistoryEntry
+        {
+            _ = await fixture.History.AddAsync(new HistoryEntry
             {
                 UserId = userId,
                 GatewayImageId = $"img-{i}",
@@ -86,13 +87,15 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
                 CreatedAtUtc = Noon.AddMinutes(i),
                 Marks = [],
             }, Ct);
+        }
     }
 
     private async Task SeedLatestBatchAsync(long userId, int produced, int queued = 0)
     {
         string jobId = Guid.NewGuid().ToString("N");
-        List<JobSlotRecord> slots = new List<JobSlotRecord>();
+        List<JobSlotRecord> slots = [];
         for (int i = 0; i < produced + queued; i++)
+        {
             slots.Add(new JobSlotRecord
             {
                 JobId = jobId,
@@ -101,6 +104,7 @@ public sealed class RecentsWindowTests(TestDatabaseFixture fixture)
                 ImageId = i < produced ? $"img-{i}" : null,
                 Workflow = "test-workflow",
             });
+        }
 
         await fixture.Jobs.UpsertAsync(new JobRecord
         {

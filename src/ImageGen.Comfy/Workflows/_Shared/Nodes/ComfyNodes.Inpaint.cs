@@ -8,8 +8,8 @@ namespace ImageGen.Comfy;
 public sealed record GrowMask : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.GrowMask;
-    [JsonPropertyName("mask")]            public required Output<Slot.Mask> Mask { get; init; }
-    [JsonPropertyName("expand")]          public required int Expand { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("expand")] public required int Expand { get; init; }
     [JsonPropertyName("tapered_corners")] public required bool TaperedCorners { get; init; }
     public static Output<Slot.Mask> Out(string id) => new(id, 0);
 }
@@ -27,9 +27,9 @@ public sealed record MaskToImage : ComfyNode
 public sealed record ImageBlur : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageBlur;
-    [JsonPropertyName("image")]       public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("blur_radius")] public required int BlurRadius { get; init; }
-    [JsonPropertyName("sigma")]       public required double Sigma { get; init; }
+    [JsonPropertyName("sigma")] public required double Sigma { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
@@ -37,7 +37,7 @@ public sealed record ImageBlur : ComfyNode
 public sealed record ImageToMask : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageToMask;
-    [JsonPropertyName("image")]   public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("channel")] public required string Channel { get; init; }
     public static Output<Slot.Mask> Out(string id) => new(id, 0);
 }
@@ -48,10 +48,10 @@ public sealed record MaskComposite : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MaskComposite;
     [JsonPropertyName("destination")] public required Output<Slot.Mask> Destination { get; init; }
-    [JsonPropertyName("source")]      public required Output<Slot.Mask> Source { get; init; }
-    [JsonPropertyName("x")]           public required int X { get; init; }
-    [JsonPropertyName("y")]           public required int Y { get; init; }
-    [JsonPropertyName("operation")]   public required string Operation { get; init; }
+    [JsonPropertyName("source")] public required Output<Slot.Mask> Source { get; init; }
+    [JsonPropertyName("x")] public required int X { get; init; }
+    [JsonPropertyName("y")] public required int Y { get; init; }
+    [JsonPropertyName("operation")] public required string Operation { get; init; }
     public static Output<Slot.Mask> Out(string id) => new(id, 0);
 }
 
@@ -60,7 +60,7 @@ public sealed record MaskComposite : ComfyNode
 public sealed record LoadImageMask : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LoadImageMask;
-    [JsonPropertyName("image")]   public required string Image { get; init; }
+    [JsonPropertyName("image")] public required string Image { get; init; }
     [JsonPropertyName("channel")] public required string Channel { get; init; }
     public static Output<Slot.Mask> Out(string id) => new(id, 0);
 }
@@ -70,11 +70,11 @@ public sealed record LoadImageMask : ComfyNode
 public sealed record ImagePadForOutpaint : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImagePadForOutpaint;
-    [JsonPropertyName("image")]      public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("left")]       public required int Left { get; init; }
-    [JsonPropertyName("top")]        public required int Top { get; init; }
-    [JsonPropertyName("right")]      public required int Right { get; init; }
-    [JsonPropertyName("bottom")]     public required int Bottom { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("left")] public required int Left { get; init; }
+    [JsonPropertyName("top")] public required int Top { get; init; }
+    [JsonPropertyName("right")] public required int Right { get; init; }
+    [JsonPropertyName("bottom")] public required int Bottom { get; init; }
     [JsonPropertyName("feathering")] public required int Feathering { get; init; }
     public static Output<Slot.Image> ImageOut(string id) => new(id, 0);
     public static Output<Slot.Mask> MaskOut(string id) => new(id, 1);
@@ -85,11 +85,11 @@ public sealed record ImagePadForOutpaint : ComfyNode
 public sealed record InpaintModelConditioning : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.InpaintModelConditioning;
-    [JsonPropertyName("positive")]   public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]   public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]        public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("pixels")]     public required Output<Slot.Image> Pixels { get; init; }
-    [JsonPropertyName("mask")]       public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("pixels")] public required Output<Slot.Image> Pixels { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
     [JsonPropertyName("noise_mask")] public required bool NoiseMask { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
@@ -110,11 +110,11 @@ public sealed record DifferentialDiffusion : ComfyNode
 public sealed record ImageCompositeMaskedColorCorrected : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageCompositeMaskedColorCorrected;
-    [JsonPropertyName("destination")]       public required Output<Slot.Image> Destination { get; init; }
-    [JsonPropertyName("source")]            public required Output<Slot.Image> Source { get; init; }
-    [JsonPropertyName("x")]                 public required int X { get; init; }
-    [JsonPropertyName("y")]                 public required int Y { get; init; }
-    [JsonPropertyName("mask")]              public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("destination")] public required Output<Slot.Image> Destination { get; init; }
+    [JsonPropertyName("source")] public required Output<Slot.Image> Source { get; init; }
+    [JsonPropertyName("x")] public required int X { get; init; }
+    [JsonPropertyName("y")] public required int Y { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
     [JsonPropertyName("correction_method")] public required string CorrectionMethod { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -126,10 +126,10 @@ public sealed record ImageCompositeMaskedColorCorrected : ComfyNode
 public sealed record ImageCompositeMaskedNoMask : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageCompositeMasked;
-    [JsonPropertyName("destination")]   public required Output<Slot.Image> Destination { get; init; }
-    [JsonPropertyName("source")]        public required Output<Slot.Image> Source { get; init; }
-    [JsonPropertyName("x")]             public required int X { get; init; }
-    [JsonPropertyName("y")]             public required int Y { get; init; }
+    [JsonPropertyName("destination")] public required Output<Slot.Image> Destination { get; init; }
+    [JsonPropertyName("source")] public required Output<Slot.Image> Source { get; init; }
+    [JsonPropertyName("x")] public required int X { get; init; }
+    [JsonPropertyName("y")] public required int Y { get; init; }
     [JsonPropertyName("resize_source")] public required bool ResizeSource { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -147,15 +147,15 @@ public sealed record ControlNetLoader : ComfyNode
 public sealed record ControlNetInpaintingAliMamaApply : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ControlNetInpaintingAliMamaApply;
-    [JsonPropertyName("positive")]      public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]      public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("control_net")]   public required Output<Slot.ControlNet> ControlNet { get; init; }
-    [JsonPropertyName("vae")]           public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("image")]         public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("mask")]          public required Output<Slot.Mask> Mask { get; init; }
-    [JsonPropertyName("strength")]      public required double Strength { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("control_net")] public required Output<Slot.ControlNet> ControlNet { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("strength")] public required double Strength { get; init; }
     [JsonPropertyName("start_percent")] public required double StartPercent { get; init; }
-    [JsonPropertyName("end_percent")]   public required double EndPercent { get; init; }
+    [JsonPropertyName("end_percent")] public required double EndPercent { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
 }
@@ -166,7 +166,7 @@ public sealed record SetLatentNoiseMask : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SetLatentNoiseMask;
     [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
-    [JsonPropertyName("mask")]    public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
 
@@ -175,13 +175,13 @@ public sealed record SetLatentNoiseMask : ComfyNode
 public sealed record AnimaLLLiteApply : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.AnimaLLLiteApply;
-    [JsonPropertyName("model")]             public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("lllite_name")]       public required string LlliteName { get; init; }
-    [JsonPropertyName("image")]             public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("mask")]              public required Output<Slot.Mask> Mask { get; init; }
-    [JsonPropertyName("strength")]          public required double Strength { get; init; }
-    [JsonPropertyName("start_percent")]     public required double StartPercent { get; init; }
-    [JsonPropertyName("end_percent")]       public required double EndPercent { get; init; }
-    [JsonPropertyName("preserve_wrapper")]  public required bool PreserveWrapper { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("lllite_name")] public required string LlliteName { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("mask")] public required Output<Slot.Mask> Mask { get; init; }
+    [JsonPropertyName("strength")] public required double Strength { get; init; }
+    [JsonPropertyName("start_percent")] public required double StartPercent { get; init; }
+    [JsonPropertyName("end_percent")] public required double EndPercent { get; init; }
+    [JsonPropertyName("preserve_wrapper")] public required bool PreserveWrapper { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }

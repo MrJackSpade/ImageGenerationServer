@@ -38,8 +38,6 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
         public const string EscapedSingleQuote = "''";
     }
 
-    private readonly string _dataSource;
-
     /// <summary>
     /// Builds the factory from the app's connection string. Only the <c>Data Source</c> is used — the file to attach —
     /// so the same <c>ConnectionStrings:ImageGen</c> key works for either provider.
@@ -48,23 +46,27 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
     {
         string dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
         if (string.IsNullOrWhiteSpace(dataSource))
+        {
             throw new InvalidOperationException(
                 "The SQLite connection string has no 'Data Source'. Expected something like "
                 + "\"Data Source=/data/imagegen.db\".");
+        }
 
-        _dataSource = Path.GetFullPath(dataSource);
-        string? directory = Path.GetDirectoryName(_dataSource);
+        DataSource = Path.GetFullPath(dataSource);
+        string? directory = Path.GetDirectoryName(DataSource);
         if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
+        {
+            _ = Directory.CreateDirectory(directory);
+        }
     }
 
     /// <summary>The resolved absolute path of the database file, for diagnostics and for the schema initializer.</summary>
-    public string DataSource => _dataSource;
+    public string DataSource { get; }
 
     /// <inheritdoc />
     public async Task<DbConnection> OpenAsync(CancellationToken ct)
     {
-        SqliteConnection connection = new SqliteConnection(Sql.InMemoryConnectionString);
+        SqliteConnection connection = new(Sql.InMemoryConnectionString);
         await connection.OpenAsync(ct);
         try
         {
@@ -72,11 +74,11 @@ public sealed class SqliteConnectionFactory : IDbConnectionFactory
             // The path is interpolated because ATTACH will not take a parameter for it. Single quotes are doubled,
             // which is the whole of SQLite string-literal escaping.
             setup.CommandText =
-                $"ATTACH DATABASE '{_dataSource.Replace(Sql.SingleQuote, Sql.EscapedSingleQuote)}' AS dbo;" +
+                $"ATTACH DATABASE '{DataSource.Replace(Sql.SingleQuote, Sql.EscapedSingleQuote)}' AS dbo;" +
                 "PRAGMA dbo.journal_mode = WAL;" +
                 "PRAGMA foreign_keys = ON;" +
                 $"PRAGMA busy_timeout = {BusyTimeoutMs};";
-            await setup.ExecuteNonQueryAsync(ct);
+            _ = await setup.ExecuteNonQueryAsync(ct);
             return connection;
         }
         catch

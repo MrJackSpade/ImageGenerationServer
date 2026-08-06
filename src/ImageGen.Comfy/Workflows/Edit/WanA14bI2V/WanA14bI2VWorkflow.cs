@@ -1,9 +1,5 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.WanA14bI2V;
 
@@ -51,15 +47,22 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
     {
         // A negative side-percentage is meaningless geometry (you cannot add negative whitespace) — REFUSED, not
         // floored to zero, which would silently drop the offending side.
-        Ensure.NotNegative(pctL); Ensure.NotNegative(pctR); Ensure.NotNegative(pctT); Ensure.NotNegative(pctB);
-        if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no padding
+        _ = Ensure.NotNegative(pctL);
+        _ = Ensure.NotNegative(pctR);
+        _ = Ensure.NotNegative(pctT);
+        _ = Ensure.NotNegative(pctB);
+        if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0)
+        {
+            return null;   // no padding
+        }
+
         int addL = sw * pctL / 100, addR = sw * pctR / 100, addT = sh * pctT / 100, addB = sh * pctB / 100;
         return (sw + addL + addR, sh + addT + addB, addL, addT);
     }
 
     protected override ComfyWorkflowGraph Build(WanA14bI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);
@@ -71,7 +74,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
 
         int len = p.Length;
         double fps = p.Fps;
-        double budgetMp = (p.Width * (double)p.Height) / 1_000_000.0;
+        double budgetMp = p.Width * (double)p.Height / 1_000_000.0;
 
         // Optional padding: expand the source canvas with whitespace before the budget scale, so the character has room
         // to move outside its original bounding box (each side a % of the source dim; see PadGeom). Composite the source
@@ -80,8 +83,8 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         // the graph is the original.
         // i2v: the source is a still, so its dimensions are ALWAYS measured. A zero here is a broken source, not the
         // valid "dims unknown" of the video-source path (a different workflow) — refuse it rather than skip the pad.
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         Output<Slot.Image> scaleSource = LoadImage.ImageOut(EditNodes.Source);
         if (PadGeom(p.PadLeftPct ?? 0, p.PadRightPct ?? 0, p.PadTopPct ?? 0, p.PadBottomPct ?? 0,
                     inputs.SourceWidth, inputs.SourceHeight) is (int cw, int ch, int px, int py))
@@ -91,6 +94,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
             g[WanA14bI2VWorkflowNodes.PadComposite] = new ImageCompositeMasked { Destination = EmptyImageLiteralSize.Out(WanA14bI2VWorkflowNodes.PadCanvas), Source = LoadImage.ImageOut(EditNodes.Source), X = px, Y = py, ResizeSource = false, Mask = InvertMask.Out(WanA14bI2VWorkflowNodes.PadMask) };
             scaleSource = ImageCompositeMasked.Out(WanA14bI2VWorkflowNodes.PadComposite);
         }
+
         g[WanA14bI2VWorkflowNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = scaleSource, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
         g[WanA14bI2VWorkflowNodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(WanA14bI2VWorkflowNodes.ScaledSource) };
         g[WanA14bI2VWorkflowNodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };
@@ -130,6 +134,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
                 g[WanA14bI2VWorkflowNodes.EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(WanA14bI2VWorkflowNodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
                 endImage = ImageScaleToTotalPixels.Out(WanA14bI2VWorkflowNodes.EndScale);
             }
+
             g[WanA14bI2VWorkflowNodes.Cond] = new WanFirstLastFrameToVideo
             {
                 Positive = CLIPTextEncode.Out(WanA14bI2VWorkflowNodes.Positive),
@@ -164,6 +169,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
             neg = WanImageToVideoNoVision.NegativeOut(WanA14bI2VWorkflowNodes.Cond);
             lat = WanImageToVideoNoVision.LatentOut(WanA14bI2VWorkflowNodes.Cond);
         }
+
         Output<Slot.Latent> outLat = Vid.MoESample(g, mh, ml, pos, neg, lat, p.Steps, p.Boundary, p.CfgHigh, p.CfgLow, sampler, scheduler, p.RefinerSteps, ComfyGraph.Seed(p.Seed));
         g[WanA14bI2VWorkflowNodes.Decode] = new VAEDecode { Samples = outLat, Vae = vae };
         g[WanA14bI2VWorkflowNodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(WanA14bI2VWorkflowNodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };

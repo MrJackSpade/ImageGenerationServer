@@ -16,9 +16,9 @@ public sealed record RunningHubDreamOmni2EditPipeline : ComfyNode
 public sealed record ImageScaleToTotalPixels : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageScaleToTotalPixels;
-    [JsonPropertyName("image")]            public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("upscale_method")]   public required string UpscaleMethod { get; init; }
-    [JsonPropertyName("megapixels")]       public required double Megapixels { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("upscale_method")] public required string UpscaleMethod { get; init; }
+    [JsonPropertyName("megapixels")] public required double Megapixels { get; init; }
     [JsonPropertyName("resolution_steps")] public required int ResolutionSteps { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -30,11 +30,11 @@ public sealed record ImageScaleToTotalPixels : ComfyNode
 public sealed record TextEncodeBooguEdit : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.TextEncodeBooguEdit;
-    [JsonPropertyName("clip")]            public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("prompt")]          public required string Prompt { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("prompt")] public required string Prompt { get; init; }
     [JsonPropertyName("negative_prompt")] public required string NegativePrompt { get; init; }
-    [JsonPropertyName("vae")]             public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("images.image_1")]  public required Output<Slot.Image> ImagesImage1 { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("images.image_1")] public required Output<Slot.Image> ImagesImage1 { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
 }
@@ -51,10 +51,10 @@ public sealed record KSamplerSelect : ComfyNode
 public sealed record BasicScheduler : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.BasicScheduler;
-    [JsonPropertyName("model")]     public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("scheduler")] public required string Scheduler { get; init; }
-    [JsonPropertyName("steps")]     public required int Steps { get; init; }
-    [JsonPropertyName("denoise")]   public required double Denoise { get; init; }
+    [JsonPropertyName("steps")] public required int Steps { get; init; }
+    [JsonPropertyName("denoise")] public required double Denoise { get; init; }
     public static Output<Slot.Sigmas> Out(string id) => new(id, 0);
 }
 
@@ -63,14 +63,14 @@ public sealed record BasicScheduler : ComfyNode
 public sealed record SamplerCustom : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SamplerCustom;
-    [JsonPropertyName("model")]        public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("add_noise")]    public required bool AddNoise { get; init; }
-    [JsonPropertyName("noise_seed")]   public required long NoiseSeed { get; init; }
-    [JsonPropertyName("cfg")]          public required double Cfg { get; init; }
-    [JsonPropertyName("positive")]     public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]     public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("sampler")]      public required Output<Slot.Sampler> Sampler { get; init; }
-    [JsonPropertyName("sigmas")]       public required Output<Slot.Sigmas> Sigmas { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("add_noise")] public required bool AddNoise { get; init; }
+    [JsonPropertyName("noise_seed")] public required long NoiseSeed { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("sampler")] public required Output<Slot.Sampler> Sampler { get; init; }
+    [JsonPropertyName("sigmas")] public required Output<Slot.Sigmas> Sigmas { get; init; }
     [JsonPropertyName("latent_image")] public required Output<Slot.Latent> LatentImage { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -87,12 +87,12 @@ public sealed record FluxKontextImageScale : ComfyNode
 public sealed record ImageStitch : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageStitch;
-    [JsonPropertyName("image1")]           public required Output<Slot.Image> Image1 { get; init; }
-    [JsonPropertyName("image2")]           public required Output<Slot.Image> Image2 { get; init; }
-    [JsonPropertyName("direction")]        public required string Direction { get; init; }
+    [JsonPropertyName("image1")] public required Output<Slot.Image> Image1 { get; init; }
+    [JsonPropertyName("image2")] public required Output<Slot.Image> Image2 { get; init; }
+    [JsonPropertyName("direction")] public required string Direction { get; init; }
     [JsonPropertyName("match_image_size")] public required bool MatchImageSize { get; init; }
-    [JsonPropertyName("spacing_width")]    public required int SpacingWidth { get; init; }
-    [JsonPropertyName("spacing_color")]    public required string SpacingColor { get; init; }
+    [JsonPropertyName("spacing_width")] public required int SpacingWidth { get; init; }
+    [JsonPropertyName("spacing_color")] public required string SpacingColor { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
@@ -101,7 +101,7 @@ public sealed record ReferenceLatent : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ReferenceLatent;
     [JsonPropertyName("conditioning")] public required Output<Slot.Conditioning> Conditioning { get; init; }
-    [JsonPropertyName("latent")]       public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
     public static Output<Slot.Conditioning> Out(string id) => new(id, 0);
 }
 

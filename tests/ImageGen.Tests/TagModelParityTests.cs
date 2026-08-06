@@ -43,7 +43,7 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        SuggestEngine engine = new SuggestEngine(_bundle);
+        SuggestEngine engine = new(_bundle);
         JsonElement snapshot = LoadSnapshot();
 
         int compared = 0;
@@ -65,6 +65,7 @@ public sealed class TagModelParityTests : IDisposable
                     Math.Abs(expected[i].GetProperty("p").GetDouble() - actual.Results[i].P) < ProbabilityTolerance,
                     $"{label}: p {expected[i].GetProperty("p").GetDouble()} vs {actual.Results[i].P}");
             }
+
             compared++;
         }
 
@@ -81,7 +82,7 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        GenerateEngine engine = new GenerateEngine(_bundle);
+        GenerateEngine engine = new(_bundle);
         JsonElement snapshot = LoadSnapshot();
 
         int compared = 0;
@@ -112,7 +113,7 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        GenerateEngine engine = new GenerateEngine(_bundle);
+        GenerateEngine engine = new(_bundle);
         TagVocab vocab = _bundle.Vocab;
         string[] seed = new[] { "1girl", "solo" };
         string[] banned = new[] { "long_hair", "smile" };
@@ -133,6 +134,7 @@ public sealed class TagModelParityTests : IDisposable
                 Assert.True(id.HasValue, $"generated '{tag}' is not in the vocabulary");
                 Assert.False(vocab.IsArtist(id.Value), $"generated artist '{tag}' under a no-artist mask");
             }
+
             Assert.Equal(result.Tags.Distinct().Count(), result.Tags.Count);
         }
     }
@@ -146,7 +148,7 @@ public sealed class TagModelParityTests : IDisposable
     {
         Skip.IfNot(Available, "tag model artifacts or parity snapshot not present");
         Assert.NotNull(_bundle);
-        GenerateEngine engine = new GenerateEngine(_bundle);
+        GenerateEngine engine = new(_bundle);
         TagVocab vocab = _bundle.Vocab;
 
         GenerateEngine.Result result = engine.Generate(["1girl"], seed: 7, temperature: 1.0, bannedTags: null,
@@ -178,7 +180,10 @@ public sealed class TagModelParityTests : IDisposable
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !File.Exists(Path.Combine(dir, "ImageGen.slnx")))
+        {
             dir = Path.GetDirectoryName(dir);
+        }
+
         return dir is null ? relative : Path.Combine(dir, relative);
     }
 

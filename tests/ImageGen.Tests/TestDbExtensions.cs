@@ -23,7 +23,7 @@ internal static class TestDbExtensions
         DbParameter p = cmd.CreateParameter();
         p.ParameterName = name;
         p.Value = value ?? DBNull.Value;
-        cmd.Parameters.Add(p);
+        _ = cmd.Parameters.Add(p);
         return cmd;
     }
 }

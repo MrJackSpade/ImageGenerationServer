@@ -21,13 +21,16 @@ public sealed class ComfyPatchTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        if (Directory.Exists(_root))
+        {
+            Directory.Delete(_root, recursive: true);
+        }
     }
 
     private string Write(string relative, string content)
     {
         string full = Path.Combine(_root, relative.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
         File.WriteAllText(full, content);
         return full;
     }
@@ -50,7 +53,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void Apply_then_reverse_leaves_the_file_byte_identical()
     {
-        Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
+        _ = Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
         Dictionary<string, string> before = Snapshot();
         IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
@@ -64,7 +67,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_patch_is_applied_exactly_when_it_reverse_applies()
     {
-        Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
+        _ = Write("greet.py", "def greet(name):\n    return \"hi \" + name\n\n");
         IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
         Assert.True(PatchApplier.Probe(_root, files, reverse: false).Ok);
@@ -83,7 +86,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_hunk_still_applies_when_its_context_has_moved()
     {
-        Write("greet.py", "# added upstream\n# and another\n\ndef greet(name):\n    return \"hi \" + name\n\n");
+        _ = Write("greet.py", "# added upstream\n# and another\n\ndef greet(name):\n    return \"hi \" + name\n\n");
 
         PatchApplier.Apply(_root, UnifiedDiff.Parse(Diff), reverse: false);
 
@@ -95,7 +98,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_hunk_whose_context_has_changed_is_a_conflict_and_writes_nothing()
     {
-        Write("greet.py", "def greet(name):\n    return \"hello \" + name\n\n");   // the returned line differs
+        _ = Write("greet.py", "def greet(name):\n    return \"hello \" + name\n\n");   // the returned line differs
         Dictionary<string, string> before = Snapshot();
         IReadOnlyList<FileDiff> files = UnifiedDiff.Parse(Diff);
 
@@ -103,7 +106,7 @@ public sealed class ComfyPatchTests : IDisposable
         Assert.False(probe.Ok);
         Assert.Contains("greet.py", probe.Reason);
 
-        Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, files, reverse: false));
+        _ = Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, files, reverse: false));
         Assert.Equal(before, Snapshot());
     }
 
@@ -114,8 +117,8 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void A_patch_that_fails_on_its_second_file_does_not_write_the_first()
     {
-        Write("one.py", "a\nb\nc\n");
-        Write("two.py", "SOMETHING ELSE\n");
+        _ = Write("one.py", "a\nb\nc\n");
+        _ = Write("two.py", "SOMETHING ELSE\n");
         Dictionary<string, string> before = Snapshot();
 
         IReadOnlyList<FileDiff> files = UnifiedDiff.Parse("""
@@ -133,7 +136,7 @@ public sealed class ComfyPatchTests : IDisposable
             +y
             """);
 
-        Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, files, reverse: false));
+        _ = Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, files, reverse: false));
         Assert.Equal(before, Snapshot());
     }
 
@@ -148,7 +151,7 @@ public sealed class ComfyPatchTests : IDisposable
 
         // Python writes this where the pack ran. It is not content, and a directory left holding only bytecode
         // still looks like an installed pack.
-        Directory.CreateDirectory(Path.Combine(target, "__pycache__"));
+        _ = Directory.CreateDirectory(Path.Combine(target, "__pycache__"));
         File.WriteAllText(Path.Combine(target, "__pycache__", "nodes.pyc"), "");
 
         PatchApplier.Apply(target, [pack], reverse: true);
@@ -164,7 +167,7 @@ public sealed class ComfyPatchTests : IDisposable
     public void Creating_over_a_different_file_needs_overwrite_and_names_what_it_would_lose()
     {
         FileDiff pack = UnifiedDiff.Added("nodes.py", "NEW\n");
-        Write("nodes.py", "SOMEONE ELSE'S\n");
+        _ = Write("nodes.py", "SOMEONE ELSE'S\n");
 
         Assert.Equal(["nodes.py"], PatchApplier.Occupied(_root, [pack]));
 
@@ -184,7 +187,7 @@ public sealed class ComfyPatchTests : IDisposable
     public void Creating_over_an_identical_file_is_not_a_conflict()
     {
         FileDiff pack = UnifiedDiff.Added("nodes.py", "SAME\n");
-        Write("nodes.py", "SAME\n");
+        _ = Write("nodes.py", "SAME\n");
 
         Assert.Empty(PatchApplier.Occupied(_root, [pack]));
         Assert.True(PatchApplier.Probe(_root, [pack], reverse: false).Ok);
@@ -198,7 +201,7 @@ public sealed class ComfyPatchTests : IDisposable
     [Fact]
     public void Line_endings_of_the_destination_are_matched_and_kept()
     {
-        Write("greet.py", "def greet(name):\r\n    return \"hi \" + name\r\n\r\n");
+        _ = Write("greet.py", "def greet(name):\r\n    return \"hi \" + name\r\n\r\n");
 
         PatchApplier.Apply(_root, UnifiedDiff.Parse(Diff), reverse: false);
 
@@ -217,8 +220,15 @@ public sealed class ComfyPatchTests : IDisposable
     {
         // Deliberately full of things that break text handling: NULs, a lone CR, a lone LF, high bytes.
         byte[] bytes = new byte[512];
-        for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)(i % 256);
-        bytes[10] = 0x00; bytes[11] = 0x0D; bytes[12] = 0x0A; bytes[13] = 0x00;
+        for (int i = 0; i < bytes.Length; i++)
+        {
+            bytes[i] = (byte)(i % 256);
+        }
+
+        bytes[10] = 0x00;
+        bytes[11] = 0x0D;
+        bytes[12] = 0x0A;
+        bytes[13] = 0x00;
 
         FileDiff pack = UnifiedDiff.AddedBinary("weights/model.pth", bytes);
         Assert.True(pack.IsBinary);
@@ -240,11 +250,11 @@ public sealed class ComfyPatchTests : IDisposable
     public void A_carried_binary_file_that_differs_is_not_overwritten_silently()
     {
         FileDiff pack = UnifiedDiff.AddedBinary("model.pth", [1, 2, 3, 0, 4]);
-        Write("model.pth", "");
+        _ = Write("model.pth", "");
         File.WriteAllBytes(Path.Combine(_root, "model.pth"), [9, 9, 0, 9]);
 
         Assert.Equal(["model.pth"], PatchApplier.Occupied(_root, [pack]));
-        Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, [pack], reverse: false));
+        _ = Assert.Throws<PatchConflictException>(() => PatchApplier.Apply(_root, [pack], reverse: false));
         Assert.Equal(new byte[] { 9, 9, 0, 9 }, File.ReadAllBytes(Path.Combine(_root, "model.pth")));
 
         PatchApplier.Apply(_root, [pack], reverse: false, overwrite: true);
@@ -307,9 +317,15 @@ public sealed class ComfyPatchTests : IDisposable
             Assert.False(string.IsNullOrWhiteSpace(p.Does));
             Assert.True(p.Does.Length > p.Title.Length, $"{p.Id}: Does: says no more than its title.");
             // A patch with no diff must be an install-only one; anything else would be a patch that does nothing.
-            if (p.Files.Count == 0) Assert.True(p.IsInstallOnly, $"{p.Id} has no diff and no Source");
+            if (p.Files.Count == 0)
+            {
+                Assert.True(p.IsInstallOnly, $"{p.Id} has no diff and no Source");
+            }
             // A patch that declares where to fetch its target must pin the revision it was written against.
-            if (p.SourceUrl is not null) Assert.False(string.IsNullOrWhiteSpace(p.Rev));
+            if (p.SourceUrl is not null)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(p.Rev));
+            }
         });
 
         // The gate changes a guarantee rather than a feature, so removing it has to warn.
@@ -339,7 +355,7 @@ public sealed class ComfyPatchTests : IDisposable
             Assert.True(PatchApplier.Probe(target, patch.Files, reverse: true).Ok, $"{patch.Id} did not read back as applied");
 
             PatchApplier.Apply(target, patch.Files, reverse: true);
-            PatchApplier.RemoveIfSpent(target);
+            _ = PatchApplier.RemoveIfSpent(target);
             Assert.False(Directory.Exists(target), $"{patch.Id} left {patch.Target} behind");
         }
     }
@@ -430,7 +446,7 @@ public sealed class ComfyPatchTests : IDisposable
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
         Assert.NotNull(baseUrl);
 
-        ComfyInstall install = new ImageGen.Web.Comfy.ComfyInstall(
+        ComfyInstall install = new(
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
             new SingleClientFactory(),
             new FixedEndpoint(baseUrl));
@@ -456,14 +472,18 @@ public sealed class ComfyPatchTests : IDisposable
     /// <summary>The source checkout this test is running out of, found by walking up from the test binary.</summary>
     private static string? RepositoryRoot()
     {
-        DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null)
         {
             if (Directory.Exists(Path.Combine(directory.FullName, "comfy-patches")) &&
                 Directory.Exists(Path.Combine(directory.FullName, "configurations", "models")))
+            {
                 return directory.FullName;
+            }
+
             directory = directory.Parent;
         }
+
         return null;
     }
 

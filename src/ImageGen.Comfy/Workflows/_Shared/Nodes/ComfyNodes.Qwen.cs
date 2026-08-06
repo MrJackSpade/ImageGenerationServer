@@ -13,7 +13,7 @@ namespace ImageGen.Comfy;
 public sealed record TextEncodeQwenImageEditPlus : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.TextEncodeQwenImageEditPlus;
-    [JsonPropertyName("clip")]   public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
     [JsonPropertyName("image1")] public required Output<Slot.Image> Image1 { get; init; }
     [JsonPropertyName("prompt")] public required string Prompt { get; init; }
 
@@ -30,7 +30,7 @@ public sealed record TextEncodeQwenImageEditPlus : ComfyNode
 public sealed record FluxKontextMultiReferenceLatentMethod : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.FluxKontextMultiReferenceLatentMethod;
-    [JsonPropertyName("conditioning")]             public required Output<Slot.Conditioning> Conditioning { get; init; }
+    [JsonPropertyName("conditioning")] public required Output<Slot.Conditioning> Conditioning { get; init; }
     [JsonPropertyName("reference_latents_method")] public required string ReferenceLatentsMethod { get; init; }
     public static Output<Slot.Conditioning> Out(string id) => new(id, 0);
 }
@@ -40,7 +40,7 @@ public sealed record FluxKontextMultiReferenceLatentMethod : ComfyNode
 public sealed record CFGNorm : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CFGNorm;
-    [JsonPropertyName("model")]    public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("strength")] public required double Strength { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }
@@ -51,10 +51,10 @@ public sealed record CFGNorm : ComfyNode
 public sealed record EmptyImageLiteral : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptyImage;
-    [JsonPropertyName("width")]      public required int Width { get; init; }
-    [JsonPropertyName("height")]     public required int Height { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
-    [JsonPropertyName("color")]      public required int Color { get; init; }
+    [JsonPropertyName("color")] public required int Color { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
@@ -64,11 +64,11 @@ public sealed record EmptyImageLiteral : ComfyNode
 public sealed record ImageScaleFromSize : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageScale;
-    [JsonPropertyName("image")]          public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("upscale_method")] public required string UpscaleMethod { get; init; }
-    [JsonPropertyName("width")]          public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]         public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("crop")]           public required string Crop { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("crop")] public required string Crop { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
@@ -79,10 +79,10 @@ public sealed record ImageScaleFromSize : ComfyNode
 public sealed record ImageCompositePaste : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageCompositeMasked;
-    [JsonPropertyName("destination")]   public required Output<Slot.Image> Destination { get; init; }
-    [JsonPropertyName("source")]        public required Output<Slot.Image> Source { get; init; }
-    [JsonPropertyName("x")]             public required int X { get; init; }
-    [JsonPropertyName("y")]             public required int Y { get; init; }
+    [JsonPropertyName("destination")] public required Output<Slot.Image> Destination { get; init; }
+    [JsonPropertyName("source")] public required Output<Slot.Image> Source { get; init; }
+    [JsonPropertyName("x")] public required int X { get; init; }
+    [JsonPropertyName("y")] public required int Y { get; init; }
     [JsonPropertyName("resize_source")] public required bool ResizeSource { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -92,8 +92,8 @@ public sealed record ImageCompositePaste : ComfyNode
 public sealed record T5TokenizerOptions : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.T5TokenizerOptions;
-    [JsonPropertyName("clip")]        public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
     [JsonPropertyName("min_padding")] public required int MinPadding { get; init; }
-    [JsonPropertyName("min_length")]  public required int MinLength { get; init; }
+    [JsonPropertyName("min_length")] public required int MinLength { get; init; }
     public static Output<Slot.Clip> Out(string id) => new(id, 0);
 }

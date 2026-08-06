@@ -42,7 +42,7 @@ public sealed class ListenAddressTests
     {
         (string Host, int Wanted, int Actual)? moved = null;
 
-        ListenAddress.Resolve("http://0.0.0.0:8080", onMoved: (h, w, a) => moved = (h, w, a), isPortFree: Taken(8080));
+        _ = ListenAddress.Resolve("http://0.0.0.0:8080", onMoved: (h, w, a) => moved = (h, w, a), isPortFree: Taken(8080));
 
         // The address is the one thing the user needs after this, so a silent move would be the worst outcome.
         Assert.Equal(("0.0.0.0", 8080, 8081), moved);
@@ -53,7 +53,7 @@ public sealed class ListenAddressTests
     {
         bool moved = false;
 
-        ListenAddress.Resolve("http://0.0.0.0:8080", onMoved: (_, _, _) => moved = true, isPortFree: Taken());
+        _ = ListenAddress.Resolve("http://0.0.0.0:8080", onMoved: (_, _, _) => moved = true, isPortFree: Taken());
 
         Assert.False(moved);
     }
@@ -71,22 +71,18 @@ public sealed class ListenAddressTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void An_unset_value_is_handed_back_untouched(string? configured)
-    {
+    public void An_unset_value_is_handed_back_untouched(string? configured) =>
         // Null means the host uses its own default; inventing an address here would override that silently.
         Assert.Equal(configured, ListenAddress.Resolve(configured, isPortFree: Taken()));
-    }
 
     [Theory]
     [InlineData("not-a-url")]
     [InlineData("http://0.0.0.0")]          // no port
     [InlineData("http://0.0.0.0:port")]     // unparseable port
-    public void Anything_it_cannot_parse_is_passed_through_unchanged(string configured)
-    {
+    public void Anything_it_cannot_parse_is_passed_through_unchanged(string configured) =>
         // Kestrel owns the URL grammar. A form this does not recognise is Kestrel's to accept or reject, and
         // rewriting it on a guess would turn a clear error into a mystery.
         Assert.Equal(configured, ListenAddress.Resolve(configured, isPortFree: Taken()));
-    }
 
     [Fact]
     public void The_original_is_kept_when_nothing_above_the_port_is_free()

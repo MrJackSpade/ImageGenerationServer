@@ -40,7 +40,7 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
                 User? user = await users.GetByApiKeyAsync(key, context.RequestAborted);
                 if (user is not null)
                 {
-                    ClaimsIdentity identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
+                    ClaimsIdentity identity = new(CookieAuthenticationDefaults.AuthenticationScheme);
                     identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
                     identity.AddClaim(new Claim(ClaimTypes.Name, user.DisplayName));
                     context.User = new ClaimsPrincipal(identity);
@@ -58,11 +58,15 @@ public sealed class ApiKeyAuthenticationMiddleware(RequestDelegate next)
     private static string? ExtractKey(HttpRequest request)
     {
         if (request.Headers.TryGetValue(Keys.HeaderName, out StringValues headerVal) && !string.IsNullOrWhiteSpace(headerVal))
+        {
             return headerVal.ToString().Trim();
+        }
 
         string auth = request.Headers.Authorization.ToString();
         if (auth.StartsWith(Keys.BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        {
             return auth[Keys.BearerPrefix.Length..].Trim();
+        }
 
         return null;
     }

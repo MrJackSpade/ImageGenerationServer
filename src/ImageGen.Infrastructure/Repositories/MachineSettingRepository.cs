@@ -20,12 +20,16 @@ public sealed class MachineSettingRepository(IDbConnectionFactory connectionFact
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "SELECT SettingKey, SettingValue FROM dbo.MachineSetting WHERE MachineName = @m;");
-        cmd.AddParam("@m", machineName);
+        _ = cmd.AddParam("@m", machineName);
 
         // Ordinal-insensitive, because that is how IConfiguration compares keys.
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) result[reader.GetString(0)] = reader.GetString(1);
+        while (await reader.ReadAsync(ct))
+        {
+            result[reader.GetString(0)] = reader.GetString(1);
+        }
+
         return result;
     }
 
@@ -41,9 +45,9 @@ public sealed class MachineSettingRepository(IDbConnectionFactory connectionFact
             "DELETE FROM dbo.MachineSetting WHERE MachineName = @m AND SettingKey = @k;"))
         {
             del.Transaction = tx;
-            del.AddParam("@m", machineName);
-            del.AddParam("@k", key);
-            await del.ExecuteNonQueryAsync(ct);
+            _ = del.AddParam("@m", machineName);
+            _ = del.AddParam("@k", key);
+            _ = await del.ExecuteNonQueryAsync(ct);
         }
 
         if (value is not null)
@@ -52,11 +56,11 @@ public sealed class MachineSettingRepository(IDbConnectionFactory connectionFact
 INSERT INTO dbo.MachineSetting (MachineName, SettingKey, SettingValue, UpdatedAtUtc)
 VALUES (@m, @k, @v, @now);");
             ins.Transaction = tx;
-            ins.AddParam("@m", machineName);
-            ins.AddParam("@k", key);
-            ins.AddParam("@v", value);
-            ins.AddParam("@now", DateTime.UtcNow);
-            await ins.ExecuteNonQueryAsync(ct);
+            _ = ins.AddParam("@m", machineName);
+            _ = ins.AddParam("@k", key);
+            _ = ins.AddParam("@v", value);
+            _ = ins.AddParam("@now", DateTime.UtcNow);
+            _ = await ins.ExecuteNonQueryAsync(ct);
         }
 
         await tx.CommitAsync(ct);

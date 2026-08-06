@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Domain;
 
 namespace ImageGen.Comfy.Edit.QwenImageOutpaint;
@@ -26,8 +23,8 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
     /// past the model's comfortable range, so measuring the unpadded source would let the real canvas sail past it.</summary>
     protected override (int W, int H) CanvasSize(QwenInpaintParams p, WorkflowInputs inputs)
     {
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth + p.PadLeft + p.PadRight,
                 inputs.SourceHeight + p.PadTop + p.PadBottom);
     }

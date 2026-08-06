@@ -40,16 +40,26 @@ public static class PasswordHasher
     public static bool Verify(string password, string stored)
     {
         if (string.IsNullOrEmpty(stored))
+        {
             throw new InvalidOperationException("Stored password hash is missing.");
+        }
 
         string[] parts = stored.Split('$');
         if (parts.Length != 4)
+        {
             throw new InvalidOperationException(
                 $"Stored password hash is malformed: expected 4 '$'-separated fields, found {parts.Length}.");
+        }
+
         if (parts[0] != Format.Algorithm)
+        {
             throw new InvalidOperationException("Stored password hash names an unknown algorithm (expected PBKDF2).");
+        }
+
         if (!int.TryParse(parts[1], out int iterations) || iterations <= 0)
+        {
             throw new InvalidOperationException("Stored password hash carries an unreadable iteration count.");
+        }
 
         byte[] salt, expected;
         try
@@ -61,8 +71,11 @@ public static class PasswordHasher
         {
             throw new InvalidOperationException("Stored password hash has a corrupt salt or digest (not valid base64).", ex);
         }
+
         if (salt.Length == 0 || expected.Length == 0)
+        {
             throw new InvalidOperationException("Stored password hash has an empty salt or digest.");
+        }
 
         byte[] actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expected.Length);
         return CryptographicOperations.FixedTimeEquals(actual, expected);

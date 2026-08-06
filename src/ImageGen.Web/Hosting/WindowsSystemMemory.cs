@@ -12,12 +12,15 @@ public sealed class WindowsSystemMemory : ISystemMemory
 {
     public long AvailableBytes()
     {
-        MemoryStatusEx status = new MemoryStatusEx { dwLength = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+        MemoryStatusEx status = new() { dwLength = (uint)Marshal.SizeOf<MemoryStatusEx>() };
         // No fallback on failure. A gate that cannot read the number must not quietly answer "plenty of room" — that
         // is precisely how an unrenderable job gets accepted. Surface the OS error to the caller instead.
         if (!GlobalMemoryStatusEx(ref status))
+        {
             throw new InvalidOperationException(
                 $"GlobalMemoryStatusEx failed (Win32 error {Marshal.GetLastWin32Error()}); available memory is unknown.");
+        }
+
         return (long)status.ullAvailPhys;
     }
 

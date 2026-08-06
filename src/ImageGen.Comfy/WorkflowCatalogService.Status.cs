@@ -27,10 +27,15 @@ public sealed partial class WorkflowCatalogService
                  .Select(s => new MatchableSlot(s.Id, s.Kind, s.Match)),
             byKind);
 
-        Dictionary<string, string> auto = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> auto = new(StringComparer.OrdinalIgnoreCase);
         foreach (SlotMatch m in matches)
+        {
             if (m.AutoBind is { } bind)
+            {
                 auto[m.SlotId] = bind;
+            }
+        }
+
         if (auto.Count > 0)
         {
             await _overrides.AddAutoBindingsAsync(machine, auto, ct);
@@ -58,26 +63,36 @@ public sealed partial class WorkflowCatalogService
         // it — a node that loads nothing contributes no filenames to disappear when the pack does.
         List<Requirement> nodeRequirements = slots.Where(s => !string.IsNullOrWhiteSpace(s.Node)).ToList();
         IReadOnlySet<string> presentNodes = nodeRequirements.Count == 0
-            ? (IReadOnlySet<string>)new HashSet<string>()
+            ? new HashSet<string>()
             : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node).OfType<string>(), ct);
 
         // A bound file that ComfyUI no longer reports is as missing as one that was never bound — the weights were
         // moved or deleted, and saying "bound" would be a lie the picker then contradicts.
         bool Satisfied(string slotId)
         {
-            if (_catalog.FindRequirement(slotId) is not { } r) return false;
-            if (!string.IsNullOrWhiteSpace(r.Node)) return presentNodes.Contains(r.Node);
+            if (_catalog.FindRequirement(slotId) is not { } r)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(r.Node))
+            {
+                return presentNodes.Contains(r.Node);
+            }
 
             return bindings.TryGetValue(slotId, out ModelBinding? bound)
                 && byKind.TryGetValue(r.Kind, out IReadOnlyList<string>? files)
                 && files.Contains(bound.FileName, StringComparer.OrdinalIgnoreCase);
         }
 
-        List<WorkflowStatus> workflows = new List<WorkflowStatus>();
+        List<WorkflowStatus> workflows = [];
         foreach (WorkflowConfiguration cfg in _catalog.AllConfigs())
         {
             IWorkflow? wf = _registry.Find(cfg.WorkflowName);
-            if (wf is null) continue;
+            if (wf is null)
+            {
+                continue;
+            }
 
             List<string> required = cfg.Requirements.All().ToList();
             List<string> missing = required.Where(id => !Satisfied(id)).ToList();
@@ -112,19 +127,29 @@ public sealed partial class WorkflowCatalogService
     private void GuardAspectAgainstEnvelope(string configId, string json)
     {
         WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
-        if (cfg?.Resolution is not { } env) return;
+        if (cfg?.Resolution is not { } env)
+        {
+            return;
+        }
+
         string name = cfg.FriendlyName ?? cfg.Id;
 
         using JsonDocument doc = System.Text.Json.JsonDocument.Parse(json);
         foreach (JsonProperty aspect in doc.RootElement.EnumerateObject())
         {
-            if (aspect.Value.ValueKind != System.Text.Json.JsonValueKind.Array || aspect.Value.GetArrayLength() < 2) continue;
+            if (aspect.Value.ValueKind != System.Text.Json.JsonValueKind.Array || aspect.Value.GetArrayLength() < 2)
+            {
+                continue;
+            }
+
             int w = aspect.Value[0].GetInt32(), h = aspect.Value[1].GetInt32();
 
             // Same envelope check the submit path runs (ResolutionGuard) — the write path just throws the type the
             // settings API maps to a 400 and names the model in the subject.
             if (ResolutionGuard.Violation(env, w, h, $"{aspect.Name} ({name})") is { } msg)
+            {
                 throw new ArgumentException(msg + ".");
+            }
         }
     }
 

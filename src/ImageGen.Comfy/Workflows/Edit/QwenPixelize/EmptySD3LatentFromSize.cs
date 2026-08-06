@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.QwenPixelize;
@@ -10,8 +9,8 @@ namespace ImageGen.Comfy.Edit.QwenPixelize;
 public sealed record EmptySD3LatentFromSize : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptySD3LatentImage;
-    [JsonPropertyName("width")]      public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]     public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }

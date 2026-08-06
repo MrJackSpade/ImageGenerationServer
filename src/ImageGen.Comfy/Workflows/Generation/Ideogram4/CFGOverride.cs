@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Generation.Ideogram4;
@@ -9,9 +8,9 @@ namespace ImageGen.Comfy.Generation.Ideogram4;
 public sealed record CFGOverride : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CFGOverride;
-    [JsonPropertyName("model")]         public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("cfg")]           public required double Cfg { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
     [JsonPropertyName("start_percent")] public required double StartPercent { get; init; }
-    [JsonPropertyName("end_percent")]   public required double EndPercent { get; init; }
+    [JsonPropertyName("end_percent")] public required double EndPercent { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }

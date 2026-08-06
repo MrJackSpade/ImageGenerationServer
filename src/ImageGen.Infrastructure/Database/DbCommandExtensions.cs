@@ -20,7 +20,10 @@ internal static class DbCommandExtensions
         DbCommand cmd = connection.CreateCommand();
         cmd.CommandText = sql;
         if (transaction is not null)
+        {
             cmd.Transaction = transaction;
+        }
+
         return cmd;
     }
 
@@ -34,7 +37,7 @@ internal static class DbCommandExtensions
         DbParameter p = cmd.CreateParameter();
         p.ParameterName = name;
         p.Value = value ?? DBNull.Value;
-        cmd.Parameters.Add(p);
+        _ = cmd.Parameters.Add(p);
         return cmd;
     }
 

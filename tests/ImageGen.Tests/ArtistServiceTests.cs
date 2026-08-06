@@ -17,8 +17,8 @@ public sealed class ArtistServiceTests(TestDatabaseFixture fixture)
     {
         User user = await fixture.NewUserAsync("artist-display");
         // Two gens for "monet"; the newer one is the fallback display image.
-        await fixture.History.AddAsync(Gen(user.Id, "monet-old", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Gen(user.Id, "monet-new", "monet", new DateTime(2026, 1, 2, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(user.Id, "monet-old", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(user.Id, "monet-new", "monet", new DateTime(2026, 1, 2, 9, 0, 0, DateTimeKind.Utc)), Ct);
         ArtistService svc = NewService();
 
         ArtistDisplayResult fallback = await svc.GetDisplayAsync(user.Id, "monet", Ct);
@@ -46,11 +46,11 @@ public sealed class ArtistServiceTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("artist-many-a");
         User bob = await fixture.NewUserAsync("artist-many-b");
-        await fixture.History.AddAsync(Gen(alice.Id, "a-monet", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Gen(alice.Id, "a-vangogh", "van_gogh", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Gen(bob.Id, "b-monet", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(alice.Id, "a-monet", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(alice.Id, "a-vangogh", "van_gogh", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(bob.Id, "b-monet", "monet", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
         ArtistService svc = NewService();
-        await svc.SetAsync(alice.Id, "van_gogh", "a-vangogh", DateTime.UtcNow, Ct);
+        _ = await svc.SetAsync(alice.Id, "van_gogh", "a-vangogh", DateTime.UtcNow, Ct);
 
         IReadOnlyDictionary<string, string> resolved = await svc.ResolveManyAsync(alice.Id, ["monet", "van_gogh", "unseen"], Ct);
         Assert.Equal("a-monet", resolved["monet"]);       // fallback to alice's gen

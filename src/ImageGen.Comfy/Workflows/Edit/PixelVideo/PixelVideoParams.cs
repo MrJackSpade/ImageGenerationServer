@@ -1,7 +1,6 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.PixelVideo;
 
@@ -13,11 +12,11 @@ namespace ImageGen.Comfy.Edit.PixelVideo;
 public sealed record PixelVideoParams
 {
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)] public required int VirtualResolution { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.GridW)]             public required int GridW { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.GridH)]             public required int GridH { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Method)]            public required string Method { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Guided)]            public bool Guided { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridW)] public required int GridW { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.GridH)] public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Palette)] public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Method)] public required string Method { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Guided)] public bool Guided { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WStart)]
     [AllowNullable("null = the config didn't set the projection ramp w_start; read only when guided (via RequiredWStart), distinct from a real 0 weight")] public double? WStart { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WEnd)]

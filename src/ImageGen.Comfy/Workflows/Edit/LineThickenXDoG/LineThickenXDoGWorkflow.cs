@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenXDoG;
@@ -32,7 +29,7 @@ public sealed class LineThickenXDoGWorkflow : EditWorkflow<LineThickenXDoGParams
     protected override ComfyWorkflowGraph Build(LineThickenXDoGParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = source },
         };

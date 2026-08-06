@@ -86,7 +86,7 @@ public sealed class RequirementKindTests
             ?? throw new InvalidOperationException("WorkflowCatalog.ParseKind not found — was it renamed?");
 
         TargetInvocationException ex = Assert.Throws<TargetInvocationException>(() => parse.Invoke(null, ["not_a_real_kind"]));
-        Assert.IsType<ArgumentException>(ex.InnerException);
+        _ = Assert.IsType<ArgumentException>(ex.InnerException);
     }
 
     [Fact]
@@ -99,7 +99,11 @@ public sealed class RequirementKindTests
         foreach (string[]? family in new[] { new[] { "seedvr2-3b", "seedvr2-vae" } })
         {
             List<string> present = family.Where(kinds.ContainsKey).ToList();
-            if (present.Count < 2) continue;
+            if (present.Count < 2)
+            {
+                continue;
+            }
+
             List<RequirementKind> distinct = present.Select(id => kinds[id]).Distinct().ToList();
             Assert.True(distinct.Count == 1,
                 $"{string.Join(" and ", present)} belong to one model but declare "
@@ -113,7 +117,7 @@ public sealed class RequirementKindTests
         string dir = CatalogDir();
         MethodInfo? parse = typeof(WorkflowCatalog).GetMethod("ParseKind", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(parse);
-        Dictionary<string, RequirementKind> map = new Dictionary<string, RequirementKind>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, RequirementKind> map = new(StringComparer.OrdinalIgnoreCase);
         foreach (string file in Directory.EnumerateFiles(dir, "*.json"))
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
@@ -121,6 +125,7 @@ public sealed class RequirementKindTests
             string id = root.GetProperty("id").RequireString();
             map[id] = (RequirementKind)(parse.Invoke(null, [root.GetProperty("kind").GetString()]) ?? throw new InvalidOperationException("ParseKind returned null"));
         }
+
         return map;
     }
 
@@ -130,9 +135,14 @@ public sealed class RequirementKindTests
         while (dir is not null)
         {
             string candidate = Path.Combine(dir, "configurations", "models");
-            if (Directory.Exists(candidate)) return candidate;
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
             dir = Path.GetDirectoryName(dir);
         }
+
         throw new DirectoryNotFoundException("configurations/models not found above the test binary.");
     }
 }

@@ -33,10 +33,16 @@ public sealed class ComfyProbe(IHttpClientFactory httpFactory)
 
     public async Task<ProbeResult> TryAsync(string? url, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(url)) return new ProbeResult(false, Errors.NoAddressGiven);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return new ProbeResult(false, Errors.NoAddressGiven);
+        }
+
         string address = url.Trim().TrimEnd('/');
         if (!Uri.TryCreate(address + "/system_stats", UriKind.Absolute, out Uri? probe))
+        {
             return new ProbeResult(false, Errors.InvalidAddress);
+        }
 
         // No timeout is set here: a number invented in this method is a number nobody chose. An unreachable host
         // fails on the handler's own terms, and a refused connection — the common case for "it isn't running" —

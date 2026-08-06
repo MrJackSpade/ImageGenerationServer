@@ -101,11 +101,21 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     private int? ReadPid()
     {
         string? directory = Directory;
-        if (directory is null) return null;
+        if (directory is null)
+        {
+            return null;
+        }
 
         string path = Path.Combine(directory, Files.PidFile);
-        if (!File.Exists(path)) return null;
-        if (!int.TryParse(File.ReadAllText(path).Trim(), out int pid) || pid <= 1) return null;
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(File.ReadAllText(path).Trim(), out int pid) || pid <= 1)
+        {
+            return null;
+        }
 
         // A pid file outlives the process it names. Ask whether it is still there rather than believing the file.
         try

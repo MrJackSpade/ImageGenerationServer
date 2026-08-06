@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.QwenPixelize;
 
 /// <summary>QwenPixelizeWorkflow's own role-named node ids, atop the inherited edit head and FlattenOnWhite nodes.</summary>

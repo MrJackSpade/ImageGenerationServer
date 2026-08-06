@@ -18,7 +18,7 @@ public sealed record CheckpointLoaderSimple : ComfyNode
 public sealed record UNETLoader : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.UNETLoader;
-    [JsonPropertyName("unet_name")]   public required string UnetName { get; init; }
+    [JsonPropertyName("unet_name")] public required string UnetName { get; init; }
     [JsonPropertyName("weight_dtype")] public required string WeightDtype { get; init; }
     public static Output<Slot.Model> ModelOut(string id) => new(id, 0);
 }
@@ -44,8 +44,8 @@ public sealed record CLIPLoader : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CLIPLoader;
     [JsonPropertyName("clip_name")] public required string ClipName { get; init; }
-    [JsonPropertyName("type")]      public required string? Type { get; init; }
-    [JsonPropertyName("device")]    public required string Device { get; init; }
+    [JsonPropertyName("type")] public required string? Type { get; init; }
+    [JsonPropertyName("device")] public required string Device { get; init; }
     public static Output<Slot.Clip> ClipOut(string id) => new(id, 0);
 }
 
@@ -54,7 +54,7 @@ public sealed record CLIPLoaderGGUF : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CLIPLoaderGGUF;
     [JsonPropertyName("clip_name")] public required string ClipName { get; init; }
-    [JsonPropertyName("type")]      public required string? Type { get; init; }
+    [JsonPropertyName("type")] public required string? Type { get; init; }
     public static Output<Slot.Clip> ClipOut(string id) => new(id, 0);
 }
 
@@ -64,8 +64,8 @@ public sealed record DualCLIPLoader : ComfyNode
     internal override string ClassType => ComfyNodeTypes.DualCLIPLoader;
     [JsonPropertyName("clip_name1")] public required string ClipName1 { get; init; }
     [JsonPropertyName("clip_name2")] public required string ClipName2 { get; init; }
-    [JsonPropertyName("type")]       public required string? Type { get; init; }
-    [JsonPropertyName("device")]     public required string Device { get; init; }
+    [JsonPropertyName("type")] public required string? Type { get; init; }
+    [JsonPropertyName("device")] public required string Device { get; init; }
     public static Output<Slot.Clip> ClipOut(string id) => new(id, 0);
 }
 
@@ -94,7 +94,7 @@ public sealed record QuadrupleCLIPLoader : ComfyNode
 public sealed record CLIPSetLastLayer : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CLIPSetLastLayer;
-    [JsonPropertyName("clip")]               public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
     [JsonPropertyName("stop_at_clip_layer")] public required int StopAtClipLayer { get; init; }
     public static Output<Slot.Clip> ClipOut(string id) => new(id, 0);
 }
@@ -113,7 +113,7 @@ public sealed record FluxGuidance : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.FluxGuidance;
     [JsonPropertyName("conditioning")] public required Output<Slot.Conditioning> Conditioning { get; init; }
-    [JsonPropertyName("guidance")]     public required double Guidance { get; init; }
+    [JsonPropertyName("guidance")] public required double Guidance { get; init; }
     public static Output<Slot.Conditioning> Out(string id) => new(id, 0);
 }
 
@@ -133,8 +133,8 @@ public sealed record EmptyLatent : ComfyNode
     private readonly string _classType;
     public EmptyLatent(string classType) => _classType = classType;
     internal override string ClassType => _classType;
-    [JsonPropertyName("width")]      public required int Width { get; init; }
-    [JsonPropertyName("height")]     public required int Height { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -143,15 +143,15 @@ public sealed record EmptyLatent : ComfyNode
 public sealed record KSampler : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.KSampler;
-    [JsonPropertyName("seed")]         public required long Seed { get; init; }
-    [JsonPropertyName("steps")]        public required int Steps { get; init; }
-    [JsonPropertyName("cfg")]          public required double Cfg { get; init; }
+    [JsonPropertyName("seed")] public required long Seed { get; init; }
+    [JsonPropertyName("steps")] public required int Steps { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
     [JsonPropertyName("sampler_name")] public required string SamplerName { get; init; }
-    [JsonPropertyName("scheduler")]    public required string Scheduler { get; init; }
-    [JsonPropertyName("denoise")]      public required double Denoise { get; init; }
-    [JsonPropertyName("model")]        public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("positive")]     public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]     public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("scheduler")] public required string Scheduler { get; init; }
+    [JsonPropertyName("denoise")] public required double Denoise { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
     [JsonPropertyName("latent_image")] public required Output<Slot.Latent> LatentImage { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -161,7 +161,7 @@ public sealed record VAEDecode : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.VAEDecode;
     [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
-    [JsonPropertyName("vae")]     public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
@@ -170,7 +170,7 @@ public sealed record VAEEncode : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.VAEEncode;
     [JsonPropertyName("pixels")] public required Output<Slot.Image> Pixels { get; init; }
-    [JsonPropertyName("vae")]    public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
 
@@ -178,7 +178,7 @@ public sealed record VAEEncode : ComfyNode
 public sealed record SaveImage : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SaveImage;
-    [JsonPropertyName("images")]          public required Output<Slot.Image> Images { get; init; }
+    [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
     [JsonPropertyName("filename_prefix")] public required string FilenamePrefix { get; init; }
 }
 
@@ -195,8 +195,8 @@ public sealed record LoadImage : ComfyNode
 public sealed record LoraLoaderModelOnly : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LoraLoaderModelOnly;
-    [JsonPropertyName("model")]          public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("lora_name")]      public required string LoraName { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("lora_name")] public required string LoraName { get; init; }
     [JsonPropertyName("strength_model")] public required double StrengthModel { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }
@@ -205,11 +205,11 @@ public sealed record LoraLoaderModelOnly : ComfyNode
 public sealed record LoraLoader : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LoraLoader;
-    [JsonPropertyName("model")]          public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("clip")]           public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("lora_name")]      public required string LoraName { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("lora_name")] public required string LoraName { get; init; }
     [JsonPropertyName("strength_model")] public required double StrengthModel { get; init; }
-    [JsonPropertyName("strength_clip")]  public required double StrengthClip { get; init; }
+    [JsonPropertyName("strength_clip")] public required double StrengthClip { get; init; }
     public static Output<Slot.Model> ModelOut(string id) => new(id, 0);
     public static Output<Slot.Clip> ClipOut(string id) => new(id, 1);
 }

@@ -42,19 +42,23 @@ public sealed partial class NoPlaintextLogTests
     private static void AssertNoPromptBearingSink(Regex sink, string what)
     {
         string root = RepoRoot();
-        List<string> offenders = new List<string>();
+        List<string> offenders = [];
 
         foreach (string? dir in new[] { "src", "tools" })
         {
             string path = Path.Combine(root, dir);
             if (!Directory.Exists(path))
+            {
                 continue;
+            }
 
             foreach (string file in Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories))
             {
                 if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
                     file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+                {
                     continue;
+                }
 
                 string[] lines = File.ReadAllLines(file);
                 for (int i = 0; i < lines.Length; i++)
@@ -63,11 +67,15 @@ public sealed partial class NoPlaintextLogTests
                     // a prompt — this file's own subject matter — and a comment emits nothing, so matching one is a
                     // false positive that would make the rule impossible to document beside the code it governs.
                     if (!sink.IsMatch(CodeOnly(lines[i])))
+                    {
                         continue;
+                    }
 
                     string code = CodeParts(lines[i]);
                     if (PromptBearing.Any(p => code.Contains(p, StringComparison.OrdinalIgnoreCase)))
+                    {
                         offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                    }
                 }
             }
         }
@@ -88,7 +96,10 @@ public sealed partial class NoPlaintextLogTests
         string code = holes + " " + CodeOnly(line);
         // Strip the known-safe fragments BEFORE searching for the dangerous ones, or "promptId" reads as "prompt".
         foreach (string safe in NotPromptBearing)
+        {
             code = code.Replace(safe, "", StringComparison.OrdinalIgnoreCase);
+        }
+
         return code;
     }
 
@@ -104,9 +115,12 @@ public sealed partial class NoPlaintextLogTests
     /// <summary>Walk up from the test binary to the directory holding the solution.</summary>
     private static string RepoRoot()
     {
-        DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? dir = new(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "ImageGen.slnx")))
+        {
             dir = dir.Parent;
+        }
+
         Assert.NotNull(dir);
         return dir.FullName;
     }

@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
@@ -10,7 +9,7 @@ namespace ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
 public sealed record SplitSigmasDenoise : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SplitSigmasDenoise;
-    [JsonPropertyName("sigmas")]  public required Output<Slot.Sigmas> Sigmas { get; init; }
+    [JsonPropertyName("sigmas")] public required Output<Slot.Sigmas> Sigmas { get; init; }
     [JsonPropertyName("denoise")] public required double Denoise { get; init; }
     public static Output<Slot.Sigmas> HighOut(string id) => new(id, 0);
     public static Output<Slot.Sigmas> LowOut(string id) => new(id, 1);

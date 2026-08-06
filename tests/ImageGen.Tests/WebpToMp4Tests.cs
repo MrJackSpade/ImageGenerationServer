@@ -19,19 +19,19 @@ public sealed class WebpToMp4Tests
     /// <summary>An animated webp of <paramref name="frames"/> frames, each a different colour.</summary>
     private static byte[] AnimatedWebp(int width, int height, int frames, int frameDelayMs)
     {
-        using Image<Rgba32> image = new Image<Rgba32>(width, height);
+        using Image<Rgba32> image = new(width, height);
         image.Frames.RootFrame.Metadata.GetWebpMetadata().FrameDelay = (uint)frameDelayMs;
         image.Mutate(c => c.BackgroundColor(Color.Red));
 
         for (int i = 1; i < frames; i++)
         {
-            using Image<Rgba32> next = new Image<Rgba32>(width, height);
+            using Image<Rgba32> next = new(width, height);
             next.Mutate(c => c.BackgroundColor(i % 2 == 0 ? Color.Blue : Color.Green));
             ImageFrame<Rgba32> added = image.Frames.AddFrame(next.Frames.RootFrame);
             added.Metadata.GetWebpMetadata().FrameDelay = (uint)frameDelayMs;
         }
 
-        using MemoryStream ms = new MemoryStream();
+        using MemoryStream ms = new();
         image.Save(ms, new WebpEncoder { FileFormat = WebpFileFormatType.Lossless });
         return ms.ToArray();
     }
@@ -43,7 +43,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public void An_animated_webp_is_recognised_and_a_still_one_is_not()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new(new MediaOptions());
         Assert.True(processor.IsAnimatedWebp(AnimatedWebp(32, 32, frames: 4, frameDelayMs: 100)));
         Assert.False(processor.IsAnimatedWebp(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100)));
     }
@@ -51,7 +51,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task An_animated_webp_transcodes_to_a_real_mp4()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new(new MediaOptions());
         byte[] webp = AnimatedWebp(64, 48, frames: 12, frameDelayMs: 100);
 
         byte[] mp4 = await processor.WebpToMp4Async(webp, maxEdge: null, Ct);
@@ -70,7 +70,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task The_output_is_fragmented_so_it_plays_without_seeking()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new(new MediaOptions());
         byte[] mp4 = await processor.WebpToMp4Async(AnimatedWebp(32, 32, 8, 100), maxEdge: null, Ct);
 
         string text = System.Text.Encoding.ASCII.GetString(mp4);
@@ -83,7 +83,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task MaxEdge_downscales_the_longest_side()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new(new MediaOptions());
         byte[] big = AnimatedWebp(200, 100, frames: 4, frameDelayMs: 100);
 
         byte[] full = await processor.WebpToMp4Async(big, maxEdge: null, Ct);
@@ -102,7 +102,7 @@ public sealed class WebpToMp4Tests
     [Fact]
     public async Task An_odd_sized_clip_still_encodes()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
+        MediaProcessor processor = new(new MediaOptions());
         byte[] mp4 = await processor.WebpToMp4Async(AnimatedWebp(101, 77, frames: 4, frameDelayMs: 100), null, Ct);
         Assert.True(LooksLikeMp4(mp4));
     }
@@ -113,19 +113,19 @@ public sealed class WebpToMp4Tests
         // IsAnimatedWebp gates the call, so a single-frame webp reaching WebpToMp4 means that gate was bypassed or the
         // source is malformed. A still image has no frame timing, so there is nothing to convert and no rate to read —
         // it must surface as a broken state rather than be encoded with an invented frame rate.
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        MediaProcessor processor = new(new MediaOptions());
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             processor.WebpToMp4Async(AnimatedWebp(32, 32, frames: 1, frameDelayMs: 100), null, Ct));
     }
 
     [Fact]
     public async Task Cancellation_is_observed()
     {
-        MediaProcessor processor = new MediaProcessor(new MediaOptions());
-        using CancellationTokenSource cts = new CancellationTokenSource();
+        MediaProcessor processor = new(new MediaOptions());
+        using CancellationTokenSource cts = new();
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             processor.WebpToMp4Async(AnimatedWebp(64, 64, frames: 30, frameDelayMs: 40), null, cts.Token));
     }
 }

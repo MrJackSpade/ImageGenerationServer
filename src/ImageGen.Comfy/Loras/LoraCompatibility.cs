@@ -58,11 +58,15 @@ public static class LoraCompatibility
     {
         FileDims? lora = ReadCached(loraPath);
         if (lora is null)
+        {
             return new Result(true, true);   // couldn't parse — show it, model-only assumption off
+        }
 
         // No checkpoint dimensions to compare against (unknown/older renderer): compatibility not evaluated.
         if (checkpointDims is null || checkpointDims.Count == 0 || lora.LoraFeatureDims.Count == 0)
+        {
             return new Result(true, lora.ClipCapable);
+        }
 
         bool compatible = lora.LoraFeatureDims.All(checkpointDims.Contains);
         return new Result(compatible, lora.ClipCapable);
@@ -78,16 +82,30 @@ public static class LoraCompatibility
     private static FileDims? ReadCached(string path)
     {
         FileInfo info;
-        try { info = new FileInfo(path); if (!info.Exists) return null; }
-        catch { return null; }
+        try
+        {
+            info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                return null;
+            }
+        }
+        catch
+        {
+            return null;
+        }
 
         string key = $"{path}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
         if (Cache.TryGetValue(key, out FileDims? cached))
+        {
             return cached;
+        }
 
         IReadOnlyDictionary<string, long[]>? shapes = ReadShapes(path);
         if (shapes is null)
+        {
             return null;
+        }
 
         FileDims dims = Derive(shapes);
         Cache[key] = dims;
@@ -96,29 +114,41 @@ public static class LoraCompatibility
 
     private static FileDims Derive(IReadOnlyDictionary<string, long[]> shapes)
     {
-        HashSet<long> all = new HashSet<long>();
-        HashSet<long> feature = new HashSet<long>();
+        HashSet<long> all = [];
+        HashSet<long> feature = [];
         bool clip = false;
         foreach ((string? name, long[]? dim) in shapes)
         {
             if (dim.Length >= 2)
-                foreach (long d in dim) all.Add(d);
+            {
+                foreach (long d in dim)
+                {
+                    _ = all.Add(d);
+                }
+            }
 
             string lower = name.ToLowerInvariant();
             // kohya text-encoder LoRA keys: lora_te_, lora_te1_, lora_te2_; diffusers: text_encoder/text_model.
             if (lower.Contains(Names.LoraTe) || lower.Contains(Names.TextEncoder) || lower.Contains(Names.TextModel))
+            {
                 clip = true;
+            }
 
             // A LoRA down/A matrix is [rank, in_features] → the input feature size is its LAST dim; an up/B matrix is
             // [out_features, rank] → the output feature size is its FIRST dim. Those are the sizes the base must have.
             if (dim.Length >= 2)
             {
                 if (lower.Contains(Names.LoraDown) || lower.Contains(Names.LoraADot) || lower.EndsWith(Names.LoraAWeight))
-                    feature.Add(dim[^1]);
+                {
+                    _ = feature.Add(dim[^1]);
+                }
                 else if (lower.Contains(Names.LoraUp) || lower.Contains(Names.LoraBDot) || lower.EndsWith(Names.LoraBWeight))
-                    feature.Add(dim[0]);
+                {
+                    _ = feature.Add(dim[0]);
+                }
             }
         }
+
         return new FileDims(all, feature, clip);
     }
 
@@ -129,12 +159,21 @@ public static class LoraCompatibility
         try
         {
             if (path.EndsWith(Names.GgufExtension, StringComparison.OrdinalIgnoreCase))
+            {
                 return ReadGguf(path);
+            }
+
             if (path.EndsWith(Names.SafetensorsExtension, StringComparison.OrdinalIgnoreCase))
+            {
                 return ReadSafetensors(path);
+            }
+
             return null;   // .ckpt / .pt and friends aren't header-inspectable this cheaply — treated as "unknown"
         }
-        catch { return null; }   // a truncated/garbled header is "unknown" (show it), not a fault to surface here
+        catch
+        {
+            return null;
+        }   // a truncated/garbled header is "unknown" (show it), not a fault to surface here
     }
 
     /// <summary>The safetensors header: 8-byte little-endian length, then that many bytes of JSON mapping each tensor to
@@ -145,24 +184,38 @@ public static class LoraCompatibility
         Span<byte> lenBuf = stackalloc byte[8];
         fs.ReadExactly(lenBuf);
         ulong headerLen = BinaryPrimitives.ReadUInt64LittleEndian(lenBuf);
-        if (headerLen == 0 || headerLen > 200_000_000)   // a sane guard; real headers are KBs–low MBs
+        if (headerLen is 0 or > 200_000_000)   // a sane guard; real headers are KBs–low MBs
+        {
             return new Dictionary<string, long[]>();
+        }
 
         byte[] json = new byte[headerLen];
         fs.ReadExactly(json);
         using JsonDocument doc = JsonDocument.Parse(json);
 
-        Dictionary<string, long[]> result = new Dictionary<string, long[]>();
+        Dictionary<string, long[]> result = [];
         foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
         {
-            if (prop.Name == Names.MetadataKey || prop.Value.ValueKind != JsonValueKind.Object) continue;
-            if (!prop.Value.TryGetProperty(Names.ShapeKey, out JsonElement shapeEl) || shapeEl.ValueKind != JsonValueKind.Array) continue;
+            if (prop.Name == Names.MetadataKey || prop.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            if (!prop.Value.TryGetProperty(Names.ShapeKey, out JsonElement shapeEl) || shapeEl.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
             long[] dims = new long[shapeEl.GetArrayLength()];
             int i = 0;
             foreach (JsonElement d in shapeEl.EnumerateArray())
+            {
                 dims[i++] = d.GetInt64();
+            }
+
             result[prop.Name] = dims;
         }
+
         return result;
     }
 
@@ -172,10 +225,13 @@ public static class LoraCompatibility
     private static IReadOnlyDictionary<string, long[]> ReadGguf(string path)
     {
         using FileStream fs = File.OpenRead(path);
-        using BinaryReader br = new BinaryReader(fs);   // BinaryReader is little-endian; GGUF is little-endian
+        using BinaryReader br = new(fs);   // BinaryReader is little-endian; GGUF is little-endian
 
         if (br.ReadUInt32() != 0x46554747)   // "GGUF"
+        {
             return new Dictionary<string, long[]>();
+        }
+
         uint version = br.ReadUInt32();
 
         // v1 used uint32 counts/lengths; v2+ use uint64. Modern quants are v3.
@@ -183,20 +239,26 @@ public static class LoraCompatibility
         ulong kvCount = ReadCount(br, version);
 
         for (ulong i = 0; i < kvCount; i++)
+        {
             SkipKv(br, version);
+        }
 
-        Dictionary<string, long[]> result = new Dictionary<string, long[]>();
+        Dictionary<string, long[]> result = [];
         for (ulong i = 0; i < tensorCount; i++)
         {
             string name = ReadGgufString(br, version);
             uint nDims = br.ReadUInt32();
             long[] dims = new long[nDims];
             for (int d = 0; d < nDims; d++)
+            {
                 dims[d] = (long)ReadCount(br, version);
+            }
+
             _ = br.ReadUInt32();   // ggml type
             _ = br.ReadUInt64();   // data offset
             result[name] = dims;
         }
+
         return result;
     }
 
@@ -205,7 +267,11 @@ public static class LoraCompatibility
     private static string ReadGgufString(BinaryReader br, uint version)
     {
         ulong len = ReadCount(br, version);
-        if (len > 10_000_000) throw new InvalidDataException("GGUF string length out of range.");
+        if (len > 10_000_000)
+        {
+            throw new InvalidDataException("GGUF string length out of range.");
+        }
+
         return Encoding.UTF8.GetString(br.ReadBytes((int)len));
     }
 
@@ -223,16 +289,19 @@ public static class LoraCompatibility
     {
         switch (type)
         {
-            case TUint8 or TInt8 or TBool: br.ReadByte(); break;
-            case TUint16 or TInt16: br.ReadUInt16(); break;
-            case TUint32 or TInt32 or TFloat32: br.ReadUInt32(); break;
-            case TUint64 or TInt64 or TFloat64: br.ReadUInt64(); break;
-            case TString: ReadGgufString(br, version); break;
+            case TUint8 or TInt8 or TBool: _ = br.ReadByte(); break;
+            case TUint16 or TInt16: _ = br.ReadUInt16(); break;
+            case TUint32 or TInt32 or TFloat32: _ = br.ReadUInt32(); break;
+            case TUint64 or TInt64 or TFloat64: _ = br.ReadUInt64(); break;
+            case TString: _ = ReadGgufString(br, version); break;
             case TArray:
                 uint elemType = br.ReadUInt32();
                 ulong count = ReadCount(br, version);
                 for (ulong i = 0; i < count; i++)
+                {
                     SkipValue(br, version, elemType);
+                }
+
                 break;
             default: throw new InvalidDataException($"Unknown GGUF value type {type}.");
         }

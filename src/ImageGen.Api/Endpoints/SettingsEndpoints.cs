@@ -13,13 +13,16 @@ public static class SettingsEndpoints
         // This user's account-level preferences, as one read for the whole app. Per user, so they follow the user
         // across devices. There is no PUT counterpart: every writable preference below owns its own route and its
         // own column, so one autosave can never clobber another's.
-        api.MapGet(Routes.Settings, async (HttpContext context, UserService users) =>
+        _ = api.MapGet(Routes.Settings, async (HttpContext context, UserService users) =>
         {
             long userId = context.User.GetRequiredUserId();
             User? user = await users.GetByIdAsync(userId, context.RequestAborted);
             // An authenticated request whose user row is gone is a stale session, not an empty account: 401 sends the
             // caller to re-authenticate, where returning blank settings would instead read as a real (empty) account.
-            if (user is null) return Results.Unauthorized();
+            if (user is null)
+            {
+                return Results.Unauthorized();
+            }
             // The workflow relations are read separately — they are rows, not columns on the user, and are wanted
             // here and nowhere else. They go out as real arrays/maps; the client no longer parses a string.
             UserWorkflowPrefs workflows = await users.GetWorkflowPrefsAsync(userId, context.RequestAborted);
@@ -41,10 +44,13 @@ public static class SettingsEndpoints
         });
 
         // Composer state (one PUT, one column).
-        api.MapPut(Routes.Composer, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.Composer, async (HttpContext context, UserService users) =>
         {
             ComposerPrefsRequest? request = await Json.ReadAsync<ComposerPrefsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetComposerPrefsAsync(userId, request.ComposerPrefs, context.RequestAborted);
@@ -53,10 +59,13 @@ public static class SettingsEndpoints
 
         // The editor's state blob (mode/workflows/params/brush), likewise on its own route (one PUT, one column),
         // so the editor autosave can't clobber the composer's and vice versa.
-        api.MapPut(Routes.EditPrefs, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.EditPrefs, async (HttpContext context, UserService users) =>
         {
             EditPrefsRequest? request = await Json.ReadAsync<EditPrefsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetEditPrefsAsync(userId, request.EditPrefs, context.RequestAborted);
@@ -64,10 +73,13 @@ public static class SettingsEndpoints
         });
 
         // The bookmarks page's folded sections, on its own route and column like the two above.
-        api.MapPut(Routes.Bookmarks, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.Bookmarks, async (HttpContext context, UserService users) =>
         {
             BookmarkPrefsRequest? request = await Json.ReadAsync<BookmarkPrefsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetBookmarkPrefsAsync(userId, request.BookmarkPrefs, context.RequestAborted);
@@ -75,10 +87,13 @@ public static class SettingsEndpoints
         });
 
         // Favorited workflow ids (opaque JSON array) — one PUT, one column.
-        api.MapPut(Routes.Favorites, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.Favorites, async (HttpContext context, UserService users) =>
         {
             FavoriteWorkflowsRequest? request = await Json.ReadAsync<FavoriteWorkflowsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetFavoriteWorkflowsAsync(userId, request.FavoriteWorkflowIds, context.RequestAborted);
@@ -86,10 +101,13 @@ public static class SettingsEndpoints
         });
 
         // Custom per-workflow tags (opaque JSON map, encrypted at rest) — one PUT, one column.
-        api.MapPut(Routes.WorkflowTags, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.WorkflowTags, async (HttpContext context, UserService users) =>
         {
             WorkflowTagsRequest? request = await Json.ReadAsync<WorkflowTagsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetWorkflowTagsAsync(userId, request.CustomWorkflowTags, context.RequestAborted);
@@ -97,10 +115,13 @@ public static class SettingsEndpoints
         });
 
         // Workflows hidden from the UI picker (opaque JSON array) — one PUT, one column.
-        api.MapPut(Routes.Hidden, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.Hidden, async (HttpContext context, UserService users) =>
         {
             HiddenWorkflowsRequest? request = await Json.ReadAsync<HiddenWorkflowsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetHiddenWorkflowsAsync(userId, request.HiddenWorkflowIds, context.RequestAborted);
@@ -108,10 +129,13 @@ public static class SettingsEndpoints
         });
 
         // Workflows hidden from the API workflow list (opaque JSON array) — separate from the UI-picker set above.
-        api.MapPut(Routes.HiddenApi, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.HiddenApi, async (HttpContext context, UserService users) =>
         {
             HiddenApiWorkflowsRequest? request = await Json.ReadAsync<HiddenApiWorkflowsRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetHiddenApiWorkflowsAsync(userId, request.HiddenApiWorkflowIds, context.RequestAborted);
@@ -120,10 +144,13 @@ public static class SettingsEndpoints
 
         // The generation mask — which tag types the random-prompt model may emit — one PUT, one column. Bounds ONLY
         // random-prompt generation; tag autocomplete keeps ranking every type regardless of what is set here.
-        api.MapPut(Routes.GenerationTagTypes, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.GenerationTagTypes, async (HttpContext context, UserService users) =>
         {
             GenerationTagTypesRequest? request = await Json.ReadAsync<GenerationTagTypesRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             // An unknown type name is rejected, not dropped: a dropped name would read as "switched off" and quietly
@@ -133,10 +160,13 @@ public static class SettingsEndpoints
         });
 
         // Whether autocomplete pins the user's matching bookmarks to the top — one PUT, one column, like the rest.
-        api.MapPut(Routes.PinBookmarks, async (HttpContext context, UserService users) =>
+        _ = api.MapPut(Routes.PinBookmarks, async (HttpContext context, UserService users) =>
         {
             PinBookmarksRequest? request = await Json.ReadAsync<PinBookmarksRequest>(context);
-            if (request is null) return Results.BadRequest();
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             await users.SetPinBookmarkSuggestionsAsync(userId, request.PinBookmarks, context.RequestAborted);

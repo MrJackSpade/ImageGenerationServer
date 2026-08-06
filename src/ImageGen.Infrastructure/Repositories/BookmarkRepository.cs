@@ -38,20 +38,25 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         await using DbCommand cmd = conn.Command(
             "SELECT Id, UserId, Name, Kind, SavedAtUtc, PinnedAtUtc FROM dbo.TokenBookmark WHERE UserId = @userId "
             + "ORDER BY SavedAtUtc DESC, Id DESC;");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
 
-        List<TokenBookmarkRow> raw = new List<TokenBookmarkRow>();
+        List<TokenBookmarkRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new TokenBookmarkRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2),
                     (TokenKind)reader.AsByte(3), DateTime.SpecifyKind(reader.GetDateTime(4), DateTimeKind.Utc),
                     reader.IsDBNull(5) ? null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)));
+            }
+        }
 
         Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(
             conn, Sql.TokenCatTable, Sql.TokenCatParent, raw.Select(r => r.Id).ToList(), userId, _cipher, ct);
 
-        List<TokenBookmark> list = new List<TokenBookmark>(raw.Count);
+        List<TokenBookmark> list = new(raw.Count);
         foreach (TokenBookmarkRow r in raw)
+        {
             list.Add(new TokenBookmark
             {
                 Id = r.Id,
@@ -62,6 +67,8 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
                 PinnedAtUtc = r.Pinned,
                 Categories = cats.TryGetValue(r.Id, out List<string>? cl) ? cl : [],
             });
+        }
+
         return list;
     }
 
@@ -76,8 +83,8 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         await using DbCommand cmd = conn.Command(
             "SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.ImageBookmark WHERE UserId = @userId AND GatewayImageId = @img) "
             + "THEN 1 ELSE 0 END;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@img", gatewayImageId);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@img", gatewayImageId);
         return await cmd.ScalarInt32Async(ct) == 1;
     }
 
@@ -93,9 +100,9 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.TokenBookmark WHERE UserId = @userId AND Name = @name AND Kind = @kind;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
-        cmd.AddParam("@kind", (byte)kind);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
+        _ = cmd.AddParam("@kind", (byte)kind);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -106,10 +113,10 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         await using DbCommand cmd = conn.Command(
             "UPDATE dbo.TokenBookmark SET PinnedAtUtc = @pinned "
             + "WHERE UserId = @userId AND Name = @name AND Kind = @kind;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
-        cmd.AddParam("@kind", (byte)kind);
-        cmd.AddParam("@pinned", (object?)pinnedAtUtc ?? DBNull.Value);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
+        _ = cmd.AddParam("@kind", (byte)kind);
+        _ = cmd.AddParam("@pinned", (object?)pinnedAtUtc ?? DBNull.Value);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -121,12 +128,12 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
-        List<ImageBookmark> rows = new List<ImageBookmark>();
-        List<long> ids = new List<long>();
+        List<ImageBookmark> rows = [];
+        List<long> ids = [];
         await using (DbCommand cmd = conn.Command(
             $"SELECT {Sql.ImageColumns} FROM dbo.ImageBookmark WHERE UserId = @userId ORDER BY SavedAtUtc DESC, Id DESC;"))
         {
-            cmd.AddParam("@userId", userId);
+            _ = cmd.AddParam("@userId", userId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -138,9 +145,12 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
 
         Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
         Dictionary<long, List<string>> cats = await CategoryIo.LoadAsync(conn, Sql.ImageCatTable, Sql.ImageCatParent, ids, userId, _cipher, ct);
-        List<ImageBookmark> result = new List<ImageBookmark>(rows.Count);
+        List<ImageBookmark> result = new(rows.Count);
         foreach (ImageBookmark i in rows)
+        {
             result.Add(await WithMarksAsync(i, marks, cats, ct));
+        }
+
         return result;
     }
 
@@ -161,8 +171,8 @@ public sealed class BookmarkRepository(IDbConnectionFactory connectionFactory, I
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.ImageBookmark WHERE UserId = @userId AND GatewayImageId = @img;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@img", gatewayImageId);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@img", gatewayImageId);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -181,19 +191,21 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageBookmark WHERE UserId = @userId AND Gat
         long? newId;
         await using (DbCommand cmd = conn.Command(sql, tx))
         {
-            cmd.AddParam("@userId", b.UserId);
-            cmd.AddParam("@img", b.GatewayImageId);
-            cmd.AddParam("@prompt", await _cipher.EncryptAsync(b.UserId, b.Prompt, ct));
-            cmd.AddParam("@modelFriendly", b.ModelFriendly);
-            cmd.AddParam("@modelId", b.ModelId);
-            cmd.AddParam("@aspect", b.Aspect);
-            cmd.AddParam("@original", b.OriginalCreatedAtUtc);
-            cmd.AddParam("@saved", b.SavedAtUtc);
+            _ = cmd.AddParam("@userId", b.UserId);
+            _ = cmd.AddParam("@img", b.GatewayImageId);
+            _ = cmd.AddParam("@prompt", await _cipher.EncryptAsync(b.UserId, b.Prompt, ct));
+            _ = cmd.AddParam("@modelFriendly", b.ModelFriendly);
+            _ = cmd.AddParam("@modelId", b.ModelId);
+            _ = cmd.AddParam("@aspect", b.Aspect);
+            _ = cmd.AddParam("@original", b.OriginalCreatedAtUtc);
+            _ = cmd.AddParam("@saved", b.SavedAtUtc);
             newId = await cmd.ScalarNullableInt64Async(ct);
         }
 
         if (newId is null)
+        {
             return false;
+        }
 
         await MarkIo.InsertAsync(conn, tx, Sql.MarkTable, Sql.MarkParent, newId.Value, b.Marks, b.UserId, _cipher, ct);
         return true;
@@ -207,10 +219,10 @@ INSERT INTO dbo.TokenBookmark (UserId, Name, Kind, SavedAtUtc)
 SELECT @userId, @name, @kind, @saved
 WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Name = @name AND Kind = @kind);";
         DbCommand cmd = tx is null ? conn.Command(sql) : conn.Command(sql, tx);
-        cmd.AddParam("@userId", b.UserId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(b.UserId, b.Name, ct));
-        cmd.AddParam("@kind", (byte)b.Kind);
-        cmd.AddParam("@saved", b.SavedAtUtc);
+        _ = cmd.AddParam("@userId", b.UserId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(b.UserId, b.Name, ct));
+        _ = cmd.AddParam("@kind", (byte)b.Kind);
+        _ = cmd.AddParam("@saved", b.SavedAtUtc);
         return cmd;
     }
 
@@ -257,23 +269,30 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
             + "UNION "
             + "SELECT c.Category FROM dbo.ImageBookmarkCategory c "
             + "JOIN dbo.ImageBookmark b ON b.Id = c.ImageBookmarkId WHERE b.UserId = @userId;");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
 
-        List<string> encrypted = new List<string>();
+        List<string> encrypted = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 encrypted.Add(reader.GetString(0));
+            }
+        }
 
         // Distinct ciphertext collapses exact-match names; casing variants are then folded case-insensitively,
         // keeping the first spelling seen. Sorted for a stable checklist.
-        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        List<string> names = new List<string>();
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<string> names = [];
         foreach (string enc in encrypted)
         {
             string name = await _cipher.DecryptDeterministicAsync(userId, enc, ct);
             if (seen.Add(name))
+            {
                 names.Add(name);
+            }
         }
+
         names.Sort(StringComparer.OrdinalIgnoreCase);
         return names;
     }
@@ -286,9 +305,9 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
             "SELECT c.Category FROM dbo.TokenBookmarkCategory c "
             + "JOIN dbo.TokenBookmark b ON b.Id = c.TokenBookmarkId "
             + "WHERE b.UserId = @userId AND b.Name = @name AND b.Kind = @kind;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
-        cmd.AddParam("@kind", (byte)kind);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(userId, name, ct));
+        _ = cmd.AddParam("@kind", (byte)kind);
         return await ReadCategoriesAsync(cmd, userId, ct);
     }
 
@@ -300,21 +319,28 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
             "SELECT c.Category FROM dbo.ImageBookmarkCategory c "
             + "JOIN dbo.ImageBookmark b ON b.Id = c.ImageBookmarkId "
             + "WHERE b.UserId = @userId AND b.GatewayImageId = @img;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@img", gatewayImageId);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@img", gatewayImageId);
         return await ReadCategoriesAsync(cmd, userId, ct);
     }
 
     private async Task<IReadOnlyList<string>> ReadCategoriesAsync(DbCommand cmd, long userId, CancellationToken ct)
     {
-        List<string> encrypted = new List<string>();
+        List<string> encrypted = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 encrypted.Add(reader.GetString(0));
+            }
+        }
 
-        List<string> names = new List<string>(encrypted.Count);
+        List<string> names = new(encrypted.Count);
         foreach (string enc in encrypted)
+        {
             names.Add(await _cipher.DecryptDeterministicAsync(userId, enc, ct));
+        }
+
         return names;
     }
 
@@ -329,15 +355,17 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
 
         // Ensure the bookmark row exists (a long-press on an un-starred chip implies starring it), then read its id.
         await using (DbCommand ins = await BuildInsertTokenCommandAsync(conn, tx, bookmark, ct))
-            await ins.ExecuteNonQueryAsync(ct);
+        {
+            _ = await ins.ExecuteNonQueryAsync(ct);
+        }
 
         long id;
         await using (DbCommand sel = conn.Command(
             "SELECT Id FROM dbo.TokenBookmark WHERE UserId = @userId AND Name = @name AND Kind = @kind;", tx))
         {
-            sel.AddParam("@userId", bookmark.UserId);
-            sel.AddParam("@name", await _cipher.DeterministicAsync(bookmark.UserId, bookmark.Name, ct));
-            sel.AddParam("@kind", (byte)bookmark.Kind);
+            _ = sel.AddParam("@userId", bookmark.UserId);
+            _ = sel.AddParam("@name", await _cipher.DeterministicAsync(bookmark.UserId, bookmark.Name, ct));
+            _ = sel.AddParam("@kind", (byte)bookmark.Kind);
             id = await sel.ScalarNullableInt64Async(ct)
                 ?? throw new InvalidOperationException("Token bookmark row is missing immediately after being ensured.");
         }
@@ -356,14 +384,14 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.TokenBookmark WHERE UserId = @userId AND Nam
         await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
         // Ensure the image bookmark exists (no-op if it already does), then read its id.
-        await InsertImageAsync(conn, tx, bookmark, ct);
+        _ = await InsertImageAsync(conn, tx, bookmark, ct);
 
         long id;
         await using (DbCommand sel = conn.Command(
             "SELECT Id FROM dbo.ImageBookmark WHERE UserId = @userId AND GatewayImageId = @img;", tx))
         {
-            sel.AddParam("@userId", bookmark.UserId);
-            sel.AddParam("@img", bookmark.GatewayImageId);
+            _ = sel.AddParam("@userId", bookmark.UserId);
+            _ = sel.AddParam("@img", bookmark.GatewayImageId);
             id = await sel.ScalarNullableInt64Async(ct)
                 ?? throw new InvalidOperationException("Image bookmark row is missing immediately after being ensured.");
         }

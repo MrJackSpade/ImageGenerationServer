@@ -219,9 +219,15 @@ public static class ForgeApi
         string name, IReadOnlyDictionary<string, LoraMeta> meta, IReadOnlyDictionary<string, LoraUserSetting> settings)
     {
         if (settings.TryGetValue(name, out LoraUserSetting? us) && !string.IsNullOrWhiteSpace(us.TriggerWords))
+        {
             return us.TriggerWords;
+        }
+
         if (meta.TryGetValue(name, out LoraMeta? m) && m.TrainedWords.Count > 0)
+        {
             return DefaultTriggers(m);
+        }
+
         return null;
     }
 
@@ -235,8 +241,13 @@ public static class ForgeApi
     {
         string file = name[(name.LastIndexOfAny(['/', '\\']) + 1)..];
         foreach (string? ext in new[] { ".safetensors", ".ckpt", ".pt", ".gguf" })
+        {
             if (file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+            {
                 return file[..^ext.Length];
+            }
+        }
+
         return file;
     }
 
@@ -275,8 +286,14 @@ public static class ForgeApi
     /// </summary>
     private static async Task<IResult> AcceptAsync(Func<Task<IResult>> submit)
     {
-        try { return await submit(); }
-        catch (RenderStorageException ex) { return LowMemory(ex.Message); }
+        try
+        {
+            return await submit();
+        }
+        catch (RenderStorageException ex)
+        {
+            return LowMemory(ex.Message);
+        }
     }
 
     private static string? UrlFor(string? imageId) =>
@@ -290,8 +307,16 @@ public static class ForgeApi
     private static bool ValidTagTypes(List<string>? requested, out string? error)
     {
         error = null;
-        if (requested is null) return true;
-        if (GenerationTagTypes.TryNormalize(requested, out _, out string? reason)) return true;
+        if (requested is null)
+        {
+            return true;
+        }
+
+        if (GenerationTagTypes.TryNormalize(requested, out _, out string? reason))
+        {
+            return true;
+        }
+
         error = reason;
         return false;
     }
@@ -300,11 +325,11 @@ public static class ForgeApi
 
     private static void MapWorkflows(RouteGroupBuilder app)
     {
-        app.MapGet(Routes.Healthz, () => Results.Ok(new { ok = true })).AllowAnonymous();
+        _ = app.MapGet(Routes.Healthz, () => Results.Ok(new { ok = true })).AllowAnonymous();
 
         // Every workflow configuration the current machine can run, for the caller's scope. Eligibility + row shaping
         // live in the catalog adapter; a renderer that's unreachable surfaces as a 502.
-        app.MapGet(Routes.Workflows, async (HttpContext http, IWorkflowCatalog catalog, UserService users, CancellationToken ct) =>
+        _ = app.MapGet(Routes.Workflows, async (HttpContext http, IWorkflowCatalog catalog, UserService users, CancellationToken ct) =>
         {
             try
             {
@@ -322,6 +347,7 @@ public static class ForgeApi
                         list = list.Where(w => !drop.Contains(w.Id)).ToList();
                     }
                 }
+
                 return Results.Ok(list);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
@@ -332,7 +358,7 @@ public static class ForgeApi
 
         // Everything this machine can and cannot run, and why. The picker deliberately lists only what is READY;
         // this is the surface that explains the difference.
-        app.MapGet(Routes.CatalogStatus, async (IWorkflowCatalog catalog, CancellationToken ct) =>
+        _ = app.MapGet(Routes.CatalogStatus, async (IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             try
             {
@@ -347,7 +373,7 @@ public static class ForgeApi
         // The LoRA files this machine offers, for the composer's picker: each file's subfolder-qualified name, the
         // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
         // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
-        app.MapGet(Routes.Loras, async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
+        _ = app.MapGet(Routes.Loras, async (HttpRequest http, string? workflow, IWorkflowCatalog catalog, LoraService loras,
             ILoraMetaRepository meta, ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings,
             ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
@@ -390,7 +416,7 @@ public static class ForgeApi
         // The LoRA manager page's data: every LoRA on this box with its cover / CivitAI preview, model name, and
         // trigger words. Like /loras this is NON-BLOCKING — it returns stubs at once and Request() populates in the
         // background; the client polls /loras/meta. Nothing here hashes or hits the network on the request thread.
-        app.MapGet(Routes.LorasManage, async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+        _ = app.MapGet(Routes.LorasManage, async (HttpRequest http, IWorkflowCatalog catalog, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, LoraService loras, ILoraUserSettingRepository userSettings,
             ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
@@ -407,8 +433,8 @@ public static class ForgeApi
                 populator.Request(names);
                 var rows = entries.Select(e =>
                 {
-                    metaByName.TryGetValue(e.Name, out LoraMeta? m);
-                    settings.TryGetValue(e.Name, out LoraUserSetting? us);
+                    _ = metaByName.TryGetValue(e.Name, out LoraMeta? m);
+                    _ = settings.TryGetValue(e.Name, out LoraUserSetting? us);
                     string def = m is { TrainedWords.Count: > 0 } ? DefaultTriggers(m) : "";
                     return new
                     {
@@ -438,14 +464,16 @@ public static class ForgeApi
         // current cached state for the named files (never blocking), (re)queues any not-yet-ready ones so a job resumes
         // after a restart, and reports whether any are still pending so the client knows to keep polling. POST, so a
         // long list of subfolder-qualified names travels in the body, not a capped URL (see MediaTypesRequest).
-        app.MapPost(Routes.LorasMeta, async (HttpRequest http, LoraMetaQueryRequest body, ILoraMetaRepository meta,
+        _ = app.MapPost(Routes.LorasMeta, async (HttpRequest http, LoraMetaQueryRequest body, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, ILoraUserSettingRepository userSettings, ICivitaiClient civitai,
             ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             long userId = OwnerOf(http);
             List<string> names = (body.Names ?? []).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (names.Count == 0)
+            {
                 return Results.Ok(new { items = Array.Empty<object>(), pending = false });
+            }
 
             IReadOnlyDictionary<string, LoraMeta> metaByName = await meta.GetManyAsync(names, ct);
             IReadOnlyDictionary<string, string> previewTypes = await previews.GetContentTypesAsync(names, ct);
@@ -469,19 +497,23 @@ public static class ForgeApi
         // Refresh: forget the cached CivitAI data (and preview bytes) for these files — or every LoRA on the box when
         // the list is empty — then re-queue them so the populator re-fetches. A no-op when CivitAI is off (there is
         // nothing to fetch, and wiping the cache would leave the cards blank). The client polls /loras/meta after.
-        app.MapPost(Routes.LorasRefresh, async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
+        _ = app.MapPost(Routes.LorasRefresh, async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
             ILoraPreviewRepository previews, ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
         {
             try
             {
                 if (!civitai.IsEnabled())
+                {
                     return Results.Ok(new { refreshed = Array.Empty<string>() });
+                }
 
                 List<string> names = body.Names is { Count: > 0 }
                     ? body.Names.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
                     : (await catalog.ListLorasAsync(null, ct)).Select(e => e.Name).ToList();
                 if (names.Count == 0)
+                {
                     return Results.Ok(new { refreshed = Array.Empty<string>() });
+                }
 
                 await previews.DeleteAsync(names, ct);
                 await meta.DeleteAsync(names, ct);
@@ -496,30 +528,43 @@ public static class ForgeApi
 
         // Point a slot at a file on this machine, or clear it. A blank fileName clears, which is how a wrong
         // automatic guess is rejected.
-        app.MapPut(Routes.CatalogBinding, async (BindingRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        _ = app.MapPut(Routes.CatalogBinding, async (BindingRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.SlotId))
+            {
                 return Results.BadRequest(new { error = "slotId is required." });
+            }
+
             await catalog.SetBindingAsync(body.SlotId, body.FileName, ct);
             return Results.NoContent();
         });
 
         // One per-configuration override for this machine (vram.min, param.<key>, ...). A blank value
         // REMOVES the override and restores the shipped default.
-        app.MapPut(Routes.CatalogOverride, async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        _ = app.MapPut(Routes.CatalogOverride, async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.ConfigId) || string.IsNullOrWhiteSpace(body.Key))
+            {
                 return Results.BadRequest(new { error = "configId and key are required." });
-            try { await catalog.SetOverrideAsync(body.ConfigId, body.Key, body.Value, ct); }
+            }
+
+            try
+            {
+                await catalog.SetOverrideAsync(body.ConfigId, body.Key, body.Value, ct);
+            }
             // A value the model does not support is the caller's mistake, not a server fault — answered with the
             // model's own numbers so the form can say what is allowed.
-            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+
             return Results.NoContent();
         });
 
         // What one workflow renders with on this machine, and what the catalogue shipped, so the settings page can
         // show both and offer a reset.
-        app.MapGet(Routes.CatalogConfigSettings, (string id, IWorkflowCatalog catalog) =>
+        _ = app.MapGet(Routes.CatalogConfigSettings, (string id, IWorkflowCatalog catalog) =>
         {
             WorkflowSettings? settings = catalog.GetSettings(id);
             return settings is null
@@ -528,7 +573,7 @@ public static class ForgeApi
         });
 
         // One configuration's prompting guide (resolves {model} loosely, as generate accepts it).
-        app.MapGet(Routes.PromptingForModel, (string model, IWorkflowCatalog catalog) =>
+        _ = app.MapGet(Routes.PromptingForModel, (string model, IWorkflowCatalog catalog) =>
         {
             PromptingGuide? guide = catalog.GetGuide(model);
             return guide is null
@@ -537,7 +582,7 @@ public static class ForgeApi
         });
 
         // All configurations' guides.
-        app.MapGet(Routes.Prompting, (IWorkflowCatalog catalog) => Results.Ok(catalog.AllGuides()));
+        _ = app.MapGet(Routes.Prompting, (IWorkflowCatalog catalog) => Results.Ok(catalog.AllGuides()));
     }
 
     #endregion
@@ -552,21 +597,28 @@ public static class ForgeApi
         // every keystroke — as a query string that puts the prompt, keystroke by keystroke, into the browser's own
         // history and address-bar autocomplete, on the user's machine, where nothing server-side can ever clean it
         // up. It also reaches request logs, proxies and Referer headers. A body goes in none of those places.
-        app.MapPost(Routes.Tags, async (TagQueryRequest req, HttpRequest http, ITagCatalog tags, ITagModelClient model,
+        _ = app.MapPost(Routes.Tags, async (TagQueryRequest req, HttpRequest http, ITagCatalog tags, ITagModelClient model,
             IBookmarkRepository bookmarks, CancellationToken ct) =>
         {
             bool artist = string.Equals(req.Kind, Discriminators.Artist, StringComparison.OrdinalIgnoreCase);
             // A limit outside [1,50] is refused, not clamped: silently returning 50 for a request of 1000 reads
             // to the caller as "that's all there is". An absent limit binds to the default (10).
             int n = req.Limit;
-            if (n is < 1 or > 50) return Results.BadRequest(new { error = "limit must be between 1 and 50." });
+            if (n is < 1 or > 50)
+            {
+                return Results.BadRequest(new { error = "limit must be between 1 and 50." });
+            }
+
             string frag = req.Q ?? "";
 
             IReadOnlyList<TagSuggestionItem> ranked = await RankTagsAsync(artist, frag, req.Ctx, n, tags, model);
 
             // Toggle off (the default): the ranked suggestions, untouched — and the bookmark store is never touched, so
             // the per-keystroke load + decrypt is paid only by users who turned pinning on.
-            if (!req.PinBookmarks) return Results.Ok(ranked);
+            if (!req.PinBookmarks)
+            {
+                return Results.Ok(ranked);
+            }
 
             // Pin the user's matching bookmarks to the top. Match the catalog's own Query — substring, case-insensitive
             // — so a bookmark surfaces on exactly the fragments a plain suggestion would. Name-ordered. Deduped against
@@ -584,7 +636,7 @@ public static class ForgeApi
             return Results.Ok(MergePinnedFirst(pinned, ranked, n));
         });
 
-        app.MapGet(Routes.TagsStatus, (ITagCatalog tags) =>
+        _ = app.MapGet(Routes.TagsStatus, (ITagCatalog tags) =>
             Results.Ok(new { loaded = tags.Loaded, status = tags.Status, tags = tags.TagCount, artists = tags.ArtistCount }));
     }
 
@@ -624,6 +676,7 @@ public static class ForgeApi
         {
             IReadOnlyList<TagSuggestion>? sug = await model.QueryAsync(ctx, frag, n, CancellationToken.None);
             if (sug is { Count: > 0 })
+            {
                 // .Take(n) is not redundant. `n` is this endpoint's stated limit and the fallback below honours it;
                 // without it the model-ranked path would return whatever the tag server sent, so the SAME request would
                 // yield 10 or up to 100 results depending on which branch ran -- invisible to the caller.
@@ -632,6 +685,7 @@ public static class ForgeApi
                     TagEntry? meta = tags.Lookup(s.Name);
                     return new TagSuggestionItem(s.Name, meta?.Count ?? 0, meta?.Type ?? 0, false, new Ranking(s.P, s.Lift));
                 }).ToList();
+            }
         }
 
         return tags.Query(frag, artist, n)
@@ -654,11 +708,23 @@ public static class ForgeApi
 
     private static void MapRender(RouteGroupBuilder app)
     {
-        app.MapPost(Routes.Generate, async (GenerateRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        _ = app.MapPost(Routes.Generate, async (GenerateRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Workflow)) return Results.BadRequest(new { error = "A workflow is required." });
-            if (!ValidTagTypes(req.TagTypes, out string? maskError)) return Results.BadRequest(new { error = maskError });
-            if (gate.Refusal() is { } full) return LowMemory(full);
+            if (string.IsNullOrWhiteSpace(req.Workflow))
+            {
+                return Results.BadRequest(new { error = "A workflow is required." });
+            }
+
+            if (!ValidTagTypes(req.TagTypes, out string? maskError))
+            {
+                return Results.BadRequest(new { error = maskError });
+            }
+
+            if (gate.Refusal() is { } full)
+            {
+                return LowMemory(full);
+            }
+
             return await AcceptAsync(async () =>
             {
                 RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForGenerate(req.ToSpec(), req.Background) });
@@ -666,11 +732,23 @@ public static class ForgeApi
             });
         });
 
-        app.MapPost(Routes.Edit, async (EditRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        _ = app.MapPost(Routes.Edit, async (EditRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Workflow)) return Results.BadRequest(new { error = "A workflow is required." });
-            if (string.IsNullOrWhiteSpace(req.ImageId)) return Results.BadRequest(new { error = "A source image id is required." });
-            if (gate.Refusal() is { } full) return LowMemory(full);
+            if (string.IsNullOrWhiteSpace(req.Workflow))
+            {
+                return Results.BadRequest(new { error = "A workflow is required." });
+            }
+
+            if (string.IsNullOrWhiteSpace(req.ImageId))
+            {
+                return Results.BadRequest(new { error = "A source image id is required." });
+            }
+
+            if (gate.Refusal() is { } full)
+            {
+                return LowMemory(full);
+            }
+
             return await AcceptAsync(async () =>
             {
                 RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), new[] { RenderItem.ForEdit(req.ToSpec(), req.Background) });
@@ -678,16 +756,28 @@ public static class ForgeApi
             });
         });
 
-        app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
+        _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate) =>
         {
-            if (gate.Refusal() is { } full) return LowMemory(full);
+            if (gate.Refusal() is { } full)
+            {
+                return LowMemory(full);
+            }
             // An unknown type name is rejected for the WHOLE batch rather than dropped from one item: a dropped name
             // reads downstream as "the user switched that type off", which silently changes what gets generated.
             foreach (EnqueueItem it in req.Jobs ?? [])
+            {
                 if (!ValidTagTypes(it.TagTypes, out string? itemMaskError))
+                {
                     return Results.BadRequest(new { error = itemMaskError });
-            List<RenderItem> items = (req.Jobs ?? new List<EnqueueItem>()).Select(it => it.ToRenderItem()).OfType<RenderItem>().ToList();
-            if (items.Count == 0) return Results.BadRequest(new { error = "No valid jobs in the batch." });
+                }
+            }
+
+            List<RenderItem> items = (req.Jobs ?? []).Select(it => it.ToRenderItem()).OfType<RenderItem>().ToList();
+            if (items.Count == 0)
+            {
+                return Results.BadRequest(new { error = "No valid jobs in the batch." });
+            }
+
             return await AcceptAsync(async () =>
             {
                 RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), items);
@@ -696,7 +786,7 @@ public static class ForgeApi
         });
 
         // POLL one job (legacy single-image shape). Memory first, DB fallback once finalized; unknown id → error.
-        app.MapGet(Routes.Result, async (string id, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.Result, async (string id, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
         {
             RenderJob? job = queue.Get(id);
             if (job is not null && job.Slots.Count > 0)
@@ -705,8 +795,13 @@ public static class ForgeApi
                 return Results.Ok(LegacyResultSlot(RenderPhases.Of(s.State), s.ImageId, s.ExpectedGenSeconds, s.GenStartedAt,
                     s.Width, s.Height, s.IsEdit, s.EditResult?.Changed ?? true, s.EditResult?.ChangeScore, s.EffectivePrompt, s.Marks, s.Error, queue.JobsAhead(job), s.Notice));
             }
+
             JobRecord? rec = await jobs.GetAsync(id, ct);
-            if (rec is null || rec.Slots.Count == 0) return Results.Ok(new { status = "error", error = "unknown job id" });
+            if (rec is null || rec.Slots.Count == 0)
+            {
+                return Results.Ok(new { status = "error", error = "unknown job id" });
+            }
+
             JobSlotRecord sr = rec.Slots.OrderBy(x => x.SlotIndex).First();
             return Results.Ok(LegacyResultSlot(RenderPhases.Of(sr.State), sr.ImageId, sr.ExpectedGenSeconds,
                 sr.GenStartedAtUtc is { } g ? new DateTimeOffset(DateTime.SpecifyKind(g, DateTimeKind.Utc)) : null,
@@ -714,14 +809,14 @@ public static class ForgeApi
         });
 
         // SYNC: this user's ACTIVE jobs only. A finalized job is not here — its absence is the client's reconcile cue.
-        app.MapGet(Routes.Jobs, (HttpRequest http, RenderOrchestrator queue) =>
+        _ = app.MapGet(Routes.Jobs, (HttpRequest http, RenderOrchestrator queue) =>
         {
             long owner = OwnerOf(http);
             return Results.Ok(new { jobs = queue.ActiveForOwner(owner).Select(j => JobViewOf(j, queue)) });
         });
 
         // Cross-user QUEUE + history: a page of every gen on this box, live rows overlaid with in-memory state.
-        app.MapGet(Routes.Queue, async (HttpRequest http, RenderOrchestrator queue, IJobRepository jobs,
+        _ = app.MapGet(Routes.Queue, async (HttpRequest http, RenderOrchestrator queue, IJobRepository jobs,
             IGenTimingRepository timings, int? page, int? pageSize, CancellationToken ct) =>
         {
             long me = OwnerOf(http);
@@ -729,8 +824,16 @@ public static class ForgeApi
             // asked for). Absent (null) means the default.
             int p = page ?? 1;
             int size = pageSize ?? 25;
-            if (p < 1) return Results.BadRequest(new { error = "page must be >= 1." });
-            if (size is < 1 or > 100) return Results.BadRequest(new { error = "pageSize must be between 1 and 100." });
+            if (p < 1)
+            {
+                return Results.BadRequest(new { error = "page must be >= 1." });
+            }
+
+            if (size is < 1 or > 100)
+            {
+                return Results.BadRequest(new { error = "pageSize must be between 1 and 100." });
+            }
+
             PagedResult<JobRecord> pr = await jobs.ListPageAsync(Environment.MachineName, me, p, size, ct);
             Dictionary<string, RenderJob> live = queue.AllActive().ToDictionary(j => j.JobId);
             // Same ordering as the DB page (unfinished first in SERVICE order, then finished newest-first), re-applied
@@ -742,9 +845,15 @@ public static class ForgeApi
             // Service order is ASCENDING for unfinished work and it is not cosmetic: the fair queue renders the oldest
             // queued job next, so ordering those newest-first would put the row that is actually on the GPU last, pages
             // away from the only page the client polls.
-            DateTime SubmittedAt(JobRecord r) =>
-                live.TryGetValue(r.JobId, out RenderJob? lj) ? lj.CreatedAt.UtcDateTime : r.CreatedAtUtc;
-            bool Unfinished(JobRecord r) => r.Status == JobStatus.Active || live.ContainsKey(r.JobId);
+            DateTime SubmittedAt(JobRecord r)
+            {
+                return live.TryGetValue(r.JobId, out RenderJob? lj) ? lj.CreatedAt.UtcDateTime : r.CreatedAtUtc;
+            }
+
+            bool Unfinished(JobRecord r)
+            {
+                return r.Status == JobStatus.Active || live.ContainsKey(r.JobId);
+            }
 
             List<object> rows = pr.Items.Where(Unfinished).OrderBy(SubmittedAt)
                 .Concat(pr.Items.Where(r => !Unfinished(r)).OrderByDescending(SubmittedAt))
@@ -763,23 +872,30 @@ public static class ForgeApi
         });
 
         // LOOKUP a job by id (active or finalized) — the durable read for a job that vanished from /jobs. Owner-checked.
-        app.MapGet(Routes.Job, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.Job, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
         {
             long owner = OwnerOf(http);
             RenderJob? live = queue.Get(id);
             if (live is not null)
+            {
                 return live.Owner == owner ? Results.Ok(JobViewOf(live, queue)) : Results.Unauthorized();
+            }
+
             JobRecord? rec = await jobs.GetAsync(id, ct);
-            if (rec is null) return Results.NotFound(new { error = "unknown job id" });
+            if (rec is null)
+            {
+                return Results.NotFound(new { error = "unknown job id" });
+            }
+
             return rec.UserId == owner ? Results.Ok(JobRecordView(rec)) : Results.Unauthorized();
         });
 
         // A live job is cancelled in memory. A job this instance owns whose row is still Active but which no worker
         // holds — stranded by a crash — has nothing rendering it, so its row is failed instead. Same answer either way:
         // the queue page offers Cancel on anything unfinished, and unfinished-and-unowned must not be a dead button.
-        app.MapPost(Routes.Cancel, async (string id, RenderOrchestrator queue, CancellationToken ct) =>
+        _ = app.MapPost(Routes.Cancel, async (string id, RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { ok = queue.Cancel(id) || await queue.CancelStrandedAsync(id, ct) }));
-        app.MapPost(Routes.Interrupt, (RenderOrchestrator queue) => Results.Ok(new { ok = queue.CancelRunning() }));
+        _ = app.MapPost(Routes.Interrupt, (RenderOrchestrator queue) => Results.Ok(new { ok = queue.CancelRunning() }));
 
         // Bulk cancel, in one call rather than a client loop over rendered rows: the queue page shows 25 of a list it
         // re-polls every 2s, so a loop would clear only the visible page and race the poll rebuilding it.
@@ -790,19 +906,23 @@ public static class ForgeApi
         // role concept anywhere in this app to gate it with, and inventing a half of one here would be worse than the
         // honest status quo. The client confirms first, since it is irreversible and can discard work that isn't
         // yours. /cancel-mine is scoped to the caller and needs no such warning.
-        app.MapPost(Routes.CancelAll, async (RenderOrchestrator queue, CancellationToken ct) =>
+        _ = app.MapPost(Routes.CancelAll, async (RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { cancelled = await queue.CancelAllAsync(null, ct) }));
-        app.MapPost(Routes.CancelMine, async (HttpRequest http, RenderOrchestrator queue, CancellationToken ct) =>
+        _ = app.MapPost(Routes.CancelMine, async (HttpRequest http, RenderOrchestrator queue, CancellationToken ct) =>
             Results.Ok(new { cancelled = await queue.CancelAllAsync(OwnerOf(http), ct) }));
 
         // Re-run the images a finished job never made, as a NEW job. Owner-checked (unlike /cancel/{id}): this
         // CREATES work under an owner, and the scheduler is fair round-robin per owner, so an unchecked requeue would
         // let one user push work into another's queue share. Goes through the same submission gate as /generate —
         // requeued work is work, and a box too low on memory to accept a generation is too low to accept this.
-        app.MapPost(Routes.Requeue, async (string id, HttpRequest http, RenderOrchestrator queue,
+        _ = app.MapPost(Routes.Requeue, async (string id, HttpRequest http, RenderOrchestrator queue,
             SubmissionMemoryGate gate, CancellationToken ct) =>
         {
-            if (gate.Refusal() is { } full) return LowMemory(full);
+            if (gate.Refusal() is { } full)
+            {
+                return LowMemory(full);
+            }
+
             return await AcceptAsync(async () =>
             {
                 RequeueOutcome r = await queue.RequeueAsync(id, OwnerOf(http), ct);
@@ -820,7 +940,7 @@ public static class ForgeApi
 
         // Drop the renderer's loaded models + cached VRAM. The backend applies it between prompts, so it can't disturb
         // a render already running; queued work simply reloads its model when it starts.
-        app.MapPost(Routes.FreeVram, async (IComfyClient comfy, CancellationToken ct) =>
+        _ = app.MapPost(Routes.FreeVram, async (IComfyClient comfy, CancellationToken ct) =>
         {
             await comfy.FreeMemoryAsync(ct);
             return Results.Ok(new { ok = true });
@@ -844,16 +964,25 @@ public static class ForgeApi
     {
         OutstandingSnapshot o = queue.Outstanding(viewer);
         if (o.Images == 0)
+        {
             return new { jobs = 0, mineJobs = 0, images = 0, etaSeconds = (double?)null, unpricedImages = 0 };
+        }
 
         IReadOnlyDictionary<string, double> averagesMs = await timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct);
         double eta = o.RunningRemainingSeconds ?? 0;
         int unpriced = 0;
         foreach (string model in o.WaitingModels)
         {
-            if (averagesMs.TryGetValue(model, out double ms)) eta += ms / 1000.0;
-            else unpriced++;
+            if (averagesMs.TryGetValue(model, out double ms))
+            {
+                eta += ms / 1000.0;
+            }
+            else
+            {
+                unpriced++;
+            }
         }
+
         return new
         {
             jobs = o.Jobs,
@@ -961,8 +1090,12 @@ public static class ForgeApi
             IEnumerable<DateTime> starts = ordered.Select(s => s.GenStartedAtUtc).OfType<DateTime>();
             DateTime start = starts.Any() ? starts.Min() : r.CreatedAtUtc;
             double secs = (finished - start).TotalSeconds;
-            if (secs >= 0) durationSeconds = Math.Round(secs, 1);
+            if (secs >= 0)
+            {
+                durationSeconds = Math.Round(secs, 1);
+            }
         }
+
         return new
         {
             jobId = r.JobId,
@@ -1028,8 +1161,14 @@ public static class ForgeApi
     /// unreachable, or erroring. Those are opposite facts, and only one of them is the user's to act on.</summary>
     private static async Task<byte[]?> FetchLegacyOrNullAsync(IComfyClient comfy, string id, CancellationToken ct)
     {
-        try { return await comfy.FetchLegacyImageAsync(id, ct); }
-        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest) { return null; }
+        try
+        {
+            return await comfy.FetchLegacyImageAsync(id, ct);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
+        {
+            return null;
+        }
     }
 
     /// <summary>A slot's marks in the client's token-&gt;kind shape. They are stored as rows (dbo.JobSlotMark), so
@@ -1044,7 +1183,7 @@ public static class ForgeApi
         Dictionary<string, string>? marks, string? error, int jobsAhead, string? notice = null) => phase switch
         {
             RenderPhase.Queued => new { status = "queued", queued = true, jobsAhead, notice },
-            RenderPhase.Running => (object)new { status = "running", queued = false, expectedSeconds, startedAt, notice },
+            RenderPhase.Running => new { status = "running", queued = false, expectedSeconds, startedAt, notice },
             RenderPhase.Error => new { status = "error", error, notice },
             _ when isEdit && !changed => new { status = "done", changed = false, changeScore, notice },
             _ when isEdit => new { status = "done", id = imageId, url = UrlFor(imageId), width, height, changed = true, changeScore, notice },
@@ -1063,18 +1202,27 @@ public static class ForgeApi
         // This is the door the memory gate matters most at: these bytes are what stays resident until the render that
         // needs them runs, and nothing will evict them to make room. A box that is already low says so HERE, to the
         // caller holding the file, rather than taking the upload and failing the job it belongs to later.
-        app.MapPost(Routes.Upload, async (HttpRequest request, IUploadStore uploads, IMediaProcessor media,
+        _ = app.MapPost(Routes.Upload, async (HttpRequest request, IUploadStore uploads, IMediaProcessor media,
             SubmissionMemoryGate gate, HttpContext ctx) =>
         {
             if (!request.HasFormContentType)
+            {
                 return Results.BadRequest(new { error = "Expected multipart/form-data with an 'image' field." });
-            if (gate.Refusal() is { } full) return LowMemory(full);
+            }
+
+            if (gate.Refusal() is { } full)
+            {
+                return LowMemory(full);
+            }
+
             IFormCollection form = await request.ReadFormAsync();
             IFormFile? file = form.Files[FormFields.Image];
             if (file is null || file.Length == 0)
+            {
                 return Results.BadRequest(new { error = "Missing 'image' file field." });
+            }
 
-            using MemoryStream ms = new MemoryStream();
+            using MemoryStream ms = new();
             await file.CopyToAsync(ms, ctx.RequestAborted);
             byte[] bytes = ms.ToArray();
 
@@ -1082,8 +1230,15 @@ public static class ForgeApi
             // with null dimensions would push the rejection much later — to a failed render, or a gallery row of
             // unknown size — with nothing left pointing at the upload that caused it.
             ImageDimensions dims;
-            try { dims = media.Identify(bytes); }
-            catch (Exception ex) { return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" }); }
+            try
+            {
+                dims = media.Identify(bytes);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"That file isn't a readable image: {ex.Message}" });
+            }
+
             int? w = dims.Width, h = dims.Height;
             // The content-type is derived from the bytes, not the client-declared file.ContentType: the latter is an
             // untrusted claim (a client can send image/png for webp bytes), and Identify already decoded the true
@@ -1092,13 +1247,16 @@ public static class ForgeApi
             return Results.Ok(new { id });
         });
 
-        app.MapGet(Routes.Image, async (string id, int? w, bool? still, IUploadStore uploads, IImageBlobRepository blobs,
+        _ = app.MapGet(Routes.Image, async (string id, int? w, bool? still, IUploadStore uploads, IImageBlobRepository blobs,
             IMemoryCache cache, IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
         {
             if (w is int requested)
             {
-                if (requested < MinWidth || requested > MaxWidth)
+                if (requested is < MinWidth or > MaxWidth)
+                {
                     return Results.BadRequest(new { error = $"w must be between {MinWidth} and {MaxWidth}, got {requested}" });
+                }
+
                 int width = requested;
                 bool wantStill = still == true;
                 string key = $"thumb:{id}:{width}:{(wantStill ? "s" : "a")}";
@@ -1106,13 +1264,17 @@ public static class ForgeApi
                 {
                     byte[]? source = (await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted))?.Bytes;
                     source ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
-                    if (source is null) return Results.NotFound(new { error = "image not found" });
+                    if (source is null)
+                    {
+                        return Results.NotFound(new { error = "image not found" });
+                    }
                     // Thumbnailing is NOT wrapped. The image was found — that is what `source` is — so a failure here
                     // is ours to answer for; reporting it as "image not found" would send the client away looking for a
                     // missing image while the real fault (a codec, a truncated blob) goes unlogged and unfixed.
                     thumb = wantStill ? media.StillThumbnail(source, width) : media.Thumbnail(source, width);
-                    cache.Set(key, thumb, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
+                    _ = cache.Set(key, thumb, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
                 }
+
                 ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
                 return Results.File(thumb.Bytes, thumb.ContentType);
             }
@@ -1125,7 +1287,11 @@ public static class ForgeApi
             }
 
             byte[]? png = await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
-            if (png is null) return Results.NotFound(new { error = "image not found" });
+            if (png is null)
+            {
+                return Results.NotFound(new { error = "image not found" });
+            }
+
             ctx.Response.Headers.CacheControl = "public, max-age=300";
             return Results.File(png, ContentTypes.ImagePng);
         });
@@ -1133,23 +1299,32 @@ public static class ForgeApi
         // A LoRA's cached CivitAI preview media (image or clip), served from this box so the browser never hotlinks the
         // CivitAI CDN. The name rides in the query — it carries subfolder slashes and isn't sensitive. A short cache,
         // not immutable: the refresh button replaces the bytes under the same name, and the client cache-busts then.
-        app.MapGet(Routes.LoraPreview, async (string? name, ILoraPreviewRepository previews, HttpContext ctx) =>
+        _ = app.MapGet(Routes.LoraPreview, async (string? name, ILoraPreviewRepository previews, HttpContext ctx) =>
         {
             if (string.IsNullOrWhiteSpace(name))
+            {
                 return Results.BadRequest(new { error = "name is required" });
+            }
+
             LoraPreviewBlob? blob = await previews.GetAsync(name, ctx.RequestAborted);
             if (blob is null)
+            {
                 return Results.NotFound(new { error = "no cached preview for this LoRA" });
+            }
+
             ctx.Response.Headers.CacheControl = "public, max-age=300";
             return Results.File(blob.Bytes, blob.ContentType);
         });
 
-        app.MapGet(Routes.ImageInfo, async (string id, IUploadStore uploads, IImageBlobRepository blobs,
+        _ = app.MapGet(Routes.ImageInfo, async (string id, IUploadStore uploads, IImageBlobRepository blobs,
             IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
         {
             byte[]? bytes = (await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted))?.Bytes;
             bytes ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
-            if (bytes is null) return Results.NotFound(new { error = "image not found" });
+            if (bytes is null)
+            {
+                return Results.NotFound(new { error = "image not found" });
+            }
             // Not wrapped, for the same reason as the thumbnail above: these bytes were found. Bytes we are storing
             // and cannot identify are a fault on this side, and answering "404 not an identifiable image" would both
             // deny that and discard the only description of what was actually wrong with them.
@@ -1157,26 +1332,41 @@ public static class ForgeApi
             return Results.Ok(new { width = d.Width, height = d.Height });
         });
 
-        app.MapGet(Routes.ImageMp4, async (string id, int? w, IUploadStore uploads, IImageBlobRepository blobs,
+        _ = app.MapGet(Routes.ImageMp4, async (string id, int? w, IUploadStore uploads, IImageBlobRepository blobs,
             IMemoryCache cache, IMediaProcessor media, HttpContext ctx) =>
         {
             if (w is int rw && (rw < MinWidth || rw > MaxWidth))
+            {
                 return Results.BadRequest(new { error = $"w must be between {MinWidth} and {MaxWidth}, got {rw}" });
+            }
+
             int? width = w;
             string key = $"mp4:{id}:{width}";
             if (!cache.TryGetValue(key, out MediaPayload? clip) || clip is null)
             {
                 // Uploads included: a V2V edit's source is an uploaded clip the editor plays back before rendering.
                 (byte[] Bytes, string ContentType)? source = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
-                if (source is not { } clipSource) return Results.NotFound(new { error = "no video for this id" });
-                if (media.IsAnimatedWebp(clipSource.Bytes))
-                    clip = new MediaPayload(await media.WebpToMp4Async(clipSource.Bytes, width, ctx.RequestAborted), ContentTypes.VideoMp4);
-                else if (clipSource.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase))
-                    clip = new MediaPayload(clipSource.Bytes, clipSource.ContentType);
-                else
+                if (source is not { } clipSource)
+                {
                     return Results.NotFound(new { error = "no video for this id" });
-                cache.Set(key, clip, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
+                }
+
+                if (media.IsAnimatedWebp(clipSource.Bytes))
+                {
+                    clip = new MediaPayload(await media.WebpToMp4Async(clipSource.Bytes, width, ctx.RequestAborted), ContentTypes.VideoMp4);
+                }
+                else if (clipSource.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    clip = new MediaPayload(clipSource.Bytes, clipSource.ContentType);
+                }
+                else
+                {
+                    return Results.NotFound(new { error = "no video for this id" });
+                }
+
+                _ = cache.Set(key, clip, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
             }
+
             ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
             // Without a filename the browser would name a "Save as" after the last URL segment ("mp4") and append the
             // extension -> "mp4.mp4". Name it after the id. "inline" (not "attachment") so the <video> still plays.
@@ -1187,7 +1377,7 @@ public static class ForgeApi
             return Results.File(clip.Bytes, clip.ContentType);
         });
 
-        app.MapGet(Routes.ImagePalette, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImagePalette, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
         {
             string? json = await blobs.GetPaletteAsync(id, ct);
             return json is null ? Results.NotFound(new { error = "no palette for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
@@ -1195,13 +1385,13 @@ public static class ForgeApi
 
         // The fp quantize's pooled label frequencies (JSON float array, indexed by the palette's order) — fetched
         // together with /palette so a later single-frame re-quantize can replay BOTH globals bit-exactly.
-        app.MapGet(Routes.ImageFrequencies, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageFrequencies, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
         {
             string? json = await blobs.GetFrequenciesAsync(id, ct);
             return json is null ? Results.NotFound(new { error = "no frequencies for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
         });
 
-        app.MapGet(Routes.ImageParams, async (string id, HttpRequest req, IJobRepository jobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageParams, async (string id, HttpRequest req, IJobRepository jobs, CancellationToken ct) =>
         {
             ImageRequestRecord? r = await jobs.GetRequestByImageAsync(id, ct);
             return r is { } rr && rr.OwnerUserId == OwnerOf(req)
@@ -1209,23 +1399,30 @@ public static class ForgeApi
                 : Results.NotFound(new { error = "no params for this id" });
         });
 
-        app.MapGet(Routes.ImageFrames, async (string id, IImageFrameRepository frames, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageFrames, async (string id, IImageFrameRepository frames, CancellationToken ct) =>
         {
             IReadOnlyList<byte[]> list = await frames.GetFramesAsync(id, ct);
-            if (list.Count == 0) return Results.NotFound(new { error = "no lossless frames for this id" });
-            MemoryStream ms = new MemoryStream();
-            using (ZipArchive zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            if (list.Count == 0)
+            {
+                return Results.NotFound(new { error = "no lossless frames for this id" });
+            }
+
+            MemoryStream ms = new();
+            using (ZipArchive zip = new(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
                 for (int i = 0; i < list.Count; i++)
                 {
                     ZipArchiveEntry entry = zip.CreateEntry($"{i:D3}.png", System.IO.Compression.CompressionLevel.NoCompression);
                     await using Stream es = entry.Open();
                     await es.WriteAsync(list[i], ct);
                 }
+            }
+
             ms.Position = 0;
             return Results.File(ms, ContentTypes.ApplicationZip);
         });
 
-        app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, IMediaProcessor media, CancellationToken ct) =>
+        _ = app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, IMediaProcessor media, CancellationToken ct) =>
         {
             // ids arrive in the request BODY, not the query string (see MediaTypesRequest): the caller asks about
             // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
@@ -1241,34 +1438,48 @@ public static class ForgeApi
                 .Select(id => id.Trim())
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-            if (list.Count == 0) return Results.Ok(new Dictionary<string, string>());
+            if (list.Count == 0)
+            {
+                return Results.Ok(new Dictionary<string, string>());
+            }
             // The media KIND per id, not just is-it-a-clip: the client renders an mp4 clip differently from a webp
             // clip. An mp4 (e.g. MiniMax-H3) has NO server-side still poster — ImageSharp can't decode an mp4 — so the
             // browser paints its own first frame; a webp keeps the cheap /image/{id}?still=true poster. "image" = still.
-            static string Kind(string? c) =>
-                c is null ? "image"
+            static string Kind(string? c)
+            {
+                return c is null ? "image"
                 : c.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase) ? "mp4"
                 : string.Equals(c, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) ? "webp"
                 : "image";
+            }
             // A still webp and a video clip share the content-type image/webp, so content-type alone can't tell them
             // apart. But a STILL webp only ever exists as an in-memory upload (an edit source the user dropped): a
             // GENERATED webp is always an animated clip — a video workflow that comes back single-frame is rejected at
             // write (RenderOrchestrator), and a still generation is stored as image/png. So the only id that can be a
             // still webp is a resident upload, whose bytes are already in hand — sniff those (no load), and leave
             // stored webp as the clip it must be. This keeps the batched gallery lookup (hundreds of ids) load-free.
-            Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.Ordinal);
-            List<string> needStored = new List<string>();
+            Dictionary<string, string> map = new(StringComparer.Ordinal);
+            List<string> needStored = [];
             foreach (string id in list)
+            {
                 if (uploads.Get(id) is { } up)
+                {
                     map[id] = string.Equals(up.ContentType, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) && !media.IsAnimatedWebp(up.Bytes)
                         ? "image"
                         : Kind(up.ContentType);
+                }
                 else
+                {
                     needStored.Add(id);
+                }
+            }
             // Every id asked about is answered for; an id the store doesn't know falls through Kind(null) => "image".
             IReadOnlyDictionary<string, string> stored = await blobs.GetContentTypesAsync(needStored, ct);
             foreach (string id in needStored)
+            {
                 map[id] = Kind(stored.TryGetValue(id, out string? c) ? c : null);
+            }
+
             return Results.Ok(map);
         });
     }
@@ -1280,9 +1491,15 @@ public static class ForgeApi
         string id, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct)
     {
         if (uploads.Get(id) is { } upload)
+        {
             return (upload.Bytes, upload.ContentType);
+        }
+
         if (await blobs.GetAsync(id, ct) is { } blob)
+        {
             return (blob.Bytes, blob.ContentType);
+        }
+
         return null;
     }
 
@@ -1294,14 +1511,22 @@ public static class ForgeApi
     {
         // Forward the backend's own progress WebSocket, filtered to this user's jobs and translated (backend prompt_id
         // → our jobId). The SPA connects here for live progress.
-        app.Map(Routes.Ws, async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
+        _ = app.Map(Routes.Ws, async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
             ILogger<IComfyClient> log) =>
         {
-            if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
+            if (!ctx.WebSockets.IsWebSocketRequest)
+            {
+                ctx.Response.StatusCode = 400;
+                return;
+            }
+
             long me = OwnerOf(ctx.Request);
             using WebSocket downstream = await ctx.WebSockets.AcceptWebSocketAsync();
             WebSocket upstream;
-            try { upstream = await comfy.ConnectProgressSocketAsync(ctx.RequestAborted); }
+            try
+            {
+                upstream = await comfy.ConnectProgressSocketAsync(ctx.RequestAborted);
+            }
             catch (Exception ex)
             {
                 // The downstream socket is already accepted, so there is no status code left to answer with — closing
@@ -1313,9 +1538,12 @@ public static class ForgeApi
                     CloseReasons.ProgressBackendUnavailable, CancellationToken.None);
                 return;
             }
+
             using (upstream)
-                await Task.WhenAny(PumpTranslating(upstream, downstream, queue, me, log, ctx.RequestAborted),
+            {
+                _ = await Task.WhenAny(PumpTranslating(upstream, downstream, queue, me, log, ctx.RequestAborted),
                                    Pump(downstream, upstream, log, ctx.RequestAborted));
+            }
         });
     }
 
@@ -1338,15 +1566,24 @@ public static class ForgeApi
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     if (to.State == WebSocketState.Open)
+                    {
                         await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
+                    }
+
                     return;
                 }
+
                 if (to.State == WebSocketState.Open)
+                {
                     await to.SendAsync(new ArraySegment<byte>(buf, 0, r.Count), r.MessageType, r.EndOfMessage, ct);
+                }
             }
         }
         catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped — let the other pump finish */ }
-        catch (Exception ex) { log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped."); }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped.");
+        }
     }
 
     private static async Task PumpTranslating(WebSocket from, WebSocket to, RenderOrchestrator queue, long me,
@@ -1362,17 +1599,32 @@ public static class ForgeApi
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
                     if (to.State == WebSocketState.Open)
+                    {
                         await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
+                    }
+
                     return;
                 }
-                if (to.State != WebSocketState.Open) continue;
+
+                if (to.State != WebSocketState.Open)
+                {
+                    continue;
+                }
 
                 if (r.MessageType == WebSocketMessageType.Text && r.EndOfMessage)
                 {
                     string text = Encoding.UTF8.GetString(buf, 0, r.Count);
                     WsFrameDecision decision = FilterFrame(text, queue, me);
-                    if (decision.OwnerIsMe.HasValue) currentIsMine = decision.OwnerIsMe.Value;
-                    if (!decision.Forward) continue;
+                    if (decision.OwnerIsMe.HasValue)
+                    {
+                        currentIsMine = decision.OwnerIsMe.Value;
+                    }
+
+                    if (!decision.Forward)
+                    {
+                        continue;
+                    }
+
                     byte[] outBytes = Encoding.UTF8.GetBytes(decision.OutText);
                     await to.SendAsync(outBytes, WebSocketMessageType.Text, true, ct);
                 }
@@ -1383,7 +1635,10 @@ public static class ForgeApi
             }
         }
         catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped — let the other pump finish */ }
-        catch (Exception ex) { log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped."); }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped.");
+        }
     }
 
     /// <summary>The decision for one upstream text frame: whether to forward it, the (id-translated) text to send, and
@@ -1400,19 +1655,35 @@ public static class ForgeApi
         // thrown after the frame had been identified as somebody else's. A frame that is not JSON carries no
         // prompt_id and so is not attributable to anyone; that, and only that, is the shared-status case below.
         JsonDocument doc;
-        try { doc = JsonDocument.Parse(text); }
-        catch (JsonException) { return new WsFrameDecision(true, text, null); }
+        try
+        {
+            doc = JsonDocument.Parse(text);
+        }
+        catch (JsonException)
+        {
+            return new WsFrameDecision(true, text, null);
+        }
 
         using (doc)
         {
             if (!doc.RootElement.TryGetProperty(JsonFields.Data, out JsonElement data) || data.ValueKind != JsonValueKind.Object
                 || !data.TryGetProperty(JsonFields.PromptId, out JsonElement pid) || pid.ValueKind != JsonValueKind.String)
+            {
                 return new WsFrameDecision(true, text, null);        // no prompt_id — a general backend status frame
+            }
 
             string comfyId = pid.GetString() ?? throw new JsonException("prompt_id is present but not a string value.");
             long? owner = queue.OwnerForComfy(comfyId);
-            if (owner is not long o) return new WsFrameDecision(false, text, false);   // unattributable — withhold
-            if (o != me) return new WsFrameDecision(false, text, false);
+            if (owner is not long o)
+            {
+                return new WsFrameDecision(false, text, false);   // unattributable — withhold
+            }
+
+            if (o != me)
+            {
+                return new WsFrameDecision(false, text, false);
+            }
+
             string? jobId = queue.JobIdForComfy(comfyId);
             return new WsFrameDecision(true, jobId is not null ? text.Replace(comfyId, jobId) : text, true);
         }

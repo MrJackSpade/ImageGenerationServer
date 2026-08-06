@@ -90,7 +90,7 @@ public interface IWorkflow
     /// than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing.</summary>
     IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
     {
-        List<string> notices = new List<string>();
+        List<string> notices = [];
 
         // Frame-count snap (stepped video models). Param-only → fires on BOTH passes; idempotent, so the submit pass
         // is a no-op once enqueue has already snapped. This is the one that produces a user notice.

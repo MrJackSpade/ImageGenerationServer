@@ -20,16 +20,18 @@ internal static class LoraIo
         IReadOnlyList<HistoryLora> loras, long userId, IUserCipher cipher, CancellationToken ct)
     {
         if (loras.Count == 0)
+        {
             return;
+        }
 
         string sql = $"INSERT INTO {table} ({parentColumn}, Name, Weight) VALUES (@parent, @name, @weight);";
         foreach (HistoryLora lora in loras)
         {
             await using DbCommand cmd = conn.Command(sql, tx);
-            cmd.AddParam("@parent", parentId);
-            cmd.AddParam("@name", await cipher.DeterministicAsync(userId, lora.Name, ct));
-            cmd.AddParam("@weight", lora.Weight);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@parent", parentId);
+            _ = cmd.AddParam("@name", await cipher.DeterministicAsync(userId, lora.Name, ct));
+            _ = cmd.AddParam("@weight", lora.Weight);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
@@ -38,34 +40,46 @@ internal static class LoraIo
         DbConnection conn, string table, string parentColumn, IReadOnlyList<long> parentIds,
         long userId, IUserCipher cipher, CancellationToken ct)
     {
-        Dictionary<long, List<HistoryLora>> byParent = new Dictionary<long, List<HistoryLora>>();
+        Dictionary<long, List<HistoryLora>> byParent = [];
         if (parentIds.Count == 0)
+        {
             return byParent;
+        }
 
         string[] names = new string[parentIds.Count];
         for (int i = 0; i < parentIds.Count; i++)
+        {
             names[i] = "@p" + i;
+        }
 
         string sql = $"SELECT {parentColumn}, Name, Weight FROM {table} "
                 + $"WHERE {parentColumn} IN ({string.Join(',', names)}) ORDER BY Id;";
 
         // Read raw first, then decrypt: keeps the forward-only reader closed before the cipher touches its own
         // connection (only on a cold key-cache miss). Same shape as MarkIo.LoadAsync.
-        List<LoraRow> raw = new List<LoraRow>();
+        List<LoraRow> raw = [];
         await using (DbCommand cmd = conn.Command(sql))
         {
             for (int i = 0; i < parentIds.Count; i++)
-                cmd.AddParam(names[i], parentIds[i]);
+            {
+                _ = cmd.AddParam(names[i], parentIds[i]);
+            }
+
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new LoraRow(reader.GetInt64(0), reader.GetString(1), reader.AsDouble(2)));
+            }
         }
 
         foreach (LoraRow row in raw)
         {
-            HistoryLora lora = new HistoryLora(await cipher.DecryptDeterministicAsync(userId, row.Name, ct), row.Weight);
+            HistoryLora lora = new(await cipher.DecryptDeterministicAsync(userId, row.Name, ct), row.Weight);
             if (!byParent.TryGetValue(row.ParentId, out List<HistoryLora>? list))
+            {
                 byParent[row.ParentId] = list = [];
+            }
+
             list.Add(lora);
         }
 

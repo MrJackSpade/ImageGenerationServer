@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.DreamOmni2Edit;
@@ -22,15 +19,22 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
 
     protected override ComfyWorkflowGraph Build(DreamOmni2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") },
         };
         // The Editor requires a reference image; use the first attached reference, else the source itself.
         Output<Slot.Image> refImg;
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-        if (refNames.Count > 0) { g[Nodes.Reference] = new LoadImage { Image = refNames[0] }; refImg = LoadImage.ImageOut(Nodes.Reference); }
-        else refImg = LoadImage.ImageOut(EditNodes.Source);
+        if (refNames.Count > 0)
+        {
+            g[Nodes.Reference] = new LoadImage { Image = refNames[0] };
+            refImg = LoadImage.ImageOut(Nodes.Reference);
+        }
+        else
+        {
+            refImg = LoadImage.ImageOut(EditNodes.Source);
+        }
 
         g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline();
         g[Nodes.Editor] = new RunningHubDreamOmni2Editor

@@ -47,22 +47,36 @@ public static class AppVersion
     {
         // Genuinely absent — nothing to read. A real, distinct "no version here" state (an unstamped build, a release
         // with no tag), NOT a parse failure to be conflated with the malformed case below.
-        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
 
         string value = text.Trim();
-        if (value.StartsWith('v') || value.StartsWith('V')) value = value[1..];
+        if (value.StartsWith('v') || value.StartsWith('V'))
+        {
+            value = value[1..];
+        }
 
         int plus = value.IndexOf('+');
-        if (plus >= 0) value = value[..plus];
+        if (plus >= 0)
+        {
+            value = value[..plus];
+        }
 
         int dash = value.IndexOf('-');
-        if (dash >= 0) value = value[..dash];
+        if (dash >= 0)
+        {
+            value = value[..dash];
+        }
 
         // Present but not a version is MALFORMED, not "no version": a version string that will not parse is a broken
         // tag or a broken build stamp, and returning null here would launder that into silence. Surface it.
         if (!Version.TryParse(value, out Version? parsed))
+        {
             throw new FormatException(
                 $"'{text}' is not a version — '{value}' does not parse as major.minor[.build[.revision]].");
+        }
 
         // The SDK stamps 1.0.0 when nobody set a version: a build that was never released, not a version to compare.
         // Distinct from the malformed case above — 1.0.0 parses fine, so it is a sentinel that maps to null, not a failure.
@@ -78,13 +92,24 @@ public static class AppVersion
     /// </summary>
     public static bool IsPrerelease(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
         string value = text.Trim();
-        if (value.StartsWith('v') || value.StartsWith('V')) value = value[1..];
+        if (value.StartsWith('v') || value.StartsWith('V'))
+        {
+            value = value[1..];
+        }
         // Strip build metadata FIRST — it follows '+' and may itself contain '-' (e.g. a commit-ish), which is not a
         // pre-release marker. What remains carries a '-' only when there is a genuine pre-release suffix.
         int plus = value.IndexOf('+');
-        if (plus >= 0) value = value[..plus];
+        if (plus >= 0)
+        {
+            value = value[..plus];
+        }
+
         return value.Contains('-');
     }
 

@@ -22,18 +22,39 @@ internal static class WebpTranscoder
     /// <summary>True if the bytes are a RIFF/WEBP carrying animation frames (an ANMF chunk). Cheap header scan.</summary>
     public static bool IsAnimatedWebp(ReadOnlySpan<byte> b)
     {
-        if (b.Length < 16) return false;
-        if (b[0] != 'R' || b[1] != 'I' || b[2] != 'F' || b[3] != 'F') return false;
-        if (b[8] != 'W' || b[9] != 'E' || b[10] != 'B' || b[11] != 'P') return false;
+        if (b.Length < 16)
+        {
+            return false;
+        }
+
+        if (b[0] != 'R' || b[1] != 'I' || b[2] != 'F' || b[3] != 'F')
+        {
+            return false;
+        }
+
+        if (b[8] != 'W' || b[9] != 'E' || b[10] != 'B' || b[11] != 'P')
+        {
+            return false;
+        }
+
         int i = 12;
         while (i + 8 <= b.Length)
         {
-            if (b[i] == 'A' && b[i + 1] == 'N' && b[i + 2] == 'M' && b[i + 3] == 'F') return true;
+            if (b[i] == 'A' && b[i + 1] == 'N' && b[i + 2] == 'M' && b[i + 3] == 'F')
+            {
+                return true;
+            }
+
             uint size = (uint)(b[i + 4] | (b[i + 5] << 8) | (b[i + 6] << 16) | (b[i + 7] << 24));
             long next = (long)i + 8 + size + (size & 1);   // chunks are padded to an even size
-            if (next <= i) break;
+            if (next <= i)
+            {
+                break;
+            }
+
             i = (int)next;
         }
+
         return false;
     }
 
@@ -52,14 +73,23 @@ internal static class WebpTranscoder
             {
                 int dur = b[payload + 12] | (b[payload + 13] << 8) | (b[payload + 14] << 16);
                 if (dur <= 0)
+                {
                     throw new InvalidOperationException(
                         "Animated webp's first ANMF frame carries a non-positive duration; its playback rate cannot be determined.");
+                }
+
                 return dur;
             }
+
             long next = (long)i + 8 + size + (size & 1);
-            if (next <= i) break;
+            if (next <= i)
+            {
+                break;
+            }
+
             i = (int)next;
         }
+
         throw new InvalidOperationException(
             "Animated webp has no ANMF chunk; its frame duration cannot be read.");
     }
@@ -75,10 +105,15 @@ internal static class WebpTranscoder
         // gate was bypassed or the source is malformed. There is no still-image-to-mp4 conversion to fall back to — a
         // single frame has no timing to preserve — so this is a broken state to surface, not a shape to handle.
         if (image.Frames.Count < 2)
+        {
             throw new InvalidOperationException(
                 $"WebpToMp4 received a webp with {image.Frames.Count} frame(s); only an animated (multi-frame) webp converts to an mp4.");
+        }
+
         if (maxEdge is int edge && Math.Max(image.Width, image.Height) > edge)
+        {
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(edge, edge) }));
+        }
 
         int w = image.Width, h = image.Height;
         // The source's own frame rate, floored only to keep a nonsensical delay from producing a zero/negative rate.
@@ -88,8 +123,8 @@ internal static class WebpTranscoder
         // than assumed.
         double fps = Math.Max(1000.0 / ReadFrameDelayMs(webp), 1.0);
 
-        MemoryStream output = new MemoryStream();
-        using (VideoFrameEncoder encoder = new VideoFrameEncoder(output, new FrameEncodeOptions
+        MemoryStream output = new();
+        using (VideoFrameEncoder encoder = new(output, new FrameEncodeOptions
         {
             Width = w,
             Height = h,
@@ -111,6 +146,7 @@ internal static class WebpTranscoder
                 frame.CopyPixelDataTo(frameBytes);
                 encoder.WriteFrame(frameBytes);
             }
+
             encoder.Complete();
         }
 

@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
 
 /// <summary>Flux2Klein4bPixelizeWorkflow's node ids.</summary>

@@ -10,5 +10,5 @@ public record Krea2Params : Txt2ImgParams
 {
     [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)]
     [Range(1.0, 8.0)] public required double Multiplier { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)]     public required string PerLayerWeights { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)] public required string PerLayerWeights { get; init; }
 }

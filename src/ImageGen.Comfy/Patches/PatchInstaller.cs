@@ -51,7 +51,9 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         if (!Directory.Exists(target))
         {
             if (patch.SourceUrl is null && !patch.CreatesItsTarget)
+            {
                 throw new PatchConflictException($"{patch.Target} is not installed, and this patch does not say where to get it.");
+            }
 
             if (patch.SourceUrl is not null)
             {
@@ -82,7 +84,10 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     public void Remove(ComfyPatch patch, string comfyRoot)
     {
         string target = patch.ResolveTarget(comfyRoot);
-        if (!Directory.Exists(target)) throw new PatchConflictException($"{patch.Target} is not installed.");
+        if (!Directory.Exists(target))
+        {
+            throw new PatchConflictException($"{patch.Target} is not installed.");
+        }
 
         if (patch.IsInstallOnly)
         {
@@ -96,7 +101,10 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         // A pack patch owns the directory it created, so once its files are gone the directory goes too. A patch
         // that only edits somebody else's pack does not, which is why this asks the patch rather than guessing
         // from "it looks empty now".
-        if (patch.CreatesItsTarget) PatchApplier.RemoveIfSpent(target);
+        if (patch.CreatesItsTarget)
+        {
+            _ = PatchApplier.RemoveIfSpent(target);
+        }
 
         _log.LogInformation("Removed {Id} from {Target}", patch.Id, target);
     }
@@ -109,17 +117,22 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     private async Task<string?> InstallRequirementsAsync(string packDirectory, string? python, CancellationToken ct)
     {
         string requirements = Path.Combine(packDirectory, Files.Requirements);
-        if (!File.Exists(requirements)) return null;
+        if (!File.Exists(requirements))
+        {
+            return null;
+        }
 
         if (string.IsNullOrWhiteSpace(python))
+        {
             return $"This pack needs the packages in {requirements}. Set the renderer's Python on Settings → This machine "
                  + "to have that done here, or install them into ComfyUI's environment yourself.";
+        }
 
         _log.LogInformation("Installing {Requirements} with {Python}", requirements, python);
 
         string constraints = PinInstalledTorch(python, ct);
 
-        Process process = new Process
+        Process process = new()
         {
             StartInfo = new ProcessStartInfo(python,
                 ["-m", "pip", "install", "--no-cache-dir", "--constraint", constraints, "-r", requirements])
@@ -130,7 +143,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
             },
         };
 
-        process.Start();
+        _ = process.Start();
         // No deadline: pip fetching a large wheel over a slow link is not a failure, and a clock invented here
         // would kill it partway and leave a half-installed environment.
         Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
@@ -138,8 +151,10 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         await process.WaitForExitAsync(ct);
 
         if (process.ExitCode != 0)
+        {
             throw new PatchConflictException(
                 $"pip exited {process.ExitCode} installing {requirements}:\n{await stderr}\n{await stdout}");
+        }
 
         return null;
     }
@@ -154,7 +169,7 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// </summary>
     private string PinInstalledTorch(string python, CancellationToken ct)
     {
-        Process freeze = new Process
+        Process freeze = new()
         {
             StartInfo = new ProcessStartInfo(python, ["-m", "pip", "freeze"])
             {
@@ -163,12 +178,14 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
                 UseShellExecute = false,
             },
         };
-        freeze.Start();
+        _ = freeze.Start();
         string installed = freeze.StandardOutput.ReadToEnd();
         freeze.WaitForExit();
 
         if (freeze.ExitCode != 0)
+        {
             throw new PatchConflictException($"Could not read the installed packages from {python} — pip freeze exited {freeze.ExitCode}.");
+        }
 
         IEnumerable<string> pinned = installed
             .Split('\n')

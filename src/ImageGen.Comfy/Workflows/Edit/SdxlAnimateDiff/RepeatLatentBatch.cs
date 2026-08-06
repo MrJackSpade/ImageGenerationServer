@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.SdxlAnimateDiff;
@@ -9,6 +8,6 @@ public sealed record RepeatLatentBatch : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.RepeatLatentBatch;
     [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
-    [JsonPropertyName("amount")]  public required int Amount { get; init; }
+    [JsonPropertyName("amount")] public required int Amount { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }

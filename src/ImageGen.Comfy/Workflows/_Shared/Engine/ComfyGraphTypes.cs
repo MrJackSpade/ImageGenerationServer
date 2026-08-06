@@ -76,7 +76,7 @@ public sealed class ComfyWorkflowGraph
 {
     private readonly Dictionary<string, ComfyNode> _nodes;
 
-    public ComfyWorkflowGraph() => _nodes = new();
+    public ComfyWorkflowGraph() => _nodes = [];
 
     /// <summary>Place a typed node at a graph-local id (the id is the ComfyUI node key, preserved exactly). Only a
     /// <see cref="ComfyNode"/> can enter a graph — there is no untyped path in.</summary>
@@ -118,6 +118,7 @@ internal sealed class ComfyWorkflowGraphConverter : JsonConverter<ComfyWorkflowG
             JsonSerializer.Serialize(writer, node, node.GetType(), NodeInputs);
             writer.WriteEndObject();
         }
+
         writer.WriteEndObject();
     }
 }

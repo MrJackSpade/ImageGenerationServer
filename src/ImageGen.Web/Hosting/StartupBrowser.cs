@@ -78,13 +78,21 @@ public static class StartupBrowser
         try
         {
             if (OperatingSystem.IsWindows())
-                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            {
+                _ = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
             else if (OperatingSystem.IsLinux())
-                Process.Start(new ProcessStartInfo(Commands.LinuxOpenCommand, url) { UseShellExecute = false });
+            {
+                _ = Process.Start(new ProcessStartInfo(Commands.LinuxOpenCommand, url) { UseShellExecute = false });
+            }
             else if (OperatingSystem.IsMacOS())
-                Process.Start(new ProcessStartInfo(Commands.MacOpenCommand, url) { UseShellExecute = false });
+            {
+                _ = Process.Start(new ProcessStartInfo(Commands.MacOpenCommand, url) { UseShellExecute = false });
+            }
             else
+            {
                 logger.LogInformation("No way to open a browser on this platform; open {Url} yourself.", url);
+            }
         }
         catch (Exception ex)
         {

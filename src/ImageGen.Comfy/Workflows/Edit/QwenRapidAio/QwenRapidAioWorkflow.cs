@@ -1,5 +1,3 @@
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Edit.QwenRapidAio;
 
 /// <summary>Qwen rapid all-in-one checkpoint (bakes its own sampling).</summary>

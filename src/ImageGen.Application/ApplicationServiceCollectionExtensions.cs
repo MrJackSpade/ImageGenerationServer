@@ -23,17 +23,17 @@ public static class ApplicationServiceCollectionExtensions
     public static IServiceCollection AddApplication(
         this IServiceCollection services, RenderOptions renderOptions, bool auditUserPrompts)
     {
-        services.AddScoped<UserService>();
-        services.AddScoped<HistoryService>();
-        services.AddScoped<BookmarkService>();
-        services.AddScoped<BanService>();
-        services.AddScoped<PendingJobService>();
-        services.AddScoped<ArtistService>();
-        services.AddScoped<LoraService>();
-        services.AddScoped<TagService>();
-        services.AddScoped<ImageViewService>();
+        _ = services.AddScoped<UserService>();
+        _ = services.AddScoped<HistoryService>();
+        _ = services.AddScoped<BookmarkService>();
+        _ = services.AddScoped<BanService>();
+        _ = services.AddScoped<PendingJobService>();
+        _ = services.AddScoped<ArtistService>();
+        _ = services.AddScoped<LoraService>();
+        _ = services.AddScoped<TagService>();
+        _ = services.AddScoped<ImageViewService>();
 
-        services.AddSingleton<IUserLogService>(sp => new UserLogService(
+        _ = services.AddSingleton<IUserLogService>(sp => new UserLogService(
             sp.GetRequiredService<IUserCipher>(),
             sp.GetRequiredService<IUserLogRepository>(),
             auditUserPrompts,
@@ -41,10 +41,10 @@ public static class ApplicationServiceCollectionExtensions
 
         // Uploaded sources/references/masks live here and nowhere else — never in the database, and never evicted
         // (an accepted job's inputs have to outlive its wait in the queue). See IUploadStore.
-        services.AddSingleton<IUploadStore>(new InMemoryUploadStore());
+        _ = services.AddSingleton<IUploadStore>(new InMemoryUploadStore());
 
-        services.AddSingleton(renderOptions);
-        services.AddSingleton<RenderOrchestrator>();
+        _ = services.AddSingleton(renderOptions);
+        _ = services.AddSingleton<RenderOrchestrator>();
         return services;
     }
 }

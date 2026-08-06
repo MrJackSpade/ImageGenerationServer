@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.FluxKontextEdit;
 
@@ -14,7 +10,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 
     protected override ComfyWorkflowGraph Build(FluxKontextParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
@@ -26,7 +22,10 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         // not silently ignored.
         int rm = p.ReferenceMax ?? 0;
         if (refNames.Count > rm)
+        {
             throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        }
+
         int fn = refNames.Count;
         Output<Slot.Latent> refLatent;
         if (fn > 0)
@@ -39,11 +38,16 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
                 g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = ComfyWidgets.Stitch.Right, MatchImageSize = true, SpacingWidth = 0, SpacingColor = ComfyWidgets.Spacing.White };
                 stitched = ImageStitch.Out(stitch);
             }
+
             g[Nodes.StitchScale] = new FluxKontextImageScale { Image = stitched };
             g[Nodes.StitchEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.StitchScale), Vae = vae0 };
             refLatent = VAEEncode.Out(Nodes.StitchEncode);
         }
-        else refLatent = VAEEncode.Out(Nodes.SourceEncode);
+        else
+        {
+            refLatent = VAEEncode.Out(Nodes.SourceEncode);
+        }
+
         g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Latent = refLatent };
         g[Nodes.Guidance] = new FluxGuidance { Conditioning = ReferenceLatent.Out(Nodes.RefLatent), Guidance = p.Guidance };
         g[Nodes.NegativeZero] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };

@@ -27,8 +27,8 @@ public sealed record CLIPVisionEncode : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CLIPVisionEncode;
     [JsonPropertyName("clip_vision")] public required Output<Slot.ClipVision> ClipVision { get; init; }
-    [JsonPropertyName("image")]       public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("crop")]        public required string Crop { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("crop")] public required string Crop { get; init; }
     public static Output<Slot.ClipVision> Out(string id) => new(id, 0);
 }
 
@@ -37,15 +37,15 @@ public sealed record CLIPVisionEncode : ComfyNode
 public sealed record WanImageToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.WanImageToVideo;
-    [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]           public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     [JsonPropertyName("clip_vision_output")] public required Output<Slot.ClipVision> ClipVisionOutput { get; init; }
-    [JsonPropertyName("width")]              public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]             public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("length")]             public required int Length { get; init; }
-    [JsonPropertyName("batch_size")]         public required int BatchSize { get; init; }
-    [JsonPropertyName("start_image")]        public required Output<Slot.Image> StartImage { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
+    [JsonPropertyName("start_image")] public required Output<Slot.Image> StartImage { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 2);
@@ -58,12 +58,12 @@ public sealed record WanImageToVideo : ComfyNode
 public sealed record SaveAnimatedWEBPLiteralFps : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SaveAnimatedWEBP;
-    [JsonPropertyName("images")]          public required Output<Slot.Image> Images { get; init; }
+    [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
     [JsonPropertyName("filename_prefix")] public required string FilenamePrefix { get; init; }
-    [JsonPropertyName("fps")]             public required double Fps { get; init; }
-    [JsonPropertyName("lossless")]        public required bool Lossless { get; init; }
-    [JsonPropertyName("quality")]         public required int Quality { get; init; }
-    [JsonPropertyName("method")]          public required string Method { get; init; }
+    [JsonPropertyName("fps")] public required double Fps { get; init; }
+    [JsonPropertyName("lossless")] public required bool Lossless { get; init; }
+    [JsonPropertyName("quality")] public required int Quality { get; init; }
+    [JsonPropertyName("method")] public required string Method { get; init; }
 }
 
 /// <summary>LTX-Video i2v conditioning (ComfyUI core) — bakes the start image into pos/neg conditioning and the video
@@ -71,15 +71,15 @@ public sealed record SaveAnimatedWEBPLiteralFps : ComfyNode
 public sealed record LTXVImgToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LTXVImgToVideo;
-    [JsonPropertyName("positive")]   public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]   public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]        public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("image")]      public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("width")]      public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]     public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("length")]     public required int Length { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
-    [JsonPropertyName("strength")]   public required double Strength { get; init; }
+    [JsonPropertyName("strength")] public required double Strength { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 2);
@@ -89,8 +89,8 @@ public sealed record LTXVImgToVideo : ComfyNode
 public sealed record LTXVConditioning : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LTXVConditioning;
-    [JsonPropertyName("positive")]   public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]   public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
     [JsonPropertyName("frame_rate")] public required double FrameRate { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
@@ -100,11 +100,11 @@ public sealed record LTXVConditioning : ComfyNode
 public sealed record LTXVScheduler : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LTXVScheduler;
-    [JsonPropertyName("steps")]      public required int Steps { get; init; }
-    [JsonPropertyName("max_shift")]  public required double MaxShift { get; init; }
+    [JsonPropertyName("steps")] public required int Steps { get; init; }
+    [JsonPropertyName("max_shift")] public required double MaxShift { get; init; }
     [JsonPropertyName("base_shift")] public required double BaseShift { get; init; }
-    [JsonPropertyName("stretch")]    public required bool Stretch { get; init; }
-    [JsonPropertyName("terminal")]   public required double Terminal { get; init; }
-    [JsonPropertyName("latent")]     public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("stretch")] public required bool Stretch { get; init; }
+    [JsonPropertyName("terminal")] public required double Terminal { get; init; }
+    [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
     public static Output<Slot.Sigmas> Out(string id) => new(id, 0);
 }

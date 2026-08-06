@@ -47,15 +47,26 @@ public static class ApiEndpointExtensions
         // The render backend under /forge. Gated: the caller must be authenticated (a login cookie or a per-user
         // X-Api-Key). Every job is owned by that real user; the resolved id + caller scope are stashed for the queue.
         RouteGroupBuilder forge = app.MapGroup(ForgeApi.Origin.PublicBase);
-        forge.AddEndpointFilter(async (ctx, next) =>
+        _ = forge.AddEndpointFilter(async (ctx, next) =>
         {
             HttpContext http = ctx.HttpContext;
             // Endpoints opting out (e.g. /healthz for liveness probes) skip the auth gate entirely.
             if (http.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
+            {
                 return await next(ctx);
-            if (http.User.Identity?.IsAuthenticated != true) return Results.Unauthorized();
+            }
+
+            if (http.User.Identity?.IsAuthenticated != true)
+            {
+                return Results.Unauthorized();
+            }
+
             long? owner = http.User.GetUserId();
-            if (owner is null) return Results.Unauthorized();
+            if (owner is null)
+            {
+                return Results.Unauthorized();
+            }
+
             http.Items[RequestItems.OwnerUserId] = owner.Value;
             // API-key callers (flagged by the API-key middleware) get the api-visible list; browsers the ui-visible list.
             http.Items[RequestItems.Scope] = http.Items.ContainsKey(RequestItems.AuthViaApiKey) ? "api" : "ui";

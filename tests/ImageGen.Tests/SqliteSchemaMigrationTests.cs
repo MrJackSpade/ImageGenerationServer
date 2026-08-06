@@ -28,10 +28,13 @@ public sealed class SqliteSchemaMigrationTests
         await using DbConnection connection = await factory.OpenAsync(CancellationToken.None);
         await using DbCommand command = connection.CreateCommand();
         command.CommandText = $"PRAGMA dbo.table_info({table});";
-        HashSet<string> columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> columns = new(StringComparer.OrdinalIgnoreCase);
         await using DbDataReader reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-            columns.Add(reader.GetString(1));
+        {
+            _ = columns.Add(reader.GetString(1));
+        }
+
         return columns;
     }
 
@@ -40,7 +43,7 @@ public sealed class SqliteSchemaMigrationTests
         await using DbConnection connection = await factory.OpenAsync(CancellationToken.None);
         await using DbCommand command = connection.CreateCommand();
         command.CommandText = sql;
-        await command.ExecuteNonQueryAsync();
+        _ = await command.ExecuteNonQueryAsync();
     }
 
     private static void Cleanup(string path)
@@ -48,15 +51,24 @@ public sealed class SqliteSchemaMigrationTests
         // Release the native file handles before deleting, or the WAL/SHM siblings stay locked on Windows.
         SqliteConnection.ClearAllPools();
         foreach (string? file in new[] { path, path + "-wal", path + "-shm" })
+        {
             // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
-            try { if (File.Exists(file)) File.Delete(file); } catch (IOException) { }
+            try
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                }
+            }
+            catch (IOException) { }
+        }
     }
 
     [Fact]
     public async Task Replaying_the_whole_script_is_idempotent()
     {
         string path = TempDbPath();
-        SqliteConnectionFactory factory = new SqliteConnectionFactory($"Data Source={path}");
+        SqliteConnectionFactory factory = new($"Data Source={path}");
         try
         {
             await InitAsync(factory);
@@ -65,14 +77,17 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));
             Assert.Contains("IsBackground", await ColumnsAsync(factory, "JobSlot"));   // 0.13.0 ADD COLUMN
         }
-        finally { Cleanup(path); }
+        finally
+        {
+            Cleanup(path);
+        }
     }
 
     [Fact]
     public async Task A_column_added_after_0_9_0_reaches_a_preexisting_database()
     {
         string path = TempDbPath();
-        SqliteConnectionFactory factory = new SqliteConnectionFactory($"Data Source={path}");
+        SqliteConnectionFactory factory = new($"Data Source={path}");
         try
         {
             // JobSlot as a 0.9.0 database has it: present, and WITHOUT LorasJson (added in 0.9.1). The UNIQUE mirrors
@@ -113,6 +128,9 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
             Assert.Contains("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));   // 0.12.0 ADD COLUMN reached the pre-existing AppUser
         }
-        finally { Cleanup(path); }
+        finally
+        {
+            Cleanup(path);
+        }
     }
 }

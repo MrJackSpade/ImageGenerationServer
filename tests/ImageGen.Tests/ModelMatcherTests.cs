@@ -84,7 +84,7 @@ public sealed class ModelMatcherTests
     [Fact]
     public void A_pattern_never_reaches_into_another_kind()
     {
-        Dictionary<RequirementKind, IReadOnlyList<string>> files = new Dictionary<RequirementKind, IReadOnlyList<string>>
+        Dictionary<RequirementKind, IReadOnlyList<string>> files = new()
         {
             [RequirementKind.Checkpoint] = ["shared-name.safetensors"],
             [RequirementKind.Vae] = ["shared-name.safetensors"],
@@ -94,7 +94,7 @@ public sealed class ModelMatcherTests
 
         SlotMatch m = Assert.Single(result);
         Assert.Equal("ckpt-only", m.SlotId);
-        Assert.Single(m.Candidates);   // the VAE of the same name is not a candidate
+        _ = Assert.Single(m.Candidates);   // the VAE of the same name is not a candidate
     }
 
     [Fact]
@@ -172,13 +172,16 @@ public sealed class ModelMatcherTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
+        {
             dir = Path.GetDirectoryName(dir);
+        }
+
         return dir ?? throw new DirectoryNotFoundException("configurations/models not found above the test bin dir.");
     }
 
     private static List<MatchableSlot> ShippedSlots()
     {
-        List<MatchableSlot> slots = new List<MatchableSlot>();
+        List<MatchableSlot> slots = [];
         foreach (string path in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "models"), "*.json"))
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
@@ -194,6 +197,7 @@ public sealed class ModelMatcherTests
                 : throw new InvalidOperationException($"slot kind '{raw}' maps to no RequirementKind");
             slots.Add(new MatchableSlot(root.GetProperty("id").RequireString(), kind, patterns));
         }
+
         return slots;
     }
 
@@ -205,7 +209,10 @@ public sealed class ModelMatcherTests
 
         // Compile throws naming the offending slot, which is the whole point — this assertion exists so that
         // message appears in CI rather than in a user's startup log.
-        foreach (MatchableSlot slot in slots) ModelMatcher.Compile(slot);
+        foreach (MatchableSlot slot in slots)
+        {
+            _ = ModelMatcher.Compile(slot);
+        }
     }
 
     /// <summary>
@@ -218,7 +225,7 @@ public sealed class ModelMatcherTests
     public void No_shipped_pattern_reaches_into_another_slot_of_its_kind()
     {
         List<MatchableSlot> slots = ShippedSlots();
-        List<string> collisions = new List<string>();
+        List<string> collisions = [];
 
         foreach (MatchableSlot? slot in slots.Where(s => s.Patterns.Count > 0))
         {
@@ -228,7 +235,9 @@ public sealed class ModelMatcherTests
                 // A slot id is the closest thing the catalogue still holds to "what that model is called", now
                 // that the author's filenames are gone, so it stands in for the other model's real filename.
                 if (regexes.Any(rx => rx.IsMatch(other.Id)))
+                {
                     collisions.Add($"{slot.Id} also matches {other.Id}");
+                }
             }
         }
 

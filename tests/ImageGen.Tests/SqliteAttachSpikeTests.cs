@@ -132,9 +132,10 @@ SELECT last_insert_rowid();";
             await using SqliteCommand cmd = conn.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
             cmd.CommandText = "INSERT INTO dbo.T (V) VALUES (1); INSERT INTO dbo.T (V) VALUES (2);";
-            await cmd.ExecuteNonQueryAsync();
+            _ = await cmd.ExecuteNonQueryAsync();
             await tx.RollbackAsync();
         }
+
         Assert.Equal(0L, Convert.ToInt64(await ScalarAsync(conn, "SELECT COUNT(*) FROM dbo.T;")));
 
         await using (DbTransaction tx = await conn.BeginTransactionAsync(default))
@@ -142,9 +143,10 @@ SELECT last_insert_rowid();";
             await using SqliteCommand cmd = conn.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
             cmd.CommandText = "INSERT INTO dbo.T (V) VALUES (3); INSERT INTO dbo.T (V) VALUES (4);";
-            await cmd.ExecuteNonQueryAsync();
+            _ = await cmd.ExecuteNonQueryAsync();
             await tx.CommitAsync();
         }
+
         Assert.Equal(2L, Convert.ToInt64(await ScalarAsync(conn, "SELECT COUNT(*) FROM dbo.T;")));
     }
 
@@ -173,10 +175,10 @@ SELECT last_insert_rowid();";
             Assert.True(await reader.ReadAsync());
 
             // The underlying value really is long for all three integral columns.
-            Assert.IsType<long>(reader.GetValue(0));
-            Assert.IsType<long>(reader.GetValue(1));
-            Assert.IsType<long>(reader.GetValue(2));
-            Assert.IsType<double>(reader.GetValue(3));
+            _ = Assert.IsType<long>(reader.GetValue(0));
+            _ = Assert.IsType<long>(reader.GetValue(1));
+            _ = Assert.IsType<long>(reader.GetValue(2));
+            _ = Assert.IsType<double>(reader.GetValue(3));
 
             // ...yet the typed getters cope. Suppressed because calling the banned getters IS the measurement.
 #pragma warning disable IMGDB001
@@ -196,9 +198,9 @@ SELECT last_insert_rowid();";
         {
             cmd.CommandText = "SELECT COUNT(*) FROM dbo.N;";
             object? boxed = await cmd.ExecuteScalarAsync();
-            Assert.IsType<long>(boxed);
+            _ = Assert.IsType<long>(boxed);
             Assert.NotNull(boxed);
-            Assert.Throws<InvalidCastException>(() => (int)boxed);
+            _ = Assert.Throws<InvalidCastException>(() => (int)boxed);
             Assert.Equal(1, Convert.ToInt32(boxed));   // what ScalarInt32Async does instead
         }
     }
@@ -206,7 +208,7 @@ SELECT last_insert_rowid();";
     /// <summary>Opens a connection the way the real factory will: file attached as <c>dbo</c>, WAL, FK enforcement on.</summary>
     private async Task<SqliteConnection> OpenAsync()
     {
-        SqliteConnection conn = new SqliteConnection("Data Source=:memory:");
+        SqliteConnection conn = new("Data Source=:memory:");
         await conn.OpenAsync();
         await ExecAsync(conn, $"ATTACH DATABASE '{_dbPath.Replace("'", "''")}' AS dbo;");
         await ExecAsync(conn, "PRAGMA dbo.journal_mode = WAL;");
@@ -218,15 +220,23 @@ SELECT last_insert_rowid();";
     {
         await using SqliteCommand cmd = conn.CreateCommand();
         cmd.CommandText = sql;
-        foreach ((string? n, object? v) in ps) cmd.Parameters.AddWithValue(n, v);
-        await cmd.ExecuteNonQueryAsync();
+        foreach ((string? n, object? v) in ps)
+        {
+            _ = cmd.Parameters.AddWithValue(n, v);
+        }
+
+        _ = await cmd.ExecuteNonQueryAsync();
     }
 
     private static async Task<object?> ScalarAsync(SqliteConnection conn, string sql, params (string, object)[] ps)
     {
         await using SqliteCommand cmd = conn.CreateCommand();
         cmd.CommandText = sql;
-        foreach ((string? n, object? v) in ps) cmd.Parameters.AddWithValue(n, v);
+        foreach ((string? n, object? v) in ps)
+        {
+            _ = cmd.Parameters.AddWithValue(n, v);
+        }
+
         return await cmd.ExecuteScalarAsync();
     }
 
@@ -235,7 +245,16 @@ SELECT last_insert_rowid();";
     {
         SqliteConnection.ClearAllPools();
         foreach (string? f in new[] { _dbPath, _dbPath + "-wal", _dbPath + "-shm" })
+        {
             // A leaked temp file is worth strictly less than a readable test failure, so a locked file is ignored.
-            if (File.Exists(f)) try { File.Delete(f); } catch (IOException) { }
+            if (File.Exists(f))
+            {
+                try
+                {
+                    File.Delete(f);
+                }
+                catch (IOException) { }
+            }
+        }
     }
 }

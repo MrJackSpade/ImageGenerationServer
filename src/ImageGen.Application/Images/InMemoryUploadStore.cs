@@ -21,10 +21,28 @@ public sealed class InMemoryUploadStore : IUploadStore
     private long _bytes;
 
     /// <summary>Uploads currently resident (diagnostics).</summary>
-    public int Count { get { lock (_gate) return _index.Count; } }
+    public int Count
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _index.Count;
+            }
+        }
+    }
 
     /// <summary>Bytes currently resident (diagnostics).</summary>
-    public long Bytes { get { lock (_gate) return _bytes; } }
+    public long Bytes
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _bytes;
+            }
+        }
+    }
 
     public string Add(UploadedImage image)
     {
@@ -34,11 +52,15 @@ public sealed class InMemoryUploadStore : IUploadStore
             _index[id] = image;
             _bytes += image.Bytes.LongLength;
         }
+
         return id;
     }
 
     public UploadedImage? Get(string id)
     {
-        lock (_gate) return _index.GetValueOrDefault(id);
+        lock (_gate)
+        {
+            return _index.GetValueOrDefault(id);
+        }
     }
 }

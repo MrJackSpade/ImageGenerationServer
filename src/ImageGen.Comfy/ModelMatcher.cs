@@ -42,7 +42,7 @@ public static class ModelMatcher
     /// <summary>Compiles a slot's patterns. Throws <see cref="ArgumentException"/> naming the bad pattern.</summary>
     public static IReadOnlyList<Regex> Compile(MatchableSlot slot)
     {
-        List<Regex> compiled = new List<Regex>(slot.Patterns.Count);
+        List<Regex> compiled = new(slot.Patterns.Count);
         foreach (string pattern in slot.Patterns)
         {
             try
@@ -61,6 +61,7 @@ public static class ModelMatcher
                     nameof(slot), ex);
             }
         }
+
         return compiled;
     }
 
@@ -76,26 +77,38 @@ public static class ModelMatcher
         IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> filesByKind)
     {
         // Pass one: what does each slot recognise?
-        List<(MatchableSlot Slot, List<string> Files)> hits = new List<(MatchableSlot Slot, List<string> Files)>();
+        List<(MatchableSlot Slot, List<string> Files)> hits = [];
         foreach (MatchableSlot slot in slots)
         {
-            if (slot.Patterns.Count == 0) continue;
-            if (!filesByKind.TryGetValue(slot.Kind, out IReadOnlyList<string>? files) || files.Count == 0) continue;
+            if (slot.Patterns.Count == 0)
+            {
+                continue;
+            }
+
+            if (!filesByKind.TryGetValue(slot.Kind, out IReadOnlyList<string>? files) || files.Count == 0)
+            {
+                continue;
+            }
 
             IReadOnlyList<Regex> regexes = Compile(slot);
             List<string> matched = files.Where(f => regexes.Any(rx => rx.IsMatch(Stem(f)))).ToList();
-            if (matched.Count > 0) hits.Add((slot, matched));
+            if (matched.Count > 0)
+            {
+                hits.Add((slot, matched));
+            }
         }
 
         // Pass two: how many slots of the same kind claim each file? A file two slots both recognise means the
         // patterns are too loose, and picking one of them silently would hide a catalogue bug on the user's disk.
-        Dictionary<(RequirementKind, string), int> claims = new Dictionary<(RequirementKind, string), int>();
+        Dictionary<(RequirementKind, string), int> claims = [];
         foreach ((MatchableSlot? slot, List<string>? files) in hits)
+        {
             foreach (string f in files)
             {
                 (RequirementKind Kind, string f) key = (slot.Kind, f);
                 claims[key] = claims.TryGetValue(key, out int n) ? n + 1 : 1;
             }
+        }
 
         return hits.Select(h =>
         {
@@ -117,7 +130,11 @@ public static class ModelMatcher
         // the version dots, which Path.GetFileNameWithoutExtension would also do — but a name with no extension at
         // all (a custom-node directory, which the catalogue does carry) must survive untouched.
         int dot = fileName.LastIndexOf('.');
-        if (dot <= 0 || fileName.Length - dot > 12) return fileName;
+        if (dot <= 0 || fileName.Length - dot > 12)
+        {
+            return fileName;
+        }
+
         return fileName[..dot];
     }
 }

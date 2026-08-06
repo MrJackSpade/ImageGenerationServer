@@ -44,7 +44,10 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
     private async Task<UserCrypto.UserKeys> GetKeysAsync(long userId, CancellationToken ct)
     {
         if (_cache.TryGetValue(userId, out UserCrypto.UserKeys? cached))
+        {
             return cached;
+        }
+
         byte[] material = await LoadOrProvisionKeyAsync(userId, ct);
         return _cache.GetOrAdd(userId, UserCrypto.DeriveSubkeys(material));
     }
@@ -55,7 +58,9 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
 
         byte[]? existing = await SelectKeyAsync(conn, userId, ct);
         if (existing is not null)
+        {
             return existing;
+        }
 
         // Provision a fresh key, race-safely: only the first writer for this user inserts; everyone re-reads the
         // committed row afterwards, so there is never more than one key per user even under concurrent first use.
@@ -64,10 +69,10 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
               SELECT @id, @key, @created
               WHERE NOT EXISTS (SELECT 1 FROM dbo.UserEncryptionKey WHERE UserId = @id);"))
         {
-            insert.AddParam("@id", userId);
-            insert.AddParam("@key", RandomNumberGenerator.GetBytes(32));
-            insert.AddParam("@created", DateTime.UtcNow);
-            await insert.ExecuteNonQueryAsync(ct);
+            _ = insert.AddParam("@id", userId);
+            _ = insert.AddParam("@key", RandomNumberGenerator.GetBytes(32));
+            _ = insert.AddParam("@created", DateTime.UtcNow);
+            _ = await insert.ExecuteNonQueryAsync(ct);
         }
 
         return await SelectKeyAsync(conn, userId, ct)
@@ -78,7 +83,7 @@ public sealed class UserCipher(IDbConnectionFactory connectionFactory) : IUserCi
     {
         await using DbCommand cmd = conn.Command(
             "SELECT KeyMaterial FROM dbo.UserEncryptionKey WHERE UserId = @id;");
-        cmd.AddParam("@id", userId);
+        _ = cmd.AddParam("@id", userId);
         object? result = await cmd.ExecuteScalarAsync(ct);
         return result is null or DBNull ? null : (byte[])result;
     }

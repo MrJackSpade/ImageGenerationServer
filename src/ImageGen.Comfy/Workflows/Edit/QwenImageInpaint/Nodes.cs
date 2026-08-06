@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.QwenImageInpaint;
 
 /// <summary>QwenImageInpaintWorkflow's own node ids, atop the inherited edit head and QwenInstantXInpaintBase's nodes.</summary>

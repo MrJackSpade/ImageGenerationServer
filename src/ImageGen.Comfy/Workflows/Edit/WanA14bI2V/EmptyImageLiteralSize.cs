@@ -1,6 +1,4 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.WanA14bI2V;
 
@@ -11,9 +9,9 @@ namespace ImageGen.Comfy.Edit.WanA14bI2V;
 public sealed record EmptyImageLiteralSize : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptyImage;
-    [JsonPropertyName("width")]      public required int Width { get; init; }
-    [JsonPropertyName("height")]     public required int Height { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
-    [JsonPropertyName("color")]      public required int Color { get; init; }
+    [JsonPropertyName("color")] public required int Color { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }

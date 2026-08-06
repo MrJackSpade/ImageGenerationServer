@@ -49,13 +49,15 @@ public sealed class CustomNodePresenceTests
         Skip.If(repo is null, "not running from a source checkout");
         Assert.NotNull(repo);
 
-        List<string> missing = new List<string>();
+        List<string> missing = [];
         foreach (string file in Directory.EnumerateFiles(Path.Combine(repo, "configurations", "models"), "*.json"))
         {
             JsonElement root = JsonDocument.Parse(File.ReadAllText(file)).RootElement;
             if (root.TryGetProperty("kind", out JsonElement kind) && kind.GetString() == "custom_node"
                 && !(root.TryGetProperty("node", out JsonElement node) && !string.IsNullOrWhiteSpace(node.GetString())))
+            {
                 missing.Add(Path.GetFileName(file));
+            }
         }
 
         Assert.True(missing.Count == 0, $"custom_node requirements with no \"node\": {string.Join(", ", missing)}");
@@ -74,10 +76,10 @@ public sealed class CustomNodePresenceTests
         Skip.If(string.IsNullOrWhiteSpace(baseUrl), "set COMFY_URL to run this against a live ComfyUI");
         Assert.NotNull(baseUrl);
 
-        using HttpClient http = new HttpClient { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/") };
+        using HttpClient http = new() { BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/") };
 
         using HttpResponseMessage known = await http.GetAsync("object_info/AnimaLLLiteApply");
-        known.EnsureSuccessStatusCode();
+        _ = known.EnsureSuccessStatusCode();
         Assert.True(JsonDocument.Parse(await known.Content.ReadAsStringAsync())
             .RootElement.TryGetProperty("AnimaLLLiteApply", out _), "the installed node was not reported");
 
@@ -91,12 +93,17 @@ public sealed class CustomNodePresenceTests
 
     private static string? RepositoryRoot()
     {
-        DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (Directory.Exists(Path.Combine(directory.FullName, "configurations", "models"))) return directory.FullName;
+            if (Directory.Exists(Path.Combine(directory.FullName, "configurations", "models")))
+            {
+                return directory.FullName;
+            }
+
             directory = directory.Parent;
         }
+
         return null;
     }
 }

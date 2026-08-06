@@ -24,9 +24,14 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
         User user = await fixture.NewUserAsync("unviewed-page");
         // 12 images, newest first by CreatedAtUtc. The newest 5 get opened.
         for (int i = 0; i < 12; i++)
-            await fixture.History.AddAsync(Entry(user.Id, $"uv-{i:00}", created: Now.AddMinutes(i)), Ct);
+        {
+            _ = await fixture.History.AddAsync(Entry(user.Id, $"uv-{i:00}", created: Now.AddMinutes(i)), Ct);
+        }
+
         for (int i = 7; i < 12; i++)
+        {
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"uv-{i:00}", Now, Ct);
+        }
 
         // Page size 5: post-filtering would take the newest five (all viewed), drop them all, and hand back nothing.
         PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(
@@ -41,9 +46,14 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     {
         User user = await fixture.NewUserAsync("unviewed-total");
         for (int i = 0; i < 9; i++)
-            await fixture.History.AddAsync(Entry(user.Id, $"ut-{i:00}", created: Now.AddMinutes(i)), Ct);
+        {
+            _ = await fixture.History.AddAsync(Entry(user.Id, $"ut-{i:00}", created: Now.AddMinutes(i)), Ct);
+        }
+
         for (int i = 0; i < 4; i++)
+        {
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"ut-{i:00}", Now, Ct);
+        }
 
         PagedResult<HistoryEntry> filtered = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, UnviewedOnly: true), Ct);
         PagedResult<HistoryEntry> all = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
@@ -59,9 +69,14 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
         // is the other way this goes wrong, and it looks fine on page one.
         User user = await fixture.NewUserAsync("unviewed-paging");
         for (int i = 0; i < 10; i++)
-            await fixture.History.AddAsync(Entry(user.Id, $"up-{i:00}", created: Now.AddMinutes(i)), Ct);
+        {
+            _ = await fixture.History.AddAsync(Entry(user.Id, $"up-{i:00}", created: Now.AddMinutes(i)), Ct);
+        }
+
         foreach (int i in new[] { 1, 3, 5, 7, 9 })
+        {
             await fixture.ImageViews.MarkViewedAsync(user.Id, $"up-{i:00}", Now, Ct);
+        }
 
         PagedResult<HistoryEntry> p1 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 3, UnviewedOnly: true), Ct);
         PagedResult<HistoryEntry> p2 = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 2, 3, UnviewedOnly: true), Ct);
@@ -76,15 +91,15 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     public async Task It_combines_with_the_workflow_filter()
     {
         User user = await fixture.NewUserAsync("unviewed-combined");
-        await fixture.History.AddAsync(Entry(user.Id, "uc-a", created: Now.AddMinutes(1), modelId: "alpha"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "uc-b", created: Now.AddMinutes(2), modelId: "alpha"), Ct);
-        await fixture.History.AddAsync(Entry(user.Id, "uc-c", created: Now.AddMinutes(3), modelId: "beta"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "uc-a", created: Now.AddMinutes(1), modelId: "alpha"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "uc-b", created: Now.AddMinutes(2), modelId: "alpha"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "uc-c", created: Now.AddMinutes(3), modelId: "beta"), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "uc-b", Now, Ct);
 
         PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(
             new HistoryQuery(user.Id, 1, 40, Model: "alpha", UnviewedOnly: true), Ct);
 
-        Assert.Single(page.Items);
+        _ = Assert.Single(page.Items);
         Assert.Equal("uc-a", page.Items[0].GatewayImageId);
     }
 
@@ -92,12 +107,12 @@ public sealed class UnviewedHistoryFilterTests(TestDatabaseFixture fixture)
     public async Task Off_by_default_it_changes_nothing()
     {
         User user = await fixture.NewUserAsync("unviewed-default");
-        await fixture.History.AddAsync(Entry(user.Id, "ud-a", created: Now), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "ud-a", created: Now), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "ud-a", Now, Ct);
 
         PagedResult<HistoryEntry> page = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
 
-        Assert.Single(page.Items);
+        _ = Assert.Single(page.Items);
     }
 
     private static HistoryEntry Entry(long userId, string imageId, DateTime created, string modelId = "test") => new()

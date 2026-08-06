@@ -50,7 +50,7 @@ public sealed class JobRecord
     /// <summary>Set when finalized (all slots terminal).</summary>
     [AllowNullable("null = not finalized; mirrors the nullable dbo.Job column. default(DateTime) would falsely read as finished in year 1")]
     public DateTime? FinishedAtUtc { get; set; }
-    public List<JobSlotRecord> Slots { get; set; } = new();
+    public List<JobSlotRecord> Slots { get; set; } = [];
 }
 
 /// <summary>

@@ -33,18 +33,21 @@ public sealed class MemoryTicketStore : ITicketStore, IDisposable
     {
         // A fresh random key per sign-in — unique and unguessable, and never reused across sessions.
         string key = Guid.NewGuid().ToString("N");
-        RenewAsync(key, ticket);   // completes synchronously — nothing to await
+        _ = RenewAsync(key, ticket);   // completes synchronously — nothing to await
         return Task.FromResult(key);
     }
 
     public Task RenewAsync(string key, AuthenticationTicket ticket)
     {
-        MemoryCacheEntryOptions options = new MemoryCacheEntryOptions();
+        MemoryCacheEntryOptions options = new();
         // Honour the ticket's own expiry so a session cannot outlive the cookie that points at it. SlidingExpiration
         // renews the cookie past the halfway mark and calls back here with a later ExpiresUtc, which extends this too.
         if (ticket.Properties.ExpiresUtc is { } expires)
+        {
             options.AbsoluteExpiration = expires;
-        _cache.Set(key, ticket, options);
+        }
+
+        _ = _cache.Set(key, ticket, options);
         return Task.CompletedTask;
     }
 

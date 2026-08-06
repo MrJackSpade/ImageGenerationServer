@@ -43,10 +43,17 @@ public sealed class LoraMetaPopulator(
     {
         // Off means never touch CivitAI — the same gate the lookup itself enforces, applied here so nothing queues.
         if (!civitai.IsEnabled())
+        {
             return;
+        }
+
         foreach (string name in loraNames)
+        {
             if (!string.IsNullOrWhiteSpace(name) && _queued.TryAdd(name, 0))
-                _queue.Writer.TryWrite(name);
+            {
+                _ = _queue.Writer.TryWrite(name);
+            }
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -70,7 +77,7 @@ public sealed class LoraMetaPopulator(
             }
             finally
             {
-                _queued.TryRemove(name, out _);
+                _ = _queued.TryRemove(name, out _);
             }
         }
     }
@@ -87,13 +94,22 @@ public sealed class LoraMetaPopulator(
             // Already cached. The only thing that might still be missing is the preview BYTES — a row can hold a CDN
             // URL without the media cached locally. Backfill just that.
             if (string.IsNullOrEmpty(existing.PreviewUrl))
+            {
                 return;
+            }
+
             if ((await previews.GetContentTypesAsync([name], ct)).ContainsKey(name))
+            {
                 return;
+            }
+
             if (!await CachePreviewAsync(previews, name, existing.PreviewUrl, ct))
+            {
                 // The stored URL is dead/unreachable — stop promising a preview, so the file reads as ready and
                 // isn't polled forever waiting for bytes that will never arrive.
                 await meta.UpsertAsync(existing with { PreviewUrl = null }, ct);
+            }
+
             return;
         }
 
@@ -109,7 +125,9 @@ public sealed class LoraMetaPopulator(
         string sha;
         await using (FileStream fs = File.OpenRead(path))
         using (SHA256 alg = SHA256.Create())
+        {
             sha = Convert.ToHexString(await alg.ComputeHashAsync(fs, ct));
+        }
 
         CivitaiLoraInfo? info = await civitai.LookupByHashAsync(sha, ct);
         // Preview first, row last: once the row exists, its promised preview is already on disk. The URL is kept ONLY
@@ -125,7 +143,10 @@ public sealed class LoraMetaPopulator(
     {
         CivitaiPreview? p = await civitai.DownloadPreviewAsync(url, ct);
         if (p is null)
+        {
             return false;
+        }
+
         await previews.UpsertAsync(name, p.Bytes, p.ContentType, DateTime.UtcNow, ct);
         return true;
     }
@@ -133,7 +154,10 @@ public sealed class LoraMetaPopulator(
     private async Task<IReadOnlyList<string>> LoraRootsAsync(CancellationToken ct)
     {
         if (_loraRoots is not null)
+        {
             return _loraRoots;
+        }
+
         IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await comfy.GetFolderPathsAsync(ct);
         return _loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? roots) ? roots : [];
     }
@@ -143,8 +167,12 @@ public sealed class LoraMetaPopulator(
         foreach (string root in roots)
         {
             string candidate = Path.Combine(root, name);
-            if (File.Exists(candidate)) return candidate;
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
         }
+
         return null;
     }
 }

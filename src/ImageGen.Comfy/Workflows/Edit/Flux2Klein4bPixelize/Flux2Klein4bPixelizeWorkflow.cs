@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
 
 /// <summary>
@@ -17,7 +13,7 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
 
     protected override ComfyWorkflowGraph Build(Flux2Klein4bPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4/5/6 + LoadImage 10
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
@@ -53,7 +49,12 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
             sigmas = SplitSigmasDenoise.LowOut(Nodes.SplitSigmas);        // low_sigmas — the img2img tail
             initLatent = VAEEncode.Out(Nodes.Encode);    // source latent
         }
-        else { sigmas = Flux2Scheduler.Out(Nodes.Scheduler); initLatent = EmptyFlux2LatentImage.Out(Nodes.EmptyLatentNode); }
+        else
+        {
+            sigmas = Flux2Scheduler.Out(Nodes.Scheduler);
+            initLatent = EmptyFlux2LatentImage.Out(Nodes.EmptyLatentNode);
+        }
+
         g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Nodes.Noise), Guider = BasicGuider.Out(Nodes.Guider), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = sigmas, LatentImage = initLatent };
         g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = vae0 };
         g[Nodes.FinalQuantize] = PixelizeSchema.FinalQuantize(VAEDecode.Out(Nodes.Decode), gw, gh, palette, vres, p.FinalMethod);

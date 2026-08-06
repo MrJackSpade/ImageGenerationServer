@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using ImageGen.Domain;
-
 namespace ImageGen.Comfy.Edit.FluxFillOutpaint;
 
 /// <summary>FluxFillOutpaintWorkflow's own node ids.</summary>

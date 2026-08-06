@@ -16,19 +16,33 @@ internal static class PixelSnap
     /// (<paramref name="srcW"/>/<paramref name="srcH"/>) — so the toggle works off the source with no UI field.</summary>
     public static (int w, int h)? Target(ModelResolution? r, int vres, bool snapOn, int reqW, int reqH, int srcW, int srcH)
     {
-        if (!snapOn) return null;   // explicitly OFF — the ONLY no-op (snap not requested)
+        if (!snapOn)
+        {
+            return null;   // explicitly OFF — the ONLY no-op (snap not requested)
+        }
         // 0 = "use the source dimensions" (the sentinel); a negative override is out of range, not another way to say it.
-        Ensure.NotNegative(reqW); int w = reqW == 0 ? srcW : reqW;
-        Ensure.NotNegative(reqH); int h = reqH == 0 ? srcH : reqH;
+        _ = Ensure.NotNegative(reqW);
+        int w = reqW == 0 ? srcW : reqW;
+        _ = Ensure.NotNegative(reqH);
+        int h = reqH == 0 ? srcH : reqH;
         if (vres <= 0)
+        {
             throw new RenderValidationException("snap_resolution is on but virtual_resolution is 0 — set a virtual resolution or turn snapping off.");
+        }
+
         if (w == 0 || h == 0)
+        {
             throw new RenderValidationException("snap_resolution is on but no aspect is available (no source image dimensions and no width/height override) — cannot compute the snapped render size.");
+        }
+
         if (r is null || Math.Max(r.MaxW, r.MaxH) <= 0)
+        {
             throw new RenderValidationException("snap_resolution is on but this model has no resolution-range data — cannot snap. Turn snapping off, or add a resolution block to the model.");
+        }
+
         int minSide = Math.Min(r.MinW, r.MinH);
         int maxSide = Math.Max(r.MaxW, r.MaxH);
-        Ensure.GreaterThanZero(r.Step);   // a non-positive latent step is a broken model resolution, not a 16 to invent
+        _ = Ensure.GreaterThanZero(r.Step);   // a non-positive latent step is a broken model resolution, not a 16 to invent
         return Compute(vres, w, h, minSide, maxSide, r.Step);
     }
 
@@ -41,7 +55,7 @@ internal static class PixelSnap
     public static double Denoise(int? reference, int dflt)
     {
         int r = Ensure.Between(reference ?? dflt, PctMin, PctMax, WorkflowParamKeys.Reference);
-        return Math.Clamp(1.0 - r / 100.0, 0.01, 1.0);
+        return Math.Clamp(1.0 - (r / 100.0), 0.01, 1.0);
     }
 
     /// <summary>The <c>reference</c> knob is a percentage: 0 = full denoise (generate fresh), 100 = no denoise (copy source).</summary>
@@ -68,5 +82,13 @@ internal static class PixelSnap
 
     private static int RoundToStep(double x, int s) => Math.Max(s, (int)Math.Round(x / s) * s);
     private static int RoundToMult(double x, int m) => Math.Max(m, (int)Math.Round(x / m) * m);
-    private static int Gcd(int a, int b) { while (b != 0) (a, b) = (b, a % b); return a; }
+    private static int Gcd(int a, int b)
+    {
+        while (b != 0)
+        {
+            (a, b) = (b, a % b);
+        }
+
+        return a;
+    }
 }

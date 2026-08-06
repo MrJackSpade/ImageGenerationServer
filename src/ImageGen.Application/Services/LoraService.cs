@@ -24,7 +24,9 @@ public sealed class LoraService(ILoraDisplayRepository displays, IHistoryReposit
     {
         HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
+        {
             return false;
+        }
 
         await _displays.SetAsync(new LoraDisplay
         {

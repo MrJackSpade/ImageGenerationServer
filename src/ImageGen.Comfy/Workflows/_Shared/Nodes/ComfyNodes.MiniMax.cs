@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -18,11 +17,11 @@ public sealed class AudioSlot { private AudioSlot() { } }
 public sealed record MiniMaxH3ImageToVideoT2V : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MiniMaxH3ImageToVideo;
-    [JsonPropertyName("clip")]   public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("vae")]    public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     [JsonPropertyName("prompt")] public required string Prompt { get; init; }
     [JsonPropertyName("length")] public required int Length { get; init; }
-    [JsonPropertyName("width")]  public required int Width { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
     [JsonPropertyName("height")] public required int Height { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
@@ -35,12 +34,12 @@ public sealed record MiniMaxH3ImageToVideoT2V : ComfyNode
 public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MiniMaxH3ImageToVideo;
-    [JsonPropertyName("clip")]        public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("prompt")]      public required string Prompt { get; init; }
-    [JsonPropertyName("length")]      public required int Length { get; init; }
-    [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("prompt")] public required string Prompt { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("first_frame")] public required Output<Slot.Image> FirstFrame { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
@@ -52,14 +51,14 @@ public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
 public sealed record MiniMaxH3FirstLastFrameToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MiniMaxH3ImageToVideo;
-    [JsonPropertyName("clip")]        public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("prompt")]      public required string Prompt { get; init; }
-    [JsonPropertyName("length")]      public required int Length { get; init; }
-    [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("prompt")] public required string Prompt { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("first_frame")] public required Output<Slot.Image> FirstFrame { get; init; }
-    [JsonPropertyName("last_frame")]  public required Output<Slot.Image> LastFrame { get; init; }
+    [JsonPropertyName("last_frame")] public required Output<Slot.Image> LastFrame { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
 }
@@ -77,18 +76,18 @@ public sealed record MiniMaxH3FirstLastFrameToVideo : ComfyNode
 public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MiniMaxH3ReferenceToVideo;
-    [JsonPropertyName("clip")]           public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("vae")]            public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("audio_vae")]      public required Output<Slot.Vae> AudioVae { get; init; }
-    [JsonPropertyName("prompt")]         public required string Prompt { get; init; }
-    [JsonPropertyName("length")]         public required int Length { get; init; }
-    [JsonPropertyName("width")]          public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]         public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("audio_vae")] public required Output<Slot.Vae> AudioVae { get; init; }
+    [JsonPropertyName("prompt")] public required string Prompt { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("ref_image_size")] public required string RefImageSize { get; init; }
 
     /// <summary>The autogrow reference images, keyed by the exact flat dotted wire key <c>ref_images.ref_image_{i}</c>
     /// and serialized as sibling inputs via STJ extension data. Populated by <see cref="Refs"/>.</summary>
-    [JsonExtensionData] public Dictionary<string, object> RefImages { get; init; } = new();
+    [JsonExtensionData] public Dictionary<string, object> RefImages { get; init; } = [];
 
     /// <summary>Build the <c>ref_images.ref_image_{i}</c> extension-data map from the ordered reference outputs. Each
     /// value is the two-element <c>[nodeId, index]</c> edge ComfyUI expects — byte-identical to an
@@ -97,7 +96,10 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
     {
         Dictionary<string, object> map = new(images.Count);
         for (int i = 0; i < images.Count; i++)
+        {
             map[$"ref_images.ref_image_{i}"] = new object[] { images[i].NodeId, images[i].Index };
+        }
+
         return map;
     }
 
@@ -111,7 +113,7 @@ public sealed record VAEDecodeAudio : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.VAEDecodeAudio;
     [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
-    [JsonPropertyName("vae")]     public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     public static Output<AudioSlot> Out(string id) => new(id, 0);
 }
 
@@ -120,8 +122,8 @@ public sealed record CreateVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.CreateVideo;
     [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
-    [JsonPropertyName("fps")]    public required double Fps { get; init; }
-    [JsonPropertyName("audio")]  public required Output<AudioSlot> Audio { get; init; }
+    [JsonPropertyName("fps")] public required double Fps { get; init; }
+    [JsonPropertyName("audio")] public required Output<AudioSlot> Audio { get; init; }
     public static Output<Slot.Video> Out(string id) => new(id, 0);
 }
 
@@ -130,8 +132,8 @@ public sealed record CreateVideo : ComfyNode
 public sealed record SaveVideo : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SaveVideo;
-    [JsonPropertyName("video")]           public required Output<Slot.Video> Video { get; init; }
+    [JsonPropertyName("video")] public required Output<Slot.Video> Video { get; init; }
     [JsonPropertyName("filename_prefix")] public required string FilenamePrefix { get; init; }
-    [JsonPropertyName("format")]          public required string Format { get; init; }
-    [JsonPropertyName("codec")]           public required string Codec { get; init; }
+    [JsonPropertyName("format")] public required string Format { get; init; }
+    [JsonPropertyName("codec")] public required string Codec { get; init; }
 }

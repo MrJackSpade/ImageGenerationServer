@@ -39,51 +39,51 @@ public static class InfrastructureServiceCollectionExtensions
 
         if (provider == DatabaseProvider.Sqlite)
         {
-            services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
-            services.AddSingleton<ISqlDialect, SqliteDialect>();
-            services.AddSingleton<IDatabaseAvailability, SqliteDatabaseAvailability>();
+            _ = services.AddSingleton<IDbConnectionFactory>(_ => new SqliteConnectionFactory(connectionString));
+            _ = services.AddSingleton<ISqlDialect, SqliteDialect>();
+            _ = services.AddSingleton<IDatabaseAvailability, SqliteDatabaseAvailability>();
         }
         else
         {
-            services.AddSingleton<IDbConnectionFactory>(_ => new SqlConnectionFactory(connectionString));
-            services.AddSingleton<ISqlDialect, SqlServerDialect>();
+            _ = services.AddSingleton<IDbConnectionFactory>(_ => new SqlConnectionFactory(connectionString));
+            _ = services.AddSingleton<ISqlDialect, SqlServerDialect>();
             // Lets the render path tell "the database is out of reach" from "this operation was wrong" without knowing
             // what kind of database it is. Stateless — a singleton beside the factory.
-            services.AddSingleton<IDatabaseAvailability, SqlDatabaseAvailability>();
+            _ = services.AddSingleton<IDatabaseAvailability, SqlDatabaseAvailability>();
         }
 
         // Per-user column cipher: a singleton (the singleton job/blob repositories depend on it) that caches each
         // user's derived subkeys. No master key — keys live in dbo.UserEncryptionKey.
-        services.AddSingleton<IUserCipher, UserCipher>();
+        _ = services.AddSingleton<IUserCipher, UserCipher>();
 
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IHistoryRepository, HistoryRepository>();
-        services.AddScoped<IBookmarkRepository, BookmarkRepository>();
-        services.AddScoped<IBannedTokenRepository, BannedTokenRepository>();
-        services.AddScoped<IPendingJobRepository, PendingJobRepository>();
-        services.AddScoped<IArtistDisplayRepository, ArtistDisplayRepository>();
-        services.AddScoped<ILoraDisplayRepository, LoraDisplayRepository>();
-        services.AddScoped<ITagDisplayRepository, TagDisplayRepository>();
-        services.AddScoped<ILoraMetaRepository, LoraMetaRepository>();
+        _ = services.AddScoped<IUserRepository, UserRepository>();
+        _ = services.AddScoped<IHistoryRepository, HistoryRepository>();
+        _ = services.AddScoped<IBookmarkRepository, BookmarkRepository>();
+        _ = services.AddScoped<IBannedTokenRepository, BannedTokenRepository>();
+        _ = services.AddScoped<IPendingJobRepository, PendingJobRepository>();
+        _ = services.AddScoped<IArtistDisplayRepository, ArtistDisplayRepository>();
+        _ = services.AddScoped<ILoraDisplayRepository, LoraDisplayRepository>();
+        _ = services.AddScoped<ITagDisplayRepository, TagDisplayRepository>();
+        _ = services.AddScoped<ILoraMetaRepository, LoraMetaRepository>();
         // Stateless byte store (a fresh connection per call), so a singleton — the singleton populator resolves it directly.
-        services.AddSingleton<ILoraPreviewRepository, LoraPreviewRepository>();
-        services.AddScoped<ILoraUserSettingRepository, LoraUserSettingRepository>();
-        services.AddScoped<IImageViewRepository, ImageViewRepository>();
+        _ = services.AddSingleton<ILoraPreviewRepository, LoraPreviewRepository>();
+        _ = services.AddScoped<ILoraUserSettingRepository, LoraUserSettingRepository>();
+        _ = services.AddScoped<IImageViewRepository, ImageViewRepository>();
 
         // Stateless (fresh connection per call) → singletons, so the singleton render orchestrator can resolve them
         // from the root provider and write through on every state transition.
-        services.AddSingleton<IImageBlobRepository, ImageBlobRepository>();
-        services.AddSingleton<IImageDeletionRepository, ImageDeletionRepository>();
-        services.AddSingleton<IImageFrameRepository, ImageFrameRepository>();
-        services.AddSingleton<IGenTimingRepository, GenTimingRepository>();
+        _ = services.AddSingleton<IImageBlobRepository, ImageBlobRepository>();
+        _ = services.AddSingleton<IImageDeletionRepository, ImageDeletionRepository>();
+        _ = services.AddSingleton<IImageFrameRepository, ImageFrameRepository>();
+        _ = services.AddSingleton<IGenTimingRepository, GenTimingRepository>();
         // Machine-scoped catalogue overrides (model bindings, per-config settings). Singleton for the same reason
         // as GenTiming: stateless, a fresh connection per call, and resolved by the singleton catalog service.
-        services.AddSingleton<ICatalogOverrideRepository, CatalogOverrideRepository>();
+        _ = services.AddSingleton<ICatalogOverrideRepository, CatalogOverrideRepository>();
         // This machine's own configuration. Same reasoning again — and note it is read before the host is built
         // (the configuration provider that surfaces it uses CreateConnectionFactory below, not this registration).
-        services.AddSingleton<IMachineSettingRepository, MachineSettingRepository>();
-        services.AddSingleton<IJobRepository, JobRepository>();
-        services.AddSingleton<IUserLogRepository, UserLogRepository>();
+        _ = services.AddSingleton<IMachineSettingRepository, MachineSettingRepository>();
+        _ = services.AddSingleton<IJobRepository, JobRepository>();
+        _ = services.AddSingleton<IUserLogRepository, UserLogRepository>();
         return services;
     }
 
@@ -117,14 +117,18 @@ public static class InfrastructureServiceCollectionExtensions
             connectionString.Contains(ConnKeys.TrustedConnectionKey, StringComparison.OrdinalIgnoreCase);
 
         if (provider == DatabaseProvider.Sqlite && looksLikeSqlServer)
+        {
             throw new InvalidOperationException(
                 "Database:Provider is 'Sqlite' but ConnectionStrings:ImageGen looks like a SQL Server connection "
                 + "string. SQLite expects a file, e.g. \"Data Source=/data/imagegen.db\". Refusing to start rather "
                 + "than silently creating an empty database and appearing to have lost every account.");
+        }
 
         if (provider == DatabaseProvider.SqlServer && !looksLikeSqlServer)
+        {
             throw new InvalidOperationException(
                 "Database:Provider is 'SqlServer' but ConnectionStrings:ImageGen does not look like a SQL Server "
                 + "connection string. Set Database:Provider to 'Sqlite' if you meant to use a local file.");
+        }
     }
 }

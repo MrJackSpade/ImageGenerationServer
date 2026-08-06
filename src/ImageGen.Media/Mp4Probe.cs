@@ -30,7 +30,10 @@ internal static class Mp4Probe
     public static (int Width, int Height) GetDimensions(ReadOnlySpan<byte> b)
     {
         if (TryFindVideoSize(b, 0, b.Length, out int w, out int h))
+        {
             return (w, h);
+        }
+
         throw new InvalidOperationException("MP4 has no readable video sample entry — cannot determine clip dimensions.");
     }
 
@@ -44,29 +47,57 @@ internal static class Mp4Probe
             int header = 8;
             if (size == 1)                              // 64-bit largesize follows the type
             {
-                if (pos + 16 > end) break;
+                if (pos + 16 > end)
+                {
+                    break;
+                }
+
                 long large = 0;
-                for (int i = 0; i < 8; i++) large = (large << 8) | b[pos + 8 + i];
+                for (int i = 0; i < 8; i++)
+                {
+                    large = (large << 8) | b[pos + 8 + i];
+                }
+
                 size = large;
                 header = 16;
             }
-            else if (size == 0) size = end - pos;       // last box: extends to the end of the range
-            if (size < header) break;
+            else if (size == 0)
+            {
+                size = end - pos;       // last box: extends to the end of the range
+            }
+
+            if (size < header)
+            {
+                break;
+            }
+
             long boxEnd = pos + size;
-            if (boxEnd > end || boxEnd <= pos) break;
+            if (boxEnd > end || boxEnd <= pos)
+            {
+                break;
+            }
+
             string type = ReadType(b, pos + 4);
             int contentStart = pos + header;
 
             if (type == Boxes.StsdBox)
             {
-                if (TryReadStsd(b, contentStart, (int)boxEnd, out w, out h)) return true;
+                if (TryReadStsd(b, contentStart, (int)boxEnd, out w, out h))
+                {
+                    return true;
+                }
             }
             else if (Containers.Contains(type))
             {
-                if (TryFindVideoSize(b, contentStart, (int)boxEnd, out w, out h)) return true;
+                if (TryFindVideoSize(b, contentStart, (int)boxEnd, out w, out h))
+                {
+                    return true;
+                }
             }
+
             pos = (int)boxEnd;
         }
+
         return false;
     }
 
@@ -77,18 +108,31 @@ internal static class Mp4Probe
         while (pos + 8 <= end)
         {
             long size = ReadU32(b, pos);
-            if (size < 8) break;
+            if (size < 8)
+            {
+                break;
+            }
+
             long entryEnd = pos + size;
-            if (entryEnd > end || entryEnd <= pos) break;
+            if (entryEnd > end || entryEnd <= pos)
+            {
+                break;
+            }
+
             string type = ReadType(b, pos + 4);
             if (VideoSampleEntries.Contains(type) && pos + 36 <= end)
             {
                 w = (b[pos + 32] << 8) | b[pos + 33];   // VisualSampleEntry.width  (uint16 BE)
                 h = (b[pos + 34] << 8) | b[pos + 35];   // VisualSampleEntry.height (uint16 BE)
-                if (w > 0 && h > 0) return true;
+                if (w > 0 && h > 0)
+                {
+                    return true;
+                }
             }
+
             pos = (int)entryEnd;
         }
+
         return false;
     }
 
@@ -96,5 +140,5 @@ internal static class Mp4Probe
         ((long)b[o] << 24) | ((long)b[o + 1] << 16) | ((long)b[o + 2] << 8) | b[o + 3];
 
     private static string ReadType(ReadOnlySpan<byte> b, int o) =>
-        new string(new[] { (char)b[o], (char)b[o + 1], (char)b[o + 2], (char)b[o + 3] });
+        new(new[] { (char)b[o], (char)b[o + 1], (char)b[o + 2], (char)b[o + 3] });
 }

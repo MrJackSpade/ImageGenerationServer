@@ -1,8 +1,6 @@
-using ImageGen.Comfy;
+using ImageGen.Domain.CodeAnalysis;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.PixelQuantizeBatch;
 
@@ -18,13 +16,13 @@ namespace ImageGen.Comfy.Edit.PixelQuantizeBatch;
 public abstract record PixelQuantizeBatchParams
 {
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
-    [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }
+    [Range(0, 4096)] public required int VirtualResolution { get; init; }
     [JsonPropertyName(WorkflowParamKeys.GridW)]
-    [Range(0, 4096)]                                        public required int GridW { get; init; }
+    [Range(0, 4096)] public required int GridW { get; init; }
     [JsonPropertyName(WorkflowParamKeys.GridH)]
-    [Range(0, 4096)]                                        public required int GridH { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
+    [Range(0, 4096)] public required int GridH { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.KeyBackground)] public bool KeyBackground { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]
     [AllowNullable("null = the config didn't set the matte cutoff; the BiRefNet node input is emitted only when key_background is on, distinct from a real 0 (soft matte)")]
-    [Range(0.0, 1.0)]                                       public double? MatteThreshold { get; init; }
+    [Range(0.0, 1.0)] public double? MatteThreshold { get; init; }
 }

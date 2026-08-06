@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
@@ -28,7 +25,7 @@ public sealed class LineThickenAnime2SketchWorkflow : EditWorkflow<LineThickenAn
     protected override ComfyWorkflowGraph Build(LineThickenAnime2SketchParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string source = inputs.SourceImageName ?? throw new RenderValidationException("Line-thicken needs a source image, but none was provided.");
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = source },
         };

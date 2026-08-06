@@ -40,21 +40,31 @@ public sealed class SqlDatabaseAvailability : IDatabaseAvailability
         for (Exception? e = ex; e is not null; e = e.InnerException)
         {
             if (e is SqlException sql && (sql.IsTransient || sql.Errors.Cast<SqlError>().Any(x => UnreachableNumbers.Contains(x.Number))))
+            {
                 return true;
+            }
             // A TRANSPORT failure, whatever number it wears. The number list alone is not enough and cannot be made
             // enough: SqlClient surfaces connection failures with whatever the OS reported, so "the remote computer
             // refused the network connection" arrives as Win32 1225 and a dropped link as a socket error — neither of
             // which is a SQL Server error code anyone would think to list. What they have in common is a Win32 or
             // socket exception in the chain, which a rejected COMMAND never has: the server answered that one.
             if (e is System.Net.Sockets.SocketException or System.ComponentModel.Win32Exception)
+            {
                 return true;
+            }
             // The pool gives up as a plain InvalidOperationException when it cannot hand out a connection, and a
             // socket that never answers surfaces as a raw timeout. Both mean the same thing: no connection happened.
             if (e is TimeoutException)
+            {
                 return true;
+            }
+
             if (e is InvalidOperationException io && io.Message.Contains(Messages.PoolExhaustionMessageFragment, StringComparison.OrdinalIgnoreCase))
+            {
                 return true;
+            }
         }
+
         return false;
     }
 }

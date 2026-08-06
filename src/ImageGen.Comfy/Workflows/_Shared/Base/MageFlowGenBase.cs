@@ -14,7 +14,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
     protected override ComfyWorkflowGraph Build(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Mage, Device = ComfyWidgets.Device.Default };

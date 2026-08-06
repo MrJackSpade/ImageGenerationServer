@@ -19,15 +19,15 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
 
         IReadOnlyList<TokenBookmark> tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
         Assert.Equal(2, tokens.Count);
-        Assert.Single(tokens, t => t.Kind == TokenKind.Artist);
-        Assert.Single(tokens, t => t.Kind == TokenKind.Tag);
+        _ = Assert.Single(tokens, t => t.Kind == TokenKind.Artist);
+        _ = Assert.Single(tokens, t => t.Kind == TokenKind.Tag);
     }
 
     [Fact]
     public async Task Token_remove_reports_whether_it_existed()
     {
         User user = await fixture.NewUserAsync("bm-token-remove");
-        await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "cats", TokenKind.Tag), Ct);
+        _ = await fixture.Bookmarks.AddTokenAsync(Token(user.Id, "cats", TokenKind.Tag), Ct);
 
         Assert.True(await fixture.Bookmarks.RemoveTokenAsync(user.Id, "cats", TokenKind.Tag, Ct));
         Assert.False(await fixture.Bookmarks.RemoveTokenAsync(user.Id, "cats", TokenKind.Tag, Ct));
@@ -43,7 +43,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
         Assert.False(await fixture.Bookmarks.AddImageAsync(bookmark, Ct));
 
         IReadOnlyList<ImageBookmark> images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
-        Assert.Single(images);
+        _ = Assert.Single(images);
         Assert.Equal("img-9", images[0].GatewayImageId);
         Assert.Contains(images[0].Marks, m => m is { Token: "rembrandt", Kind: TokenKind.Artist });
     }
@@ -53,8 +53,8 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("bm-alice");
         User bob = await fixture.NewUserAsync("bm-bob");
-        await fixture.Bookmarks.AddTokenAsync(Token(alice.Id, "secret", TokenKind.Tag), Ct);
-        await fixture.Bookmarks.AddImageAsync(Image(alice.Id, "secret-img"), Ct);
+        _ = await fixture.Bookmarks.AddTokenAsync(Token(alice.Id, "secret", TokenKind.Tag), Ct);
+        _ = await fixture.Bookmarks.AddImageAsync(Image(alice.Id, "secret-img"), Ct);
 
         Assert.Empty(await fixture.Bookmarks.GetTokensAsync(bob.Id, Ct));
         Assert.Empty(await fixture.Bookmarks.GetImagesAsync(bob.Id, Ct));
@@ -70,7 +70,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
             Token(user.Id, "vangogh", TokenKind.Artist), ["Post-Impressionism", "Favorites"], Ct);
 
         IReadOnlyList<TokenBookmark> tokens = await fixture.Bookmarks.GetTokensAsync(user.Id, Ct);
-        Assert.Single(tokens);
+        _ = Assert.Single(tokens);
         Assert.Equal(
             new[] { "Favorites", "Post-Impressionism" },
             tokens[0].Categories.OrderBy(c => c).ToArray());
@@ -80,7 +80,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
             Token(user.Id, "vangogh", TokenKind.Artist), ["Favorites"], Ct);
         IReadOnlyList<string> after = await fixture.Bookmarks.GetTokenCategoriesAsync(user.Id, "vangogh", TokenKind.Artist, Ct);
         Assert.Equal(["Favorites"], after);
-        Assert.Single(await fixture.Bookmarks.GetTokensAsync(user.Id, Ct)); // still one bookmark
+        _ = Assert.Single(await fixture.Bookmarks.GetTokensAsync(user.Id, Ct)); // still one bookmark
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class BookmarkRepositoryTests(TestDatabaseFixture fixture)
             Token(user.Id, "field", TokenKind.Tag), ["Refs"], Ct); // shared category across kinds
 
         IReadOnlyList<ImageBookmark> images = await fixture.Bookmarks.GetImagesAsync(user.Id, Ct);
-        Assert.Single(images);
+        _ = Assert.Single(images);
         Assert.Equal(new[] { "Landscapes", "Refs" }, images[0].Categories.OrderBy(c => c).ToArray());
 
         // The distinct list spans both bookmark kinds, deduped and name-sorted.

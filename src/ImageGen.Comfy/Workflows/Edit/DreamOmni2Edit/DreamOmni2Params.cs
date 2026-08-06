@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.DreamOmni2Edit;
 
@@ -12,6 +10,6 @@ public sealed record DreamOmni2Params
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]     public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]  public long Seed { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

@@ -16,7 +16,7 @@ public static class HistoryEndpoints
         // history and address bar on the user's own machine, plus request logs, proxies and Referer headers. Removing
         // the GET is what makes the leak impossible rather than merely unused. (This endpoint is called only by this
         // app's own JS; it has never been a public read surface.)
-        api.MapPost(Routes.HistoryQuery, async (
+        _ = api.MapPost(Routes.HistoryQuery, async (
             HistoryQueryRequest req, HttpContext context, HistoryService history, ImageViewService views) =>
         {
             long userId = context.User.GetRequiredUserId();
@@ -25,11 +25,16 @@ public static class HistoryEndpoints
             int page = req.Page;
             int pageSize = req.PageSize;
             if (page < HistoryQuery.MinPage)
+            {
                 return Results.BadRequest(new { error = $"page must be >= {HistoryQuery.MinPage}, got {page}" });
+            }
+
             if (pageSize is < HistoryQuery.MinPageSize or > HistoryQuery.MaxPageSize)
+            {
                 return Results.BadRequest(new { error = $"pageSize must be between {HistoryQuery.MinPageSize} and {HistoryQuery.MaxPageSize}, got {pageSize}" });
+            }
             // `search` is the history page's search box: space-separated terms, ALL of which must appear in the prompt.
-            HistoryQuery query = new HistoryQuery(
+            HistoryQuery query = new(
                 userId, page, pageSize, req.Artist, req.Tag, req.Workflow, req.Search,
                 req.UnviewedOnly);
             PagedResult<HistoryEntry> result = await history.GetPageAsync(query, context.RequestAborted);
@@ -48,7 +53,7 @@ public static class HistoryEndpoints
         // The compose page's Recent strip. It asks only how few images it is willing to show; the SERVER decides the
         // rest — how far the window has to stretch to cover the current-or-last batch — because that is a fact of the
         // job table, not of whichever browser tab happened to watch the batch run. The client renders what comes back.
-        api.MapGet(Routes.Recents, async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
+        _ = api.MapGet(Routes.Recents, async (HttpContext context, HistoryService history, ImageViewService views, int? min) =>
         {
             long userId = context.User.GetRequiredUserId();
             // An out-of-range `min` is REFUSED, not clamped. The response carries no window size (see
@@ -57,7 +62,10 @@ public static class HistoryEndpoints
             // the window past `min` on its own to cover the current batch -- that part is deliberate and uncapped.
             const int MaxRecents = 200;
             if (min is int requested && (requested < 1 || requested > MaxRecents))
+            {
                 return Results.BadRequest(new { error = $"min must be between 1 and {MaxRecents}, got {requested}" });
+            }
+
             int minimum = min ?? 48;
             IReadOnlyList<HistoryEntry> items = await history.GetRecentsAsync(userId, minimum, context.RequestAborted);
             IReadOnlySet<string> viewed = await views.ViewedAsync(userId, items, context.RequestAborted);
@@ -66,7 +74,7 @@ public static class HistoryEndpoints
 
         // Clear the whole unread backlog. Without this an outline that means "you haven't opened this" can only be
         // cleared one image at a time, which is not a thing anyone will do to a library.
-        api.MapPost(Routes.HistoryViewed, async (HttpContext context, ImageViewService views) =>
+        _ = api.MapPost(Routes.HistoryViewed, async (HttpContext context, ImageViewService views) =>
         {
             long userId = context.User.GetRequiredUserId();
             int marked = await views.MarkAllViewedAsync(userId, context.RequestAborted);
@@ -78,7 +86,7 @@ public static class HistoryEndpoints
         // insert-if-absent repository would let deleted images resurrect, so the browser may only read and delete.
 
         // id carried in the query string (gateway ids may contain characters awkward in a path segment).
-        api.MapDelete(Routes.History, async (HttpContext context, HistoryService history, string id) =>
+        _ = api.MapDelete(Routes.History, async (HttpContext context, HistoryService history, string id) =>
         {
             long userId = context.User.GetRequiredUserId();
             bool removed = await history.DeleteAsync(userId, id, context.RequestAborted);

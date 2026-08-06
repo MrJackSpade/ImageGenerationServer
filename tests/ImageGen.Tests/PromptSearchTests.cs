@@ -58,11 +58,9 @@ public sealed class PromptSearchTests
     }
 
     [Fact]
-    public void Partial_words_match()
-    {
+    public void Partial_words_match() =>
         // Substring, not word-boundary: typing half a tag while you think of the rest still narrows the grid.
         Assert.True(PromptSearch.Matches(PromptSearch.Terms("hatsu"), "hatsune miku"));
-    }
 
     [Theory]
     [InlineData(null)]

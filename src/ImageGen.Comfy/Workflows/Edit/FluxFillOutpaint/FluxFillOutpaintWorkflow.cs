@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using ImageGen.Domain;
 
 namespace ImageGen.Comfy.Edit.FluxFillOutpaint;
@@ -22,8 +21,8 @@ public sealed class FluxFillOutpaintWorkflow : FluxFillBase
     /// <summary>The ceiling applies to the PADDED canvas — outpainting is what actually grows the frame.</summary>
     protected override (int W, int H) CanvasSize(FluxFillParams p, WorkflowInputs inputs)
     {
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth + p.PadLeft + p.PadRight,
                 inputs.SourceHeight + p.PadTop + p.PadBottom);
     }

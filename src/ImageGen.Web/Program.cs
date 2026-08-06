@@ -66,9 +66,11 @@ IDbConnectionFactory bootstrapConnections = InfrastructureServiceCollectionExten
 // (the app's login holds no DDL rights) and a box whose schema has not been applied fails on the read below, by design.
 // Either way an explicit Database:EnsureSchemaOnStartup wins.
 if (config.GetValue(ConfigKeys.EnsureSchemaOnStartup, databaseProvider == DatabaseProvider.Sqlite))
+{
     await new DatabaseInitializer(bootstrapConnections, databaseProvider).EnsureSchemaAsync(CancellationToken.None);
+}
 
-MachineSettingsConfigurationSource machineSettings = new MachineSettingsConfigurationSource(
+MachineSettingsConfigurationSource machineSettings = new(
     new MachineSettingRepository(bootstrapConnections), Environment.MachineName);
 ((IConfigurationBuilder)config).Add(machineSettings);
 
@@ -93,21 +95,28 @@ string logFilePath = config[ConfigKeys.LoggingFilePath] ?? "logs/imagegen-.log";
 if (!string.IsNullOrWhiteSpace(logFilePath))
 {
     string logPath = Path.IsPathRooted(logFilePath) ? logFilePath : Path.Combine(builder.Environment.ContentRootPath, logFilePath);
-    Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? throw new InvalidOperationException($"Log path '{logPath}' has no parent directory."));
+    _ = Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? throw new InvalidOperationException($"Log path '{logPath}' has no parent directory."));
 
     // Unset keeps the shipped default level; a SET-but-unparseable value is a typo and throws rather than silently
     // applying a different level than the operator asked for. None parses but has no Serilog equivalent, so the file
     // sink keeps its own default there.
     static Serilog.Events.LogEventLevel Level(string? configured, Serilog.Events.LogEventLevel fallback)
     {
-        if (string.IsNullOrWhiteSpace(configured)) return fallback;
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return fallback;
+        }
+
         if (!Enum.TryParse<LogLevel>(configured, ignoreCase: true, out LogLevel mel))
+        {
             throw new InvalidOperationException(
                 $"A configured log level is '{configured}', which is not one of Trace, Debug, Information, Warning, Error, Critical, None.");
+        }
+
         return mel == LogLevel.None ? fallback : (Serilog.Events.LogEventLevel)mel;   // MEL Trace..Critical map 1:1 onto Serilog Verbose..Fatal
     }
 
-    builder.Logging.AddSerilog(new Serilog.LoggerConfiguration()
+    _ = builder.Logging.AddSerilog(new Serilog.LoggerConfiguration()
         .MinimumLevel.Is(Level(config[ConfigKeys.LogLevelDefault], Serilog.Events.LogEventLevel.Information))
         .MinimumLevel.Override(LogNames.MicrosoftSource, Level(config[ConfigKeys.LogLevelMicrosoftAspNetCore], Serilog.Events.LogEventLevel.Warning))
         .WriteTo.File(
@@ -145,14 +154,14 @@ if (!string.IsNullOrWhiteSpace(logFilePath))
 // value was already its default, and whose invalid values fail the boot.
 // The catalogue ships WITH the application: the release archive copies this directory next to the binary.
 const string shippedCatalogDir = "configurations";
-ComfyOptions comfyOptions = new ComfyOptions
+ComfyOptions comfyOptions = new()
 {
     CatalogPath = shippedCatalogDir,
 };
 // ffmpeg runs IN-PROCESS (Loxifi.FFmpeg), so there is no executable to locate, no download step, and no path to
 // configure. The defaults pick Cisco's OpenH264 from the LGPL runtime -- see MediaOptions for why x264 is not the
 // default despite being the better encoder.
-MediaOptions mediaOptions = new MediaOptions();
+MediaOptions mediaOptions = new();
 // The foreground-idle delay before background (idle-time) jobs run. Read LIVE on every scheduling decision (the
 // settings page can change it while the app runs), exactly like the memory floor below — so it is a delegate over
 // IConfiguration, not a captured value. Only the STORED value is live; the fallback is the constant declared on the
@@ -161,7 +170,7 @@ double backgroundIdleDefault = double.Parse(
     MachineSettingSpecs.DefaultOf(MachineSettingSpecs.Keys.BackgroundIdleMinutes)
         ?? throw new InvalidOperationException($"{MachineSettingSpecs.Keys.BackgroundIdleMinutes} declares no default."),
     System.Globalization.CultureInfo.InvariantCulture);
-RenderOptions renderOptions = new RenderOptions(() =>
+RenderOptions renderOptions = new(() =>
     TimeSpan.FromMinutes(config.GetValue(MachineSettingSpecs.Keys.BackgroundIdleMinutes, backgroundIdleDefault)));
 
 // --- DI (composition root) -----------------------------------------------------------------------
@@ -230,9 +239,13 @@ builder.Services.AddMedia(mediaOptions);
 // The app FETCHES the artifacts itself if they are not there, so there is no separate download step a user has to
 // know to run (or know not to run) before anything works: the app knows it needs the file, so the app gets it.
 using ILoggerFactory startupLoggers = LoggerFactory.Create(b => b.AddConsole());
-using (HttpClient artifactsHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
+using (HttpClient artifactsHttp = new()
+{ Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
+{
     await TagModelArtifacts.EnsureAsync(
         artifactsHttp, startupLoggers.CreateLogger(LogNames.TagModelCategory), CancellationToken.None);
+}
+
 builder.Services.AddTagModel();
 builder.Services.AddMemoryCache();   // backs the /forge/image?w=N thumbnail + mp4 caches
 
@@ -254,7 +267,9 @@ builder.Services.AddHostedService<RenderWorker>();
 
 // Vestigial reconciler: reaps stale PendingJob rows (history is worker-written). Toggle off via Reconciler:Enabled.
 if (config.IsOn(ConfigKeys.ReconcilerEnabled))
-    builder.Services.AddHostedService<PendingJobReconciler>();
+{
+    _ = builder.Services.AddHostedService<PendingJobReconciler>();
+}
 
 // /forge/upload reads the posted file via ReadFormAsync, whose 128MB default would become the new
 // binding limit once Kestrel's MaxRequestBodySize is raised past it. Keep it in step with the Kestrel
@@ -299,6 +314,7 @@ builder.Services
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 return Task.CompletedTask;
             }
+
             ctx.Response.Redirect(ctx.RedirectUri);
             return Task.CompletedTask;
         };
@@ -334,7 +350,10 @@ string? listenUrls = ListenAddress.Resolve(
     configuredUrls,
     onMoved: (host, wanted, actual) => startupLoggers.CreateLogger(LogNames.StartupCategory).LogWarning(
         "Port {Wanted} on {Host} is already in use; listening on {Actual} instead.", wanted, host, actual));
-if (listenUrls != configuredUrls) config[ConfigKeys.Urls] = listenUrls;
+if (listenUrls != configuredUrls)
+{
+    config[ConfigKeys.Urls] = listenUrls;
+}
 
 WebApplication app = builder.Build();
 
@@ -427,7 +446,9 @@ foreach (string address in app.Urls)
 // And open it, if the launcher asked. Only the launcher sets this, so a container, a service or a scheduled task
 // is left alone — see StartupBrowser for why that is the trigger rather than a guess at whether a desktop exists.
 if (firstReachable is not null && StartupBrowser.Requested(Environment.GetEnvironmentVariable(StartupBrowser.Env.EnvVar)))
+{
     StartupBrowser.Open(firstReachable, startupLoggers.CreateLogger(LogNames.StartupCategory));
+}
 
 await app.WaitForShutdownAsync();
 

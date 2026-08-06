@@ -25,7 +25,7 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
         await using DbCommand cmd = conn.Command(
             $"SELECT {Sql.Columns} FROM dbo.BannedToken WHERE UserId = @userId "
             + "ORDER BY ModelId, SavedAtUtc DESC, Id DESC;");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         return await ReadAllAsync(cmd, ct);
     }
 
@@ -35,8 +35,8 @@ public sealed class BannedTokenRepository(IDbConnectionFactory connectionFactory
         await using DbCommand cmd = conn.Command(
             $"SELECT {Sql.Columns} FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId "
             + "ORDER BY SavedAtUtc DESC, Id DESC;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@modelId", modelId);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@modelId", modelId);
         return await ReadAllAsync(cmd, ct);
     }
 
@@ -49,11 +49,11 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
                   WHERE UserId = @userId AND ModelId = @modelId AND Name = @name AND Kind = @kind);";
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", ban.UserId);
-        cmd.AddParam("@modelId", ban.ModelId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(ban.UserId, ban.Name, ct));
-        cmd.AddParam("@kind", (byte)ban.Kind);
-        cmd.AddParam("@saved", ban.SavedAtUtc);
+        _ = cmd.AddParam("@userId", ban.UserId);
+        _ = cmd.AddParam("@modelId", ban.ModelId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(ban.UserId, ban.Name, ct));
+        _ = cmd.AddParam("@kind", (byte)ban.Kind);
+        _ = cmd.AddParam("@saved", ban.SavedAtUtc);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
@@ -62,23 +62,28 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "DELETE FROM dbo.BannedToken WHERE UserId = @userId AND ModelId = @modelId AND Name = @name AND Kind = @kind;");
-        cmd.AddParam("@userId", key.UserId);
-        cmd.AddParam("@modelId", key.ModelId);
-        cmd.AddParam("@name", await _cipher.DeterministicAsync(key.UserId, key.Name, ct));
-        cmd.AddParam("@kind", (byte)key.Kind);
+        _ = cmd.AddParam("@userId", key.UserId);
+        _ = cmd.AddParam("@modelId", key.ModelId);
+        _ = cmd.AddParam("@name", await _cipher.DeterministicAsync(key.UserId, key.Name, ct));
+        _ = cmd.AddParam("@kind", (byte)key.Kind);
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     private async Task<IReadOnlyList<BannedToken>> ReadAllAsync(DbCommand cmd, CancellationToken ct)
     {
-        List<BannedTokenRow> raw = new List<BannedTokenRow>();
+        List<BannedTokenRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new BannedTokenRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     (TokenKind)reader.AsByte(4), DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc)));
+            }
+        }
 
-        List<BannedToken> list = new List<BannedToken>(raw.Count);
+        List<BannedToken> list = new(raw.Count);
         foreach (BannedTokenRow r in raw)
+        {
             list.Add(new BannedToken
             {
                 Id = r.Id,
@@ -88,6 +93,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.BannedToken
                 Kind = r.Kind,
                 SavedAtUtc = r.Saved,
             });
+        }
+
         return list;
     }
 

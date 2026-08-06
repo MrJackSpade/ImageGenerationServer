@@ -19,19 +19,26 @@ public sealed class TagService(ITagDisplayRepository displays, IHistoryRepositor
     public async Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
         long userId, IReadOnlyCollection<string> tagNames, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
         if (tagNames.Count == 0)
+        {
             return result;
+        }
 
         IReadOnlyDictionary<string, string> overrides = await _displays.GetManyAsync(userId, tagNames, ct);
         IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForTagsAsync(userId, tagNames, ct);
         foreach (string name in tagNames)
         {
             if (overrides.TryGetValue(name, out string? ov))
+            {
                 result[name] = ov;
+            }
             else if (latest.TryGetValue(name, out string? l))
+            {
                 result[name] = l;
+            }
         }
+
         return result;
     }
 
@@ -40,7 +47,9 @@ public sealed class TagService(ITagDisplayRepository displays, IHistoryRepositor
     {
         HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
+        {
             return false;
+        }
 
         await _displays.SetAsync(new TagDisplay
         {

@@ -38,14 +38,18 @@ public sealed class HistoryService(
 
         // Collected a page at a time because the repository caps a page (a batch may be larger than one). Stops early
         // when history runs out — a fresh account has fewer images than the batch it just started.
-        List<HistoryEntry> items = new List<HistoryEntry>(window);
+        List<HistoryEntry> items = new(window);
         for (int page = 1; items.Count < window; page++)
         {
             int size = Math.Min(RecentsPageSize, window);
             PagedResult<HistoryEntry> result = await _history.GetPageAsync(new HistoryQuery(userId, page, size), ct);
             items.AddRange(result.Items);
-            if (result.Items.Count < size) break;
+            if (result.Items.Count < size)
+            {
+                break;
+            }
         }
+
         return items.Count > window ? items.GetRange(0, window) : items;
     }
 

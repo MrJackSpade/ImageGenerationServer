@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Krea2Refine;
 
 /// <summary>Krea 2 refine's own node ids beyond the inherited txt2img roles

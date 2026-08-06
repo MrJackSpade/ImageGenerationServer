@@ -66,13 +66,17 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     {
         using Image image = Image.Load(source);
         if (Math.Max(image.Width, image.Height) > maxEdge)
+        {
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
-        using MemoryStream ms = new MemoryStream();
+        }
+
+        using MemoryStream ms = new();
         if (image.Frames.Count > 1)
         {
             image.Save(ms, new WebpEncoder { Quality = 80 });
             return new MediaPayload(ms.ToArray(), MimeTypes.WebpMimeType);
         }
+
         image.Save(ms, new JpegEncoder { Quality = 80 });
         return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }
@@ -82,10 +86,16 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     {
         using Image image = Image.Load(source);
         while (image.Frames.Count > 1)
+        {
             image.Frames.RemoveFrame(image.Frames.Count - 1);
+        }
+
         if (Math.Max(image.Width, image.Height) > maxEdge)
+        {
             image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
-        using MemoryStream ms = new MemoryStream();
+        }
+
+        using MemoryStream ms = new();
         image.Save(ms, new JpegEncoder { Quality = 80 });
         return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }

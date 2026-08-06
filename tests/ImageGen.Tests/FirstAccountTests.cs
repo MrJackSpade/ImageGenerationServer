@@ -16,7 +16,7 @@ public sealed class FirstAccountTests(TestDatabaseFixture db)
         // The fixture is shared, so this cannot assert the empty case — every other test in the collection
         // creates users. That the answer is true once one exists is the half that is assertable here, and it is
         // the half the redirect depends on: a box with accounts must NOT bounce people to registration.
-        await _db.NewUserAsync("first-account");
+        _ = await _db.NewUserAsync("first-account");
 
         Assert.True(await _db.Users.AnyExistAsync(CancellationToken.None));
         Assert.True(await _db.Users.AnyExistAsync(CancellationToken.None));

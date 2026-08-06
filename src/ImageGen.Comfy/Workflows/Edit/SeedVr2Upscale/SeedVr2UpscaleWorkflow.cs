@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
 
@@ -85,7 +82,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         int overlap = p.VaeTileOverlap;
 
         string source = inputs.SourceImageName ?? throw new RenderValidationException("SeedVR2 upscale needs a source image, but none was provided.");
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = source },
 
@@ -132,8 +129,8 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         // A computed target outside the node's declared [16, 16384] is REFUSED, not clamped: silently returning 16384
         // hands back a smaller upscale than the scale asked for, and the caller can lower the scale (or feed a smaller
         // source) to make a valid request. The even snap above is the node's step, not an adjustment of intent.
-        int resolution = (Math.Min(sw, sh) * scale + 1) / 2 * 2;
-        Ensure.Between(resolution, NodeResMin, NodeResMax);
+        int resolution = ((Math.Min(sw, sh) * scale) + 1) / 2 * 2;
+        _ = Ensure.Between(resolution, NodeResMin, NodeResMax);
 
         // One frame in, one frame out. uniform_batch_size is meaningless at batch_size 1 and stays off.
         g[Nodes.Upscale] = new SeedVR2VideoUpscaler

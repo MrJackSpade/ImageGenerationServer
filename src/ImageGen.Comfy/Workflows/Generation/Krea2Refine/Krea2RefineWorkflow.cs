@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Krea2Refine;
 
 /// <summary>
@@ -43,7 +39,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
     {
         (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
 
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
 
         // polish_denoise 0 = "don't polish": skip stage 2 entirely (the Turbo refiner is never even loaded) and decode
         // the base render — the same neutral-skip pattern as Krea2Rebalance, applied to a whole extra pass.

@@ -7,8 +7,8 @@ namespace ImageGen.Comfy;
 public sealed record ConditioningKrea2Rebalance : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ConditioningKrea2Rebalance;
-    [JsonPropertyName("conditioning")]      public required Output<Slot.Conditioning> Conditioning { get; init; }
-    [JsonPropertyName("multiplier")]        public required double Multiplier { get; init; }
+    [JsonPropertyName("conditioning")] public required Output<Slot.Conditioning> Conditioning { get; init; }
+    [JsonPropertyName("multiplier")] public required double Multiplier { get; init; }
     [JsonPropertyName("per_layer_weights")] public required string PerLayerWeights { get; init; }
     public static Output<Slot.Conditioning> Out(string id) => new(id, 0);
 }

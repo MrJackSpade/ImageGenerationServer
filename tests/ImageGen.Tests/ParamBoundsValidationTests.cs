@@ -144,26 +144,40 @@ public sealed class ParamBoundsValidationTests
     public void No_configuration_declares_a_bounded_param_outside_its_workflow_schema()
     {
         WorkflowRegistry registry = Registry();
-        List<string> offenders = new List<string>();
+        List<string> offenders = [];
 
         foreach ((string id, JsonElement root) in Configurations())
         {
             IWorkflow? wf = registry.Find(root.TryGetProperty("workflow", out JsonElement w) ? w.GetString() : null);
-            if (wf is null || !root.TryGetProperty("params", out JsonElement ps)) continue;
+            if (wf is null || !root.TryGetProperty("params", out JsonElement ps))
+            {
+                continue;
+            }
 
             foreach (ParamSpec spec in wf.Schema)
             {
-                if ((spec.Min is null && spec.Max is null) || !ps.TryGetProperty(spec.Key, out JsonElement p)) continue;
+                if ((spec.Min is null && spec.Max is null) || !ps.TryGetProperty(spec.Key, out JsonElement p))
+                {
+                    continue;
+                }
 
                 // The effective value (bare scalar or {value,min,max} envelope) must sit within the schema bound,
                 // and a per-config min/max override may only TIGHTEN it — never widen past what the server enforces.
                 (double? value, double? cmin, double? cmax) = ReadNumeric(p);
                 if (value is double v && Outside(v, spec.Min, spec.Max))
+                {
                     offenders.Add($"{id}.{spec.Key}: value {v} outside schema [{spec.Min}, {spec.Max}]");
+                }
+
                 if (cmin is double lo && spec.Min is double smin && lo < smin)
+                {
                     offenders.Add($"{id}.{spec.Key}: min {lo} below schema min {smin}");
+                }
+
                 if (cmax is double hi && spec.Max is double smax && hi > smax)
+                {
                     offenders.Add($"{id}.{spec.Key}: max {hi} above schema max {smax}");
+                }
             }
         }
 
@@ -179,12 +193,18 @@ public sealed class ParamBoundsValidationTests
     private static (double? Value, double? Min, double? Max) ReadNumeric(JsonElement p)
     {
         if (p.ValueKind == JsonValueKind.Number)
+        {
             return (p.GetDouble(), null, null);
+        }
+
         if (p.ValueKind == JsonValueKind.Object)
+        {
             return (
                 p.TryGetProperty("value", out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null,
                 p.TryGetProperty("min", out JsonElement mn) && mn.ValueKind == JsonValueKind.Number ? mn.GetDouble() : null,
                 p.TryGetProperty("max", out JsonElement mx) && mx.ValueKind == JsonValueKind.Number ? mx.GetDouble() : null);
+        }
+
         return (null, null, null);
     }
 
@@ -195,8 +215,14 @@ public sealed class ParamBoundsValidationTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "workflows")))
+        {
             dir = Path.GetDirectoryName(dir);
-        if (dir is null) throw new DirectoryNotFoundException("configurations/workflows not found.");
+        }
+
+        if (dir is null)
+        {
+            throw new DirectoryNotFoundException("configurations/workflows not found.");
+        }
 
         foreach (string f in Directory.EnumerateFiles(Path.Combine(dir, "configurations", "workflows"), "*.json"))
         {

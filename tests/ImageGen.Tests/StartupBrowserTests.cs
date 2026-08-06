@@ -12,21 +12,17 @@ public sealed class StartupBrowserTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Nothing_asked_means_no_browser(string? value)
-    {
+    public void Nothing_asked_means_no_browser(string? value) =>
         // The headless case, and the one that matters: a server restarting under systemd must not spawn browsers.
         Assert.False(StartupBrowser.Requested(value));
-    }
 
     [Theory]
     [InlineData("0")]
     [InlineData("false")]
     [InlineData("False")]
-    public void An_explicit_no_is_honoured(string value)
-    {
+    public void An_explicit_no_is_honoured(string value) =>
         // How someone turns it off in a launcher that would otherwise ask.
         Assert.False(StartupBrowser.Requested(value));
-    }
 
     [Theory]
     [InlineData("1")]
@@ -39,11 +35,9 @@ public sealed class StartupBrowserTests
     [InlineData("http://[::]:8080", "http://localhost:8080")]
     [InlineData("http://*:8080", "http://localhost:8080")]
     [InlineData("http://+:8080", "http://localhost:8080")]
-    public void A_bind_address_becomes_one_a_browser_can_open(string bound, string expected)
-    {
+    public void A_bind_address_becomes_one_a_browser_can_open(string bound, string expected) =>
         // Kestrel reports what it BOUND. http://0.0.0.0:8080 means "every interface" and a browser cannot load it.
         Assert.Equal(expected, StartupBrowser.Reachable(bound));
-    }
 
     [Theory]
     [InlineData("http://localhost:8080")]

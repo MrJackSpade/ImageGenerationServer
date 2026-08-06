@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.HiDream;
 
 /// <summary>HiDream-I1 (Full/Dev/Fast): a 17B MoE DiT fed by FOUR text encoders via QuadrupleCLIPLoader
@@ -13,7 +10,7 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflow<HiDreamParams>
 
     protected override ComfyWorkflowGraph Build(HiDreamParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         (Output<Slot.Model> model0, Output<Slot.Vae> vae0) = HighVram.LoadDiffusion(g, p, req);
         g[Nodes.Clip] = new QuadrupleCLIPLoader
         {

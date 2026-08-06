@@ -38,7 +38,11 @@ public static class Krea2Rebalance
     public static Output<Slot.Conditioning> Apply(ComfyWorkflowGraph g, Output<Slot.Conditioning> positive,
         double multiplier, string perLayerWeights, string nodeId)
     {
-        if (!IsActive(multiplier, perLayerWeights)) return positive;
+        if (!IsActive(multiplier, perLayerWeights))
+        {
+            return positive;
+        }
+
         g[nodeId] = new ConditioningKrea2Rebalance { Conditioning = positive, Multiplier = multiplier, PerLayerWeights = perLayerWeights };
         return ConditioningKrea2Rebalance.Out(nodeId);
     }
@@ -47,11 +51,23 @@ public static class Krea2Rebalance
     /// Both neutral (the schema defaults) keeps the emitted graph byte-identical to plain Krea 2.</summary>
     public static bool IsActive(double multiplier, string perLayerWeights)
     {
-        if (Math.Abs(multiplier - 1.0) > 1e-6) return true;
+        if (Math.Abs(multiplier - 1.0) > 1e-6)
+        {
+            return true;
+        }
+
         if (!string.IsNullOrWhiteSpace(perLayerWeights))
+        {
             foreach (string part in perLayerWeights.Split(','))
+            {
                 if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double d)
-                    && Math.Abs(d - 1.0) > 1e-6) return true;
+                    && Math.Abs(d - 1.0) > 1e-6)
+                {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 }

@@ -40,14 +40,19 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
     public async Task FetchAsync(string sourceUrl, string rev, string destination, CancellationToken ct)
     {
         if (Directory.Exists(destination))
+        {
             throw new FetchException($"{destination} already exists — nothing was fetched over it.");
+        }
 
         Uri archive = ArchiveUrl(sourceUrl, rev);
 
         // Unpack beside the destination and move into place at the end, so an interrupted download never
         // leaves a half-extracted pack that looks installed. Same volume, so the move is atomic.
         string staging = destination + ".incoming";
-        if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        if (Directory.Exists(staging))
+        {
+            Directory.Delete(staging, recursive: true);
+        }
 
         try
         {
@@ -62,16 +67,16 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
                 throw new FetchException($"{archive} answered {(int)response.StatusCode}.{hint}");
             }
 
-            Directory.CreateDirectory(staging);
+            _ = Directory.CreateDirectory(staging);
             await using Stream stream = await response.Content.ReadAsStreamAsync(ct);
-            await using GZipStream gzip = new GZipStream(stream, CompressionMode.Decompress);
+            await using GZipStream gzip = new(stream, CompressionMode.Decompress);
             await ExtractStrippingRootAsync(gzip, staging, ct);
 
             // A commit archive wraps everything in one "{repo}-{sha}" directory. What we want is its contents.
             string[] entries = Directory.GetFileSystemEntries(staging);
             string root = entries.Length == 1 && Directory.Exists(entries[0]) ? entries[0] : staging;
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? throw new InvalidOperationException($"'{destination}' has no parent directory."));
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? throw new InvalidOperationException($"'{destination}' has no parent directory."));
             Directory.Move(root, destination);
         }
         catch (Exception ex) when (ex is not FetchException and not OperationCanceledException)
@@ -80,7 +85,10 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
         }
         finally
         {
-            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+            if (Directory.Exists(staging))
+            {
+                Directory.Delete(staging, recursive: true);
+            }
         }
     }
 
@@ -88,17 +96,27 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
     internal static Uri ArchiveUrl(string sourceUrl, string rev)
     {
         if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out Uri? uri))
+        {
             throw new FetchException($"'{sourceUrl}' is not a repository URL.");
+        }
 
         if (!uri.Host.Equals(GitHub.Host, StringComparison.OrdinalIgnoreCase) &&
             !uri.Host.Equals(GitHub.WwwHost, StringComparison.OrdinalIgnoreCase))
+        {
             throw new FetchException($"{uri.Host} is not somewhere this knows how to fetch a pinned archive from. Install {sourceUrl} yourself and apply the patch again.");
+        }
 
         string path = uri.AbsolutePath.Trim('/');
-        if (path.EndsWith(GitHub.GitSuffix, StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        if (path.EndsWith(GitHub.GitSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            path = path[..^4];
+        }
 
         string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length != 2) throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");
+        if (segments.Length != 2)
+        {
+            throw new FetchException($"'{sourceUrl}' is not an owner/repository URL.");
+        }
 
         return new Uri($"https://codeload.github.com/{segments[0]}/{segments[1]}/tar.gz/{rev}");
     }
@@ -111,24 +129,28 @@ public sealed class PackSource(IHttpClientFactory httpFactory)
     private static async Task ExtractStrippingRootAsync(Stream tar, string destination, CancellationToken ct)
     {
         string root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-        await using TarReader reader = new TarReader(tar);
+        await using TarReader reader = new(tar);
 
         while (await reader.GetNextEntryAsync(cancellationToken: ct) is { } entry)
         {
             if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile or TarEntryType.Directory))
+            {
                 continue;   // links, devices and the rest have no place in a node pack
+            }
 
             string full = Path.GetFullPath(Path.Combine(destination, entry.Name.Replace('/', Path.DirectorySeparatorChar)));
             if (!full.StartsWith(root, StringComparison.Ordinal))
+            {
                 throw new FetchException($"the archive contains '{entry.Name}', which would be written outside the pack directory.");
+            }
 
             if (entry.EntryType == TarEntryType.Directory)
             {
-                Directory.CreateDirectory(full);
+                _ = Directory.CreateDirectory(full);
                 continue;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(full) ?? throw new InvalidOperationException($"'{full}' has no parent directory."));
             await entry.ExtractToFileAsync(full, overwrite: false, ct);
         }
     }

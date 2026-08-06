@@ -15,7 +15,7 @@ public sealed class RenderPhaseTests
 {
     private static RenderJob JobWith(params SlotState[] states)
     {
-        RenderJob job = new RenderJob
+        RenderJob job = new()
         {
             JobId = "j1",
             Owner = 1,
@@ -23,6 +23,7 @@ public sealed class RenderPhaseTests
             CreatedAt = DateTimeOffset.UtcNow,
         };
         for (int i = 0; i < states.Length; i++)
+        {
             job.Slots.Add(new RenderSlot
             {
                 Job = job,
@@ -31,6 +32,8 @@ public sealed class RenderPhaseTests
                 State = states[i],
                 ImageId = states[i] == SlotState.Done ? $"img{i}" : null,
             });
+        }
+
         return job;
     }
 
@@ -197,7 +200,7 @@ public sealed class RenderPhaseTests
     [Fact]
     public void The_backend_queue_separates_executing_from_merely_pending()
     {
-        BackendQueue q = new BackendQueue(
+        BackendQueue q = new(
             Executing: new HashSet<string>(StringComparer.Ordinal) { "on-gpu" },
             Pending: new HashSet<string>(StringComparer.Ordinal) { "behind-it" });
 

@@ -56,18 +56,24 @@ public sealed class TagVocab
 
         _byName = new Dictionary<string, int>(tags.Length, StringComparer.Ordinal);
         for (int i = 0; i < tags.Length; i++)
+        {
             _byName[tags[i]] = i;
+        }
 
         Lowercase = new string[tags.Length];
         for (int i = 0; i < tags.Length; i++)
+        {
             Lowercase[i] = tags[i].ToLowerInvariant();
+        }
 
         // Base rate per tag, clamped off {0,1} exactly as cvae/vocab.py does, so a rare tag's log-odds stays finite
         // and the "lift" a suggestion reports matches what the Python server reported for the same tag.
         Marginal = new float[tags.Length];
         double eps = 1.0 / (rowCount + 2.0);
         for (int i = 0; i < tags.Length; i++)
+        {
             Marginal[i] = (float)Math.Clamp(counts[i] / (double)rowCount, eps, 1.0 - eps);
+        }
     }
 
     /// <summary>Tag name by vocab id.</summary>
@@ -115,22 +121,32 @@ public sealed class TagVocab
         byte[] types = ReadBytes(root, Props.TypesProperty);
 
         if (counts.Length != tags.Length)
+        {
             throw new InvalidDataException($"{path}: {counts.Length} counts for {tags.Length} tags.");
+        }
+
         if (types.Length != tags.Length)
+        {
             throw new InvalidDataException(
                 $"{path}: {types.Length} types for {tags.Length} tags. A vocab without an id-aligned type array "
                 + "cannot tell an artist from a subject, so suppressing a category would be a silent no-op.");
+        }
+
         if (rowCount <= 0)
+        {
             throw new InvalidDataException($"{path}: n_rows is {rowCount}; base rates would be meaningless.");
+        }
 
         // Refuse an HTML-encoded vocab instead of compensating for it. Decoding here cannot be made safe: it is not
         // idempotent, so it would corrupt an already-decoded vocab ('&ether' becomes 'ðer'). A literal '&' is normal
         // in real tags ('tiger_&_bunny'); an ENTITY never is, so this is a build mistake and has to fail loudly.
         string[] encoded = tags.Where(t => HtmlEntity.IsMatch(t)).Take(3).ToArray();
         if (encoded.Length > 0)
+        {
             throw new InvalidDataException(
                 $"{path}: tag names are still HTML-encoded (e.g. {string.Join(Separators.Separator, encoded)}). This vocab predates "
                 + "the capture-layer decode; decode it once at rest rather than at load.");
+        }
 
         return new TagVocab(tags, counts, types, rowCount);
     }
@@ -141,8 +157,11 @@ public sealed class TagVocab
         string[] result = new string[array.GetArrayLength()];
         int i = 0;
         foreach (JsonElement element in array.EnumerateArray())
+        {
             result[i++] = element.GetString()
                 ?? throw new JsonException($"Vocab array '{name}' contains a non-string element.");
+        }
+
         return result;
     }
 
@@ -152,18 +171,27 @@ public sealed class TagVocab
         long[] result = new long[array.GetArrayLength()];
         int i = 0;
         foreach (JsonElement element in array.EnumerateArray())
+        {
             result[i++] = element.GetInt64();
+        }
+
         return result;
     }
 
     private static byte[] ReadBytes(JsonElement root, string name)
     {
         if (!root.TryGetProperty(name, out JsonElement array))
+        {
             return [];
+        }
+
         byte[] result = new byte[array.GetArrayLength()];
         int i = 0;
         foreach (JsonElement element in array.EnumerateArray())
+        {
             result[i++] = (byte)element.GetInt32();
+        }
+
         return result;
     }
 }

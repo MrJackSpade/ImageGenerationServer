@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.BiRefNetMatteVideo;

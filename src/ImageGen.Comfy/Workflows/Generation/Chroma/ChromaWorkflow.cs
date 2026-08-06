@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Chroma;
 
 /// <summary>Chroma1-HD: an 8.9B FLUX.1-schnell-derived DiT prompted with T5-XXL only (no CLIP-L). A single
@@ -13,7 +10,7 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
 
     protected override ComfyWorkflowGraph Build(ChromaParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         (Output<Slot.Model> model0, Output<Slot.Vae> vae0) = HighVram.LoadDiffusion(g, p, req);
         string clipName = req.TextEncoder(0);
         g[Nodes.Clip] = ComfyGraph.IsGguf(clipName)

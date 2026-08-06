@@ -52,7 +52,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetBindingAsync(machine, "slot", "second.safetensors", false, Ct);
 
         IReadOnlyDictionary<string, ModelBinding> all = await Repo.BindingsAsync(machine, Ct);
-        Assert.Single(all);
+        _ = Assert.Single(all);
         Assert.Equal("second.safetensors", all["slot"].FileName);
     }
 
@@ -124,7 +124,7 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
         await Repo.SetOverrideAsync(machine, "cfg", "vram.min", "4000", Ct);
 
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> all = await Repo.OverridesAsync(machine, Ct);
-        Assert.Single(all["cfg"]);
+        _ = Assert.Single(all["cfg"]);
         Assert.Equal("4000", all["cfg"]["vram.min"]);
     }
 

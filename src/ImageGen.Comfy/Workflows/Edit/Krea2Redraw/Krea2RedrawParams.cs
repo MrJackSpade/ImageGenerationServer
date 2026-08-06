@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -10,22 +9,22 @@ namespace ImageGen.Comfy.Edit.Krea2Redraw;
 /// the optional base-model <c>lora</c>, and the app's single-sourced <c>seed</c>.</summary>
 public sealed record Krea2RedrawParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]             public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]        public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]           public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]     public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]         public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]            public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]          public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.0, 0.9)]                                       public required double Denoise { get; init; }
+    [Range(0.0, 0.9)] public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)]
-    [Range(1.0, 8.0)]                                       public required double Multiplier { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)]    public required string PerLayerWeights { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Lora)]              public string? Lora { get; init; }
+    [Range(1.0, 8.0)] public required double Multiplier { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)] public required string PerLayerWeights { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]              public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

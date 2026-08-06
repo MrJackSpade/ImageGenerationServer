@@ -68,7 +68,9 @@ public sealed class DeadNullCoalescingAnalyzer : DiagnosticAnalyzer
     {
         NullableFlowState flowState = context.SemanticModel.GetTypeInfo(left, context.CancellationToken).Nullability.FlowState;
         if (flowState != NullableFlowState.NotNull)
+        {
             return;
+        }
 
         context.ReportDiagnostic(Diagnostic.Create(Rule, operatorToken.GetLocation(), operatorToken.ValueText));
     }

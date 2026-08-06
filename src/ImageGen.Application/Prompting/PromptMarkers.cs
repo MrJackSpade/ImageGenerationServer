@@ -58,7 +58,7 @@ public static partial class PromptMarkers
     /// <summary>True when <paramref name="c"/> is a leading marker. Position 0 of a comma-segment is the ONLY place any
     /// of them mean anything — booru tags natively contain all three ('#compass', '@_@', '!?', '!-shaped_pupils').</summary>
     public static bool IsMarker(char c) =>
-        c == TagMarker || c == ArtistMarker || c == InertTagMarker || c == GuideTagMarker;
+        c is TagMarker or ArtistMarker or InertTagMarker or GuideTagMarker;
 
     /// <summary>True when a comma-segment carries <paramref name="marker"/> — position 0 after any leading
     /// whitespace, the only place a marker means anything.</summary>
@@ -83,7 +83,10 @@ public static partial class PromptMarkers
     {
         string s = StripWeight((segment ?? string.Empty).Trim());
         if (s.Length > 0 && IsMarker(s[0]))
+        {
             s = StripWeight(s[1..]);
+        }
+
         return Whitespace().Replace(s.Trim(), Tokens.Underscore).ToLowerInvariant();
     }
 
@@ -102,10 +105,21 @@ public static partial class PromptMarkers
         // Peel one wrapper per turn: '(...)' also carries an optional trailing ':weight'; '[...]' is bare de-emphasis.
         while (s.Length >= 2)
         {
-            if (TryPeelWrapper(s, '(', ')', out string inner)) { s = StripTrailingWeight(inner); continue; }
-            if (TryPeelWrapper(s, '[', ']', out inner)) { s = inner.Trim(); continue; }
+            if (TryPeelWrapper(s, '(', ')', out string inner))
+            {
+                s = StripTrailingWeight(inner);
+                continue;
+            }
+
+            if (TryPeelWrapper(s, '[', ']', out inner))
+            {
+                s = inner.Trim();
+                continue;
+            }
+
             break;
         }
+
         return Unescape(s);
     }
 
@@ -116,20 +130,37 @@ public static partial class PromptMarkers
     private static bool TryPeelWrapper(string s, char open, char close, out string inner)
     {
         inner = s;
-        if (s.Length < 2 || s[0] != open) return false;
+        if (s.Length < 2 || s[0] != open)
+        {
+            return false;
+        }
+
         int depth = 0;
         for (int i = 0; i < s.Length; i++)
         {
             char c = s[i];
-            if (c == '\\') { i++; continue; }   // escaped char — literal, not a bracket
-            if (c == open) depth++;
+            if (c == '\\')
+            {
+                i++;
+                continue;
+            }   // escaped char — literal, not a bracket
+
+            if (c == open)
+            {
+                depth++;
+            }
             else if (c == close && --depth == 0)
             {
-                if (i != s.Length - 1) return false;   // the opening bracket closes before the segment's end
-                inner = s.Substring(1, i - 1);
+                if (i != s.Length - 1)
+                {
+                    return false;   // the opening bracket closes before the segment's end
+                }
+
+                inner = s[1..i];
                 return true;
             }
         }
+
         return false;
     }
 
@@ -147,13 +178,23 @@ public static partial class PromptMarkers
     /// other backslash as-is.</summary>
     private static string Unescape(string s)
     {
-        if (!s.Contains('\\')) return s;
-        StringBuilder sb = new StringBuilder(s.Length);
+        if (!s.Contains('\\'))
+        {
+            return s;
+        }
+
+        StringBuilder sb = new(s.Length);
         for (int i = 0; i < s.Length; i++)
         {
-            if (s[i] == '\\' && i + 1 < s.Length && IsBracket(s[i + 1])) { sb.Append(s[++i]); continue; }
-            sb.Append(s[i]);
+            if (s[i] == '\\' && i + 1 < s.Length && IsBracket(s[i + 1]))
+            {
+                _ = sb.Append(s[++i]);
+                continue;
+            }
+
+            _ = sb.Append(s[i]);
         }
+
         return sb.ToString();
     }
 
@@ -179,13 +220,21 @@ public static partial class PromptMarkers
 
     private static HashSet<string> KeysMarkedWith(string? rawPrompt, char marker)
     {
-        HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> keys = new(StringComparer.Ordinal);
         foreach (string seg in Segments(rawPrompt))
         {
-            if (seg[0] != marker) continue;
+            if (seg[0] != marker)
+            {
+                continue;
+            }
+
             string key = Key(seg);
-            if (key.Length > 0) keys.Add(key);
+            if (key.Length > 0)
+            {
+                _ = keys.Add(key);
+            }
         }
+
         return keys;
     }
 
@@ -199,11 +248,19 @@ public static partial class PromptMarkers
     public static string GuidesAsTags(string? rawPrompt)
     {
         string raw = rawPrompt ?? string.Empty;
-        if (!raw.Contains(GuideTagMarker)) return raw;
+        if (!raw.Contains(GuideTagMarker))
+        {
+            return raw;
+        }
+
         return string.Join(',', raw.Split(',').Select(seg =>
         {
             int i = 0;
-            while (i < seg.Length && char.IsWhiteSpace(seg[i])) i++;
+            while (i < seg.Length && char.IsWhiteSpace(seg[i]))
+            {
+                i++;
+            }
+
             return i < seg.Length && seg[i] == GuideTagMarker
                 ? string.Concat(seg.AsSpan(0, i), TagMarker.ToString(), seg.AsSpan(i + 1))
                 : seg;
@@ -214,7 +271,11 @@ public static partial class PromptMarkers
     public static string WithoutGuides(string? rawPrompt)
     {
         string raw = rawPrompt ?? string.Empty;
-        if (!raw.Contains(GuideTagMarker)) return raw;
+        if (!raw.Contains(GuideTagMarker))
+        {
+            return raw;
+        }
+
         return string.Join(',', raw.Split(',').Where(seg => !IsMarkedWith(seg, GuideTagMarker)));
     }
 

@@ -11,11 +11,14 @@ public static class LoraEndpoints
     public static void MapLoraEndpoints(this RouteGroupBuilder api)
     {
         // Save a LoRA's trigger-word override + auto-attach preference (the LoRA manager page).
-        api.MapPost(Routes.LoraSettings, async (HttpContext context, ILoraUserSettingRepository settings) =>
+        _ = api.MapPost(Routes.LoraSettings, async (HttpContext context, ILoraUserSettingRepository settings) =>
         {
             LoraSettingsRequest? req = await Json.ReadAsync<LoraSettingsRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Lora))
+            {
                 return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
             await settings.SetAsync(new LoraUserSetting
             {
@@ -28,11 +31,13 @@ public static class LoraEndpoints
         });
 
         // Pick the image that represents a LoRA for this user (must be one of their own generations).
-        api.MapPost(Routes.LoraDisplay, async (HttpContext context, LoraService loras, TimeProvider clock) =>
+        _ = api.MapPost(Routes.LoraDisplay, async (HttpContext context, LoraService loras, TimeProvider clock) =>
         {
             LoraDisplayRequest? req = await Json.ReadAsync<LoraDisplayRequest>(context);
             if (req is null || string.IsNullOrWhiteSpace(req.Lora) || string.IsNullOrWhiteSpace(req.Id))
+            {
                 return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             bool ok = await loras.SetAsync(userId, req.Lora, req.Id, clock.GetUtcNow().UtcDateTime, context.RequestAborted);
@@ -40,10 +45,13 @@ public static class LoraEndpoints
         });
 
         // Clear the cover so the LoRA shows a placeholder again in the picker.
-        api.MapDelete(Routes.LoraDisplay, async (HttpContext context, LoraService loras, string lora) =>
+        _ = api.MapDelete(Routes.LoraDisplay, async (HttpContext context, LoraService loras, string lora) =>
         {
             if (string.IsNullOrWhiteSpace(lora))
+            {
                 return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
             await loras.ClearAsync(userId, lora, context.RequestAborted);
             return Results.NoContent();

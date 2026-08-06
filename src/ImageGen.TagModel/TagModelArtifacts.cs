@@ -57,7 +57,7 @@ public static class TagModelArtifacts
     public static async Task EnsureAsync(HttpClient http, ILogger logger, CancellationToken ct)
     {
         string directory = TagModelServiceCollectionExtensions.ArtifactsDirectory;
-        Directory.CreateDirectory(directory);
+        _ = Directory.CreateDirectory(directory);
 
         // The manifest carries the size and hash every other file is checked against, so it comes first — and it is
         // re-fetched every time, because it is small and it is what tells us whether the rest is current.
@@ -69,33 +69,48 @@ public static class TagModelArtifacts
         foreach ((string? name, ManifestEntry? entry) in files)
         {
             string target = Path.Combine(directory, name);
-            if (File.Exists(target) && new FileInfo(target).Length == entry.Bytes) continue;
+            if (File.Exists(target) && new FileInfo(target).Length == entry.Bytes)
+            {
+                continue;
+            }
 
             if (fetched == 0)
+            {
                 logger.LogInformation("Tag model: fetching artifacts into {Directory} (~900 MB, once).", directory);
+            }
+
             await DownloadAsync(http, name, target, logger, ct, entry);
             fetched++;
         }
 
-        if (fetched > 0) logger.LogInformation("Tag model: {Count} artifact(s) fetched and verified.", fetched);
+        if (fetched > 0)
+        {
+            logger.LogInformation("Tag model: {Count} artifact(s) fetched and verified.", fetched);
+        }
     }
 
     private static Dictionary<string, ManifestEntry> ReadManifest(string path)
     {
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
         if (!document.RootElement.TryGetProperty(Manifest.FilesProperty, out JsonElement files))
+        {
             throw new InvalidDataException($"'{path}' has no 'files' section; it is not a tag model manifest.");
+        }
 
-        Dictionary<string, ManifestEntry> result = new Dictionary<string, ManifestEntry>(StringComparer.Ordinal);
+        Dictionary<string, ManifestEntry> result = new(StringComparer.Ordinal);
         foreach (JsonProperty file in files.EnumerateObject())
         {
             string? sha256 = file.Value.GetProperty(Manifest.Sha256Property).GetString();
             if (string.IsNullOrEmpty(sha256))
+            {
                 throw new InvalidDataException(
                     $"'{path}': manifest entry '{file.Name}' has no sha256. Every artifact must carry a checksum — "
                     + "an entry without one would download unverified.");
+            }
+
             result[file.Name] = new ManifestEntry(file.Value.GetProperty(Manifest.BytesProperty).GetInt64(), sha256);
         }
+
         return result;
     }
 
@@ -109,7 +124,7 @@ public static class TagModelArtifacts
         {
             using (HttpResponseMessage response = await http.GetAsync($"{Source.PublishedAt}/{name}", HttpCompletionOption.ResponseHeadersRead, ct))
             {
-                response.EnsureSuccessStatusCode();
+                _ = response.EnsureSuccessStatusCode();
                 await using Stream source = await response.Content.ReadAsStreamAsync(ct);
                 await using FileStream destination = File.Create(partial);
                 await source.CopyToAsync(destination, ct);
@@ -120,8 +135,10 @@ public static class TagModelArtifacts
                 await using FileStream stream = File.OpenRead(partial);
                 string actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
                 if (!string.Equals(actual, expected.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
                     throw new InvalidDataException(
                         $"'{name}' failed its checksum (expected {expected.Sha256}, got {actual}).");
+                }
             }
 
             File.Move(partial, target, overwrite: true);
@@ -130,7 +147,11 @@ public static class TagModelArtifacts
         {
             // Leaving a truncated .part behind would be indistinguishable from a complete file on the size check
             // above, so the failed attempt is removed and the exception carries on.
-            if (File.Exists(partial)) File.Delete(partial);
+            if (File.Exists(partial))
+            {
+                File.Delete(partial);
+            }
+
             throw;
         }
     }

@@ -1,5 +1,3 @@
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Edit.FluxFillInpaint;
 
 /// <summary>
@@ -32,6 +30,9 @@ public sealed class FluxFillInpaintWorkflow : FluxFillBase
             g[Nodes.Mask] = new LoadImageMask { Image = inputs.MaskImageName, Channel = ComfyWidgets.MaskChannel.Red };
             rawMask = LoadImageMask.Out(Nodes.Mask);
         }
-        else rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
+        else
+        {
+            rawMask = LoadImage.MaskOut(EditNodes.Source);   // source alpha
+        }
     }
 }

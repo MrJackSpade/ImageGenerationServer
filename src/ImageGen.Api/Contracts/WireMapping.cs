@@ -23,14 +23,20 @@ public static class WireMapping
     public static IReadOnlyList<Mark> MarksFromMap(Dictionary<string, string>? marks)
     {
         if (marks is null || marks.Count == 0)
+        {
             return [];
+        }
+
         return marks.Select(kv => new Mark(kv.Key, ParseKind(kv.Value))).ToList();
     }
 
     public static Dictionary<string, string>? MarksToMap(IReadOnlyList<Mark> marks)
     {
         if (marks.Count == 0)
+        {
             return null;
+        }
+
         return marks.ToDictionary(m => m.Token, m => KindToString(m.Kind));
     }
 

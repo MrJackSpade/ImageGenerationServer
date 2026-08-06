@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.BooguEdit;
 
@@ -11,17 +9,17 @@ namespace ImageGen.Comfy.Edit.BooguEdit;
 /// <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record BooguParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]      public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]    public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]   public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]     public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]   public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Megapixels)]
-    [Range(0.5, 4.0)]                                 public required double Megapixels { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Negative)]    public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]        public long Seed { get; init; }
+    [Range(0.5, 4.0)] public required double Megapixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

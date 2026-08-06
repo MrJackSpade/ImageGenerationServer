@@ -46,23 +46,15 @@ public sealed class PixelSnapTests
     private static readonly ModelResolution Flux = new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
 
     [Fact]
-    public void Snap_off_is_the_only_noop()
-    {
-        Assert.Null(PixelSnap.Target(Flux, 384, snapOn: false, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
-    }
+    public void Snap_off_is_the_only_noop() => Assert.Null(PixelSnap.Target(Flux, 384, snapOn: false, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
 
     [Fact]
-    public void Snap_on_without_aspect_throws_rather_than_silently_using_the_default()
-    {
+    public void Snap_on_without_aspect_throws_rather_than_silently_using_the_default() =>
         // snap on; no width/height and no source dims -> must FAIL, not return null + render at default.
         Assert.Throws<RenderValidationException>(() => PixelSnap.Target(Flux, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 0, srcH: 0));
-    }
 
     [Fact]
-    public void Snap_on_with_no_resolution_data_throws()
-    {
-        Assert.Throws<RenderValidationException>(() => PixelSnap.Target(null, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
-    }
+    public void Snap_on_with_no_resolution_data_throws() => Assert.Throws<RenderValidationException>(() => PixelSnap.Target(null, 384, snapOn: true, reqW: 0, reqH: 0, srcW: 1216, srcH: 832));
 
     [Fact]
     public void Snap_on_with_source_dims_snaps_from_the_source_aspect()
@@ -76,10 +68,7 @@ public sealed class PixelSnapTests
     [InlineData(70, 0, 0.30)]   // 70%           -> denoise 0.3
     [InlineData(50, 0, 0.50)]
     [InlineData(100, 0, 0.01)]  // 100% (copy)   -> clamped to 0.01 so the sampler still runs
-    public void Reference_pct_maps_to_denoise(int reference, int dflt, double expected)
-    {
-        Assert.Equal(expected, PixelSnap.Denoise(reference, dflt), 3);
-    }
+    public void Reference_pct_maps_to_denoise(int reference, int dflt, double expected) => Assert.Equal(expected, PixelSnap.Denoise(reference, dflt), 3);
 
     [Fact]
     public void Reference_falls_back_to_the_per_model_default_when_unset()

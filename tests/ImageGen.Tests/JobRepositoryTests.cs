@@ -28,7 +28,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(JobStatus.Error, after.Status);
-        Assert.NotNull(after.FinishedAtUtc);
+        _ = Assert.NotNull(after.FinishedAtUtc);
 
         // The slot that actually produced an image keeps its result; only the unfinished ones are failed.
         Assert.Equal(JobSlotState.Done, after.Slots.Single(s => s.SlotIndex == 0).State);
@@ -59,7 +59,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(after);
         Assert.Equal(JobStatus.Cancelled, after.Status);
-        Assert.NotNull(after.FinishedAtUtc);
+        _ = Assert.NotNull(after.FinishedAtUtc);
         Assert.Equal(JobSlotState.Done, after.Slots.Single(s => s.SlotIndex == 0).State);
         Assert.Equal("produced-image", after.Slots.Single(s => s.SlotIndex == 0).ImageId);
         Assert.Equal(JobSlotState.Cancelled, after.Slots.Single(s => s.SlotIndex == 1).State);
@@ -112,7 +112,7 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         User user = await fixture.NewUserAsync("job-latest-batch");
         string older = Guid.NewGuid().ToString("N");
         string newest = Guid.NewGuid().ToString("N");
-        DateTime noon = new DateTime(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);
+        DateTime noon = new(2026, 7, 27, 12, 0, 0, DateTimeKind.Utc);
 
         JobRecord olderJob = Job(user.Id, older, slots:
             [Slot(older, 0, JobSlotState.Done, imageId: "old-1"), Slot(older, 1, JobSlotState.Done, imageId: "old-2")]);

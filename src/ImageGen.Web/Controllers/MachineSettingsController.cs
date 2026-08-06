@@ -35,11 +35,21 @@ public sealed class MachineSettingsController(MachineConfigService machine, Comf
     [HttpPut("")]
     public async Task<IActionResult> Put([FromBody] SettingWrite body, CancellationToken ct)
     {
-        if (body is null || string.IsNullOrWhiteSpace(body.Key)) return BadRequest(new { error = "A key is required." });
+        if (body is null || string.IsNullOrWhiteSpace(body.Key))
+        {
+            return BadRequest(new { error = "A key is required." });
+        }
+
         MachineSettingSpec? spec = MachineSettingSpecs.Find(body.Key);
-        if (spec is null) return BadRequest(new { error = $"'{body.Key}' is not a machine setting." });
+        if (spec is null)
+        {
+            return BadRequest(new { error = $"'{body.Key}' is not a machine setting." });
+        }
+
         if (spec.Required && string.IsNullOrWhiteSpace(body.Value))
+        {
             return BadRequest(new { error = $"{spec.Label} is required and cannot be cleared." });
+        }
 
         await _machine.SetAsync(spec.Key, body.Value, ct);
         return Json(new { ok = true, live = spec.Apply == SettingApply.Live, value = body.Value });

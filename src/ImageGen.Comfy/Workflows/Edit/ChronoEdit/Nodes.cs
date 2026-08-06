@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.ChronoEdit;
 
 /// <summary>This subclass's own node ids (the shared head's Model/Clip/Vae/Source come from EditWorkflow.Nodes);

@@ -28,34 +28,43 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.ImageView WHERE UserId = @userId AND Gateway
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@img", gatewayImageId);
-        cmd.AddParam("@now", nowUtc);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@img", gatewayImageId);
+        _ = cmd.AddParam("@now", nowUtc);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<IReadOnlySet<string>> ViewedAsync(
         long userId, IReadOnlyCollection<string> gatewayImageIds, CancellationToken ct)
     {
-        HashSet<string> viewed = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> viewed = new(StringComparer.Ordinal);
         List<string> ids = gatewayImageIds.Distinct(StringComparer.Ordinal).ToList();
         if (ids.Count == 0)
+        {
             return viewed;
+        }
 
         string[] ps = new string[ids.Count];
         for (int i = 0; i < ids.Count; i++)
+        {
             ps[i] = "@i" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT GatewayImageId FROM dbo.ImageView WHERE UserId = @userId AND GatewayImageId IN ({string.Join(',', ps)});");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         for (int i = 0; i < ids.Count; i++)
-            cmd.AddParam(ps[i], ids[i]);
+        {
+            _ = cmd.AddParam(ps[i], ids[i]);
+        }
 
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            viewed.Add(reader.GetString(0));
+        {
+            _ = viewed.Add(reader.GetString(0));
+        }
+
         return viewed;
     }
 
@@ -72,8 +81,8 @@ WHERE h.UserId = @userId
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@now", nowUtc);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@now", nowUtc);
         return await cmd.ExecuteNonQueryAsync(ct);
     }
 }

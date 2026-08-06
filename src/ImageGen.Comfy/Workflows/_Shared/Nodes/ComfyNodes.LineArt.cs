@@ -8,7 +8,7 @@ namespace ImageGen.Comfy;
 public sealed record LineThicken : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LineThicken;
-    [JsonPropertyName("image")]     public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("thickness")] public required int Thickness { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -18,9 +18,9 @@ public sealed record LineThicken : ComfyNode
 public sealed record ImageBlend : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageBlend;
-    [JsonPropertyName("image1")]       public required Output<Slot.Image> Image1 { get; init; }
-    [JsonPropertyName("image2")]       public required Output<Slot.Image> Image2 { get; init; }
+    [JsonPropertyName("image1")] public required Output<Slot.Image> Image1 { get; init; }
+    [JsonPropertyName("image2")] public required Output<Slot.Image> Image2 { get; init; }
     [JsonPropertyName("blend_factor")] public required double BlendFactor { get; init; }
-    [JsonPropertyName("blend_mode")]   public required string BlendMode { get; init; }
+    [JsonPropertyName("blend_mode")] public required string BlendMode { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }

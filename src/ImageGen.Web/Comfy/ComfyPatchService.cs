@@ -84,7 +84,7 @@ public sealed class ComfyPatchService(
         }
 
         ComfyInstallInfo info = _install.Describe();
-        List<PatchView> patches = new List<PatchView>();
+        List<PatchView> patches = [];
 
         if (info.Ok)
         {
@@ -126,14 +126,22 @@ public sealed class ComfyPatchService(
     public async Task<IReadOnlyList<string>> ApplyAllAsync(CancellationToken ct)
     {
         string root = _install.RequireRoot();
-        List<string> notes = new List<string>();
+        List<string> notes = [];
 
         foreach (ComfyPatch patch in Load())
         {
-            if (ComfyPatchCatalog.Inspect(patch, root).State == PatchState.Applied) continue;
+            if (ComfyPatchCatalog.Inspect(patch, root).State == PatchState.Applied)
+            {
+                continue;
+            }
+
             string? note = await _installer.ApplyAsync(patch, root, _install.Python, overwrite: false, ct);
-            if (note is not null) notes.Add(note);
+            if (note is not null)
+            {
+                notes.Add(note);
+            }
         }
+
         return notes;
     }
 
@@ -161,9 +169,11 @@ public sealed class ComfyPatchService(
         // Neither present is a broken build, not an empty patch set. Rendering "no patches" would read as
         // "nothing to do" on an install that is in fact missing every fix it ships with.
         if (patchDirectory is null && nodesDirectory is null)
+        {
             throw new ComfyPatchCatalog.LoadException(
                 $"This build carries no patch payload — neither comfy-patches nor comfy-nodes is beside it "
                 + $"(looked in {_environment.ContentRootPath} and {AppContext.BaseDirectory}).");
+        }
 
         return ComfyPatchCatalog.Load(patchDirectory, nodesDirectory);
     }
@@ -177,8 +187,12 @@ public sealed class ComfyPatchService(
         foreach (string? root in new[] { _environment.ContentRootPath, AppContext.BaseDirectory })
         {
             string candidate = Path.Combine(root, name);
-            if (Directory.Exists(candidate)) return candidate;
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
         }
+
         return null;
     }
 }

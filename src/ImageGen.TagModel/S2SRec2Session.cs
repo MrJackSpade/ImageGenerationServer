@@ -60,13 +60,18 @@ public sealed class S2SRec2Session : IDisposable
         _outIds = ReadInt32Array(outIdsPath);
 
         if (_outIds.Length == 0)
+        {
             throw new InvalidDataException($"{outIdsPath} is empty; the model would have no emittable tags.");
+        }
+
         if (_outIds[^1] >= vocabSize)
+        {
             throw new InvalidDataException(
                 $"{outIdsPath} maps decoder rows onto vocab ids up to {_outIds[^1]}, outside a vocab of {vocabSize}. "
                 + "The artifacts are from different builds and every emitted tag would be the wrong one.");
+        }
 
-        SessionOptions options = new SessionOptions { GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL };
+        SessionOptions options = new() { GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL };
         _session = new InferenceSession(onnxPath, options);
 
         // Bound by name from the graph rather than assumed positionally, so a re-export that reorders inputs fails
@@ -94,14 +99,16 @@ public sealed class S2SRec2Session : IDisposable
         int n = Math.Max(ids.Count, 1);
         long[] idBuffer = new long[n];
         for (int i = 0; i < ids.Count; i++)
-            idBuffer[i] = ids[i];
-
-        List<NamedOnnxValue> inputs = new List<NamedOnnxValue>
         {
+            idBuffer[i] = ids[i];
+        }
+
+        List<NamedOnnxValue> inputs =
+        [
             NamedOnnxValue.CreateFromTensor(_idsName, new DenseTensor<long>(idBuffer, [1, n])),
             NamedOnnxValue.CreateFromTensor(_padMaskName, new DenseTensor<bool>(new bool[n], [1, n])),
             NamedOnnxValue.CreateFromTensor(_typeMaskName, new DenseTensor<long>(new[] { (long)typeMask }, [1])),
-        };
+        ];
 
         using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(inputs);
         DisposableNamedOnnxValue[] ordered = results.ToArray();
@@ -119,14 +126,19 @@ public sealed class S2SRec2Session : IDisposable
     private float[] ScatterToVocab(float[] rowLogits)
     {
         if (rowLogits.Length != _outIds.Length)
+        {
             throw new InvalidDataException(
                 $"the graph returned {rowLogits.Length} logits but out_ids.bin describes {_outIds.Length} decoder "
                 + "rows. The .onnx and out_ids.bin are from different exports.");
+        }
 
         float[] vocabLogits = new float[_vocabSize];
         Array.Fill(vocabLogits, NotEmittable);
         for (int row = 0; row < _outIds.Length; row++)
+        {
             vocabLogits[_outIds[row]] = rowLogits[row];
+        }
+
         return vocabLogits;
     }
 
@@ -141,7 +153,10 @@ public sealed class S2SRec2Session : IDisposable
     {
         byte[] bytes = File.ReadAllBytes(path);
         if (bytes.Length % sizeof(int) != 0)
+        {
             throw new InvalidDataException($"{path} is {bytes.Length} bytes, not a whole number of int32 values.");
+        }
+
         int[] values = new int[bytes.Length / sizeof(int)];
         Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
         return values;

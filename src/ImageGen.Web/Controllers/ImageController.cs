@@ -38,7 +38,9 @@ public sealed class ImageController(
         long userId = User.GetRequiredUserId();
         HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is null)
+        {
             return null;
+        }
 
         // BOTH ways of opening an image come through here — the standalone page and the lightbox's card fetch — which
         // is what "viewed" means: you looked at the picture, not that a card scrolled past you in a grid. Marked after
@@ -52,13 +54,18 @@ public sealed class ImageController(
 
         // Look up each tag token's booru category: it colors the chip border and orders the chips by type. Artists are
         // colored and ranked by kind, so skip them; tags the catalog doesn't know stay absent and count as general.
-        Dictionary<string, int> tagTypeByToken = new Dictionary<string, int>(StringComparer.Ordinal);
+        Dictionary<string, int> tagTypeByToken = new(StringComparer.Ordinal);
         foreach (Mark m in entry.Marks)
         {
             if (m.Kind != TokenKind.Tag)
+            {
                 continue;
+            }
+
             if (_tags.Lookup(m.Token) is { } t)
+            {
                 tagTypeByToken[m.Token] = t.Type;
+            }
         }
 
         return new ImageDetailViewModel

@@ -45,7 +45,7 @@ public sealed record HistoryQuery(
     /// looks deliberate. Every construction site is validated the same way, so no layer downstream has to re-guess.</summary>
     public void Validate()
     {
-        Ensure.AtLeast(Page, MinPage);
-        Ensure.Between(PageSize, MinPageSize, MaxPageSize);
+        _ = Ensure.AtLeast(Page, MinPage);
+        _ = Ensure.Between(PageSize, MinPageSize, MaxPageSize);
     }
 }

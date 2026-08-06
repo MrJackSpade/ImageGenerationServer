@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.PixelVideo;
 
 /// <summary>
@@ -18,12 +13,11 @@ namespace ImageGen.Comfy.Edit.PixelVideo;
 public sealed class PixelVideoWorkflow : IWorkflow
 {
     private readonly IWorkflow _inner;
-    private readonly IReadOnlyList<ParamSpec> _schema;
 
     public PixelVideoWorkflow(IWorkflow inner)
     {
         _inner = inner;
-        _schema = _inner.Schema.Concat(PixelVideoGraph.Params).ToArray();
+        Schema = _inner.Schema.Concat(PixelVideoGraph.Params).ToArray();
     }
 
     public string Name => _inner.Name + "-pixel";
@@ -36,14 +30,17 @@ public sealed class PixelVideoWorkflow : IWorkflow
     /// <summary>The pixel decorator inherits its base i2v model's frame rule (LTX/Wan), so a snapped length applies.</summary>
     public FrameRule? FrameRule => _inner.FrameRule;
     public ModelResolution? ResolutionEnvelope => _inner.ResolutionEnvelope;
-    public IReadOnlyList<ParamSpec> Schema => _schema;
+    public IReadOnlyList<ParamSpec> Schema { get; }
 
     public ComfyWorkflowGraph Build(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph graph = _inner.Build(p, req, inputs);         // the inner reads its OWN typed params off the same bag
         PixelVideoParams pv = ParamsCodec.Deserialize<PixelVideoParams>(p);   // just this decorator's pixel knobs (unmapped inner keys ignored)
         if (pv.Guided)
+        {
             PixelVideoGraph.PatchModelProjection(graph, pv);   // steer the latent onto the manifold every step
+        }
+
         PixelVideoGraph.QuantizeFrames(graph, pv);              // authoritative crisp final render (always)
         return graph;
     }

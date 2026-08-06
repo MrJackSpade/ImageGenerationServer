@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
@@ -9,10 +8,10 @@ namespace ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
 public sealed record ImageScaleToImageSize : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageScale;
-    [JsonPropertyName("image")]          public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("upscale_method")] public required string UpscaleMethod { get; init; }
-    [JsonPropertyName("width")]          public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]         public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("crop")]           public required string Crop { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("crop")] public required string Crop { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }

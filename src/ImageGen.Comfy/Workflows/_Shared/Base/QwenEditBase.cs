@@ -1,8 +1,8 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
@@ -49,7 +49,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     /// rectangle must align to the VAE/patch stride, so it is rounded down and scaled back up on the way out.
     /// </summary>
     private static int AlignDown(int n) =>
-        Math.Max(CanvasMaskConstants.LatentAlignPx, n - n % CanvasMaskConstants.LatentAlignPx);
+        Math.Max(CanvasMaskConstants.LatentAlignPx, n - (n % CanvasMaskConstants.LatentAlignPx));
 
     /// <summary>
     /// The drawing rectangle (X, Y, W, H) in SOURCE pixels left over once each side's blocked percentage is removed.
@@ -59,19 +59,33 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     /// </summary>
     private static (int X, int Y, int W, int H)? MaskGeom(int pctL, int pctR, int pctT, int pctB, int sw, int sh)
     {
-        if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0) return null;   // no mask
+        if (pctL == 0 && pctR == 0 && pctT == 0 && pctB == 0)
+        {
+            return null;   // no mask
+        }
+
         foreach ((string? name, int pct) in new[] { (WorkflowParamKeys.MaskLeftPct, pctL), (WorkflowParamKeys.MaskRightPct, pctR), (WorkflowParamKeys.MaskTopPct, pctT), (WorkflowParamKeys.MaskBottomPct, pctB) })
-            Ensure.Between(pct, CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct, name);
+        {
+            _ = Ensure.Between(pct, CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct, name);
+        }
 
         if (pctL + pctR > 100 - CanvasMaskConstants.MinOpenPctPerAxis)
+        {
             throw new ArgumentException($"mask_left_pct + mask_right_pct = {pctL + pctR}% leaves no width for the model to draw in.");
+        }
+
         if (pctT + pctB > 100 - CanvasMaskConstants.MinOpenPctPerAxis)
+        {
             throw new ArgumentException($"mask_top_pct + mask_bottom_pct = {pctT + pctB}% leaves no height for the model to draw in.");
+        }
 
         int x = sw * pctL / 100, y = sh * pctT / 100;
-        int w = sw - x - sw * pctR / 100, h = sh - y - sh * pctB / 100;
+        int w = sw - x - (sw * pctR / 100), h = sh - y - (sh * pctB / 100);
         if (w < CanvasMaskConstants.MinRectPx || h < CanvasMaskConstants.MinRectPx)
+        {
             throw new ArgumentException($"the masked drawing rectangle is {w}×{h}px, below the {CanvasMaskConstants.MinRectPx}px minimum.");
+        }
+
         return (x, y, w, h);
     }
 
@@ -85,7 +99,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 
     protected override ComfyWorkflowGraph Build(QwenEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
         string instruction = inputs.Positive;
@@ -102,16 +116,20 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // structural limits. More references than that is REFUSED, not silently truncated to fit.
         int refCapacity = Math.Min(p.ReferenceMax ?? 0, qInputs.Length);
         if (refNames.Count > refCapacity)
+        {
             throw new RenderValidationException($"This configuration accepts at most {refCapacity} reference image(s); got {refNames.Count}.");
+        }
+
         int qn = refNames.Count;
-        Dictionary<string, object> encRefs = new Dictionary<string, object>();
+        Dictionary<string, object> encRefs = [];
         for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
         {
-            string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
+            string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
             g[scale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(load) };
             encRefs[qInputs[i]] = FluxKontextImageScale.Out(scale);
         }
+
         g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.KontextScale), Vae = vae0 };
         Output<Slot.Conditioning> cond;
         if (qn > 0)
@@ -127,6 +145,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
             cond = ReferenceLatent.Out(Nodes.RefLatent);
         }
+
         g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
         Output<Slot.Model> ksModel = model0;
         if (!Aio)                                             // standard 2511 needs ModelSamplingAuraFlow + CFGNorm
@@ -140,12 +159,15 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // rectangle's offset. The model's fill-the-frame bias then works FOR us: given a 66%-tall frame it draws a
         // crouch at native scale. The conditioning is untouched — node 13 still encodes the FULL source and node 30's
         // reference latent is still the full-frame latent — so identity and the character's true scale are preserved.
-        int Pct(int? v) => v ?? 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
+        int Pct(int? v)
+        {
+            return v ?? 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
+        }
         // A Qwen edit's source is a still, so its dimensions are ALWAYS measured — a zero is a broken source, not a
         // valid state. Refuse it rather than silently drop a requested canvas mask. (MaskGeom returns null when no
         // mask side is set, so an unmasked edit still no-ops.)
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         (int X, int Y, int W, int H)? rect = MaskGeom(Pct(p.MaskLeftPct), Pct(p.MaskRightPct), Pct(p.MaskTopPct), Pct(p.MaskBottomPct),
                             inputs.SourceWidth, inputs.SourceHeight);
 
@@ -188,6 +210,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[Nodes.OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Nodes.Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(Nodes.OutputSize), Height = GetImageSize.HeightOut(Nodes.OutputSize), Crop = ComfyWidgets.Crop.Disabled };
             output = ImageScaleFromSize.Out(Nodes.OutputScale);
         }
+
         g[Nodes.Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
@@ -226,29 +249,29 @@ file static class Nodes
 /// empty when absent); <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record QwenEditParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]          public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]     public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]        public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]   public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]       public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]         public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]       public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
     [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceInputs)] public string[]? ReferenceInputs { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
-    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskLeftPct { get; init; }
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskLeftPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskRightPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
-    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskRightPct { get; init; }
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskRightPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskTopPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
-    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskTopPct { get; init; }
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskTopPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskBottomPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
-    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")]     public int? MaskBottomPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]            public long Seed { get; init; }
+    [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskBottomPct { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

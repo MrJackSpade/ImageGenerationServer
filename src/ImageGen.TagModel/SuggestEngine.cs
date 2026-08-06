@@ -46,23 +46,33 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     public SuggestResult Query(
         IReadOnlyCollection<string> contextTags, string fragment, int limit, Mode mode = Mode.Likely)
     {
-        Ensure.AtLeast(limit, 1);
+        _ = Ensure.AtLeast(limit, 1);
 
         TagVocab vocab = _bundle.Vocab;
         string query = fragment.Trim().ToLowerInvariant();
 
-        List<int> present = new List<int>();
-        HashSet<int> presentSet = new HashSet<int>();
-        List<string> unknown = new List<string>();
+        List<int> present = [];
+        HashSet<int> presentSet = [];
+        List<string> unknown = [];
         foreach (string raw in contextTags)
         {
             string tag = raw.Trim();
-            if (tag.Length == 0) continue;
+            if (tag.Length == 0)
+            {
+                continue;
+            }
+
             if (vocab.IdOf(tag) is int id)
             {
-                if (presentSet.Add(id)) present.Add(id);
+                if (presentSet.Add(id))
+                {
+                    present.Add(id);
+                }
             }
-            else unknown.Add(tag);
+            else
+            {
+                unknown.Add(tag);
+            }
         }
 
         float[] conditional;
@@ -80,7 +90,7 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         {
             // Scoring is deliberately unconditioned by TYPE: suggest ranks every category, artists included, because
             // this path answers what the user is typing rather than what generation may emit.
-            (float[]? logits, float _) = _bundle.Session.Forward(present, TypeMask.AllTypes);
+            (float[]? logits, _) = _bundle.Session.Forward(present, TypeMask.AllTypes);
             conditional = Softmax(logits);
             display = Display(logits, conditional);
         }
@@ -91,7 +101,9 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         if (present.Count > 0 && mode == Mode.Distinctive)
         {
             for (int i = 0; i < score.Length; i++)
+            {
                 score[i] = vocab.Marginal[i] >= 5e-5f ? conditional[i] / Math.Max(vocab.Marginal[i], 1e-9f) : 0f;
+            }
         }
         else
         {
@@ -104,10 +116,15 @@ public sealed class SuggestEngine(TagModelBundle bundle)
 
         if (query.Length > 0)
         {
-            List<int> candidates = new List<int>();
+            List<int> candidates = [];
             for (int i = 0; i < vocab.Count; i++)
+            {
                 if (!presentSet.Contains(i) && !junk.Contains(i) && vocab.Lowercase[i].Contains(query, StringComparison.Ordinal))
+                {
                     candidates.Add(i);
+                }
+            }
+
             candidates.Sort((x, y) => score[y].CompareTo(score[x]));
             total = candidates.Count;
             ordered = candidates.Take(limit).ToList();
@@ -118,14 +135,21 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             // distribution is tags the prompt already has.
             float[] ranking = new float[score.Length];
             Array.Copy(score, ranking, score.Length);
-            foreach (int id in presentSet) ranking[id] = -1f;
-            foreach (int id in junk) ranking[id] = -1f;
+            foreach (int id in presentSet)
+            {
+                ranking[id] = -1f;
+            }
+
+            foreach (int id in junk)
+            {
+                ranking[id] = -1f;
+            }
 
             ordered = TopK(ranking, limit);
             total = ordered.Count;
         }
 
-        List<Suggestion> results = new List<Suggestion>(ordered.Count);
+        List<Suggestion> results = new(ordered.Count);
         foreach (int id in ordered)
         {
             // Marginal is eps-floored positive by construction (TagVocab clamps it to [eps, 1-eps]), so the base rate
@@ -151,7 +175,9 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     private float[] Display(float[] logits, float[] conditional)
     {
         if (_bundle.Calibration is null)
+        {
             return conditional;
+        }
 
         (double a, double b) = (_bundle.Calibration.A, _bundle.Calibration.B);
         float[] display = new float[logits.Length];
@@ -160,8 +186,9 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             // -inf marks an unemittable tag; it has no calibrated probability, and exp() of it would be a NaN factory.
             display[i] = float.IsNegativeInfinity(logits[i])
                 ? 0f
-                : (float)(1.0 / (1.0 + Math.Exp(-(a * logits[i] + b))));
+                : (float)(1.0 / (1.0 + Math.Exp(-((a * logits[i]) + b))));
         }
+
         return display;
     }
 
@@ -170,11 +197,18 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     {
         float max = float.NegativeInfinity;
         foreach (float v in logits)
-            if (v > max) max = v;
+        {
+            if (v > max)
+            {
+                max = v;
+            }
+        }
 
         float[] result = new float[logits.Length];
         if (float.IsNegativeInfinity(max))
+        {
             return result;   // every tag unemittable: a uniform zero, not a division by zero
+        }
 
         double sum = 0;
         for (int i = 0; i < logits.Length; i++)
@@ -186,7 +220,10 @@ public sealed class SuggestEngine(TagModelBundle bundle)
         // sum >= 1 here: `max` is finite (the all-unemittable case returned above), so the max element contributes
         // exp(0) = 1 — there is no divide-by-zero to guard against.
         for (int i = 0; i < result.Length; i++)
+        {
             result[i] = (float)(result[i] / sum);
+        }
+
         return result;
     }
 
@@ -194,7 +231,7 @@ public sealed class SuggestEngine(TagModelBundle bundle)
     private static List<int> TopK(float[] values, int k)
     {
         k = Math.Min(k, values.Length);
-        List<int> best = new List<int>(k);
+        List<int> best = new(k);
         bool[] taken = new bool[values.Length];
         for (int n = 0; n < k; n++)
         {
@@ -202,14 +239,24 @@ public sealed class SuggestEngine(TagModelBundle bundle)
             float bestValue = float.NegativeInfinity;
             for (int i = 0; i < values.Length; i++)
             {
-                if (taken[i] || values[i] <= bestValue) continue;
+                if (taken[i] || values[i] <= bestValue)
+                {
+                    continue;
+                }
+
                 bestValue = values[i];
                 bestIndex = i;
             }
-            if (bestIndex < 0) break;
+
+            if (bestIndex < 0)
+            {
+                break;
+            }
+
             taken[bestIndex] = true;
             best.Add(bestIndex);
         }
+
         return best;
     }
 }

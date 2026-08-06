@@ -26,7 +26,9 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     {
         ArtistDisplay? chosen = await _displays.GetAsync(userId, artistName, ct);
         if (chosen is not null)
+        {
             return new ArtistDisplayResult(chosen.GatewayImageId, true);
+        }
 
         IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForArtistsAsync(userId, [artistName], ct);
         return new ArtistDisplayResult(latest.GetValueOrDefault(artistName), false);
@@ -36,19 +38,26 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     public async Task<IReadOnlyDictionary<string, string>> ResolveManyAsync(
         long userId, IReadOnlyCollection<string> artistNames, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
         if (artistNames.Count == 0)
+        {
             return result;
+        }
 
         IReadOnlyDictionary<string, string> overrides = await _displays.GetManyAsync(userId, artistNames, ct);
         IReadOnlyDictionary<string, string> latest = await _history.GetLatestImageIdsForArtistsAsync(userId, artistNames, ct);
         foreach (string name in artistNames)
         {
             if (overrides.TryGetValue(name, out string? ov))
+            {
                 result[name] = ov;
+            }
             else if (latest.TryGetValue(name, out string? l))
+            {
                 result[name] = l;
+            }
         }
+
         return result;
     }
 
@@ -57,7 +66,9 @@ public sealed class ArtistService(IArtistDisplayRepository displays, IHistoryRep
     {
         HistoryEntry? entry = await _history.GetByGatewayImageIdAsync(userId, gatewayImageId, ct);
         if (entry is null)
+        {
             return false;
+        }
 
         await _displays.SetAsync(new ArtistDisplay
         {

@@ -24,7 +24,9 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         // No accounts yet: a sign-in form has nothing to sign in to, and the only answer it can give is "wrong
         // username or password", which is a lie about what is wrong. Send them to make the first one.
         if (!await _users.AnyExistAsync(ct))
+        {
             return RedirectToAction(nameof(Register), new { returnUrl, first = true });
+        }
 
         return View(new LoginViewModel { ReturnUrl = returnUrl });
     }
@@ -39,19 +41,21 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         string username = form[FormFields.Username].ToString().Trim();
         string password = form[FormFields.Password].ToString();
         string returnUrl = form[FormFields.ReturnUrl].ToString();
-        LoginViewModel vm = new LoginViewModel { Username = username, ReturnUrl = returnUrl };
+        LoginViewModel vm = new() { Username = username, ReturnUrl = returnUrl };
 
         if (username.Length == 0 || password.Length == 0)
         {
             vm.Error = "Username and password are required.";
             return View(vm);
         }
+
         User? user = await _users.AuthenticateAsync(username, password, ct);
         if (user is null)
         {
             vm.Error = "Wrong username or password.";
             return View(vm);
         }
+
         await SignInAsync(user);
         return RedirectToLocalOrHome(returnUrl);
     }
@@ -79,7 +83,7 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         string displayName = form[FormFields.DisplayName].ToString().Trim();
         string code = form[FormFields.Code].ToString();
         string returnUrl = form[FormFields.ReturnUrl].ToString();
-        RegisterViewModel vm = new RegisterViewModel
+        RegisterViewModel vm = new()
         {
             Username = username,
             DisplayName = displayName,
@@ -88,15 +92,25 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
         };
 
         if (username.Length == 0 || password.Length == 0)
+        {
             return Fail(vm, "Username and password are required.");
+        }
+
         if (password.Length < 8)
+        {
             return Fail(vm, "Password must be at least 8 characters.");
+        }
+
         if (_auth.RegistrationRequiresCode && code != _auth.RegistrationCode)
+        {
             return Fail(vm, "Invalid registration code.");
+        }
 
         User? user = await _users.RegisterAsync(username, password, displayName, ct);
         if (user is null)
+        {
             return Fail(vm, "That username is taken.");
+        }
 
         await SignInAsync(user);
         return RedirectToLocalOrHome(returnUrl);
@@ -113,11 +127,14 @@ public sealed class AccountController(UserService users, AuthOptions auth) : Con
     private IActionResult Fail(
         RegisterViewModel vm,
         [AllowMagicStrings("User-facing validation messages are prose shown in the UI, not identifiers to name as constants.")] string error)
-    { vm.Error = error; return View(vm); }
+    {
+        vm.Error = error;
+        return View(vm);
+    }
 
     private Task SignInAsync(User user)
     {
-        ClaimsIdentity identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme);
+        ClaimsIdentity identity = new(CookieAuthenticationDefaults.AuthenticationScheme);
         identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
         identity.AddClaim(new Claim(ClaimTypes.Name, user.DisplayName));
         return HttpContext.SignInAsync(

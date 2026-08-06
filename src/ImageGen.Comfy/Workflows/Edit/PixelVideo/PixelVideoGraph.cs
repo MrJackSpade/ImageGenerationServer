@@ -1,8 +1,6 @@
 using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
 
-using ImageGen.Comfy;
-
 namespace ImageGen.Comfy.Edit.PixelVideo;
 
 /// <summary>
@@ -43,7 +41,11 @@ internal static class PixelVideoGraph
     /// params + defaults). The quantizer flattens the <c>(B,T,H,W,3)</c> video decode into per-frame batches itself.</summary>
     public static void QuantizeFrames(ComfyWorkflowGraph g, PixelVideoParams p, string quantNodeId = Nodes.Quantize)
     {
-        if (FindByClassType(g, ComfyNodeTypes.SaveAnimatedWEBP) is not (string saveId, ComfyNode saveNode)) return;
+        if (FindByClassType(g, ComfyNodeTypes.SaveAnimatedWEBP) is not (string saveId, ComfyNode saveNode))
+        {
+            return;
+        }
+
         Output<Slot.Image> imagesSrc = ReadImages(saveNode);
 
         (int gw, int gh) = Grid(p);
@@ -63,7 +65,11 @@ internal static class PixelVideoGraph
     /// so the per-step projection runs for each (both experts of an MoE). The VAE is taken from the decode node.</summary>
     public static void PatchModelProjection(ComfyWorkflowGraph g, PixelVideoParams p)
     {
-        if (FindByClassType(g, ComfyNodeTypes.VAEDecode, ComfyNodeTypes.VAEDecodeTiled) is not (_, ComfyNode decode)) return;
+        if (FindByClassType(g, ComfyNodeTypes.VAEDecode, ComfyNodeTypes.VAEDecodeTiled) is not (_, ComfyNode decode))
+        {
+            return;
+        }
+
         Output<Slot.Vae> vae = ReadVae(decode);
 
         (int gw, int gh) = Grid(p);
@@ -76,7 +82,7 @@ internal static class PixelVideoGraph
         foreach ((string id, ComfyNode node) in consumers)
         {
             Output<Slot.Model> modelSrc = ReadModel(node);
-            string projId = (next++).ToString();
+            string projId = next++.ToString();
             g[projId] = new PixelManifoldProjection
             {
                 Model = modelSrc,
@@ -104,8 +110,13 @@ internal static class PixelVideoGraph
     private static (string id, ComfyNode node)? FindByClassType(ComfyWorkflowGraph g, params string[] classTypes)
     {
         foreach (KeyValuePair<string, ComfyNode> kv in g.Nodes)
+        {
             if (classTypes.Contains(kv.Value.ClassType))
+            {
                 return (kv.Key, kv.Value);
+            }
+        }
+
         return null;
     }
 

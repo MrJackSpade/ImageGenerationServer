@@ -1,7 +1,4 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -20,7 +17,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 
     protected override ComfyWorkflowGraph Build(MageFlowEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // UNETLoader / CLIPLoader(type=mage) / VAELoader + LoadImage at "10"
 
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
@@ -29,17 +26,20 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         g[MageFlowEditNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
-        Dictionary<string, object> refs = new Dictionary<string, object>();
+        Dictionary<string, object> refs = [];
         IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
         // No reference_max declared → no extra refs (capacity 0). Supplying more references than the capacity is
         // REFUSED, not silently truncated.
         int rm = p.ReferenceMax ?? 0;
         if (refNames.Count > rm)
+        {
             throw new RenderValidationException($"This configuration accepts at most {rm} reference image(s); got {refNames.Count}.");
+        }
+
         int rn = refNames.Count;
         for (int i = 0; i < rn; i++)
         {
-            string load = $"{40 + i * 2}", scale = $"{41 + i * 2}";
+            string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
             g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
             refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);

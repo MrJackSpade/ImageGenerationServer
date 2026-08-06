@@ -87,12 +87,18 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
     /// </summary>
     public async Task<UpdateStatus> GetAsync(CancellationToken ct)
     {
-        if (FreshAnswer is { } cached) return cached;
+        if (FreshAnswer is { } cached)
+        {
+            return cached;
+        }
 
         await _gate.WaitAsync(ct);
         try
         {
-            if (FreshAnswer is { } refreshed) return refreshed;   // another request refreshed it while we waited on the gate
+            if (FreshAnswer is { } refreshed)
+            {
+                return refreshed;   // another request refreshed it while we waited on the gate
+            }
 
             _answer = await AskAsync(ct);
             _checkedAtUtc = DateTime.UtcNow;
@@ -100,7 +106,7 @@ public sealed class UpdateCheck(IHttpClientFactory httpFactory, IConfiguration c
         }
         finally
         {
-            _gate.Release();
+            _ = _gate.Release();
         }
     }
 

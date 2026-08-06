@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.QwenPixelize;
 
 /// <summary>
@@ -58,7 +54,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
 
     protected override ComfyWorkflowGraph Build(QwenPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // model/clip/vae + LoadImage "10"
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (11-14)
 
@@ -85,8 +81,16 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
             // FixedScale must be its OWN node (25) and referenced — passing the node dict inline as VAEEncode's
             // `pixels` input hands the encoder a dict instead of an image ('dict' has no attribute 'shape').
             Output<Slot.Image> srcPixels;
-            if (snap is { } sa) { g[Nodes.SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h); srcPixels = ImageScale.Out(Nodes.SnapScale); }
-            else srcPixels = FluxKontextImageScale.Out(Nodes.KontextScale);
+            if (snap is { } sa)
+            {
+                g[Nodes.SnapScale] = PixelHarnessGraph.FixedScale(src, sa.w, sa.h);
+                srcPixels = ImageScale.Out(Nodes.SnapScale);
+            }
+            else
+            {
+                srcPixels = FluxKontextImageScale.Out(Nodes.KontextScale);
+            }
+
             g[Nodes.SourceEncode] = new VAEEncode { Pixels = srcPixels, Vae = vae0 };
             g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
             cond = ReferenceLatent.Out(Nodes.RefLatent);
@@ -95,15 +99,19 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         else
         {
             if (snap is { } sl)
+            {
                 g[Nodes.EmptyLatentNode] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = sl.w, Height = sl.h, BatchSize = 1 };
+            }
             else
             {
                 g[Nodes.ImageSize] = new GetImageSize { Image = FluxKontextImageScale.Out(Nodes.KontextScale) };
                 g[Nodes.EmptyLatentNode] = new EmptySD3LatentFromSize { Width = GetImageSize.WidthOut(Nodes.ImageSize), Height = GetImageSize.HeightOut(Nodes.ImageSize), BatchSize = 1 };
             }
+
             cond = TextEncodeQwenImageEditPlus.Out(Nodes.Encode);
             initLatent = EmptyLatent.Out(Nodes.EmptyLatentNode);
         }
+
         g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
 
         // Qwen 2511 sampling fix (ModelSamplingAuraFlow + CFGNorm), then patch with the per-step projection.

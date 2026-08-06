@@ -1,9 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.Img2ImgRedraw;
 
 /// <summary>Own nodes (the model/clip/vae/source head is the inherited Nodes).</summary>

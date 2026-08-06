@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.Img2ImgRedraw;
 
@@ -56,7 +52,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
 
     protected override ComfyWorkflowGraph Build(Img2ImgRedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage EditNodes.Source
 
         if (LoaderKindWire.Parse(p.Loader) == LoaderKind.Checkpoint && p.ClipSkip is int clipSkip && clipSkip > 0)
@@ -103,7 +99,11 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         // generate path does. The result is left at that native resolution (a redraw is already a destructive
         // re-render; no point up-scaling it back). Only downscales. No budget declared → the source is sampled at its
         // own resolution; a budget with a broken (zero-dimension) source is refused, not silently sampled at raw scale.
-        static int Snap16(int v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
+        static int Snap16(int v)
+        {
+            return Math.Max(16, (int)Math.Round(v / 16.0) * 16);
+        }
+
         long budget = p.NativePixels ?? 0;   // no budget declared → sample the source at its own resolution
         int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
         Output<Slot.Image> encPixels = LoadImage.ImageOut(EditNodes.Source);
@@ -111,8 +111,8 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         {
             // A budget is declared, so downscale to it. The source is a still with measured dims — refuse a zero
             // rather than silently sampling the raw source at the wrong scale.
-            Ensure.GreaterThanZero(sw);
-            Ensure.GreaterThanZero(sh);
+            _ = Ensure.GreaterThanZero(sw);
+            _ = Ensure.GreaterThanZero(sh);
             double f = Math.Sqrt(budget / ((double)sw * sh));
             if (f < 0.98)   // meaningfully over budget → downscale to native
             {

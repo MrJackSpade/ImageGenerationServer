@@ -33,13 +33,20 @@ public static class PromptSearch
     public static bool Matches(IReadOnlyList<string> terms, string? prompt, string? rawPrompt = null)
     {
         if (terms.Count == 0)
+        {
             return true;
+        }
 
         // '\n' between the two forms so a term can't span the join.
         string haystack = Fold(prompt + "\n" + rawPrompt);
         foreach (string term in terms)
+        {
             if (!haystack.Contains(term, StringComparison.OrdinalIgnoreCase))
+            {
                 return false;
+            }
+        }
+
         return true;
     }
 

@@ -59,7 +59,9 @@ public static class Program
 
         string root = Single(options, Options.RootOption) ?? throw new ArgumentException("--root is required.");
         if (!Directory.Exists(Path.Combine(root, Markers.ComfyDirMarker)) || !File.Exists(Path.Combine(root, Markers.MainPyMarker)))
+        {
             throw new ArgumentException($"{root} is not a ComfyUI installation (no main.py and comfy/).");
+        }
 
         string? patchDirectory = Single(options, Options.PatchesOption) ?? Locate(DirNames.PatchesDirName);
         string? nodesDirectory = Single(options, Options.NodesOption) ?? Locate(DirNames.NodesDirName);
@@ -67,8 +69,10 @@ public static class Program
 
         IReadOnlyList<ComfyPatch> catalog = ComfyPatchCatalog.Load(patchDirectory, nodesDirectory);
         if (catalog.Count == 0)
+        {
             throw new InvalidOperationException(
                 $"No patches found. Looked in '{patchDirectory ?? "(nowhere)"}' and '{nodesDirectory ?? "(nowhere)"}'.");
+        }
 
         using ServiceProvider services = new ServiceCollection()
             .AddHttpClient()
@@ -87,6 +91,7 @@ public static class Program
                     (PatchState state, string? detail) = ComfyPatchCatalog.Inspect(patch, root);
                     Console.WriteLine($"{state,-14} {patch.Id,-32} {patch.Title}{(detail is null ? "" : "  — " + detail)}");
                 }
+
                 return catalog.Any(p => ComfyPatchCatalog.Inspect(p, root).State == PatchState.Conflicted) ? 2 : 0;
 
             case Commands.ApplyCommand:
@@ -102,8 +107,12 @@ public static class Program
 
                         string? note = await installer.ApplyAsync(patch, root, python, options.ContainsKey(Options.OverwriteOption), CancellationToken.None);
                         Console.WriteLine($"applied          {patch.Id}");
-                        if (note is not null) Console.WriteLine($"                 NOTE: {note}");
+                        if (note is not null)
+                        {
+                            Console.WriteLine($"                 NOTE: {note}");
+                        }
                     }
+
                     return 0;
                 }
 
@@ -114,6 +123,7 @@ public static class Program
                         installer.Remove(patch, root);
                         Console.WriteLine($"removed          {patch.Id}");
                     }
+
                     return 0;
                 }
 
@@ -125,14 +135,21 @@ public static class Program
     /// <summary>The patches this invocation names, in apply order.</summary>
     private static IEnumerable<ComfyPatch> Selected(IReadOnlyList<ComfyPatch> catalog, Dictionary<string, List<string>> options)
     {
-        if (options.ContainsKey(Options.AllOption)) return catalog;
+        if (options.ContainsKey(Options.AllOption))
+        {
+            return catalog;
+        }
 
         if (!options.TryGetValue(Options.IdOption, out List<string>? ids) || ids.Count == 0)
+        {
             throw new ArgumentException("Name what to act on: --all, or --id <id>.");
+        }
 
         List<string> unknown = ids.Where(id => catalog.All(p => p.Id != id)).ToList();
         if (unknown.Count > 0)
+        {
             throw new ArgumentException($"No such patch: {string.Join(Format.IdSeparator, unknown)}. Run 'list' to see the ids.");
+        }
 
         return catalog.Where(p => ids.Contains(p.Id));
     }
@@ -140,18 +157,28 @@ public static class Program
     /// <summary><c>--key value</c> pairs and bare <c>--flag</c>s; a key may repeat.</summary>
     private static Dictionary<string, List<string>> ParseOptions(string[] args)
     {
-        Dictionary<string, List<string>> options = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        Dictionary<string, List<string>> options = new(StringComparer.Ordinal);
         for (int i = 0; i < args.Length; i++)
         {
             if (!args[i].StartsWith(Options.OptionPrefix, StringComparison.Ordinal))
+            {
                 throw new ArgumentException($"'{args[i]}' is not an option. Try --help.");
+            }
 
             string key = args[i][2..];
             string? value = i + 1 < args.Length && !args[i + 1].StartsWith(Options.OptionPrefix, StringComparison.Ordinal) ? args[++i] : null;
 
-            if (!options.TryGetValue(key, out List<string>? values)) options[key] = values = [];
-            if (value is not null) values.Add(value);
+            if (!options.TryGetValue(key, out List<string>? values))
+            {
+                options[key] = values = [];
+            }
+
+            if (value is not null)
+            {
+                values.Add(value);
+            }
         }
+
         return options;
     }
 
@@ -170,8 +197,12 @@ public static class Program
                      Path.Combine(Directory.GetCurrentDirectory(), name),
                  })
         {
-            if (Directory.Exists(candidate)) return candidate;
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
         }
+
         return null;
     }
 }

@@ -1,7 +1,4 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -30,7 +27,7 @@ internal static class H3
     public static ComfyWorkflowGraph Build(ResolvedRequirements req, WorkflowInputs inputs, H3Mode mode,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler, (int w, int h)? t2vDims, int refMax = 0)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
 
         // Loaders. Diffusion via DiffusionLoaderNode → plain UNETLoader (int8 ConvRot loads natively, weight_dtype
         // default keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames)
@@ -48,92 +45,97 @@ internal static class H3
         switch (mode)
         {
             case H3Mode.I2V:
-            {
-                // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
-                // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
-                g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
-                g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
-                g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
-                Output<Slot.Image>? lastFrame = null;
-                if (!string.IsNullOrEmpty(inputs.EndImageName))
                 {
-                    // Scale the end frame through the SAME node as the first frame (:99), so both reach
-                    // MiniMaxH3ImageToVideo at identical dims. The node resizes first_frame to width/height with
-                    // crop="disabled" and last_frame with crop="center"; the first frame arrives already at those
-                    // exact dims (a no-op), so a raw end frame gets a lone cover/center-crop and lands at a different
-                    // framing. A same-image loop (#110) then stretches instead of holding still. Pre-scaling the end
-                    // frame identically makes the node's last-frame resize a no-op too → a clean static loop.
-                    g[H3Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
-                    g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
-                    lastFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledEndFrame);
-                }
-                // First/last-frame loop vs plain i2v is a choice of NODE, not a nullable input: the end frame either pins
-                // the ending (its own record) or there is none.
-                g[H3Nodes.Encode] = lastFrame is { } endFrame
-                    ? new MiniMaxH3FirstLastFrameToVideo
+                    // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
+                    // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
+                    g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
+                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                    g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
+                    Output<Slot.Image>? lastFrame = null;
+                    if (!string.IsNullOrEmpty(inputs.EndImageName))
                     {
-                        Clip = clip,
-                        Vae = videoVae,
-                        Prompt = inputs.Positive,
-                        Length = length,
-                        Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
-                        Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
-                        FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
-                        LastFrame = endFrame,
+                        // Scale the end frame through the SAME node as the first frame (:99), so both reach
+                        // MiniMaxH3ImageToVideo at identical dims. The node resizes first_frame to width/height with
+                        // crop="disabled" and last_frame with crop="center"; the first frame arrives already at those
+                        // exact dims (a no-op), so a raw end frame gets a lone cover/center-crop and lands at a different
+                        // framing. A same-image loop (#110) then stretches instead of holding still. Pre-scaling the end
+                        // frame identically makes the node's last-frame resize a no-op too → a clean static loop.
+                        g[H3Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
+                        g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                        lastFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledEndFrame);
                     }
-                    : new MiniMaxH3ImageToVideoI2V
+                    // First/last-frame loop vs plain i2v is a choice of NODE, not a nullable input: the end frame either pins
+                    // the ending (its own record) or there is none.
+                    g[H3Nodes.Encode] = lastFrame is { } endFrame
+                        ? new MiniMaxH3FirstLastFrameToVideo
+                        {
+                            Clip = clip,
+                            Vae = videoVae,
+                            Prompt = inputs.Positive,
+                            Length = length,
+                            Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
+                            Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
+                            FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+                            LastFrame = endFrame,
+                        }
+                        : new MiniMaxH3ImageToVideoI2V
+                        {
+                            Clip = clip,
+                            Vae = videoVae,
+                            Prompt = inputs.Positive,
+                            Length = length,
+                            Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
+                            Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
+                            FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+                        };
+                    break;
+                }
+            case H3Mode.Ref2V:
+                {
+                    // Reference→video: the open image is the PRIMARY subject reference (ref_image_0) and sets the output
+                    // canvas (scaled to H3's ~1 MP budget, exactly like i2v); any picker references follow as
+                    // ref_image_1…N. They condition the subject/identity — NOT a first frame — so they enter the ref node's
+                    // autogrow ref_images input, which resizes each internally (down only). The audio VAE is a direct input.
+                    g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
+                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                    g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
+
+                    IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
+                    if (refNames.Count > refMax)
+                    {
+                        throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {refNames.Count}.");
+                    }
+
+                    List<Output<Slot.Image>> refs = new(refNames.Count + 1) { LoadImage.ImageOut(H3Nodes.Source) };
+                    for (int i = 0; i < refNames.Count; i++)
+                    {
+                        string id = (RefImageBase + i).ToString();
+                        g[id] = new LoadImage { Image = refNames[i] };
+                        refs.Add(LoadImage.ImageOut(id));
+                    }
+
+                    g[H3Nodes.Encode] = new MiniMaxH3ReferenceToVideo
                     {
                         Clip = clip,
                         Vae = videoVae,
+                        AudioVae = audioVaeRef,
                         Prompt = inputs.Positive,
                         Length = length,
                         Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
                         Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
-                        FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+                        RefImageSize = ComfyWidgets.RefImageSize.Match,
+                        RefImages = MiniMaxH3ReferenceToVideo.Refs(refs),
                     };
-                break;
-            }
-            case H3Mode.Ref2V:
-            {
-                // Reference→video: the open image is the PRIMARY subject reference (ref_image_0) and sets the output
-                // canvas (scaled to H3's ~1 MP budget, exactly like i2v); any picker references follow as
-                // ref_image_1…N. They condition the subject/identity — NOT a first frame — so they enter the ref node's
-                // autogrow ref_images input, which resizes each internally (down only). The audio VAE is a direct input.
-                g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
-                g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
-                g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
-
-                IReadOnlyList<string> refNames = inputs.ReferenceImageNames;
-                if (refNames.Count > refMax)
-                    throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {refNames.Count}.");
-                List<Output<Slot.Image>> refs = new(refNames.Count + 1) { LoadImage.ImageOut(H3Nodes.Source) };
-                for (int i = 0; i < refNames.Count; i++)
-                {
-                    string id = (RefImageBase + i).ToString();
-                    g[id] = new LoadImage { Image = refNames[i] };
-                    refs.Add(LoadImage.ImageOut(id));
+                    break;
                 }
-                g[H3Nodes.Encode] = new MiniMaxH3ReferenceToVideo
-                {
-                    Clip = clip,
-                    Vae = videoVae,
-                    AudioVae = audioVaeRef,
-                    Prompt = inputs.Positive,
-                    Length = length,
-                    Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
-                    Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
-                    RefImageSize = ComfyWidgets.RefImageSize.Match,
-                    RefImages = MiniMaxH3ReferenceToVideo.Refs(refs),
-                };
-                break;
-            }
             default:
-            {
-                (int w, int h) = t2vDims ?? throw new RenderValidationException("MiniMax-H3 text→video needs a render size, but none was resolved.");
-                g[H3Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = clip, Vae = videoVae, Prompt = inputs.Positive, Length = length, Width = w, Height = h };
-                break;
-            }
+                {
+                    (int w, int h) = t2vDims ?? throw new RenderValidationException("MiniMax-H3 text→video needs a render size, but none was resolved.");
+                    g[H3Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = clip, Vae = videoVae, Prompt = inputs.Positive, Length = length, Width = w, Height = h };
+                    break;
+                }
         }
+
         Output<Slot.Conditioning> positive = new(H3Nodes.Encode, 0);
         Output<Slot.Latent> latent = new(H3Nodes.Encode, 1);
 

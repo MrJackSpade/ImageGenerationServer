@@ -58,7 +58,10 @@ public sealed class MachineConfigService(
 
         string? stored = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        if (spec.Store == SettingStore.File) WriteToOverrideFile(spec.Key, stored);
+        if (spec.Store == SettingStore.File)
+        {
+            WriteToOverrideFile(spec.Key, stored);
+        }
         else
         {
             MachineSettingsConfigurationProvider provider = _source.Provider
@@ -80,7 +83,7 @@ public sealed class MachineConfigService(
         // a valid-but-non-object root (an array, a scalar, the literal null) is not something to silently discard and
         // overwrite — that would lose whatever is in it — so refuse. (Invalid JSON throws in Parse, which is also right.)
         JsonObject root = !File.Exists(path)
-            ? new JsonObject()
+            ? []
             : JsonNode.Parse(File.ReadAllText(path)) as JsonObject
               ?? throw new InvalidOperationException(
                   $"'{path}' exists but its root is not a JSON object; refusing to overwrite it. Fix or remove the file.");
@@ -91,14 +94,22 @@ public sealed class MachineConfigService(
         {
             if (node[segments[i]] is not JsonObject child)
             {
-                child = new JsonObject();
+                child = [];
                 node[segments[i]] = child;
             }
+
             node = child;
         }
 
         string leaf = segments[^1];
-        if (value is null) node.Remove(leaf); else node[leaf] = value;
+        if (value is null)
+        {
+            _ = node.Remove(leaf);
+        }
+        else
+        {
+            node[leaf] = value;
+        }
 
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

@@ -54,7 +54,11 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     /// choice ("none of them"), so it is saved as <c>[]</c> rather than collapsing to null, which means the default.</summary>
     public async Task<string?> SetGenerationTagTypesAsync(long userId, IReadOnlyList<string>? types, CancellationToken ct)
     {
-        if (!GenerationTagTypes.TryNormalize(types, out IReadOnlyList<string>? normalized, out string? error)) return error;
+        if (!GenerationTagTypes.TryNormalize(types, out IReadOnlyList<string>? normalized, out string? error))
+        {
+            return error;
+        }
+
         await _users.UpdateGenerationTagTypesAsync(userId, GenerationTagTypes.Serialize(normalized), ct);
         return null;
     }
@@ -66,7 +70,7 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     /// <summary>Create a new account. Returns null if the username is already taken.</summary>
     public Task<User?> RegisterAsync(string username, string password, string displayName, CancellationToken ct)
     {
-        User user = new User
+        User user = new()
         {
             Username = username,
             PasswordHash = PasswordHasher.Hash(password),
@@ -81,7 +85,10 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     {
         User? user = await _users.GetByUsernameAsync(username, ct);
         if (user is null || !PasswordHasher.Verify(password, user.PasswordHash))
+        {
             return null;
+        }
+
         return user;
     }
 }

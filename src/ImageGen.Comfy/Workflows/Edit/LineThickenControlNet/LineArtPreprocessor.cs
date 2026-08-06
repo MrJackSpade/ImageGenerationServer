@@ -1,6 +1,4 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenControlNet;
 
@@ -10,8 +8,8 @@ namespace ImageGen.Comfy.Edit.LineThickenControlNet;
 public sealed record LineArtPreprocessor : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.LineArtPreprocessor;
-    [JsonPropertyName("image")]      public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("coarse")]     public required string Coarse { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("coarse")] public required string Coarse { get; init; }
     [JsonPropertyName("resolution")] public required int Resolution { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }

@@ -21,16 +21,25 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
 
     public async Task<IReadOnlyDictionary<string, LoraMeta>> GetManyAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
-        Dictionary<string, LoraMeta> result = new Dictionary<string, LoraMeta>(StringComparer.OrdinalIgnoreCase);
-        if (loraNames.Count == 0) return result;
+        Dictionary<string, LoraMeta> result = new(StringComparer.OrdinalIgnoreCase);
+        if (loraNames.Count == 0)
+        {
+            return result;
+        }
 
         List<string> names = loraNames.ToList();
         string[] ps = new string[names.Count];
-        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        for (int i = 0; i < names.Count; i++)
+        {
+            ps[i] = "@n" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command($"SELECT {Sql.Columns} FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
-        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
+        for (int i = 0; i < names.Count; i++)
+        {
+            _ = cmd.AddParam(ps[i], names[i]);
+        }
 
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -49,6 +58,7 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc));
         }
+
         return result;
     }
 
@@ -64,35 +74,47 @@ public sealed class LoraMetaRepository(IDbConnectionFactory connectionFactory) :
             AddAll(cmd, meta, words);
             updated = await cmd.ExecuteNonQueryAsync(ct);
         }
+
         if (updated == 0)
         {
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.LoraMeta (LoraName, Sha256, TrainedWords, ModelName, PreviewUrl, FetchedAtUtc) VALUES (@name, @sha, @words, @model, @preview, @at);");
             AddAll(cmd, meta, words);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
     }
 
     public async Task DeleteAsync(IReadOnlyCollection<string> loraNames, CancellationToken ct)
     {
-        if (loraNames.Count == 0) return;
+        if (loraNames.Count == 0)
+        {
+            return;
+        }
+
         List<string> names = loraNames.ToList();
         string[] ps = new string[names.Count];
-        for (int i = 0; i < names.Count; i++) ps[i] = "@n" + i;
+        for (int i = 0; i < names.Count; i++)
+        {
+            ps[i] = "@n" + i;
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command($"DELETE FROM dbo.LoraMeta WHERE LoraName IN ({string.Join(',', ps)});");
-        for (int i = 0; i < names.Count; i++) cmd.AddParam(ps[i], names[i]);
-        await cmd.ExecuteNonQueryAsync(ct);
+        for (int i = 0; i < names.Count; i++)
+        {
+            _ = cmd.AddParam(ps[i], names[i]);
+        }
+
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private static void AddAll(System.Data.Common.DbCommand cmd, LoraMeta meta, string words)
     {
-        cmd.AddParam("@name", meta.LoraName);
-        cmd.AddParam("@sha", (object?)meta.Sha256 ?? DBNull.Value);
-        cmd.AddParam("@words", words);
-        cmd.AddParam("@model", (object?)meta.ModelName ?? DBNull.Value);
-        cmd.AddParam("@preview", (object?)meta.PreviewUrl ?? DBNull.Value);
-        cmd.AddParam("@at", meta.FetchedAtUtc);
+        _ = cmd.AddParam("@name", meta.LoraName);
+        _ = cmd.AddParam("@sha", (object?)meta.Sha256 ?? DBNull.Value);
+        _ = cmd.AddParam("@words", words);
+        _ = cmd.AddParam("@model", (object?)meta.ModelName ?? DBNull.Value);
+        _ = cmd.AddParam("@preview", (object?)meta.PreviewUrl ?? DBNull.Value);
+        _ = cmd.AddParam("@at", meta.FetchedAtUtc);
     }
 }

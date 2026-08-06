@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -25,13 +24,15 @@ public sealed class CatalogDeserializationTests
     private static void AssertAllParse<T>(string sub, JsonTypeInfo<T> type)
     {
         string dir = Path.Combine(RepoRoot(), "configurations", sub);
-        List<string> failures = new List<string>();
+        List<string> failures = [];
         foreach (string? f in Directory.EnumerateFiles(dir, "*.json").OrderBy(p => p, StringComparer.Ordinal))
         {
             try
             {
                 if (JsonSerializer.Deserialize(File.ReadAllText(f), type) is null)
+                {
                     failures.Add($"{Path.GetFileName(f)}: empty or null document");
+                }
             }
             catch (JsonException ex)
             {
@@ -47,7 +48,10 @@ public sealed class CatalogDeserializationTests
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
+        {
             dir = Path.GetDirectoryName(dir);
+        }
+
         return dir ?? throw new DirectoryNotFoundException("configurations/ not found above the test bin dir.");
     }
 

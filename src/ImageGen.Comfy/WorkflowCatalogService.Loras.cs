@@ -21,7 +21,9 @@ public sealed partial class WorkflowCatalogService
         // Without a workflow to check against, compatibility isn't evaluated — the picker shows the full list.
         WorkflowConfiguration? cfg = workflowId is null ? null : _catalog.FindConfig(workflowId);
         if (cfg is null)
+        {
             return names.Select(n => new LoraCatalogEntry(n, Compatible: true, ClipCapable: true)).ToList();
+        }
 
         // Resolve the workflow's bound checkpoint and ComfyUI's on-disk roots, read the checkpoint's layer dimensions
         // once, then compare each LoRA's feature dimensions against them (file headers only, cached per file).
@@ -34,7 +36,10 @@ public sealed partial class WorkflowCatalogService
         {
             string? path = ResolveInRoots(loraRoots, n);
             if (path is null)
+            {
                 return new LoraCatalogEntry(n, Compatible: true, ClipCapable: true);   // can't locate the file → show it
+            }
+
             LoraCompatibility.Result r = LoraCompatibility.Evaluate(path, checkpointDims);
             return new LoraCatalogEntry(n, r.Compatible, r.ClipCapable);
         }).ToList();
@@ -46,10 +51,20 @@ public sealed partial class WorkflowCatalogService
     private static IReadOnlySet<long>? ResolveCheckpointDims(
         string? checkpointFile, IReadOnlyDictionary<string, IReadOnlyList<string>> folders)
     {
-        if (string.IsNullOrWhiteSpace(checkpointFile)) return null;
-        List<string> roots = new List<string>();
+        if (string.IsNullOrWhiteSpace(checkpointFile))
+        {
+            return null;
+        }
+
+        List<string> roots = [];
         foreach (string? key in new[] { "checkpoints", "diffusion_models", "unet" })
-            if (folders.TryGetValue(key, out IReadOnlyList<string>? r)) roots.AddRange(r);
+        {
+            if (folders.TryGetValue(key, out IReadOnlyList<string>? r))
+            {
+                roots.AddRange(r);
+            }
+        }
+
         string? path = ResolveInRoots(roots, checkpointFile);
         return path is null ? null : LoraCompatibility.CheckpointDims(path);
     }
@@ -60,8 +75,12 @@ public sealed partial class WorkflowCatalogService
         foreach (string root in roots)
         {
             string candidate = Path.Combine(root, name);
-            if (File.Exists(candidate)) return candidate;
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
         }
+
         return null;
     }
 }

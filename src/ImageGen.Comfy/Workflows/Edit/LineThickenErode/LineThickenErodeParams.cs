@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenErode;
 
@@ -10,5 +8,5 @@ namespace ImageGen.Comfy.Edit.LineThickenErode;
 public sealed record LineThickenErodeParams
 {
     [JsonPropertyName(WorkflowParamKeys.Thickness)]
-    [Range(0, 32)]                                  public required int Thickness { get; init; }
+    [Range(0, 32)] public required int Thickness { get; init; }
 }

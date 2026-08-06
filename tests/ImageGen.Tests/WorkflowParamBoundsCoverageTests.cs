@@ -20,22 +20,35 @@ public sealed class WorkflowParamBoundsCoverageTests
         WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
             .GetRequiredService<WorkflowRegistry>();
 
-        List<string> gaps = new List<string>();
+        List<string> gaps = [];
         foreach (IWorkflow wf in registry.All)
         {
             Type? dto = ParamsType(wf.GetType());
-            if (dto is null) continue;   // a workflow not built on Workflow<TParams> exposes no typed DTO to annotate
+            if (dto is null)
+            {
+                continue;   // a workflow not built on Workflow<TParams> exposes no typed DTO to annotate
+            }
 
-            Dictionary<string, PropertyInfo> byWireKey = new Dictionary<string, PropertyInfo>();
+            Dictionary<string, PropertyInfo> byWireKey = [];
             foreach (PropertyInfo p in dto.GetProperties())
+            {
                 if (p.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jn)
+                {
                     byWireKey[jn.Name] = p;
+                }
+            }
 
             foreach (ParamSpec spec in wf.Schema)
             {
-                if (spec.Min is null && spec.Max is null) continue;
+                if (spec.Min is null && spec.Max is null)
+                {
+                    continue;
+                }
                 // Only params the DTO actually READS need enforcement; one the workflow ignores is inert (STJ drops it).
-                if (!byWireKey.TryGetValue(spec.Key, out PropertyInfo? prop)) continue;
+                if (!byWireKey.TryGetValue(spec.Key, out PropertyInfo? prop))
+                {
+                    continue;
+                }
 
                 RangeAttribute? range = prop.GetCustomAttribute<RangeAttribute>();
                 if (range is null)
@@ -43,11 +56,17 @@ public sealed class WorkflowParamBoundsCoverageTests
                     gaps.Add($"{wf.Name}.{spec.Key}: schema declares [{spec.Min}, {spec.Max}] but the DTO member '{prop.Name}' has no [Range]");
                     continue;
                 }
+
                 double? rmin = ToDouble(range.Minimum), rmax = ToDouble(range.Maximum);
                 if (spec.Min is double smin && rmin != smin)
+                {
                     gaps.Add($"{wf.Name}.{spec.Key}: [Range] min {rmin} != schema min {smin}");
+                }
+
                 if (spec.Max is double smax && rmax != smax)
+                {
                     gaps.Add($"{wf.Name}.{spec.Key}: [Range] max {rmax} != schema max {smax}");
+                }
             }
         }
 
@@ -61,9 +80,13 @@ public sealed class WorkflowParamBoundsCoverageTests
         while (t is not null)
         {
             if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Workflow<>))
+            {
                 return t.GetGenericArguments()[0];
+            }
+
             t = t.BaseType;
         }
+
         return null;
     }
 

@@ -33,7 +33,6 @@ public sealed class ComfyClient : IComfyClient
     /// replaces — see <see cref="Http"/>.
     /// </summary>
     private readonly Lock _clientLock = new();
-    private HttpClient? _http;
     private string _baseUrl = "";
     private string _gateToken = "";
 
@@ -161,7 +160,11 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>Where the renderer is, right now, without a trailing slash.</summary>
     private string BaseUrl
     {
-        get { _ = Http; return _baseUrl; }
+        get
+        {
+            _ = Http;
+            return _baseUrl;
+        }
     }
 
     /// <summary>
@@ -176,15 +179,21 @@ public sealed class ComfyClient : IComfyClient
             string? url = _endpoint.BaseUrl;
             string token = _endpoint.GateToken;
             if (string.IsNullOrWhiteSpace(url))
+            {
                 throw new InvalidOperationException(
                     "The renderer's address is not configured. Set it on the settings page (ComfyUI:BaseUrl).");
+            }
+
             url = url.TrimEnd('/');
 
             lock (_clientLock)
             {
-                if (_http is not null && url == _baseUrl && token == _gateToken) return _http;
+                if (field is not null && url == _baseUrl && token == _gateToken)
+                {
+                    return field;
+                }
 
-                HttpClient? replaced = _http;
+                HttpClient? replaced = field;
                 HttpClient http = _httpFactory.CreateClient();
                 http.BaseAddress = new Uri(url + "/");
                 http.Timeout = Timeout.InfiniteTimeSpan;   // no request timeout — generation runs as long as the backend needs
@@ -199,11 +208,11 @@ public sealed class ComfyClient : IComfyClient
                 // queue and can wreck their live gens.
                 http.DefaultRequestHeaders.Add(Header.GateToken, token.Length == 0 ? ComfyGateDefaults.GateToken : token);
 
-                _http = http;
+                field = http;
                 _baseUrl = url;
                 _gateToken = token;
                 replaced?.Dispose();
-                return _http;
+                return field;
             }
         }
     }
@@ -253,11 +262,14 @@ public sealed class ComfyClient : IComfyClient
     public async Task<IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>>> GetPresentFilesByKindAsync(
         CancellationToken ct = default)
     {
-        Dictionary<RequirementKind, List<string>> byKind = new Dictionary<RequirementKind, List<string>>();
+        Dictionary<RequirementKind, List<string>> byKind = [];
         foreach (IGrouping<RequirementKind, (RequirementKind Kind, string Node, string Input)> group in LoaderInputs.GroupBy(l => l.Kind))
         {
             HashSet<string> files = await ReadLoaderFilesAsync(group.Select(g => (g.Node, g.Input)).ToArray(), ct);
-            if (files.Count == 0) continue;
+            if (files.Count == 0)
+            {
+                continue;
+            }
 
             // Some packs publish the models they SUPPORT rather than the files present. SeedVR2 ships a registry
             // of ten builds with their hashes and offers all ten whether or not any are downloaded. Binding one
@@ -268,16 +280,29 @@ public sealed class ComfyClient : IComfyClient
             if (FolderForKind.TryGetValue(group.Key, out string? folder))
             {
                 HashSet<string> onDisk = await ReadFolderFilesAsync(folder, ct);
-                if (onDisk.Count > 0) files.IntersectWith(onDisk);
+                if (onDisk.Count > 0)
+                {
+                    files.IntersectWith(onDisk);
+                }
             }
 
-            if (files.Count == 0) continue;
-            if (!byKind.TryGetValue(group.Key, out List<string>? list)) byKind[group.Key] = list = new List<string>();
+            if (files.Count == 0)
+            {
+                continue;
+            }
+
+            if (!byKind.TryGetValue(group.Key, out List<string>? list))
+            {
+                byKind[group.Key] = list = [];
+            }
+
             list.AddRange(files);
         }
 
         if (byKind.Count == 0)
+        {
             throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
+        }
 
         return byKind.ToDictionary(
             kv => kv.Key,
@@ -290,19 +315,41 @@ public sealed class ComfyClient : IComfyClient
     /// endpoint is absent (older build) or the renderer is another machine, which the caller reads as "cannot resolve".</summary>
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetFolderPathsAsync(CancellationToken ct = default)
     {
-        Dictionary<string, IReadOnlyList<string>> result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, IReadOnlyList<string>> result = new(StringComparer.OrdinalIgnoreCase);
         using HttpResponseMessage resp = await Http.GetAsync(Endpoint.FolderPaths, ct);
-        if (!resp.IsSuccessStatusCode) return result;
+        if (!resp.IsSuccessStatusCode)
+        {
+            return result;
+        }
+
         using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
+        if (doc.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return result;
+        }
+
         foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
         {
-            if (prop.Value.ValueKind != JsonValueKind.Array) continue;
-            List<string> paths = new List<string>();
+            if (prop.Value.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            List<string> paths = [];
             foreach (JsonElement e in prop.Value.EnumerateArray())
-                if (e.GetString() is { Length: > 0 } p) paths.Add(p);
-            if (paths.Count > 0) result[prop.Name] = paths;
+            {
+                if (e.GetString() is { Length: > 0 } p)
+                {
+                    paths.Add(p);
+                }
+            }
+
+            if (paths.Count > 0)
+            {
+                result[prop.Name] = paths;
+            }
         }
+
         return result;
     }
 
@@ -335,7 +382,10 @@ public sealed class ComfyClient : IComfyClient
             ("SeedVR2LoadVAEModel", "model"),
         }, ct);
         if (files.Count == 0)
+        {
             throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
+        }
+
         return files;
     }
 
@@ -366,15 +416,28 @@ public sealed class ComfyClient : IComfyClient
     /// </summary>
     private async Task<HashSet<string>> ReadFolderFilesAsync(string folder, CancellationToken ct)
     {
-        HashSet<string> files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> files = new(StringComparer.OrdinalIgnoreCase);
         try
         {
             using HttpResponseMessage resp = await Http.GetAsync($"models/{folder}", ct);
-            if (!resp.IsSuccessStatusCode) return files;
+            if (!resp.IsSuccessStatusCode)
+            {
+                return files;
+            }
+
             using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return files;
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return files;
+            }
+
             foreach (JsonElement e in doc.RootElement.EnumerateArray())
-                if (e.GetString() is { Length: > 0 } f) files.Add(f);
+            {
+                if (e.GetString() is { Length: > 0 } f)
+                {
+                    _ = files.Add(f);
+                }
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
@@ -384,24 +447,43 @@ public sealed class ComfyClient : IComfyClient
             // be diagnosable, not invisible. Cancellation is no longer caught here, so it propagates as it should.
             _logger.LogWarning(ex, "ComfyUI models/{Folder} could not be read; that kind's list is not narrowed to on-disk files.", folder);
         }
+
         return files;
     }
 
     private async Task<HashSet<string>> ReadLoaderFilesAsync((string node, string key)[] pairs, CancellationToken ct)
     {
-        HashSet<string> files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> files = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string? node, string? key) in pairs)
         {
             using HttpResponseMessage resp = await Http.GetAsync($"object_info/{node}", ct);
-            if (!resp.IsSuccessStatusCode) continue;                                  // node not in this build
+            if (!resp.IsSuccessStatusCode)
+            {
+                continue;                                  // node not in this build
+            }
+
             using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-            if (!doc.RootElement.TryGetProperty(node, out JsonElement ne)) continue;           // ditto
+            if (!doc.RootElement.TryGetProperty(node, out JsonElement ne))
+            {
+                continue;           // ditto
+            }
+
             if (!ne.TryGetProperty(Field.Input, out JsonElement input)
                 || !input.TryGetProperty(Field.Required, out JsonElement required)
-                || !required.TryGetProperty(key, out JsonElement keyEl)) continue;             // node has no such input
+                || !required.TryGetProperty(key, out JsonElement keyEl))
+            {
+                continue;             // node has no such input
+            }
+
             foreach (JsonElement n in ComboOptions(keyEl))
-                if (n.GetString() is { Length: > 0 } f) files.Add(f);
+            {
+                if (n.GetString() is { Length: > 0 } f)
+                {
+                    _ = files.Add(f);
+                }
+            }
         }
+
         return files;
     }
 
@@ -416,15 +498,23 @@ public sealed class ComfyClient : IComfyClient
     /// </summary>
     public async Task<IReadOnlySet<string>> GetPresentNodesAsync(IEnumerable<string> nodes, CancellationToken ct = default)
     {
-        HashSet<string> present = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> present = new(StringComparer.Ordinal);
         foreach (string? node in nodes.Distinct(StringComparer.Ordinal))
         {
             using HttpResponseMessage resp = await Http.GetAsync($"object_info/{node}", ct);
-            if (!resp.IsSuccessStatusCode) continue;                                  // not in this build
+            if (!resp.IsSuccessStatusCode)
+            {
+                continue;                                  // not in this build
+            }
+
             using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             // ComfyUI answers 200 with {} for a node it does not know, so the body is the actual test.
-            if (doc.RootElement.TryGetProperty(node, out _)) present.Add(node);
+            if (doc.RootElement.TryGetProperty(node, out _))
+            {
+                _ = present.Add(node);
+            }
         }
+
         return present;
     }
 
@@ -437,11 +527,22 @@ public sealed class ComfyClient : IComfyClient
     /// </summary>
     internal static IEnumerable<JsonElement> ComboOptions(JsonElement keyEl)
     {
-        if (keyEl.ValueKind != JsonValueKind.Array || keyEl.GetArrayLength() == 0) return Array.Empty<JsonElement>();
-        if (keyEl[0].ValueKind == JsonValueKind.Array) return keyEl[0].EnumerateArray();
+        if (keyEl.ValueKind != JsonValueKind.Array || keyEl.GetArrayLength() == 0)
+        {
+            return Array.Empty<JsonElement>();
+        }
+
+        if (keyEl[0].ValueKind == JsonValueKind.Array)
+        {
+            return keyEl[0].EnumerateArray();
+        }
+
         if (keyEl.GetArrayLength() > 1 && keyEl[1].ValueKind == JsonValueKind.Object
             && keyEl[1].TryGetProperty(Field.Options, out JsonElement opts) && opts.ValueKind == JsonValueKind.Array)
+        {
             return opts.EnumerateArray();
+        }
+
         return Array.Empty<JsonElement>();
     }
 
@@ -456,17 +557,33 @@ public sealed class ComfyClient : IComfyClient
     /// </summary>
     public async Task<long?> GetTotalVramMbAsync(CancellationToken ct = default)
     {
-        if (_vramProbed) return _vramMb;
+        if (_vramProbed)
+        {
+            return _vramMb;
+        }
+
         using HttpResponseMessage resp = await Http.GetAsync(Endpoint.SystemStats, ct);
         await EnsureOk(resp, Op.GetSystemStats);
         using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         if (!doc.RootElement.TryGetProperty(Field.Devices, out JsonElement devs) || devs.ValueKind != JsonValueKind.Array || devs.GetArrayLength() == 0)
+        {
             return null;
+        }
+
         long maxTotal = 0;
         foreach (JsonElement d in devs.EnumerateArray())
+        {
             if (d.TryGetProperty(Field.VramTotal, out JsonElement v) && v.ValueKind == JsonValueKind.Number)
+            {
                 maxTotal = Math.Max(maxTotal, v.GetInt64());
-        if (maxTotal <= 0) return null;
+            }
+        }
+
+        if (maxTotal <= 0)
+        {
+            return null;
+        }
+
         _vramMb = maxTotal / (1024 * 1024);
         _vramProbed = true;
         return _vramMb;
@@ -484,12 +601,12 @@ public sealed class ComfyClient : IComfyClient
         (WorkflowConfiguration? cfg, IWorkflow? wf) = ResolveGenerate(configId);
         Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
-        wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
+        _ = wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
         string normAspect = ComfyGraph.NormalizeAspect(aspect);
-        WorkflowInputs inputs = new WorkflowInputs { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
+        WorkflowInputs inputs = new() { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
         // The aspect-RESOLVED render size (exactly what Build sizes the latent to). Refuse one outside the model's
         // documented envelope HERE, before the graph is built — the submit-path twin of the settings-write guard —
         // so an out-of-range width/height sent past the UI fails fast with the model's own numbers.
@@ -498,7 +615,7 @@ public sealed class ComfyClient : IComfyClient
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.
-        EtaSignature eta = new EtaSignature(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
+        EtaSignature eta = new(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
@@ -513,14 +630,23 @@ public sealed class ComfyClient : IComfyClient
     /// (never silently dropping one). Skips the backend probe entirely when the stack is empty — the common case.</summary>
     private async Task<IReadOnlyList<LoraSelection>> ValidateLorasAsync(IReadOnlyList<LoraSelection>? loras, CancellationToken ct)
     {
-        if (loras is not { Count: > 0 }) return Array.Empty<LoraSelection>();
+        if (loras is not { Count: > 0 })
+        {
+            return Array.Empty<LoraSelection>();
+        }
+
         IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> present = await GetPresentFilesByKindAsync(ct);
         HashSet<string> available = present.TryGetValue(RequirementKind.Lora, out IReadOnlyList<string>? l)
             ? new HashSet<string>(l, StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (LoraSelection lo in loras)
+        {
             if (string.IsNullOrWhiteSpace(lo.Name) || !available.Contains(lo.Name))
+            {
                 throw new RenderValidationException($"Unknown LoRA '{lo.Name}' — it is not available on this machine.");
+            }
+        }
+
         return loras;
     }
 
@@ -531,7 +657,10 @@ public sealed class ComfyClient : IComfyClient
         byte[]? lastFramePng = null, CancellationToken ct = default)
     {
         if (sourcePng is null || sourcePng.Length == 0)
+        {
             throw new RenderValidationException("A source image is required for editing.");
+        }
+
         (WorkflowConfiguration? cfg, IWorkflow? wf) = ResolveEdit(configId);
         // An empty instruction is valid: pixel-quantize ignores the prompt entirely, the pixelize workflows fall
         // back to their own style_prompt, and editors with a non-blank conditioning default handle it too.
@@ -544,12 +673,12 @@ public sealed class ComfyClient : IComfyClient
             string videoName = await UploadSourceVideoAsync(sourcePng, ct);
             Dictionary<string, object?> dict0 = MergeParamsDict(wf, cfg, overrides);
             ResolvedRequirements resolved0 = _catalog.Resolve(cfg);
-            wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
+            _ = wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
             SubmissionCommon common0 = ParamsCodec.Deserialize<SubmissionCommon>(dict0);
-            WorkflowInputs inputs0 = new WorkflowInputs { Positive = instruction, SourceVideoName = videoName };
+            WorkflowInputs inputs0 = new() { Positive = instruction, SourceVideoName = videoName };
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
-            EtaSignature eta0 = new EtaSignature(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
+            EtaSignature eta0 = new(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
             return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0);
         }
 
@@ -557,12 +686,17 @@ public sealed class ComfyClient : IComfyClient
         // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
         // serializes ComfyUI work so these fixed names can't race.
         string uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
-        List<string> refNames = new List<string>();
+        List<string> refNames = [];
         if (references is { Count: > 0 })
         {
             int ri = 0;
             foreach (byte[] r in references)
-                if (r is { Length: > 0 }) refNames.Add(await UploadImageAsync(r, $"forgemcp_edit_ref{ri++}.png", ct));
+            {
+                if (r is { Length: > 0 })
+                {
+                    refNames.Add(await UploadImageAsync(r, $"forgemcp_edit_ref{ri++}.png", ct));
+                }
+            }
         }
         // Inpaint: a SEPARATE white-on-black mask image (the source stays pristine — baking the mask into the source's
         // alpha would let PNG premultiplication zero the masked RGB, blacking out the region the model must preserve).
@@ -576,41 +710,56 @@ public sealed class ComfyClient : IComfyClient
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
         // Submit-pass normalization: snap the render resolution onto a clean ×VRES multiple (deliberate, no notice) now,
         // so Build reads the cached size rather than recomputing it. Source dims + the model's envelope live here.
-        wf.Normalize(dict, new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
+        _ = wf.Normalize(dict, new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         if (common.SnapResolution)
+        {
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
-        WorkflowInputs inputs = new WorkflowInputs { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
+        }
+
+        WorkflowInputs inputs = new() { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, ReferenceImageNames = refNames, MaskImageName = maskName, EndImageName = lastName };
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
         // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.
-        EtaSignature eta = new EtaSignature(srcW, srcH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
+        EtaSignature eta = new(srcW, srcH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveGenerate(string? configId)
     {
         if (string.IsNullOrWhiteSpace(configId))
+        {
             throw new RenderValidationException("A workflow configuration is required. Call list_models and pass one.");
+        }
+
         WorkflowConfiguration cfg = _catalog.FindConfig(configId)
                   ?? throw new RenderValidationException($"Unknown workflow configuration '{configId}'. Call list_models for valid ids.");
         IWorkflow wf = _registry.Find(cfg.WorkflowName)
                  ?? throw new RenderValidationException($"Workflow '{cfg.WorkflowName}' for configuration '{configId}' is not registered.");
         if (wf.Kind != WorkflowKind.Generate)
+        {
             throw new RenderValidationException($"Configuration '{configId}' is an edit workflow, not a generate one.");
+        }
+
         return (cfg, wf);
     }
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveEdit(string? configId)
     {
         if (string.IsNullOrWhiteSpace(configId))
+        {
             throw new RenderValidationException("An edit workflow configuration is required (one whose can_edit is true).");
+        }
+
         WorkflowConfiguration cfg = _catalog.FindConfig(configId)
                   ?? throw new RenderValidationException($"Unknown workflow configuration '{configId}'. Call list_models for valid ids.");
         IWorkflow wf = _registry.Find(cfg.WorkflowName)
                  ?? throw new RenderValidationException($"Workflow '{cfg.WorkflowName}' for configuration '{configId}' is not registered.");
         if (wf.Kind != WorkflowKind.Edit)
+        {
             throw new RenderValidationException($"Configuration '{configId}' is not an editing configuration. Pick one whose can_edit is true.");
+        }
+
         return (cfg, wf);
     }
 
@@ -618,20 +767,39 @@ public sealed class ComfyClient : IComfyClient
     /// defaults into a mutable bag (so a normalization pass can clamp values before it's deserialized to a typed DTO).</summary>
     private Dictionary<string, object?> MergeParamsDict(IWorkflow wf, WorkflowConfiguration cfg, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
-        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (ParamSpec spec in wf.Schema) if (spec.Default is not null) v[spec.Key] = spec.Default;
-        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec spec in wf.Schema)
+        {
+            if (spec.Default is not null)
+            {
+                v[spec.Key] = spec.Default;
+            }
+        }
+
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params)
+        {
+            v[kv.Key] = kv.Value.Value;
+        }
         // Then THIS MACHINE's overrides, from the workflow's settings page: the render size for each aspect, the
         // step count, whatever the configuration exposes. Between the shipped configuration and the request,
         // because that is what they are — the operator's answer for this box, which a caller may still override
         // per generation unless the parameter is locked.
-        foreach (KeyValuePair<string, JsonElement> kv in _catalog.ParamOverridesFor(cfg.Id)) v[kv.Key] = kv.Value;
+        foreach (KeyValuePair<string, JsonElement> kv in _catalog.ParamOverridesFor(cfg.Id))
+        {
+            v[kv.Key] = kv.Value;
+        }
         // A locked param (object-form "exposed": false) is a baked value the caller cannot override — its request
         // value is dropped so the configuration's setting is enforced on every generation. All other keys overlay.
         if (overrides is not null)
+        {
             foreach (KeyValuePair<string, JsonElement> kv in overrides)
+            {
                 if (!(cfg.Params.TryGetValue(kv.Key, out ConfigParam? cp) && cp.Locked))
+                {
                     v[kv.Key] = kv.Value;
+                }
+            }
+        }
 
         // A parameter declared IsModelRef holds a SLOT ID; substitute the file this machine has bound to it. Carrying
         // filenames directly here would put a second set of one person's filenames in the configurations, outside the
@@ -652,21 +820,36 @@ public sealed class ComfyClient : IComfyClient
     public QueueNormalizationResult NormalizeForQueue(
         string? configId, RenderKind kind, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
-        WorkflowConfiguration cfg; IWorkflow wf;
-        try { (cfg, wf) = kind == RenderKind.Edit ? ResolveEdit(configId) : ResolveGenerate(configId); }
-        catch (RenderValidationException) { return new QueueNormalizationResult(null, null); }
+        WorkflowConfiguration cfg;
+        IWorkflow wf;
+        try
+        {
+            (cfg, wf) = kind == RenderKind.Edit ? ResolveEdit(configId) : ResolveGenerate(configId);
+        }
+        catch (RenderValidationException)
+        {
+            return new QueueNormalizationResult(null, null);
+        }
 
         Dictionary<string, object?> merged = MergeParamsDict(wf, cfg, overrides);
-        Dictionary<string, object?> before = new Dictionary<string, object?>(merged, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, object?> before = new(merged, StringComparer.OrdinalIgnoreCase);
         IReadOnlyList<string> notices = wf.Normalize(merged, NormalizeContext.Empty);   // enqueue pass: params only (frame snap), no source/requirements
-        if (notices.Count == 0) return new QueueNormalizationResult(null, null);   // nothing changed → caller keeps the original overrides
+        if (notices.Count == 0)
+        {
+            return new QueueNormalizationResult(null, null);   // nothing changed → caller keeps the original overrides
+        }
 
         Dictionary<string, JsonElement> outv = overrides is null
             ? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
             : new Dictionary<string, JsonElement>(overrides, StringComparer.Ordinal);
         foreach (string k in merged.Keys)
+        {
             if (!before.TryGetValue(k, out object? ov) || !Equals(ov, merged[k]))
+            {
                 outv[k] = JsonSerializer.SerializeToElement(merged[k]);
+            }
+        }
+
         return new QueueNormalizationResult(outv, string.Join(Separator.Notice, notices));
     }
 
@@ -692,15 +875,27 @@ public sealed class ComfyClient : IComfyClient
     public async Task<GeneratedImage?> PollResultAsync(string promptId, CancellationToken ct = default)
     {
         using HttpResponseMessage hresp = await Http.GetAsync($"history/{promptId}", ct);
-        if (!hresp.IsSuccessStatusCode) return null;
+        if (!hresp.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
         using JsonDocument hdoc = await JsonDocument.ParseAsync(await hresp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (!hdoc.RootElement.TryGetProperty(promptId, out JsonElement entry)) return null;
+        if (!hdoc.RootElement.TryGetProperty(promptId, out JsonElement entry))
+        {
+            return null;
+        }
 
         if (entry.TryGetProperty(Field.Status, out JsonElement status) &&
             status.TryGetProperty(Field.StatusStr, out JsonElement ss) && ss.GetString() == Field.Error)
+        {
             throw new RenderValidationException(DescribeComfyError(status, promptId));
+        }
 
-        if (!entry.TryGetProperty(Field.Outputs, out JsonElement outputs)) return null;
+        if (!entry.TryGetProperty(Field.Outputs, out JsonElement outputs))
+        {
+            return null;
+        }
 
         // Scan ALL output nodes: the produced clip/image is the first node carrying `images` (SaveAnimatedWEBP /
         // SaveImage). The pixel-quantize (fp) node additionally surfaces its derived `palette` (inline #RRGGBB array)
@@ -714,21 +909,32 @@ public sealed class ComfyClient : IComfyClient
         {
             JsonElement v = node.Value;
             if (resultImg is null && v.TryGetProperty(Field.Images, out JsonElement images) && images.GetArrayLength() > 0)
+            {
                 resultImg = images[0];
+            }
+
             if (paletteJson is null && v.TryGetProperty(Field.Palette, out JsonElement pal) && pal.ValueKind == JsonValueKind.Array)
+            {
                 paletteJson = pal.GetRawText();
+            }
             // The fp quantize also surfaces its pooled label frequencies (floats, indexed by palette order) — the
             // second global a single-frame replay needs to reproduce the batch's rarity weighting exactly.
             if (frequenciesJson is null && v.TryGetProperty(Field.Frequencies, out JsonElement fq) && fq.ValueKind == JsonValueKind.Array)
+            {
                 frequenciesJson = fq.GetRawText();
+            }
+
             if (losslessFrames is null && v.TryGetProperty(Field.LosslessFrames, out JsonElement lf)
                 && lf.ValueKind == JsonValueKind.Array && lf.GetArrayLength() > 0)
             {
                 losslessFrames = new List<byte[]>(lf.GetArrayLength());
                 foreach (JsonElement fr in lf.EnumerateArray())
+                {
                     losslessFrames.Add(await Http.GetByteArrayAsync(ViewUrl(fr), ct));
+                }
             }
         }
+
         if (resultImg is { } img)
         {
             string file = img.GetProperty(Field.Filename).GetString()
@@ -738,6 +944,7 @@ public sealed class ComfyClient : IComfyClient
             byte[] bytes = await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
             return new GeneratedImage(bytes, string.Empty, file, sub, type, paletteJson, losslessFrames, frequenciesJson);
         }
+
         return null;
     }
 
@@ -757,19 +964,30 @@ public sealed class ComfyClient : IComfyClient
     private string DescribeComfyError(JsonElement status, string promptId)
     {
         if (status.TryGetProperty(Field.Messages, out JsonElement msgs) && msgs.ValueKind == JsonValueKind.Array)
+        {
             foreach (JsonElement m in msgs.EnumerateArray())
             {
                 if (m.ValueKind != JsonValueKind.Array || m.GetArrayLength() < 2 || m[0].GetString() != Field.ExecutionError)
+                {
                     continue;
+                }
+
                 JsonElement p = m[1];
-                string? Get(string k) => p.TryGetProperty(k, out JsonElement v) ? v.GetString() : null;
-                string? node = Get(Field.NodeType); string? nid = Get(Field.NodeId);
+                string? Get(string k)
+                {
+                    return p.TryGetProperty(k, out JsonElement v) ? v.GetString() : null;
+                }
+
+                string? node = Get(Field.NodeType);
+                string? nid = Get(Field.NodeId);
                 string where = node is null ? "" : $" in {node}{(nid is null ? "" : $" (node {nid})")}";
 
                 _logger.LogError("ComfyUI execution_error (prompt {PromptId}){Where}: {Type}", promptId, where, Get(Field.ExceptionType));
 
                 return $"ComfyUI error{where}: {Get(Field.ExceptionType)}: {Get(Field.ExceptionMessage)}";
             }
+        }
+
         return "ComfyUI reported an error but included no execution_error detail.";
     }
 
@@ -792,6 +1010,7 @@ public sealed class ComfyClient : IComfyClient
                 _logger.LogWarning("ComfyUI GET queue answered {Status}; treating the backend queue as unknown.", (int)resp.StatusCode);
                 return null;
             }
+
             using JsonDocument doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             return new BackendQueue(PromptIdsIn(doc.RootElement, Field.QueueRunning),
                                     PromptIdsIn(doc.RootElement, Field.QueuePending));
@@ -811,12 +1030,21 @@ public sealed class ComfyClient : IComfyClient
     /// <c>[number, prompt_id, prompt, extra_data, outputs]</c>; the prompt id is element 1.</summary>
     private static IReadOnlySet<string> PromptIdsIn(JsonElement root, string key)
     {
-        HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
-        if (!root.TryGetProperty(key, out JsonElement arr) || arr.ValueKind != JsonValueKind.Array) return ids;
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        if (!root.TryGetProperty(key, out JsonElement arr) || arr.ValueKind != JsonValueKind.Array)
+        {
+            return ids;
+        }
+
         foreach (JsonElement entry in arr.EnumerateArray())
+        {
             if (entry.ValueKind == JsonValueKind.Array && entry.GetArrayLength() > 1
                 && entry[1].ValueKind == JsonValueKind.String && entry[1].GetString() is { Length: > 0 } pid)
-                ids.Add(pid);
+            {
+                _ = ids.Add(pid);
+            }
+        }
+
         return ids;
     }
 
@@ -869,11 +1097,19 @@ public sealed class ComfyClient : IComfyClient
     private static (string filename, string subfolder, string type) DecodeId(string id)
     {
         int firstColon = id.IndexOf(':');
-        if (firstColon < 0) return (id, "", "output");
+        if (firstColon < 0)
+        {
+            return (id, "", "output");
+        }
+
         string type = id[..firstColon];
         string rest = id[(firstColon + 1)..];
         int secondColon = rest.IndexOf(':');
-        if (secondColon < 0) return (rest, "", type);
+        if (secondColon < 0)
+        {
+            return (rest, "", type);
+        }
+
         return (rest[(secondColon + 1)..], rest[..secondColon], type);
     }
 
@@ -882,7 +1118,7 @@ public sealed class ComfyClient : IComfyClient
     public async Task<WebSocket> ConnectProgressSocketAsync(CancellationToken ct)
     {
         string wsUrl = BaseUrl.Replace(Scheme.Https, Scheme.Wss).Replace(Scheme.Http, Scheme.Ws) + "/ws?clientId=" + _clientId;
-        ClientWebSocket socket = new ClientWebSocket();
+        ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri(wsUrl), ct);
         return socket;
     }
@@ -896,8 +1132,8 @@ public sealed class ComfyClient : IComfyClient
     /// stored name (returned) is what the graph references.</summary>
     private async Task<string> UploadFileAsync(byte[] bytes, string filename, string contentType, CancellationToken ct)
     {
-        using MultipartFormDataContent form = new MultipartFormDataContent();
-        ByteArrayContent file = new ByteArrayContent(bytes);
+        using MultipartFormDataContent form = new();
+        ByteArrayContent file = new(bytes);
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
         form.Add(file, UploadForm.ImageField, filename);
         form.Add(new StringContent(UploadForm.OverwriteValue), UploadForm.OverwriteField);
@@ -920,6 +1156,7 @@ public sealed class ComfyClient : IComfyClient
             byte[] mp4 = await _media.WebpToMp4Async(bytes, null, ct);
             return await UploadFileAsync(mp4, UploadName.EditSourceVideo, Mime.Mp4, ct);
         }
+
         (string? ext, string? mime) = DetectVideoContainer(bytes)
             ?? throw new RenderValidationException("The source isn't a video clip this editor can read (expected an animated WEBP, MP4, or WEBM).");
         return await UploadFileAsync(bytes, "forgemcp_edit_src." + ext, mime, ct);
@@ -930,14 +1167,26 @@ public sealed class ComfyClient : IComfyClient
     /// or a still image). Header-only; no decode.</summary>
     private static (string ext, string mime)? DetectVideoContainer(ReadOnlySpan<byte> b)
     {
-        if (b.Length >= 12 && b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return ("mp4", "video/mp4");
-        if (b.Length >= 4 && b[0] == 0x1A && b[1] == 0x45 && b[2] == 0xDF && b[3] == 0xA3) return ("webm", "video/webm");
+        if (b.Length >= 12 && b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p')
+        {
+            return ("mp4", "video/mp4");
+        }
+
+        if (b.Length >= 4 && b[0] == 0x1A && b[1] == 0x45 && b[2] == 0xDF && b[3] == 0xA3)
+        {
+            return ("webm", "video/webm");
+        }
+
         return null;
     }
 
     private static async Task EnsureOk(HttpResponseMessage resp, string what)
     {
-        if (resp.IsSuccessStatusCode) return;
+        if (resp.IsSuccessStatusCode)
+        {
+            return;
+        }
+
         string body = await resp.Content.ReadAsStringAsync();
         throw new HttpRequestException($"ComfyUI {what} failed: {(int)resp.StatusCode} {resp.ReasonPhrase}\n{body}");
     }

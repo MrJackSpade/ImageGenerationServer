@@ -60,6 +60,6 @@ public sealed class UserCryptoTests
     public void Decrypt_WithWrongKey_Throws()
     {
         string cipher = UserCrypto.EncryptRandomized(NewKeys(), "secret");
-        Assert.Throws<AuthenticationTagMismatchException>(() => UserCrypto.DecryptTolerant(NewKeys(), cipher));
+        _ = Assert.Throws<AuthenticationTagMismatchException>(() => UserCrypto.DecryptTolerant(NewKeys(), cipher));
     }
 }

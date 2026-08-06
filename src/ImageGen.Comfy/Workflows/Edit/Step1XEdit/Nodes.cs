@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-
 namespace ImageGen.Comfy.Edit.Step1XEdit;
 
 /// <summary>Step1X-Edit's own node ids (source LoadImage reuses the inherited <c>EditNodes.Source</c>), plus the text

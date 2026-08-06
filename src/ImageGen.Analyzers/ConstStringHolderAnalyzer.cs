@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using System.Collections.Immutable;
-using System.Linq;
 
 namespace ImageGen.Analyzers;
 
@@ -70,18 +69,28 @@ public sealed class ConstStringHolderAnalyzer : DiagnosticAnalyzer
     {
         IFieldSymbol field = (IFieldSymbol)context.Symbol;
         if (!field.IsConst || field.Type.SpecialType != SpecialType.System_String)
+        {
             return;
+        }
+
         if (field.ContainingType is not { } container)
+        {
             return;
+        }
+
         if (DisqualifyingMember(container) is not { } reason)
+        {
             return;
+        }
 
         foreach (Location location in field.Locations)
+        {
             if (location.IsInSource)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Rule, location, field.Name, reason));
                 return;
             }
+        }
     }
 
     /// <summary>
@@ -93,18 +102,32 @@ public sealed class ConstStringHolderAnalyzer : DiagnosticAnalyzer
     private static string? DisqualifyingMember(INamedTypeSymbol container)
     {
         if (container.TypeKind != TypeKind.Class)
+        {
             return container.TypeKind == TypeKind.Struct ? "a struct" : $"a {container.TypeKind.ToString().ToLowerInvariant()}";
+        }
+
         if (container.IsRecord)
+        {
             return "a record";
+        }
+
         if (!container.IsStatic)
+        {
             return "a non-static class";
+        }
 
         foreach (ISymbol member in container.GetMembers())
         {
             if (member.IsImplicitlyDeclared)
+            {
                 continue;
+            }
+
             if (member is IFieldSymbol { IsConst: true } f && f.Type.SpecialType == SpecialType.System_String)
+            {
                 continue;
+            }
+
             return member switch
             {
                 IFieldSymbol => $"a non-const-string field '{member.Name}'",
@@ -114,6 +137,7 @@ public sealed class ConstStringHolderAnalyzer : DiagnosticAnalyzer
                 _ => $"a member '{member.Name}'",
             };
         }
+
         return null;
     }
 }

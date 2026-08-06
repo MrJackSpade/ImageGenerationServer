@@ -1,8 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.PixelQuantize;
 
@@ -12,19 +9,19 @@ namespace ImageGen.Comfy.Edit.PixelQuantize;
 public sealed record PixelQuantizeFpParams : PixelQuantizeParams
 {
     [JsonPropertyName(WorkflowParamKeys.Thicken)]
-    [Range(0.0, 8.0)]                                       public required double Thicken { get; init; }
+    [Range(0.0, 8.0)] public required double Thicken { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Tau)]
-    [Range(0.0, 2.0)]                                       public required double Tau { get; init; }
+    [Range(0.0, 2.0)] public required double Tau { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lam)]
-    [Range(0.001, 0.2)]                                     public required double Lam { get; init; }
+    [Range(0.001, 0.2)] public required double Lam { get; init; }
     [JsonPropertyName(WorkflowParamKeys.K)]
-    [Range(2, 128)]                                         public required int K { get; init; }
+    [Range(2, 128)] public required int K { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Beta)]
-    [Range(0.0, 4.0)]                                       public required double Beta { get; init; }
+    [Range(0.0, 4.0)] public required double Beta { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Step)]
-    [Range(1.0, 20.0)]                                      public required double Step { get; init; }
+    [Range(1.0, 20.0)] public required double Step { get; init; }
     /// <summary>Replay globals from a previous fp run — genuinely optional WITHIN the fp contract (empty = derive from
     /// this image), so nullable strings, not a branch on another shape.</summary>
-    [JsonPropertyName(WorkflowParamKeys.FpPalette)]         public string? FpPalette { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.FpFrequencies)]     public string? FpFrequencies { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FpPalette)] public string? FpPalette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FpFrequencies)] public string? FpFrequencies { get; init; }
 }

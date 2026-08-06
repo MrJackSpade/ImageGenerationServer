@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenSketchKeras;
 
@@ -10,7 +8,7 @@ namespace ImageGen.Comfy.Edit.LineThickenSketchKeras;
 public sealed record LineThickenSketchKerasParams
 {
     [JsonPropertyName(WorkflowParamKeys.Thickness)]
-    [Range(0, 32)]                                  public required int Thickness { get; init; }
+    [Range(0, 32)] public required int Thickness { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Threshold)]
-    [Range(0.0, 1.0)]                               public required double Threshold { get; init; }
+    [Range(0.0, 1.0)] public required double Threshold { get; init; }
 }

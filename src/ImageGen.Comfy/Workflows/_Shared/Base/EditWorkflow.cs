@@ -47,6 +47,7 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
             vae0 = VAELoader.VaeOut(EditNodes.Vae);
             clip0 = BuildClipLoader(g, EditNodes.Clip, req.TextEncoders, clipType);
         }
+
         g[EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") };
     }
 
@@ -54,9 +55,12 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
     /// 2→Dual, 3→Triple, 4→Quadruple). Byte-identical to <see cref="EditWorkflowBase"/>'s.</summary>
     protected static Output<Slot.Clip> BuildClipLoader(ComfyWorkflowGraph g, string nodeId, IReadOnlyList<string> encoders, string? clipType)
     {
-        string At(int i) => i < encoders.Count && !string.IsNullOrWhiteSpace(encoders[i])
+        string At(int i)
+        {
+            return i < encoders.Count && !string.IsNullOrWhiteSpace(encoders[i])
             ? encoders[i]
             : throw new RenderValidationException($"This configuration needs text encoder #{i + 1} and none is bound to that slot on this machine.");
+        }
 
         g[nodeId] = encoders.Count switch
         {

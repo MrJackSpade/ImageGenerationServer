@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Edit.ChronoEdit;
@@ -7,8 +6,8 @@ namespace ImageGen.Comfy.Edit.ChronoEdit;
 public sealed record ImageFromBatch : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ImageFromBatch;
-    [JsonPropertyName("image")]       public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
     [JsonPropertyName("batch_index")] public required int BatchIndex { get; init; }
-    [JsonPropertyName("length")]      public required int Length { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }

@@ -71,14 +71,24 @@ internal static class PixelizeSchema
     /// model-patch node from the ramp values (the caller reads them off its typed params DTO).</summary>
     public static PixelManifoldProjection Projection(Output<Slot.Model> model, Output<Slot.Vae> vae, int gw, int gh,
         string palette, int vres, string method, double wStart, double wEnd, double startPercent, double endPercent, int projectEvery) =>
-        new PixelManifoldProjection
+        new()
         {
-            Model = model, Vae = vae, GridW = gw, GridH = gh, Palette = palette, Method = method,
-            WStart = wStart, WEnd = wEnd, StartPercent = startPercent, EndPercent = endPercent,
-            ProjectEvery = projectEvery, VirtualResolution = vres,
+            Model = model,
+            Vae = vae,
+            GridW = gw,
+            GridH = gh,
+            Palette = palette,
+            Method = method,
+            WStart = wStart,
+            WEnd = wEnd,
+            StartPercent = startPercent,
+            EndPercent = endPercent,
+            ProjectEvery = projectEvery,
+            VirtualResolution = vres,
         };
 
     /// <summary>The authoritative final PixelQuantize render (node "36").</summary>
     public static PixelQuantize FinalQuantize(Output<Slot.Image> image, int gw, int gh, string palette, int vres, string finalMethod) =>
-        new PixelQuantize { Image = image, GridW = gw, GridH = gh, Palette = palette, Method = finalMethod, VirtualResolution = vres };
+        new()
+        { Image = image, GridW = gw, GridH = gh, Palette = palette, Method = finalMethod, VirtualResolution = vres };
 }

@@ -1,7 +1,5 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
 
 namespace ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
 
@@ -10,7 +8,7 @@ namespace ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
 public sealed record LineThickenAnime2SketchParams
 {
     [JsonPropertyName(WorkflowParamKeys.Thickness)]
-    [Range(0, 32)]                                   public required int Thickness { get; init; }
+    [Range(0, 32)] public required int Thickness { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Resolution)]
-    [Range(256, 2048)]                               public required int Resolution { get; init; }
+    [Range(256, 2048)] public required int Resolution { get; init; }
 }

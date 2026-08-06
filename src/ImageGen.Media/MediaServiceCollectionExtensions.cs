@@ -8,8 +8,8 @@ public static class MediaServiceCollectionExtensions
     /// <summary>Add the media processor with the given options.</summary>
     public static IServiceCollection AddMedia(this IServiceCollection services, MediaOptions options)
     {
-        services.AddSingleton(options);
-        services.AddSingleton<IMediaProcessor, MediaProcessor>();
+        _ = services.AddSingleton(options);
+        _ = services.AddSingleton<IMediaProcessor, MediaProcessor>();
         return services;
     }
 }

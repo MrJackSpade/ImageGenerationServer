@@ -1,6 +1,3 @@
-using ImageGen.Comfy;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Generation.Chroma;
 
 /// <summary>Chroma's only extra node id (reuses the inherited txt2img <c>Nodes.*</c>).</summary>

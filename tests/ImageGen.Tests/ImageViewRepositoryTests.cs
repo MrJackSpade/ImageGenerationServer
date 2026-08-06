@@ -74,9 +74,9 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("view-all-alice");
         User bob = await fixture.NewUserAsync("view-all-bob");
-        await fixture.History.AddAsync(Entry(alice.Id, "a1"), Ct);
-        await fixture.History.AddAsync(Entry(alice.Id, "a2"), Ct);
-        await fixture.History.AddAsync(Entry(bob.Id, "b1"), Ct);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "a1"), Ct);
+        _ = await fixture.History.AddAsync(Entry(alice.Id, "a2"), Ct);
+        _ = await fixture.History.AddAsync(Entry(bob.Id, "b1"), Ct);
         await fixture.ImageViews.MarkViewedAsync(alice.Id, "a1", Now, Ct);   // already seen
 
         int marked = await fixture.ImageViews.MarkAllViewedAsync(alice.Id, Now.AddDays(1), Ct);
@@ -95,7 +95,7 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
     public async Task Deleting_an_image_removes_its_view_record()
     {
         User user = await fixture.NewUserAsync("view-delete");
-        await fixture.History.AddAsync(Entry(user.Id, "doomed"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "doomed"), Ct);
         await fixture.ImageViews.MarkViewedAsync(user.Id, "doomed", Now, Ct);
 
         Assert.True(await fixture.ImageDeletions.DeleteEverywhereAsync(user.Id, "doomed", Ct));
@@ -108,8 +108,8 @@ public sealed class ImageViewRepositoryTests(TestDatabaseFixture fixture)
         await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
         await using DbCommand cmd = conn.Command(
             "SELECT ViewedAtUtc FROM dbo.ImageView WHERE UserId = @u AND GatewayImageId = @i;");
-        cmd.AddParam("@u", userId);
-        cmd.AddParam("@i", imageId);
+        _ = cmd.AddParam("@u", userId);
+        _ = cmd.AddParam("@i", imageId);
         // Convert, don't unbox: SQL Server hands back a DateTime, SQLite the ISO-8601 TEXT it stores.
         return DateTime.SpecifyKind(Convert.ToDateTime(await cmd.ExecuteScalarAsync(Ct)), DateTimeKind.Utc);
     }

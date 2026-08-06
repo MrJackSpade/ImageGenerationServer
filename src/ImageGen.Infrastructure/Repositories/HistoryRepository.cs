@@ -33,7 +33,7 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
     public async Task<PagedResult<HistoryEntry>> GetPageAsync(HistoryQuery query, CancellationToken ct)
     {
         query.Validate();   // an out-of-range page/window is REFUSED, never clamped (see HistoryQuery.Validate)
-        (long userId, int _, int _, string? artist, string? tag, string? model, string? search, bool unviewedOnly) = query;
+        (long userId, _, _, string? artist, string? tag, string? model, string? search, bool unviewedOnly) = query;
         int page = query.Page;
         int pageSize = query.PageSize;
 
@@ -41,28 +41,38 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
         string? artistEnc = string.IsNullOrWhiteSpace(artist) ? null : await _cipher.DeterministicAsync(userId, artist, ct);
         string? tagEnc = string.IsNullOrWhiteSpace(tag) ? null : await _cipher.DeterministicAsync(userId, tag, ct);
 
-        StringBuilder where = new StringBuilder("WHERE h.UserId = @userId");
+        StringBuilder where = new("WHERE h.UserId = @userId");
         // An artist page shows what THAT artist's style looks like, so an image made with two or more artists
         // belongs to none of them — a blend is not evidence of either, and claimed by every one of their pages it
         // pollutes all of them. Carrying the mark is therefore not enough: no OTHER artist mark may be present.
         // (Deterministic encryption means equal plaintext is equal ciphertext, so comparing ciphertext here really
         // does mean "a different artist".) The image stays reachable through the gallery, history and search.
         if (artistEnc is not null)
-            where.Append(" AND EXISTS (SELECT 1 FROM dbo.HistoryMark m WHERE m.HistoryEntryId = h.Id "
+        {
+            _ = where.Append(" AND EXISTS (SELECT 1 FROM dbo.HistoryMark m WHERE m.HistoryEntryId = h.Id "
                 + "AND m.Kind = 1 AND m.Token = @artist)"
                 + " AND NOT EXISTS (SELECT 1 FROM dbo.HistoryMark mo WHERE mo.HistoryEntryId = h.Id "
                 + "AND mo.Kind = 1 AND mo.Token <> @artist)");
+        }
+
         if (tagEnc is not null)
-            where.Append(" AND EXISTS (SELECT 1 FROM dbo.HistoryMark t WHERE t.HistoryEntryId = h.Id "
+        {
+            _ = where.Append(" AND EXISTS (SELECT 1 FROM dbo.HistoryMark t WHERE t.HistoryEntryId = h.Id "
                 + "AND t.Kind = 0 AND t.Token = @tag)");
+        }
+
         string? modelFilter = string.IsNullOrWhiteSpace(model) ? null : model;   // ModelId is stored plain — direct equality
         if (modelFilter is not null)
-            where.Append(" AND h.ModelId = @model");
+        {
+            _ = where.Append(" AND h.ModelId = @model");
+        }
         // Unviewed is the absence of a view row (the table records only what HAS been opened), so this is an
         // anti-join and takes no parameter. Same predicate MarkAllViewedAsync uses to find the backlog.
         if (unviewedOnly)
-            where.Append(" AND NOT EXISTS (SELECT 1 FROM dbo.ImageView v "
+        {
+            _ = where.Append(" AND NOT EXISTS (SELECT 1 FROM dbo.ImageView v "
                 + "WHERE v.UserId = h.UserId AND v.GatewayImageId = h.GatewayImageId)");
+        }
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
@@ -74,9 +84,12 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
         List<long> ids = rows.Select(r => r.Id).ToList();
         Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
         Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, Sql.LoraTable, Sql.LoraParent, ids, userId, _cipher, ct);
-        List<HistoryEntry> items = new List<HistoryEntry>(rows.Count);
+        List<HistoryEntry> items = new(rows.Count);
         foreach (HistoryEntry e in rows)
+        {
             items.Add(await WithChildrenAsync(e, marks, loras, ct));
+        }
+
         return new PagedResult<HistoryEntry>(items, total, page, pageSize);
     }
 
@@ -92,18 +105,20 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
             total = await countCmd.ScalarInt32Async(ct);
         }
 
-        List<HistoryEntry> rows = new List<HistoryEntry>();
+        List<HistoryEntry> rows = [];
         string pageSql = $@"SELECT {Prefixed(Sql.EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
 ORDER BY h.CreatedAtUtc DESC, h.Id DESC
 {_dialect.Paginate("@skip", "@take")};";
         await using (DbCommand pageCmd = conn.Command(pageSql))
         {
             AddFilterParams(pageCmd, userId, artistEnc, tagEnc, modelFilter);
-            pageCmd.AddParam("@skip", (page - 1) * pageSize);
-            pageCmd.AddParam("@take", pageSize);
+            _ = pageCmd.AddParam("@skip", (page - 1) * pageSize);
+            _ = pageCmd.AddParam("@take", pageSize);
             await using DbDataReader reader = await pageCmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 rows.Add(MapEntry(reader));
+            }
         }
 
         return (rows, total);
@@ -119,7 +134,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
         DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? modelFilter,
         string[] terms, int page, int pageSize, CancellationToken ct)
     {
-        List<HistoryEntry> candidates = new List<HistoryEntry>();
+        List<HistoryEntry> candidates = [];
         string sql = $@"SELECT {Prefixed(Sql.EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
 ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         await using (DbCommand cmd = conn.Command(sql))
@@ -127,17 +142,21 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
             AddFilterParams(cmd, userId, artistEnc, tagEnc, modelFilter);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 candidates.Add(MapEntry(reader));
+            }
         }
 
         // Matched rows are kept as they came off the reader (still ciphertext); WithMarksAsync decrypts the page.
-        List<HistoryEntry> matches = new List<HistoryEntry>();
+        List<HistoryEntry> matches = [];
         foreach (HistoryEntry e in candidates)
         {
             string prompt = await _cipher.DecryptAsync(userId, e.Prompt, ct);
             string? raw = await _cipher.DecryptNullableAsync(userId, e.RawPrompt, ct);
             if (PromptSearch.Matches(terms, prompt, raw))
+            {
                 matches.Add(e);
+            }
         }
 
         List<HistoryEntry> rows = matches.Skip((page - 1) * pageSize).Take(pageSize).ToList();
@@ -149,14 +168,19 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT {Sql.EntryColumns} FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@img", gatewayImageId);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@img", gatewayImageId);
 
         HistoryEntry? entry;
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             entry = await reader.ReadAsync(ct) ? MapEntry(reader) : null;
+        }
+
         if (entry is null)
+        {
             return null;
+        }
 
         Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, [entry.Id], userId, _cipher, ct);
         Dictionary<long, List<HistoryLora>> loras = await LoraIo.LoadAsync(conn, Sql.LoraTable, Sql.LoraParent, [entry.Id], userId, _cipher, ct);
@@ -184,14 +208,18 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
     private async Task<IReadOnlyDictionary<string, string>> GetLatestImageIdsByKindAsync(
         long userId, IReadOnlyCollection<string> names, TokenKind kind, bool singleTokenOnly, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> result = new(StringComparer.OrdinalIgnoreCase);
         if (names.Count == 0)
+        {
             return result;
+        }
 
         List<string> list = names.ToList();
         string[] ps = new string[list.Count];
         for (int i = 0; i < list.Count; i++)
+        {
             ps[i] = "@a" + i;
+        }
 
         // Kind is a trusted enum value, inlined like the other Kind comparisons in this file (never user input).
         int k = (int)kind;
@@ -213,16 +241,26 @@ SELECT Token, GatewayImageId FROM (
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         for (int i = 0; i < list.Count; i++)
-            cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, list[i], ct));
+        {
+            _ = cmd.AddParam(ps[i], await _cipher.DeterministicAsync(userId, list[i], ct));
+        }
 
-        List<TokenImageRow> raw = new List<TokenImageRow>();
+        List<TokenImageRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new TokenImageRow(reader.GetString(0), reader.GetString(1)));
+            }
+        }
+
         foreach (TokenImageRow row in raw)
+        {
             result[await _cipher.DecryptDeterministicAsync(userId, row.Token, ct)] = row.ImageId;
+        }
+
         return result;
     }
 
@@ -242,12 +280,15 @@ ORDER BY Uses DESC, ModelFriendly ASC;";
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
 
-        List<HistoryWorkflowUse> rows = new List<HistoryWorkflowUse>();
+        List<HistoryWorkflowUse> rows = [];
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
+        {
             rows.Add(new HistoryWorkflowUse(reader.GetString(0), reader.GetString(1), reader.AsInt32(2)));
+        }
+
         return rows;
     }
 
@@ -269,11 +310,14 @@ ORDER BY Uses DESC, ModelFriendly ASC;";
         await using (DbCommand cmd = conn.Command(
             "SELECT CreatedAtUtc, Id FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;"))
         {
-            cmd.AddParam("@userId", userId);
-            cmd.AddParam("@img", gatewayImageId);
+            _ = cmd.AddParam("@userId", userId);
+            _ = cmd.AddParam("@img", gatewayImageId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
+            {
                 return new HistoryNeighbors(null, null);
+            }
+
             anchorCreated = reader.GetDateTime(0);
             anchorId = reader.GetInt64(1);
         }
@@ -294,10 +338,10 @@ ORDER BY Uses DESC, ModelFriendly ASC;";
             $"SELECT {_dialect.TopPrefix("@take")}GatewayImageId FROM dbo.HistoryEntry WHERE UserId = @userId " +
             $"  AND (CreatedAtUtc {cmp} @c OR (CreatedAtUtc = @c AND Id {cmp} @i)) " +
             $"ORDER BY CreatedAtUtc {dir}, Id {dir}{_dialect.TopSuffix("@take")};");
-        cmd.AddParam("@take", 1);
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@c", anchorCreated);
-        cmd.AddParam("@i", anchorId);
+        _ = cmd.AddParam("@take", 1);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@c", anchorCreated);
+        _ = cmd.AddParam("@i", anchorId);
         return await cmd.ExecuteScalarAsync(ct) as string;
     }
 
@@ -328,21 +372,23 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
         long? newId;
         await using (DbCommand cmd = conn.Command(sql, tx))
         {
-            cmd.AddParam("@userId", e.UserId);
-            cmd.AddParam("@img", e.GatewayImageId);
-            cmd.AddParam("@prompt", await _cipher.EncryptAsync(e.UserId, e.Prompt, ct));
-            cmd.AddParam("@rawPrompt", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.RawPrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@rawNegative", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.RawNegativePrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@original", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.OriginalPrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@modelFriendly", e.ModelFriendly);
-            cmd.AddParam("@modelId", e.ModelId);
-            cmd.AddParam("@aspect", e.Aspect);
-            cmd.AddParam("@created", e.CreatedAtUtc);
+            _ = cmd.AddParam("@userId", e.UserId);
+            _ = cmd.AddParam("@img", e.GatewayImageId);
+            _ = cmd.AddParam("@prompt", await _cipher.EncryptAsync(e.UserId, e.Prompt, ct));
+            _ = cmd.AddParam("@rawPrompt", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.RawPrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@rawNegative", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.RawNegativePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@original", (object?)await _cipher.EncryptNullableAsync(e.UserId, e.OriginalPrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@modelFriendly", e.ModelFriendly);
+            _ = cmd.AddParam("@modelId", e.ModelId);
+            _ = cmd.AddParam("@aspect", e.Aspect);
+            _ = cmd.AddParam("@created", e.CreatedAtUtc);
             newId = await cmd.ScalarNullableInt64Async(ct);
         }
 
         if (newId is null)
+        {
             return false;   // duplicate — (UserId, GatewayImageId) already present
+        }
 
         await MarkIo.InsertAsync(conn, tx, Sql.MarkTable, Sql.MarkParent, newId.Value, e.Marks, e.UserId, _cipher, ct);
         await LoraIo.InsertAsync(conn, tx, Sql.LoraTable, Sql.LoraParent, newId.Value, e.Loras, e.UserId, _cipher, ct);
@@ -351,13 +397,21 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
 
     private static void AddFilterParams(DbCommand cmd, long userId, string? artistEnc, string? tagEnc, string? model = null)
     {
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         if (artistEnc is not null)
-            cmd.AddParam("@artist", artistEnc);
+        {
+            _ = cmd.AddParam("@artist", artistEnc);
+        }
+
         if (tagEnc is not null)
-            cmd.AddParam("@tag", tagEnc);
+        {
+            _ = cmd.AddParam("@tag", tagEnc);
+        }
+
         if (model is not null)
-            cmd.AddParam("@model", model);
+        {
+            _ = cmd.AddParam("@model", model);
+        }
     }
 
     /// <summary>A raw (still-encrypted token, image id) row buffered before deferred decryption.</summary>

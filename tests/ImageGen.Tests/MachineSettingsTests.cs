@@ -18,7 +18,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
 
     private (IConfigurationRoot Config, MachineSettingsConfigurationSource Source) BuildConfig(string machine)
     {
-        MachineSettingsConfigurationSource source = new MachineSettingsConfigurationSource(_db.MachineSettings, machine);
+        MachineSettingsConfigurationSource source = new(_db.MachineSettings, machine);
         IConfigurationRoot config = new ConfigurationBuilder().Add(source).Build();
         return (config, source);
     }
@@ -56,7 +56,7 @@ public sealed class MachineSettingsTests(TestDatabaseFixture db)
         (IConfigurationRoot? config, MachineSettingsConfigurationSource? source) = BuildConfig(machine);
         Assert.NotNull(source.Provider);
         bool fired = false;
-        Microsoft.Extensions.Primitives.ChangeToken.OnChange(config.GetReloadToken, () => fired = true);
+        _ = Microsoft.Extensions.Primitives.ChangeToken.OnChange(config.GetReloadToken, () => fired = true);
 
         await source.Provider.WriteAsync("Auth:RegistrationCode", "hunter2", CancellationToken.None);
 

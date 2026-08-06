@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy;
 
 /// <summary>The loader block's node ids, named by role (values preserved: 4=model, 21=vae).</summary>

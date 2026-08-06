@@ -1,6 +1,4 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.WanA14bI2V;
 
@@ -11,13 +9,13 @@ namespace ImageGen.Comfy.Edit.WanA14bI2V;
 public sealed record WanImageToVideoNoVision : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.WanImageToVideo;
-    [JsonPropertyName("positive")]    public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]    public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
-    [JsonPropertyName("length")]      public required int Length { get; init; }
-    [JsonPropertyName("batch_size")]  public required int BatchSize { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     [JsonPropertyName("start_image")] public required Output<Slot.Image> StartImage { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);

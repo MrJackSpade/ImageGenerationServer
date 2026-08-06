@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace ImageGen.Comfy;
 
 /// <summary>The published Krea 2 per-layer weight presets (12 comma-separated gains, one per tapped Qwen3-VL layer).</summary>

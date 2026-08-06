@@ -1,6 +1,6 @@
+using ImageGen.Domain;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
 
 namespace ImageGen.Comfy;
 
@@ -80,8 +80,8 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
     /// dimensions are always measured — a zero is a broken source, refused rather than silently skipping the ceiling.</summary>
     protected virtual (int W, int H) CanvasSize(FluxFillParams p, WorkflowInputs inputs)
     {
-        Ensure.GreaterThanZero(inputs.SourceWidth);
-        Ensure.GreaterThanZero(inputs.SourceHeight);
+        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
+        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
         return (inputs.SourceWidth, inputs.SourceHeight);
     }
 
@@ -112,7 +112,10 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         }
 
         int blur = p.MaskBlur;
-        if (blur == 0) return m;
+        if (blur == 0)
+        {
+            return m;
+        }
 
         g[Nodes.MaskAsImage] = new MaskToImage { Mask = m };
         g[Nodes.BlurredMaskImage] = new ImageBlur { Image = MaskToImage.Out(Nodes.MaskAsImage), BlurRadius = blur, Sigma = MaskBlurSigma };
@@ -135,7 +138,10 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
     {
         int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
         int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap == 0 || longEdge <= cap) return;   // ceiling off, or already under it (CanvasSize guarantees real dims)
+        if (cap == 0 || longEdge <= cap)
+        {
+            return;   // ceiling off, or already under it (CanvasSize guarantees real dims)
+        }
 
         double f = (double)cap / longEdge;
         int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
@@ -153,7 +159,7 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 
     protected override ComfyWorkflowGraph Build(FluxFillParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
@@ -254,32 +260,32 @@ file static class Nodes
 /// <c>p.Int</c> (absent = 0); <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record FluxFillParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]     public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]    public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]      public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]    public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Guidance)]
-    [Range(1.0, 60.0)]                                 public required double Guidance { get; init; }
+    [Range(1.0, 60.0)] public required double Guidance { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskBlur)]
-    [Range(0, 31)]                                     public required int MaskBlur { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Diffdiff)]     public bool Diffdiff { get; init; }
+    [Range(0, 31)] public required int MaskBlur { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Diffdiff)] public bool Diffdiff { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ColorCorrect)] public bool ColorCorrect { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
-    [Range(0, 4096)]                                   public required int MaxDimension { get; init; }
+    [Range(0, 4096)] public required int MaxDimension { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
-    [Range(0, 64)]                                     public int MaskGrow { get; init; }
+    [Range(0, 64)] public int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
-    [Range(0, 4096)]                                   public int PadLeft { get; init; }
+    [Range(0, 4096)] public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]
-    [Range(0, 4096)]                                   public int PadTop { get; init; }
+    [Range(0, 4096)] public int PadTop { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadRight)]
-    [Range(0, 4096)]                                   public int PadRight { get; init; }
+    [Range(0, 4096)] public int PadRight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottom)]
-    [Range(0, 4096)]                                   public int PadBottom { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
+    [Range(0, 4096)] public int PadBottom { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

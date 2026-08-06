@@ -9,7 +9,7 @@ namespace ImageGen.Comfy;
 public sealed record BasicGuider : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.BasicGuider;
-    [JsonPropertyName("model")]        public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("conditioning")] public required Output<Slot.Conditioning> Conditioning { get; init; }
     public static Output<Slot.Guider> Out(string id) => new(id, 0);
 }
@@ -27,10 +27,10 @@ public sealed record RandomNoise : ComfyNode
 public sealed record SamplerCustomAdvanced : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.SamplerCustomAdvanced;
-    [JsonPropertyName("noise")]        public required Output<Slot.Noise> Noise { get; init; }
-    [JsonPropertyName("guider")]       public required Output<Slot.Guider> Guider { get; init; }
-    [JsonPropertyName("sampler")]      public required Output<Slot.Sampler> Sampler { get; init; }
-    [JsonPropertyName("sigmas")]       public required Output<Slot.Sigmas> Sigmas { get; init; }
+    [JsonPropertyName("noise")] public required Output<Slot.Noise> Noise { get; init; }
+    [JsonPropertyName("guider")] public required Output<Slot.Guider> Guider { get; init; }
+    [JsonPropertyName("sampler")] public required Output<Slot.Sampler> Sampler { get; init; }
+    [JsonPropertyName("sigmas")] public required Output<Slot.Sigmas> Sigmas { get; init; }
     [JsonPropertyName("latent_image")] public required Output<Slot.Latent> LatentImage { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -40,8 +40,8 @@ public sealed record SamplerCustomAdvanced : ComfyNode
 public sealed record EmptyFlux2LatentImage : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptyFlux2LatentImage;
-    [JsonPropertyName("width")]      public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]     public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -51,8 +51,8 @@ public sealed record EmptyFlux2LatentImage : ComfyNode
 public sealed record Flux2Scheduler : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.Flux2Scheduler;
-    [JsonPropertyName("steps")]  public required int Steps { get; init; }
-    [JsonPropertyName("width")]  public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("steps")] public required int Steps { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
     [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     public static Output<Slot.Sigmas> Out(string id) => new(id, 0);
 }
@@ -67,14 +67,14 @@ public sealed record Flux2Scheduler : ComfyNode
 public sealed record TextEncodeMageFlowEdit : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.TextEncodeMageFlowEdit;
-    [JsonPropertyName("clip")]            public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("prompt")]          public required string Prompt { get; init; }
+    [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("prompt")] public required string Prompt { get; init; }
     [JsonPropertyName("negative_prompt")] public required string NegativePrompt { get; init; }
-    [JsonPropertyName("vae")]             public required Output<Slot.Vae> Vae { get; init; }
-    [JsonPropertyName("width")]           public required int Width { get; init; }
-    [JsonPropertyName("height")]          public required int Height { get; init; }
-    [JsonPropertyName("batch_size")]      public required int BatchSize { get; init; }
-    [JsonPropertyName("image_1")]         public required Output<Slot.Image> Image1 { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
+    [JsonPropertyName("image_1")] public required Output<Slot.Image> Image1 { get; init; }
 
     /// <summary>The dynamic reference tail, in emit order: each extra reference (<c>image_2</c>/<c>image_3</c>/…) wired
     /// to its scaled <see cref="Output{Slot.Image}"/>. Null/empty when this edit takes no extra references.</summary>

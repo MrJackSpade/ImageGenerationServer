@@ -81,11 +81,20 @@ public static class RenderContractMapping
     {
         if (it.Edit)
         {
-            if (string.IsNullOrWhiteSpace(it.Workflow) || string.IsNullOrWhiteSpace(it.ImageId)) return null;
+            if (string.IsNullOrWhiteSpace(it.Workflow) || string.IsNullOrWhiteSpace(it.ImageId))
+            {
+                return null;
+            }
+
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
                 it.NegativePrompt, it.ReferenceImageIds, it.Overrides, LastFrameImageId: it.LastFrameImageId), it.Background);
         }
-        if (string.IsNullOrWhiteSpace(it.Workflow)) return null;   // empty prompt allowed
+
+        if (string.IsNullOrWhiteSpace(it.Workflow))
+        {
+            return null;   // empty prompt allowed
+        }
+
         return RenderItem.ForGenerate(new GenerateSpec(it.Workflow, it.Prompt ?? "", it.NegativePrompt, it.Aspect,
             it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras), it.Background);
     }

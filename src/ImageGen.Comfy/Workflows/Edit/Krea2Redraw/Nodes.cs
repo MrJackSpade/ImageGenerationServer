@@ -1,7 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy.Edit.Krea2Redraw;
 
 /// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses <see cref="EditWorkflow{TParams}.Nodes"/>.</summary>

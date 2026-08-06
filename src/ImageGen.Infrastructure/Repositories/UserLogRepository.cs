@@ -27,11 +27,11 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
         await using DbCommand cmd = conn.Command(
             "INSERT INTO dbo.UserLog (UserId, Category, Payload, CreatedAtUtc) "
             + "VALUES (@userId, @category, @payload, @created);");
-        cmd.AddParam("@userId", userId);
-        cmd.AddParam("@category", category);
-        cmd.AddParam("@payload", encryptedPayload);
-        cmd.AddParam("@created", createdAtUtc);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@category", category);
+        _ = cmd.AddParam("@payload", encryptedPayload);
+        _ = cmd.AddParam("@created", createdAtUtc);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>Row-count bounds for a recent-log read: at least one, and a hard ceiling the SQL TOP/LIMIT is bound to.</summary>
@@ -42,22 +42,27 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
     {
         // An out-of-range limit is REFUSED, not clamped — silently returning 1,000 for a request of a million reads
         // to the caller as "that's all there is".
-        Ensure.Between(limit, MinLimit, MaxLimit);
+        _ = Ensure.Between(limit, MinLimit, MaxLimit);
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT {_dialect.TopPrefix("@limit")}Id, UserId, Category, Payload, CreatedAtUtc FROM dbo.UserLog "
             + $"WHERE UserId = @userId ORDER BY CreatedAtUtc DESC, Id DESC{_dialect.TopSuffix("@limit")};");
-        cmd.AddParam("@limit", limit);
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@limit", limit);
+        _ = cmd.AddParam("@userId", userId);
 
-        List<UserLogRow> raw = new List<UserLogRow>();
+        List<UserLogRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new UserLogRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     DateTime.SpecifyKind(reader.GetDateTime(4), DateTimeKind.Utc)));
+            }
+        }
 
-        List<UserLogEntry> list = new List<UserLogEntry>(raw.Count);
+        List<UserLogEntry> list = new(raw.Count);
         foreach (UserLogRow r in raw)
+        {
             list.Add(new UserLogEntry
             {
                 Id = r.Id,
@@ -66,6 +71,8 @@ public sealed class UserLogRepository(IDbConnectionFactory connectionFactory, IU
                 Payload = await _cipher.DecryptAsync(r.UserId, r.Payload, ct),
                 CreatedAtUtc = r.Created,
             });
+        }
+
         return list;
     }
 

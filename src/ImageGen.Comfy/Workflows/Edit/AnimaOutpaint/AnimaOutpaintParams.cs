@@ -1,7 +1,6 @@
-using ImageGen.Comfy;
+using ImageGen.Domain.CodeAnalysis;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 
@@ -12,38 +11,38 @@ namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 /// app's single-sourced seed (defaulted).</summary>
 public sealed record AnimaOutpaintParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]         public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]    public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]       public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]  public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]      public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
+    [Range(0.0, 1.0)] public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]
-    [Range(0, 4096)]                                     public int PadLeft { get; init; }
+    [Range(0, 4096)] public int PadLeft { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadTop)]
-    [Range(0, 4096)]                                     public int PadTop { get; init; }
+    [Range(0, 4096)] public int PadTop { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadRight)]
-    [Range(0, 4096)]                                     public int PadRight { get; init; }
+    [Range(0, 4096)] public int PadRight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottom)]
-    [Range(0, 4096)]                                     public int PadBottom { get; init; }
+    [Range(0, 4096)] public int PadBottom { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Feather)]
-    [Range(0, 256)]                                      public required int Feather { get; init; }
+    [Range(0, 256)] public required int Feather { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskGrow)]
-    [Range(0, 64)]                                       public required int MaskGrow { get; init; }
+    [Range(0, 64)] public required int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LlliteStrength)]
-    [Range(0.0, 2.0)]                                    public required double LlliteStrength { get; init; }
+    [Range(0.0, 2.0)] public required double LlliteStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LlliteStart)]
-    [Range(0.0, 1.0)]                                    public required double LlliteStart { get; init; }
+    [Range(0.0, 1.0)] public required double LlliteStart { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LlliteEnd)]
-    [Range(0.0, 1.0)]                                    public required double LlliteEnd { get; init; }
+    [Range(0.0, 1.0)] public required double LlliteEnd { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]
     [AllowNullable("null = the config didn't set clip skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

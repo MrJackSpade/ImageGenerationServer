@@ -13,7 +13,7 @@ public static class BanEndpoints
         // Every model's bans for this user, grouped — used by the Settings manager. There is no per-model GET: nothing
         // client-side needs one. The detail view renders its banned chips from BanService directly, and the generate
         // path resolves bans in the worker rather than having the browser hand them over.
-        api.MapGet(Routes.BansAll, async (HttpContext context, BanService bans) =>
+        _ = api.MapGet(Routes.BansAll, async (HttpContext context, BanService bans) =>
         {
             long userId = context.User.GetRequiredUserId();
             IReadOnlyList<BannedToken> list = await bans.GetAllAsync(userId, context.RequestAborted);
@@ -29,11 +29,13 @@ public static class BanEndpoints
             return Results.Ok(groups);
         });
 
-        api.MapPost(Routes.Bans, async (HttpContext context, BanService bans) =>
+        _ = api.MapPost(Routes.Bans, async (HttpContext context, BanService bans) =>
         {
             BanRequest? request = await Json.ReadAsync<BanRequest>(context);
             if (request is null || string.IsNullOrWhiteSpace(request.ModelId) || string.IsNullOrWhiteSpace(request.Name))
+            {
                 return Results.BadRequest();
+            }
 
             long userId = context.User.GetRequiredUserId();
             bool added = await bans.AddAsync(
@@ -41,7 +43,7 @@ public static class BanEndpoints
             return Results.Ok(new { added });
         });
 
-        api.MapDelete(Routes.Bans, async (HttpContext context, BanService bans, string modelId, string name, string kind) =>
+        _ = api.MapDelete(Routes.Bans, async (HttpContext context, BanService bans, string modelId, string name, string kind) =>
         {
             long userId = context.User.GetRequiredUserId();
             bool removed = await bans.RemoveAsync(

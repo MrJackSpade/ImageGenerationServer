@@ -69,7 +69,12 @@ public sealed record EditSpec(
 /// </summary>
 public sealed class RenderItem
 {
-    private RenderItem(GenerateSpec? gen, EditSpec? edit, bool background) { Gen = gen; Edit = edit; Background = background; }
+    private RenderItem(GenerateSpec? gen, EditSpec? edit, bool background)
+    {
+        Gen = gen;
+        Edit = edit;
+        Background = background;
+    }
 
     /// <summary>The generate spec, or null when this is an edit item.</summary>
     public GenerateSpec? Gen { get; }

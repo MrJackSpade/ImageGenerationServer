@@ -55,7 +55,9 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
     public async Task<CivitaiLoraInfo?> LookupByHashAsync(string sha256, CancellationToken ct)
     {
         if (!config.IsOn(Keys.EnabledKey) || string.IsNullOrWhiteSpace(sha256))
+        {
             return null;
+        }
 
         try
         {
@@ -63,7 +65,9 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             http.DefaultRequestHeaders.UserAgent.ParseAdd(Request.UserAgent);
             using HttpResponseMessage resp = await http.GetAsync(Request.ByHash + Uri.EscapeDataString(sha256), ct);
             if (!resp.IsSuccessStatusCode)
+            {
                 return null;   // 404 = not published on CivitAI; anything else = nothing to add this run
+            }
 
             using JsonDocument doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
             JsonElement root = doc.RootElement;
@@ -71,15 +75,30 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             string? model = root.TryGetProperty(Props.ModelProperty, out JsonElement m) && m.TryGetProperty(Props.NameProperty, out JsonElement mn)
                 ? mn.GetString() : null;
 
-            List<string> words = new List<string>();
+            List<string> words = [];
             if (root.TryGetProperty(Props.TrainedWordsProperty, out JsonElement tw) && tw.ValueKind == JsonValueKind.Array)
+            {
                 foreach (JsonElement w in tw.EnumerateArray())
-                    if (w.GetString() is { Length: > 0 } s) words.Add(s);
+                {
+                    if (w.GetString() is { Length: > 0 } s)
+                    {
+                        words.Add(s);
+                    }
+                }
+            }
 
             string? preview = null;
             if (root.TryGetProperty(Props.ImagesProperty, out JsonElement imgs) && imgs.ValueKind == JsonValueKind.Array)
+            {
                 foreach (JsonElement img in imgs.EnumerateArray())
-                    if (img.TryGetProperty(Props.UrlProperty, out JsonElement u) && u.GetString() is { Length: > 0 } url) { preview = url; break; }
+                {
+                    if (img.TryGetProperty(Props.UrlProperty, out JsonElement u) && u.GetString() is { Length: > 0 } url)
+                    {
+                        preview = url;
+                        break;
+                    }
+                }
+            }
 
             return new CivitaiLoraInfo(model, words, preview);
         }
@@ -93,7 +112,9 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
     public async Task<CivitaiPreview?> DownloadPreviewAsync(string url, CancellationToken ct)
     {
         if (!config.IsOn(Keys.EnabledKey) || string.IsNullOrWhiteSpace(url))
+        {
             return null;
+        }
 
         try
         {
@@ -101,16 +122,23 @@ public sealed class CivitaiClient(IHttpClientFactory httpFactory, IConfiguration
             http.DefaultRequestHeaders.UserAgent.ParseAdd(Request.UserAgent);
             using HttpResponseMessage resp = await http.GetAsync(url, ct);
             if (!resp.IsSuccessStatusCode)
+            {
                 return null;
+            }
 
             byte[] bytes = await resp.Content.ReadAsByteArrayAsync(ct);
             if (bytes.Length == 0)
+            {
                 return null;
+            }
             // Trust the CDN's declared type; fall back to the URL's extension (some CivitAI clips are .mp4). The
             // browser needs this to decide <img> vs <video>, so a wrong guess would render an mp4 as a broken image.
             string? contentType = resp.Content.Headers.ContentType?.MediaType;
             if (string.IsNullOrWhiteSpace(contentType) || contentType == MimeTypes.OctetStreamMediaType)
+            {
                 contentType = GuessContentType(url);
+            }
+
             return new CivitaiPreview(bytes, contentType);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

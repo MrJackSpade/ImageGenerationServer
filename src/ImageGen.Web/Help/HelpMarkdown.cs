@@ -46,8 +46,8 @@ public static class HelpMarkdown
     public static HelpPageViewModel Parse(string markdown)
     {
         string[] lines = markdown.Replace(Markers.CrLf, Markers.Lf).Replace('\r', '\n').Split('\n');
-        StringBuilder intro = new StringBuilder();
-        List<(string Title, StringBuilder Body)> sections = new List<(string Title, StringBuilder Body)>();
+        StringBuilder intro = new();
+        List<(string Title, StringBuilder Body)> sections = [];
         (string Title, StringBuilder Body)? cur = null;
         bool inFence = false;
 
@@ -62,21 +62,33 @@ public static class HelpMarkdown
             if (!inFence && !isFence && line.StartsWith(Markers.SectionHeadingPrefix, StringComparison.Ordinal))
             {
                 if (cur is not null)
+                {
                     sections.Add(cur.Value);
+                }
+
                 cur = (line[3..].Trim(), new StringBuilder());
                 continue;
             }
 
             if (isFence)
+            {
                 inFence = !inFence;
+            }
 
             if (cur is not null)
-                cur.Value.Body.Append(line).Append('\n');
+            {
+                _ = cur.Value.Body.Append(line).Append('\n');
+            }
             else
-                intro.Append(line).Append('\n');
+            {
+                _ = intro.Append(line).Append('\n');
+            }
         }
+
         if (cur is not null)
+        {
             sections.Add(cur.Value);
+        }
 
         return new HelpPageViewModel
         {

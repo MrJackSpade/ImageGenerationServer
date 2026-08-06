@@ -1,8 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -89,12 +84,21 @@ internal static class HunyuanSr
         {
             ({ } start, { } clip) => new HunyuanVideo15SuperResolutionI2V
             {
-                Positive = positive, Negative = negative, Latent = upscaled, NoiseAugmentation = p.SrNoiseAug, Vae = vae,
-                StartImage = start, ClipVisionOutput = clip,
+                Positive = positive,
+                Negative = negative,
+                Latent = upscaled,
+                NoiseAugmentation = p.SrNoiseAug,
+                Vae = vae,
+                StartImage = start,
+                ClipVisionOutput = clip,
             },
             (null, null) => new HunyuanVideo15SuperResolutionT2V
             {
-                Positive = positive, Negative = negative, Latent = upscaled, NoiseAugmentation = p.SrNoiseAug, Vae = vae,
+                Positive = positive,
+                Negative = negative,
+                Latent = upscaled,
+                NoiseAugmentation = p.SrNoiseAug,
+                Vae = vae,
             },
             _ => throw new InvalidOperationException(
                 "HunyuanVideo 1.5 SR needs start_image and clip_vision_output supplied together (i2v) or both omitted (t2v)."),

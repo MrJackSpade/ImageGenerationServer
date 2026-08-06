@@ -18,7 +18,11 @@ public sealed class LoraCompatibilityTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_dir, recursive: true); } catch { /* best-effort temp cleanup */ }
+        try
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
+        catch { /* best-effort temp cleanup */ }
     }
 
     [Fact]
@@ -91,16 +95,21 @@ public sealed class LoraCompatibilityTests : IDisposable
     /// reads the header alone).</summary>
     private string Safetensors(string file, Dictionary<string, long[]> tensors)
     {
-        Dictionary<string, object> header = new Dictionary<string, object>();
+        Dictionary<string, object> header = [];
         long offset = 0;
         foreach ((string? name, long[]? shape) in tensors)
         {
             long numel = 1;
-            foreach (long d in shape) numel *= d;
+            foreach (long d in shape)
+            {
+                numel *= d;
+            }
+
             long bytes = numel * 4;
             header[name] = new { dtype = "F32", shape, data_offsets = new[] { offset, offset + bytes } };
             offset += bytes;
         }
+
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(header);
 
         string path = Path.Combine(_dir, file);
@@ -117,7 +126,7 @@ public sealed class LoraCompatibilityTests : IDisposable
     {
         string path = Path.Combine(_dir, file);
         using FileStream fs = File.Create(path);
-        using BinaryWriter bw = new BinaryWriter(fs);
+        using BinaryWriter bw = new(fs);
         bw.Write(0x46554747u);          // "GGUF"
         bw.Write(3u);                   // version
         bw.Write((ulong)tensors.Count); // tensor count
@@ -128,10 +137,15 @@ public sealed class LoraCompatibilityTests : IDisposable
             bw.Write((ulong)nb.Length);
             bw.Write(nb);
             bw.Write((uint)shape.Length);
-            foreach (long d in shape) bw.Write((ulong)d);
+            foreach (long d in shape)
+            {
+                bw.Write((ulong)d);
+            }
+
             bw.Write(0u);   // ggml type
             bw.Write(0ul);  // data offset
         }
+
         return path;
     }
 }

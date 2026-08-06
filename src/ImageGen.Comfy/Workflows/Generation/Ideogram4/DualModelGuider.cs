@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy.Generation.Ideogram4;
@@ -8,10 +7,10 @@ namespace ImageGen.Comfy.Generation.Ideogram4;
 public sealed record DualModelGuider : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.DualModelGuider;
-    [JsonPropertyName("model")]          public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("positive")]       public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
     [JsonPropertyName("model_negative")] public required Output<Slot.Model> ModelNegative { get; init; }
-    [JsonPropertyName("negative")]       public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("cfg")]            public required double Cfg { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("cfg")] public required double Cfg { get; init; }
     public static Output<Slot.Guider> Out(string id) => new(id, 0);
 }

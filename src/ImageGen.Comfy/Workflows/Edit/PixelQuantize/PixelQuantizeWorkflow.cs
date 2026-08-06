@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.PixelQuantize;
 
@@ -67,7 +63,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
     protected override ComfyWorkflowGraph Build(PixelQuantizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         // No model head: the quantizer is pure CPU. Source → (matte | flatten-on-white) → quantize → save.
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
@@ -83,6 +79,7 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         {
             src = PixelHarnessGraph.FlattenOnWhite(g);
         }
+
         int gw = p.GridW;
         int gh = p.GridH;
         // The engine is a contract, not a flag: the concrete params type IS the branch, and its knobs are all present.

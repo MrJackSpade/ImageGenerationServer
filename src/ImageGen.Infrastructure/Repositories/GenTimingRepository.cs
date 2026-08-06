@@ -23,15 +23,15 @@ public sealed class GenTimingRepository(IDbConnectionFactory connectionFactory, 
         await using DbCommand cmd = conn.Command(@"
 INSERT INTO dbo.GenTiming (MachineName, ConfigId, IsEdit, DurationMs, RenderWidth, RenderHeight, Steps, Frames)
 VALUES (@m, @c, @edit, @ms, @rw, @rh, @steps, @frames);");
-        cmd.AddParam("@m", entry.MachineName);
-        cmd.AddParam("@c", entry.ConfigId);
-        cmd.AddParam("@edit", entry.IsEdit);
-        cmd.AddParam("@ms", entry.DurationMs);
-        cmd.AddParam("@rw", (object?)entry.RenderWidth ?? DBNull.Value);
-        cmd.AddParam("@rh", (object?)entry.RenderHeight ?? DBNull.Value);
-        cmd.AddParam("@steps", (object?)entry.Steps ?? DBNull.Value);
-        cmd.AddParam("@frames", (object?)entry.Frames ?? DBNull.Value);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@m", entry.MachineName);
+        _ = cmd.AddParam("@c", entry.ConfigId);
+        _ = cmd.AddParam("@edit", entry.IsEdit);
+        _ = cmd.AddParam("@ms", entry.DurationMs);
+        _ = cmd.AddParam("@rw", (object?)entry.RenderWidth ?? DBNull.Value);
+        _ = cmd.AddParam("@rh", (object?)entry.RenderHeight ?? DBNull.Value);
+        _ = cmd.AddParam("@steps", (object?)entry.Steps ?? DBNull.Value);
+        _ = cmd.AddParam("@frames", (object?)entry.Frames ?? DBNull.Value);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<double?> EtaAverageMsAsync(string machineName, string configId, EtaSignature current, int take, CancellationToken ct)
@@ -46,11 +46,12 @@ SELECT {_dialect.TopPrefix("@take")}DurationMs, RenderWidth, RenderHeight, Steps
 FROM dbo.GenTiming
 WHERE MachineName = @m AND ConfigId = @c AND RenderWidth IS NOT NULL
 ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
-        cmd.AddParam("@take", take);
-        cmd.AddParam("@m", machineName);
-        cmd.AddParam("@c", configId);
+        _ = cmd.AddParam("@take", take);
+        _ = cmd.AddParam("@m", machineName);
+        _ = cmd.AddParam("@c", configId);
         double currentWork = current.Work();
-        double sum = 0; int n = 0;
+        double sum = 0;
+        int n = 0;
         await using DbDataReader rd = await cmd.ExecuteReaderAsync(ct);
         while (await rd.ReadAsync(ct))
         {
@@ -63,6 +64,7 @@ ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
             sum += ms * currentWork / rowWork;
             n++;
         }
+
         return n > 0 ? sum / n : null;
     }
 
@@ -80,12 +82,15 @@ FROM (
 ) t
 WHERE rn <= @take
 GROUP BY ConfigId;");
-        cmd.AddParam("@m", machineName);
-        cmd.AddParam("@take", take);
-        Dictionary<string, double> map = new Dictionary<string, double>(StringComparer.Ordinal);
+        _ = cmd.AddParam("@m", machineName);
+        _ = cmd.AddParam("@take", take);
+        Dictionary<string, double> map = new(StringComparer.Ordinal);
         await using DbDataReader rd = await cmd.ExecuteReaderAsync(ct);
         while (await rd.ReadAsync(ct))
+        {
             map[rd.GetString(0)] = rd.AsDouble(1);
+        }
+
         return map;
     }
 }

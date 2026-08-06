@@ -11,8 +11,8 @@ namespace ImageGen.Comfy;
 public sealed record EmptyLatentImageSized : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.EmptyLatentImage;
-    [JsonPropertyName("width")]      public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")]     public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
@@ -40,9 +40,9 @@ public sealed record ADE_ApplyAnimateDiffModelSimple : ComfyNode
 public sealed record ADE_UseEvolvedSampling : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ADE_UseEvolvedSampling;
-    [JsonPropertyName("model")]         public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("beta_schedule")] public required string BetaSchedule { get; init; }
-    [JsonPropertyName("m_models")]      public required Output<Slot.Model> MModels { get; init; }
+    [JsonPropertyName("m_models")] public required Output<Slot.Model> MModels { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }
 
@@ -52,7 +52,7 @@ public sealed record ADE_UseEvolvedSampling : ComfyNode
 public sealed record IPAdapterUnifiedLoader : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.IPAdapterUnifiedLoader;
-    [JsonPropertyName("model")]  public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
     [JsonPropertyName("preset")] public required string Preset { get; init; }
     public static Output<Slot.Model> ModelOut(string id) => new(id, 0);
     public static Output<Slot.ClipVision> IpadapterOut(string id) => new(id, 1);
@@ -63,12 +63,12 @@ public sealed record IPAdapterUnifiedLoader : ComfyNode
 public sealed record IPAdapter : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.IPAdapter;
-    [JsonPropertyName("model")]       public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("ipadapter")]   public required Output<Slot.ClipVision> Ipadapter { get; init; }
-    [JsonPropertyName("image")]       public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("weight")]      public required double Weight { get; init; }
-    [JsonPropertyName("start_at")]    public required double StartAt { get; init; }
-    [JsonPropertyName("end_at")]      public required double EndAt { get; init; }
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("ipadapter")] public required Output<Slot.ClipVision> Ipadapter { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("weight")] public required double Weight { get; init; }
+    [JsonPropertyName("start_at")] public required double StartAt { get; init; }
+    [JsonPropertyName("end_at")] public required double EndAt { get; init; }
     [JsonPropertyName("weight_type")] public required string WeightType { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }
@@ -79,9 +79,9 @@ public sealed record ACN_SparseCtrlLoaderAdvanced : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ACN_SparseCtrlLoaderAdvanced;
     [JsonPropertyName("sparsectrl_name")] public required string SparsectrlName { get; init; }
-    [JsonPropertyName("use_motion")]      public required bool UseMotion { get; init; }
+    [JsonPropertyName("use_motion")] public required bool UseMotion { get; init; }
     [JsonPropertyName("motion_strength")] public required double MotionStrength { get; init; }
-    [JsonPropertyName("motion_scale")]    public required double MotionScale { get; init; }
+    [JsonPropertyName("motion_scale")] public required double MotionScale { get; init; }
     public static Output<Slot.ControlNet> Out(string id) => new(id, 0);
 }
 
@@ -90,8 +90,8 @@ public sealed record ACN_SparseCtrlLoaderAdvanced : ComfyNode
 public sealed record ACN_SparseCtrlRGBPreprocessor : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ACN_SparseCtrlRGBPreprocessor;
-    [JsonPropertyName("image")]       public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     [JsonPropertyName("latent_size")] public required Output<Slot.Latent> LatentSize { get; init; }
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
@@ -101,14 +101,14 @@ public sealed record ACN_SparseCtrlRGBPreprocessor : ComfyNode
 public sealed record ControlNetApplyAdvanced : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.ControlNetApplyAdvanced;
-    [JsonPropertyName("positive")]      public required Output<Slot.Conditioning> Positive { get; init; }
-    [JsonPropertyName("negative")]      public required Output<Slot.Conditioning> Negative { get; init; }
-    [JsonPropertyName("control_net")]   public required Output<Slot.ControlNet> ControlNet { get; init; }
-    [JsonPropertyName("image")]         public required Output<Slot.Image> Image { get; init; }
-    [JsonPropertyName("strength")]      public required double Strength { get; init; }
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")] public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("control_net")] public required Output<Slot.ControlNet> ControlNet { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("strength")] public required double Strength { get; init; }
     [JsonPropertyName("start_percent")] public required double StartPercent { get; init; }
-    [JsonPropertyName("end_percent")]   public required double EndPercent { get; init; }
-    [JsonPropertyName("vae")]           public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("end_percent")] public required double EndPercent { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
 }

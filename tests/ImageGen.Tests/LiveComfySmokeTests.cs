@@ -19,11 +19,15 @@ public sealed class LiveComfySmokeTests
     {
         string[] ids = (Environment.GetEnvironmentVariable("IMAGEGEN_SMOKE") ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (ids.Length == 0) return;   // not targeted -> skip silently
+        if (ids.Length == 0)
+        {
+            return;   // not targeted -> skip silently
+        }
+
         string baseUrl = Environment.GetEnvironmentVariable("COMFY_URL") ?? "http://localhost:8188";
 
         string root = RepoRoot();
-        WorkflowCatalog catalog = new WorkflowCatalog(new ComfyOptions
+        WorkflowCatalog catalog = new(new ComfyOptions
         {
             CatalogPath = Path.Combine(root, "configurations"),
         }, NullLogger<WorkflowCatalog>.Instance);
@@ -31,16 +35,23 @@ public sealed class LiveComfySmokeTests
         IWorkflow[] all = typeof(IWorkflow).Assembly.GetTypes()
             .Where(t => !t.IsAbstract && typeof(IWorkflow).IsAssignableFrom(t) && t.GetConstructor(Type.EmptyTypes) != null)
             .Select(t => (IWorkflow)(Activator.CreateInstance(t) ?? throw new InvalidOperationException($"could not instantiate {t}"))).ToArray();
-        WorkflowRegistry registry = new WorkflowRegistry(all);
+        WorkflowRegistry registry = new(all);
 
-        using HttpClient http = new HttpClient { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(20) };
-        List<string> results = new List<string>();
-        List<string> failures = new List<string>();
+        using HttpClient http = new() { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(20) };
+        List<string> results = [];
+        List<string> failures = [];
         foreach (string id in ids)
         {
-            try { results.Add($"{id}: OK ({await RunOne(http, catalog, registry, id)})"); }
-            catch (Exception e) { failures.Add($"{id}: {e.Message}"); }
+            try
+            {
+                results.Add($"{id}: OK ({await RunOne(http, catalog, registry, id)})");
+            }
+            catch (Exception e)
+            {
+                failures.Add($"{id}: {e.Message}");
+            }
         }
+
         Console.WriteLine("SMOKE RESULTS:\n  " + string.Join("\n  ", results.Concat(failures)));
         Assert.True(failures.Count == 0, "FAILURES:\n" + string.Join("\n", failures) + "\nOK:\n" + string.Join("\n", results));
     }
@@ -49,9 +60,19 @@ public sealed class LiveComfySmokeTests
     {
         WorkflowConfiguration cfg = catalog.FindConfig(id) ?? throw new Exception("config id not found");
         IWorkflow wf = registry.Find(cfg.WorkflowName) ?? throw new Exception($"workflow '{cfg.WorkflowName}' not registered");
-        Dictionary<string, object?> v = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (ParamSpec s in wf.Schema) if (s.Default is not null) v[s.Key] = s.Default;
-        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params) v[kv.Key] = kv.Value.Value;
+        Dictionary<string, object?> v = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ParamSpec s in wf.Schema)
+        {
+            if (s.Default is not null)
+            {
+                v[s.Key] = s.Default;
+            }
+        }
+
+        foreach (KeyValuePair<string, ConfigParam> kv in cfg.Params)
+        {
+            v[kv.Key] = kv.Value.Value;
+        }
         // Edit/i2v workflows need a source frame; upload one of the existing test stills and animate it.
         string? srcName = null;
         string positive = "a photograph of a red fox sitting in a snowy pine forest at golden hour, highly detailed";
@@ -60,7 +81,8 @@ public sealed class LiveComfySmokeTests
             srcName = await UploadSourceAsync(http);
             positive = "gentle slow camera push-in, soft natural motion";
         }
-        WorkflowInputs inputs = new WorkflowInputs
+
+        WorkflowInputs inputs = new()
         {
             Positive = positive,
             Negative = "blurry, low quality, deformed",
@@ -72,10 +94,17 @@ public sealed class LiveComfySmokeTests
         string body = JsonSerializer.Serialize(new { prompt = graph, client_id = "smoke-" + id });
         HttpResponseMessage resp = await http.PostAsync("/prompt", new StringContent(body, Encoding.UTF8, "application/json"));
         string txt = await resp.Content.ReadAsStringAsync();
-        if (!resp.IsSuccessStatusCode) throw new Exception($"/prompt {(int)resp.StatusCode}: {Trim(txt)}");
+        if (!resp.IsSuccessStatusCode)
+        {
+            throw new Exception($"/prompt {(int)resp.StatusCode}: {Trim(txt)}");
+        }
+
         using JsonDocument doc = JsonDocument.Parse(txt);
         if (doc.RootElement.TryGetProperty("node_errors", out JsonElement ne) && ne.ValueKind == JsonValueKind.Object && ne.EnumerateObject().Any())
+        {
             throw new Exception($"node_errors: {Trim(ne.GetRawText())}");
+        }
+
         string promptId = doc.RootElement.GetProperty("prompt_id").RequireString();
 
         DateTime deadline = DateTime.UtcNow.AddMinutes(18);
@@ -84,18 +113,39 @@ public sealed class LiveComfySmokeTests
             await Task.Delay(2500);
             string h = await http.GetStringAsync($"/history/{promptId}");
             using JsonDocument hd = JsonDocument.Parse(h);
-            if (!hd.RootElement.TryGetProperty(promptId, out JsonElement entry)) continue;
+            if (!hd.RootElement.TryGetProperty(promptId, out JsonElement entry))
+            {
+                continue;
+            }
+
             int images = 0;
             if (entry.TryGetProperty("outputs", out JsonElement outs))
+            {
                 foreach (JsonProperty node in outs.EnumerateObject())
+                {
                     if (node.Value.TryGetProperty("images", out JsonElement imgs) && imgs.ValueKind == JsonValueKind.Array)
+                    {
                         images += imgs.GetArrayLength();
+                    }
+                }
+            }
+
             if (entry.TryGetProperty("status", out JsonElement st) && st.TryGetProperty("status_str", out JsonElement ss) && ss.GetString() == "error")
+            {
                 throw new Exception($"comfy error: {Trim(entry.GetRawText())}");
-            if (images > 0) return $"{images} image(s)";
+            }
+
+            if (images > 0)
+            {
+                return $"{images} image(s)";
+            }
+
             if (entry.TryGetProperty("status", out JsonElement st2) && st2.TryGetProperty("completed", out JsonElement c) && c.ValueKind == JsonValueKind.True)
+            {
                 throw new Exception("completed with no image output");
+            }
         }
+
         throw new Exception("timeout (>18m) waiting for image");
     }
 
@@ -110,14 +160,18 @@ public sealed class LiveComfySmokeTests
         FileInfo png = new DirectoryInfo(dir).GetFiles("*.png").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault()
             ?? throw new Exception($"no source .png found in {dir} for i2v test");
         byte[] bytes = await File.ReadAllBytesAsync(png.FullName);
-        using MultipartFormDataContent form = new MultipartFormDataContent();
-        ByteArrayContent img = new ByteArrayContent(bytes);
+        using MultipartFormDataContent form = new();
+        ByteArrayContent img = new(bytes);
         img.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         form.Add(img, "image", "smoke_src.png");
         form.Add(new StringContent("true"), "overwrite");
         HttpResponseMessage r = await http.PostAsync("/upload/image", form);
         string t = await r.Content.ReadAsStringAsync();
-        if (!r.IsSuccessStatusCode) throw new Exception($"/upload/image {(int)r.StatusCode}: {Trim(t)}");
+        if (!r.IsSuccessStatusCode)
+        {
+            throw new Exception($"/upload/image {(int)r.StatusCode}: {Trim(t)}");
+        }
+
         using JsonDocument d = JsonDocument.Parse(t);
         string name = d.RootElement.GetProperty("name").RequireString();
         string? sub = d.RootElement.TryGetProperty("subfolder", out JsonElement s) ? s.GetString() : "";
@@ -129,7 +183,11 @@ public sealed class LiveComfySmokeTests
     private static string RepoRoot()
     {
         string? d = AppContext.BaseDirectory;
-        while (d is not null && !File.Exists(Path.Combine(d, "workflows.json"))) d = Path.GetDirectoryName(d);
+        while (d is not null && !File.Exists(Path.Combine(d, "workflows.json")))
+        {
+            d = Path.GetDirectoryName(d);
+        }
+
         return d ?? throw new DirectoryNotFoundException("workflows.json not found above test bin dir.");
     }
 }

@@ -1,8 +1,6 @@
-using ImageGen.Comfy;
+using ImageGen.Domain.CodeAnalysis;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.Img2ImgRedraw;
 
@@ -13,19 +11,19 @@ namespace ImageGen.Comfy.Edit.Img2ImgRedraw;
 /// drive is emitted only when set). <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record Img2ImgRedrawParams
 {
-    [JsonPropertyName(WorkflowParamKeys.Loader)]         public required string Loader { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.WeightDtype)]    public string? WeightDtype { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.ClipType)]       public string? ClipType { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
-    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)]  public required int Steps { get; init; }
+    [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
-    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]      public required double Cfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sampler)]        public required string Sampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Scheduler)]      public required string Scheduler { get; init; }
+    [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Denoise)]
-    [Range(0.0, 1.0)]                                    public required double Denoise { get; init; }
+    [Range(0.0, 1.0)] public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Negative)]       public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]
     [AllowNullable("null = the config didn't set clip skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Guidance)]
@@ -34,5 +32,5 @@ public sealed record Img2ImgRedrawParams
     [AllowNullable("null = the config declares no flow shift; the ModelSamplingAuraFlow node is emitted only when set, distinct from a real 0")] public double? Shift { get; init; }
     [JsonPropertyName(WorkflowParamKeys.NativePixels)]
     [AllowNullable("null = the config declares no native pixel budget (source sampled at its own resolution); distinct from a real 0")] public int? NativePixels { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)]           public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

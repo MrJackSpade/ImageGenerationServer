@@ -27,8 +27,11 @@ public static class PromptFinalizer
         // comma-segment management below runs for it: not marker stripping, not underscore folding, and not '~' guide
         // removal. A '~'-led segment therefore renders exactly as typed here — '~' means "guide tag" only inside the
         // tagging gate, the sole place it is ever read (the predictor seed in TagSeed, off the RAW prompt).
-        Dictionary<string, string> marks = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (tg is null || (!tg.Tags && !tg.Artists)) return new FinalizedPrompt(rawPrompt ?? string.Empty, marks);
+        Dictionary<string, string> marks = new(StringComparer.Ordinal);
+        if (tg is null || (!tg.Tags && !tg.Artists))
+        {
+            return new FinalizedPrompt(rawPrompt ?? string.Empty, marks);
+        }
 
         // Tag model only: '~' GUIDE TAGS are dropped up front — they steer the predictor's seed (see TagSeed) but the
         // image model never sees one — and everything below operates on the guide-free prompt.
@@ -44,19 +47,33 @@ public static class PromptFinalizer
         foreach (string seg in raw.Split(','))
         {
             string t = seg.TrimStart();
-            if (t.Length == 0) continue;
+            if (t.Length == 0)
+            {
+                continue;
+            }
+
             char m = t[0];
-            if (!PromptMarkers.IsMarker(m)) continue;
+            if (!PromptMarkers.IsMarker(m))
+            {
+                continue;
+            }
+
             string canonical = Normalize(t[1..]);
-            if (canonical.Length > 0) marks[canonical] = m == PromptMarkers.ArtistMarker ? TokenKinds.Artist : TokenKinds.Tag;
+            if (canonical.Length > 0)
+            {
+                marks[canonical] = m == PromptMarkers.ArtistMarker ? TokenKinds.Artist : TokenKinds.Tag;
+            }
         }
 
         // 2) Render: strip the LEADING '#' of a segment always; the leading '@'
         //    unless kept; '_'->space per non-score_ segment when the model wants spaces.
         string s = string.Join(Tokens.SegmentSeparator, raw.Split(',').Select(seg => StripMarker(seg, tg.KeepArtistMarker)));
         if (tg.UnderscoresToSpaces)
+        {
             s = string.Join(Tokens.SegmentSeparator, s.Split(',').Select(seg =>
                 seg.TrimStart().StartsWith(Tokens.ScorePrefix) ? seg : seg.Replace('_', ' ')));
+        }
+
         return new FinalizedPrompt(s, marks);
     }
 
@@ -70,8 +87,16 @@ public static class PromptFinalizer
     private static string StripMarker(string seg, bool keepArtistMarker)
     {
         int i = 0;
-        while (i < seg.Length && char.IsWhiteSpace(seg[i])) i++;
-        if (i == seg.Length) return seg;
+        while (i < seg.Length && char.IsWhiteSpace(seg[i]))
+        {
+            i++;
+        }
+
+        if (i == seg.Length)
+        {
+            return seg;
+        }
+
         char m = seg[i];
         // '!' is stripped unconditionally, exactly like '#': it is a tag marker, and by this point the seed build has
         // already read it off the RAW prompt. Nothing about it should reach the image model.
@@ -106,18 +131,29 @@ public static class PromptFinalizer
     /// </summary>
     public static (HashSet<string> Tags, HashSet<string> Artists) NegativeKeys(string? rawNegative)
     {
-        HashSet<string> tags = new HashSet<string>(StringComparer.Ordinal);
-        HashSet<string> artists = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> tags = new(StringComparer.Ordinal);
+        HashSet<string> artists = new(StringComparer.Ordinal);
         foreach (string seg in (rawNegative ?? string.Empty).Split(','))
         {
             string t = seg.Trim();
-            if (t.Length == 0) continue;
+            if (t.Length == 0)
+            {
+                continue;
+            }
             // '!' inert: image-side suppression only — never a tagger exclusion (see the summary).
-            if (t[0] == PromptMarkers.InertTagMarker) continue;
+            if (t[0] == PromptMarkers.InertTagMarker)
+            {
+                continue;
+            }
+
             string key = Normalize(t.TrimStart(PromptMarkers.TagMarker, PromptMarkers.ArtistMarker,
                                              PromptMarkers.InertTagMarker, PromptMarkers.GuideTagMarker));
-            if (key.Length > 0) (t[0] == '@' ? artists : tags).Add(key);
+            if (key.Length > 0)
+            {
+                _ = (t[0] == '@' ? artists : tags).Add(key);
+            }
         }
+
         return (tags, artists);
     }
 
@@ -135,13 +171,18 @@ public static class PromptFinalizer
     /// </summary>
     public static List<string> MarkSampled(IEnumerable<string>? sampled, IReadOnlySet<string> banned, Func<string, bool> isArtist)
     {
-        List<string> tokens = new List<string>();
+        List<string> tokens = [];
         foreach (string name in sampled ?? [])
         {
             string key = Normalize(name);
-            if (key.Length == 0 || banned.Contains(key)) continue;
+            if (key.Length == 0 || banned.Contains(key))
+            {
+                continue;
+            }
+
             tokens.Add((isArtist(key) ? PromptMarkers.ArtistMarker : PromptMarkers.TagMarker) + key);
         }
+
         return tokens;
     }
 

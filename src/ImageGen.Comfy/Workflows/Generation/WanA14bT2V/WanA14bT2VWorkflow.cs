@@ -1,10 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-using ImageGen.Domain;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Generation.WanA14bT2V;
 
 /// <summary>Wan 2.2 T2V-A14B text→video (two-expert MoE). No source image — an EmptyHunyuanLatentVideo seeds the
@@ -26,7 +19,7 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
     /// Decode/Save reuse the inherited txt2img roles; only the empty video latent is an own node.</summary>
     protected override ComfyWorkflowGraph Build(WanA14bT2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
         (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);

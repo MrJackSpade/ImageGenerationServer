@@ -26,7 +26,14 @@ internal static class PerceptualHash
     {
         bool[] x = PHash(a), y = PHash(b);
         int d = 0;
-        for (int i = 0; i < x.Length; i++) if (x[i] != y[i]) d++;
+        for (int i = 0; i < x.Length; i++)
+        {
+            if (x[i] != y[i])
+            {
+                d++;
+            }
+        }
+
         return d / (double)x.Length;
     }
 
@@ -36,8 +43,13 @@ internal static class PerceptualHash
     {
         double[,] m = new double[N, N];
         for (int k = 0; k < N; k++)
+        {
             for (int x = 0; x < N; x++)
-                m[k, x] = Math.Cos(Math.PI * (2 * x + 1) * k / (2.0 * N));
+            {
+                m[k, x] = Math.Cos(Math.PI * ((2 * x) + 1) * k / (2.0 * N));
+            }
+        }
+
         return m;
     }
 
@@ -45,10 +57,20 @@ internal static class PerceptualHash
     private static int[] CellMap(int len)
     {
         int[] b = new int[N + 1];
-        for (int i = 0; i <= N; i++) b[i] = (int)((long)i * len / N);
+        for (int i = 0; i <= N; i++)
+        {
+            b[i] = (int)((long)i * len / N);
+        }
+
         int[] map = new int[len];
         for (int i = 0; i < N; i++)
-            for (int y = b[i]; y < b[i + 1]; y++) map[y] = i;
+        {
+            for (int y = b[i]; y < b[i + 1]; y++)
+            {
+                map[y] = i;
+            }
+        }
+
         return map;
     }
 
@@ -68,39 +90,61 @@ internal static class PerceptualHash
                 {
                     Rgba32 p = im[x, y];
                     int cj = colCell[x];
-                    sum[ci, cj] += (p.R * 299 + p.G * 587 + p.B * 114) / 1000.0;  // ITU-R 601 luma
+                    sum[ci, cj] += ((p.R * 299) + (p.G * 587) + (p.B * 114)) / 1000.0;  // ITU-R 601 luma
                     cnt[ci, cj]++;
                 }
             }
+
             for (int i = 0; i < N; i++)
+            {
                 for (int j = 0; j < N; j++)
+                {
                     g[i, j] = cnt[i, j] > 0 ? sum[i, j] / cnt[i, j] : 0;
+                }
+            }
         }
         // separable DCT-II: rows then columns; keep the top-left Low x Low block
         double[,] tmp = new double[N, N];
         for (int r = 0; r < N; r++)
+        {
             for (int k = 0; k < N; k++)
             {
                 double s = 0;
-                for (int x = 0; x < N; x++) s += g[r, x] * Cos[k, x];
+                for (int x = 0; x < N; x++)
+                {
+                    s += g[r, x] * Cos[k, x];
+                }
+
                 tmp[r, k] = 2 * s;
             }
+        }
+
         double[] dct = new double[Low * Low];
         for (int k = 0; k < Low; k++)
+        {
             for (int col = 0; col < Low; col++)
             {
                 double s = 0;
-                for (int y = 0; y < N; y++) s += tmp[y, col] * Cos[k, y];
-                dct[k * Low + col] = 2 * s;
+                for (int y = 0; y < N; y++)
+                {
+                    s += tmp[y, col] * Cos[k, y];
+                }
+
+                dct[(k * Low) + col] = 2 * s;
             }
+        }
         // median of all but the DC coefficient
         double[] sorted = new double[dct.Length - 1];
         Array.Copy(dct, 1, sorted, 0, dct.Length - 1);
         Array.Sort(sorted);
         int n = sorted.Length;
-        double med = (n % 2 == 1) ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0;
+        double med = (n % 2 == 1) ? sorted[n / 2] : (sorted[(n / 2) - 1] + sorted[n / 2]) / 2.0;
         bool[] bits = new bool[dct.Length];
-        for (int i = 0; i < dct.Length; i++) bits[i] = dct[i] > med;
+        for (int i = 0; i < dct.Length; i++)
+        {
+            bits[i] = dct[i] > med;
+        }
+
         return bits;
     }
 }

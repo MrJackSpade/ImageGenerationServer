@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
-
 namespace ImageGen.Comfy.Edit.Pixelize;
 
 /// <summary>
@@ -69,7 +64,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
 
     protected override ComfyWorkflowGraph Build(PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph();
+        ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
         Output<Slot.Image> src = PixelHarnessGraph.FlattenOnWhite(g);                     // flatten alpha onto white (nodes 11-14)
 
@@ -96,6 +91,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
             g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = gd };
             posSrc = FluxGuidance.Out(Nodes.Guidance);
         }
+
         g[Nodes.Negative] = new CLIPTextEncode { Text = "", Clip = clip0 };
 
         // patch the model with the per-step pixel-manifold projection (the diffusion pixelizer)

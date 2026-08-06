@@ -60,27 +60,44 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         double minP = DefaultMinP)
     {
         TagVocab vocab = _bundle.Vocab;
-        Random rng = new Random(seed);
+        Random rng = new(seed);
 
-        List<int> current = new List<int>();
-        HashSet<int> seen = new HashSet<int>();
+        List<int> current = [];
+        HashSet<int> seen = [];
         foreach (string raw in seedTags)
-            if (vocab.IdOf(raw.Trim()) is int id && seen.Add(id)) current.Add(id);
-        HashSet<int> seedIds = new HashSet<int>(current);
+        {
+            if (vocab.IdOf(raw.Trim()) is int id && seen.Add(id))
+            {
+                current.Add(id);
+            }
+        }
 
-        HashSet<int> banned = new HashSet<int>();
+        HashSet<int> seedIds = [.. current];
+
+        HashSet<int> banned = [];
         if (bannedTags is not null)
+        {
             foreach (string raw in bannedTags)
-                if (vocab.IdOf(raw.Trim()) is int id) banned.Add(id);
+            {
+                if (vocab.IdOf(raw.Trim()) is int id)
+                {
+                    _ = banned.Add(id);
+                }
+            }
+        }
 
         // Categories the caller switched off are zeroed every step. The mask ALSO conditions the model (above), and
         // both are needed: conditioning makes the stop head judge completeness by the right standard, zeroing enforces
         // the exclusion exactly. With only the zeroing, the set comes back one tag short instead of completing to a
         // real alternative.
-        List<int> suppressed = new List<int>();
+        List<int> suppressed = [];
         for (int id = 0; id < vocab.Count; id++)
+        {
             if (!TypeMask.Allows(typeMask, vocab.Types[id]))
+            {
                 suppressed.Add(id);
+            }
+        }
 
         StopReason reason = StopReason.MaxSteps;
 
@@ -96,6 +113,7 @@ public sealed class GenerateEngine(TagModelBundle bundle)
                     reason = StopReason.Complete;
                     break;
                 }
+
                 probabilities = SuggestEngine.Softmax(logits);
             }
             else
@@ -105,10 +123,25 @@ public sealed class GenerateEngine(TagModelBundle bundle)
             }
 
             float[] p = probabilities;
-            foreach (int id in current) p[id] = 0f;
-            foreach (int id in _bundle.JunkIds) p[id] = 0f;
-            foreach (int id in suppressed) p[id] = 0f;
-            foreach (int id in banned) p[id] = 0f;
+            foreach (int id in current)
+            {
+                p[id] = 0f;
+            }
+
+            foreach (int id in _bundle.JunkIds)
+            {
+                p[id] = 0f;
+            }
+
+            foreach (int id in suppressed)
+            {
+                p[id] = 0f;
+            }
+
+            foreach (int id in banned)
+            {
+                p[id] = 0f;
+            }
 
             if (temperature <= 0)
             {
@@ -119,6 +152,7 @@ public sealed class GenerateEngine(TagModelBundle bundle)
                     reason = StopReason.Exhausted;
                     break;
                 }
+
                 current.Add(bestId);
                 continue;
             }
@@ -130,17 +164,27 @@ public sealed class GenerateEngine(TagModelBundle bundle)
             // redistributes preference among tags the model already finds plausible.
             if (minP > 0)
             {
-                (int _, float peak) = ArgMax(p);
+                (_, float peak) = ArgMax(p);
                 float floor = (float)(minP * peak);
                 for (int i = 0; i < p.Length; i++)
-                    if (p[i] < floor) p[i] = 0f;
+                {
+                    if (p[i] < floor)
+                    {
+                        p[i] = 0f;
+                    }
+                }
             }
 
             if (Math.Abs(temperature - 1.0) > double.Epsilon)
             {
                 double exponent = 1.0 / temperature;
                 for (int i = 0; i < p.Length; i++)
-                    if (p[i] > 0) p[i] = (float)Math.Pow(p[i], exponent);
+                {
+                    if (p[i] > 0)
+                    {
+                        p[i] = (float)Math.Pow(p[i], exponent);
+                    }
+                }
             }
 
             int sampled = SampleIndex(p, rng);
@@ -149,6 +193,7 @@ public sealed class GenerateEngine(TagModelBundle bundle)
                 reason = StopReason.Exhausted;
                 break;
             }
+
             current.Add(sampled);
         }
 
@@ -162,7 +207,14 @@ public sealed class GenerateEngine(TagModelBundle bundle)
         int index = -1;
         float best = 0f;
         for (int i = 0; i < values.Length; i++)
-            if (values[i] > best) { best = values[i]; index = i; }
+        {
+            if (values[i] > best)
+            {
+                best = values[i];
+                index = i;
+            }
+        }
+
         return (index, best);
     }
 
@@ -177,19 +229,36 @@ public sealed class GenerateEngine(TagModelBundle bundle)
     {
         double total = 0;
         foreach (float w in weights)
-            if (w > 0) total += w;
-        if (total <= 0) return -1;
+        {
+            if (w > 0)
+            {
+                total += w;
+            }
+        }
+
+        if (total <= 0)
+        {
+            return -1;
+        }
 
         double target = rng.NextDouble() * total;
         double running = 0;
         int lastPositive = -1;
         for (int i = 0; i < weights.Length; i++)
         {
-            if (weights[i] <= 0) continue;
+            if (weights[i] <= 0)
+            {
+                continue;
+            }
+
             lastPositive = i;
             running += weights[i];
-            if (running >= target) return i;
+            if (running >= target)
+            {
+                return i;
+            }
         }
+
         return lastPositive;   // floating-point shortfall: the final bucket is the honest answer
     }
 }

@@ -27,7 +27,7 @@ public sealed class RenderContractMappingTests
     [Fact]
     public void A_batch_item_carries_its_mask_into_the_spec()
     {
-        EnqueueItem item = new EnqueueItem(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
+        EnqueueItem item = new(Edit: false, Workflow: "anima", Prompt: "a prompt", NegativePrompt: null,
             Aspect: "square", Instruction: null, ImageId: null, RandomPrompt: TriState.True, TagTypes: ["meta"]);
 
         RenderItem? ri = item.ToRenderItem();

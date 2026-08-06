@@ -15,7 +15,7 @@ public sealed class PendingJobRepositoryTests(TestDatabaseFixture fixture)
 
         IReadOnlyList<PendingJob> all = await fixture.Pending.ListAllAsync(Ct);
         List<PendingJob> mine = all.Where(j => j.UserId == user.Id).ToList();
-        Assert.Single(mine);
+        _ = Assert.Single(mine);
         Assert.Equal("job-1", mine[0].JobId);
         Assert.Equal("a prompt", mine[0].Prompt);
         Assert.Equal("Test Model", mine[0].ModelFriendly);

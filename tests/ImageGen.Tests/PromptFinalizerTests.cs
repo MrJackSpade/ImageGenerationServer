@@ -101,7 +101,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void An_interior_at_survives_even_when_the_artist_marker_is_stripped()
     {
-        WorkflowTagging booru = new WorkflowTagging(Tags: true, Artists: true, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging booru = new(Tags: true, Artists: true, KeepArtistMarker: false, UnderscoresToSpaces: false);
         Assert.Equal("@_@, j@ck", PromptFinalizer.Finalize("#@_@, #j@ck", booru).Rendered);
         Assert.Equal("some_artist", PromptFinalizer.Finalize("@some_artist", booru).Rendered);
     }
@@ -194,10 +194,7 @@ public sealed class PromptFinalizerTests
     /// pinned in <c>PromptFinalizerGatingTests</c>.)
     /// </summary>
     [Fact]
-    public void A_non_tag_model_keeps_a_tilde_segment_verbatim()
-    {
-        Assert.Equal("a plain prompt, ~1boy", PromptFinalizer.Finalize("a plain prompt, ~1boy", null).Rendered);
-    }
+    public void A_non_tag_model_keeps_a_tilde_segment_verbatim() => Assert.Equal("a plain prompt, ~1boy", PromptFinalizer.Finalize("a plain prompt, ~1boy", null).Rendered);
 
     /// <summary>The whole point, in one prompt: subject swapping. The predictor is seeded with 1boy — so it samples
     /// the poses, clothing and framing that co-occur with it — while the picture is of a girl.</summary>
@@ -287,7 +284,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void A_sampled_artist_is_marked_an_artist_and_a_sampled_tag_a_tag()
     {
-        HashSet<string> artists = new HashSet<string>(["kazaana", "greg_rutkowski"]);
+        HashSet<string> artists = new(["kazaana", "greg_rutkowski"]);
         List<string> tokens = PromptFinalizer.MarkSampled(
             ["long_hair", "kazaana", "castle", "greg_rutkowski"], NoBans, artists.Contains);
 
@@ -311,7 +308,7 @@ public sealed class PromptFinalizerTests
     [Fact]
     public void Sampled_names_are_canonicalized_and_the_banned_are_dropped()
     {
-        HashSet<string> banned = new HashSet<string>(["castle"]);
+        HashSet<string> banned = new(["castle"]);
         Assert.Equal(["#long_hair", "#pig"],
             PromptFinalizer.MarkSampled(["Long Hair", "castle", "  ", "pig"], banned, _ => false));
         // An artist ban binds the tag model's output too — the same set suppresses it whichever kind it is.

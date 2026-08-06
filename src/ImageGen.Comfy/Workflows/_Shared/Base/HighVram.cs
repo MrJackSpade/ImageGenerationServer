@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -20,6 +18,7 @@ internal static class HighVram
             g[HighVramNodes.Model] = new CheckpointLoaderSimple { CkptName = req.RequiredCheckpoint() };
             return (CheckpointLoaderSimple.ModelOut(HighVramNodes.Model), CheckpointLoaderSimple.VaeOut(HighVramNodes.Model));   // model, (clip unused), vae
         }
+
         g[HighVramNodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[HighVramNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         return (UNETLoader.ModelOut(HighVramNodes.Model), VAELoader.VaeOut(HighVramNodes.Vae));

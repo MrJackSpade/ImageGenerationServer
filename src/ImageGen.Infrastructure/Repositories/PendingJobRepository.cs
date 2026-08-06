@@ -27,14 +27,14 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(sql);
-        cmd.AddParam("@userId", job.UserId);
-        cmd.AddParam("@jobId", job.JobId);
-        cmd.AddParam("@prompt", await _cipher.EncryptAsync(job.UserId, job.Prompt, ct));
-        cmd.AddParam("@modelFriendly", job.ModelFriendly);
-        cmd.AddParam("@modelId", job.ModelId);
-        cmd.AddParam("@aspect", job.Aspect);
-        cmd.AddParam("@created", job.CreatedAtUtc);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@userId", job.UserId);
+        _ = cmd.AddParam("@jobId", job.JobId);
+        _ = cmd.AddParam("@prompt", await _cipher.EncryptAsync(job.UserId, job.Prompt, ct));
+        _ = cmd.AddParam("@modelFriendly", job.ModelFriendly);
+        _ = cmd.AddParam("@modelId", job.ModelId);
+        _ = cmd.AddParam("@aspect", job.Aspect);
+        _ = cmd.AddParam("@created", job.CreatedAtUtc);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<IReadOnlyList<PendingJob>> ListAllAsync(CancellationToken ct)
@@ -50,7 +50,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             $"SELECT {Sql.Columns} FROM dbo.PendingJob WHERE UserId = @userId ORDER BY CreatedAtUtc ASC, Id ASC;");
-        cmd.AddParam("@userId", userId);
+        _ = cmd.AddParam("@userId", userId);
         return await ReadAllAsync(cmd, ct);
     }
 
@@ -58,21 +58,26 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("DELETE FROM dbo.PendingJob WHERE Id = @id;");
-        cmd.AddParam("@id", id);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@id", id);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private async Task<IReadOnlyList<PendingJob>> ReadAllAsync(DbCommand cmd, CancellationToken ct)
     {
-        List<PendingJobRow> raw = new List<PendingJobRow>();
+        List<PendingJobRow> raw = [];
         await using (DbDataReader reader = await cmd.ExecuteReaderAsync(ct))
+        {
             while (await reader.ReadAsync(ct))
+            {
                 raw.Add(new PendingJobRow(reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3),
                     reader.GetString(4), reader.GetString(5), reader.GetString(6),
                     DateTime.SpecifyKind(reader.GetDateTime(7), DateTimeKind.Utc)));
+            }
+        }
 
-        List<PendingJob> rows = new List<PendingJob>(raw.Count);
+        List<PendingJob> rows = new(raw.Count);
         foreach (PendingJobRow r in raw)
+        {
             rows.Add(new PendingJob
             {
                 Id = r.Id,
@@ -84,6 +89,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.PendingJob WHERE UserId = @userId AND JobId 
                 Aspect = r.Aspect,
                 CreatedAtUtc = r.Created,
             });
+        }
+
         return rows;
     }
 

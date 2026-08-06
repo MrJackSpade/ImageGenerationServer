@@ -45,9 +45,9 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
         {
             await using DbCommand cmd = conn.Command(
                 $"DELETE FROM {table} WHERE UserId = @userId AND GatewayImageId = @img;", tx);
-            cmd.AddParam("@userId", userId);
-            cmd.AddParam("@img", gatewayImageId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@userId", userId);
+            _ = cmd.AddParam("@img", gatewayImageId);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         // 2. History. The rowcount IS the ownership answer the endpoint turns into 204 vs 404.
@@ -55,22 +55,25 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
         await using (DbCommand cmd = conn.Command(
             "DELETE FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;", tx))
         {
-            cmd.AddParam("@userId", userId);
-            cmd.AddParam("@img", gatewayImageId);
+            _ = cmd.AddParam("@userId", userId);
+            _ = cmd.AddParam("@img", gatewayImageId);
             removed = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         // 3. Which finalized jobs of this user hold a slot for the image. Read FIRST, because after the delete
         //    below there is nothing left to identify them by.
-        List<string> jobIds = new List<string>();
+        List<string> jobIds = [];
         await using (DbCommand cmd = conn.Command(
             "SELECT DISTINCT s.JobId FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId " +
             "WHERE s.ImageId = @img AND j.UserId = @userId AND j.Status <> 0;", tx))
         {
-            cmd.AddParam("@userId", userId);
-            cmd.AddParam("@img", gatewayImageId);
+            _ = cmd.AddParam("@userId", userId);
+            _ = cmd.AddParam("@img", gatewayImageId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) jobIds.Add(reader.GetString(0));
+            while (await reader.ReadAsync(ct))
+            {
+                jobIds.Add(reader.GetString(0));
+            }
         }
 
         if (jobIds.Count > 0)
@@ -81,21 +84,32 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
             await using (DbCommand cmd = conn.Command(
                 $"DELETE FROM dbo.JobSlot WHERE ImageId = @img AND JobId IN ({string.Join(',', ps)});", tx))
             {
-                cmd.AddParam("@img", gatewayImageId);
-                for (int i = 0; i < jobIds.Count; i++) cmd.AddParam(ps[i], jobIds[i]);
-                await cmd.ExecuteNonQueryAsync(ct);
+                _ = cmd.AddParam("@img", gatewayImageId);
+                for (int i = 0; i < jobIds.Count; i++)
+                {
+                    _ = cmd.AddParam(ps[i], jobIds[i]);
+                }
+
+                _ = await cmd.ExecuteNonQueryAsync(ct);
             }
 
             // 5. A job whose last slot just went takes the job row with it. Asking which ones still have slots and
             //    deleting the difference keeps this a plain IN-list delete -- a correlated NOT EXISTS against the
             //    delete target cannot be written the same way on both engines (SQLite can't alias a DELETE target).
-            HashSet<string> survivors = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> survivors = new(StringComparer.Ordinal);
             await using (DbCommand cmd = conn.Command(
                 $"SELECT DISTINCT JobId FROM dbo.JobSlot WHERE JobId IN ({string.Join(',', ps)});", tx))
             {
-                for (int i = 0; i < jobIds.Count; i++) cmd.AddParam(ps[i], jobIds[i]);
+                for (int i = 0; i < jobIds.Count; i++)
+                {
+                    _ = cmd.AddParam(ps[i], jobIds[i]);
+                }
+
                 await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct)) survivors.Add(reader.GetString(0));
+                while (await reader.ReadAsync(ct))
+                {
+                    _ = survivors.Add(reader.GetString(0));
+                }
             }
 
             List<string> orphaned = jobIds.Where(id => !survivors.Contains(id)).ToList();
@@ -104,24 +118,28 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
                 string[] ops = orphaned.Select((_, i) => "@o" + i).ToArray();
                 await using DbCommand cmd = conn.Command(
                     $"DELETE FROM dbo.Job WHERE JobId IN ({string.Join(',', ops)});", tx);
-                for (int i = 0; i < orphaned.Count; i++) cmd.AddParam(ops[i], orphaned[i]);
-                await cmd.ExecuteNonQueryAsync(ct);
+                for (int i = 0; i < orphaned.Count; i++)
+                {
+                    _ = cmd.AddParam(ops[i], orphaned[i]);
+                }
+
+                _ = await cmd.ExecuteNonQueryAsync(ct);
             }
         }
 
         // 6. The pixels: every frame, then the blob itself once no history entry of ANY user still names it.
         await using (DbCommand cmd = conn.Command("DELETE FROM dbo.ImageFrame WHERE ImageId = @img;", tx))
         {
-            cmd.AddParam("@img", gatewayImageId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@img", gatewayImageId);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         await using (DbCommand cmd = conn.Command(
             "DELETE FROM dbo.ImageBlob WHERE ImageId = @img " +
             "  AND NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry h WHERE h.GatewayImageId = @img);", tx))
         {
-            cmd.AddParam("@img", gatewayImageId);
-            await cmd.ExecuteNonQueryAsync(ct);
+            _ = cmd.AddParam("@img", gatewayImageId);
+            _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
         await tx.CommitAsync(ct);

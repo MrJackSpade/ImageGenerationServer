@@ -1,8 +1,3 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using ImageGen.Application.Rendering;
-
 namespace ImageGen.Comfy.Edit.Upscale;
 
 /// <summary>UpscaleWorkflow's own node ids (source LoadImage reuses the inherited <c>EditNodes.Source</c>).</summary>

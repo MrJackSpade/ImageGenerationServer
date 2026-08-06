@@ -34,7 +34,9 @@ public sealed class BookmarksController(
     public async Task<IActionResult> Tag(string tag, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(tag))
+        {
             return RedirectToAction(nameof(Index));
+        }
 
         long userId = User.GetRequiredUserId();
         PagedResult<HistoryEntry> page = await _history.GetPageAsync(new HistoryQuery(userId, 1, 200, Tag: tag), ct);
@@ -54,7 +56,9 @@ public sealed class BookmarksController(
 
         // Artists now have their own page (display image + all their gens + set-display).
         if (!string.IsNullOrEmpty(artist))
+        {
             return Redirect("/artist/" + Uri.EscapeDataString(artist));
+        }
 
         IReadOnlyList<TokenBookmark> tokens = await _bookmarks.GetTokensAsync(userId, ct);
         IReadOnlyList<ImageBookmark> images = await _bookmarks.GetImagesAsync(userId, ct);
@@ -63,17 +67,28 @@ public sealed class BookmarksController(
         List<TokenBookmark> tags = tokens.Where(t => t.Kind == TokenKind.Tag).ToList();
         IReadOnlyDictionary<string, string> displays = await _artists.ResolveManyAsync(userId, artists.Select(a => a.Name).ToList(), ct);
         IReadOnlyDictionary<string, string> tagDisplays = await _tags.ResolveManyAsync(userId, tags.Select(t => t.Name).ToList(), ct);
-        ArtistCard Card(Domain.Entities.TokenBookmark t) =>
-            new() { Name = t.Name, DisplayImageId = displays.GetValueOrDefault(t.Name), Pinned = t.PinnedAtUtc is not null };
-        TagCard TagCardOf(Domain.Entities.TokenBookmark t) =>
-            new(t.Name, TagCategory.Slug(_tagCatalog.Lookup(t.Name)?.Type ?? 0), tagDisplays.GetValueOrDefault(t.Name));
+        ArtistCard Card(Domain.Entities.TokenBookmark t)
+        {
+            return new() { Name = t.Name, DisplayImageId = displays.GetValueOrDefault(t.Name), Pinned = t.PinnedAtUtc is not null };
+        }
+
+        TagCard TagCardOf(Domain.Entities.TokenBookmark t)
+        {
+            return new(t.Name, TagCategory.Slug(_tagCatalog.Lookup(t.Name)?.Type ?? 0), tagDisplays.GetValueOrDefault(t.Name));
+        }
 
         // Global = bookmarks with no category; then one group per category. A multi-category bookmark appears once per
         // category (never in Global). Within a group, artists list pinned-first (stable sort keeps the saved order
         // among the rest, and among pins orders by most-recently-pinned).
-        static bool InGlobal(IReadOnlyList<string> cats) => cats.Count == 0;
-        static bool InCategory(IReadOnlyList<string> cats, string name) =>
-            cats.Any(c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase));
+        static bool InGlobal(IReadOnlyList<string> cats)
+        {
+            return cats.Count == 0;
+        }
+
+        static bool InCategory(IReadOnlyList<string> cats, string name)
+        {
+            return cats.Any(c => string.Equals(c, name, StringComparison.OrdinalIgnoreCase));
+        }
 
         BookmarkGroup Build(string title, bool isGlobal, Func<IReadOnlyList<string>, bool> pred)
         {
@@ -92,21 +107,31 @@ public sealed class BookmarksController(
             };
         }
 
-        static bool HasContent(BookmarkGroup g) => g.Artists.Count > 0 || g.Tags.Count > 0 || g.Images.Count > 0;
+        static bool HasContent(BookmarkGroup g)
+        {
+            return g.Artists.Count > 0 || g.Tags.Count > 0 || g.Images.Count > 0;
+        }
 
-        SortedSet<string> categoryNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        SortedSet<string> categoryNames = new(StringComparer.OrdinalIgnoreCase);
         foreach (string? c in tokens.SelectMany(t => t.Categories).Concat(images.SelectMany(i => i.Categories)))
-            categoryNames.Add(c);
+        {
+            _ = categoryNames.Add(c);
+        }
 
-        List<BookmarkGroup> groups = new List<BookmarkGroup>();
+        List<BookmarkGroup> groups = [];
         BookmarkGroup global = Build(GroupTitles.Global, true, InGlobal);
         if (HasContent(global))
+        {
             groups.Add(global);
+        }
+
         foreach (string name in categoryNames)
         {
             BookmarkGroup g = Build(name, false, cats => InCategory(cats, name));
             if (HasContent(g))
+            {
                 groups.Add(g);
+            }
         }
 
         return View(new BookmarksViewModel { Groups = groups });

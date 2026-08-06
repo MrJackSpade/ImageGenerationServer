@@ -61,15 +61,21 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     {
         string? root = Root;
         if (root is null)
+        {
             return new ComfyInstallInfo(null, false,
                 "No renderer folder is set. Patches change ComfyUI's own files, so this needs the directory it is "
                 + "installed in — set it on Settings → This machine. Leave it empty if ComfyUI is on another machine.");
+        }
 
         if (!Directory.Exists(root))
+        {
             return new ComfyInstallInfo(root, false, $"{root} is not there.");
+        }
 
         if (!File.Exists(Path.Combine(root, Markers.MainScript)) || !Directory.Exists(Path.Combine(root, Markers.CoreDirectory)))
+        {
             return new ComfyInstallInfo(root, false, $"{root} does not look like a ComfyUI installation — no main.py and comfy/ in it.");
+        }
 
         return new ComfyInstallInfo(root, true, null);
     }
@@ -93,28 +99,47 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
     public async Task<string?> DetectRootAsync(CancellationToken ct)
     {
         string? address = _endpoint.BaseUrl?.Trim().TrimEnd('/');
-        if (string.IsNullOrEmpty(address)) return null;
-        if (!Uri.TryCreate(address + "/internal/folder_paths", UriKind.Absolute, out Uri? uri)) return null;
+        if (string.IsNullOrEmpty(address))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(address + "/internal/folder_paths", UriKind.Absolute, out Uri? uri))
+        {
+            return null;
+        }
 
         try
         {
             HttpClient http = _httpFactory.CreateClient();
             using HttpResponseMessage response = await http.GetAsync(uri, ct);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
 
             using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
             if (!document.RootElement.TryGetProperty(Props.ConfigsKey, out JsonElement configs) ||
                 configs.ValueKind != JsonValueKind.Array ||
-                configs.GetArrayLength() == 0) return null;
+                configs.GetArrayLength() == 0)
+            {
+                return null;
+            }
 
             string? configured = configs[0].GetString();
-            if (string.IsNullOrWhiteSpace(configured)) return null;
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return null;
+            }
 
             // <root>/models/configs -> <root>. Done with string operations because the separators are the
             // RENDERER's; on a different platform they simply will not resolve, which is the answer we want.
             string? models = Path.GetDirectoryName(configured.TrimEnd('/', '\\'));
             string? root = models is null ? null : Path.GetDirectoryName(models);
-            if (string.IsNullOrWhiteSpace(root)) return null;
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return null;
+            }
 
             return File.Exists(Path.Combine(root, Markers.MainScript)) && Directory.Exists(Path.Combine(root, Markers.CoreDirectory))
                 ? root

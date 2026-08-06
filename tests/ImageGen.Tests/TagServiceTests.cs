@@ -20,8 +20,8 @@ public sealed class TagServiceTests(TestDatabaseFixture fixture)
     {
         User user = await fixture.NewUserAsync("tag-display");
         // Two gens for "snow"; the newer is the fallback display image.
-        await fixture.History.AddAsync(Gen(user.Id, "snow-old", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Gen(user.Id, "snow-new", "snow", new DateTime(2026, 1, 2, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(user.Id, "snow-old", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(user.Id, "snow-new", "snow", new DateTime(2026, 1, 2, 9, 0, 0, DateTimeKind.Utc)), Ct);
         TagService svc = NewService();
 
         IReadOnlyDictionary<string, string> fallback = await svc.ResolveManyAsync(user.Id, ["snow"], Ct);
@@ -48,8 +48,8 @@ public sealed class TagServiceTests(TestDatabaseFixture fixture)
     {
         User alice = await fixture.NewUserAsync("tag-many-a");
         User bob = await fixture.NewUserAsync("tag-many-b");
-        await fixture.History.AddAsync(Gen(alice.Id, "a-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
-        await fixture.History.AddAsync(Gen(bob.Id, "b-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(alice.Id, "a-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
+        _ = await fixture.History.AddAsync(Gen(bob.Id, "b-snow", "snow", new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)), Ct);
 
         IReadOnlyDictionary<string, string> resolved = await NewService().ResolveManyAsync(alice.Id, ["snow", "unseen"], Ct);
         Assert.Equal("a-snow", resolved["snow"]);           // fallback to alice's own gen

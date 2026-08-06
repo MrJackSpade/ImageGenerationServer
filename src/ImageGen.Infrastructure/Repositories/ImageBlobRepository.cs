@@ -24,14 +24,14 @@ public sealed class ImageBlobRepository(IDbConnectionFactory connectionFactory) 
         await using DbCommand cmd = conn.Command(@"
 INSERT INTO dbo.ImageBlob (ImageId, Bytes, ContentType, Width, Height, ByteSize, Kind)
 VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
-        cmd.AddParam("@id", id);
-        cmd.AddLargeParam("@bytes", blob.Bytes);
-        cmd.AddParam("@ct", blob.ContentType);
-        cmd.AddParam("@w", (object?)blob.Width ?? DBNull.Value);
-        cmd.AddParam("@h", (object?)blob.Height ?? DBNull.Value);
-        cmd.AddParam("@size", blob.Bytes.Length);
-        cmd.AddParam("@kind", (byte)blob.Kind);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@id", id);
+        _ = cmd.AddLargeParam("@bytes", blob.Bytes);
+        _ = cmd.AddParam("@ct", blob.ContentType);
+        _ = cmd.AddParam("@w", (object?)blob.Width ?? DBNull.Value);
+        _ = cmd.AddParam("@h", (object?)blob.Height ?? DBNull.Value);
+        _ = cmd.AddParam("@size", blob.Bytes.Length);
+        _ = cmd.AddParam("@kind", (byte)blob.Kind);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
         return id;
     }
 
@@ -40,10 +40,13 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(
             "SELECT ImageId, Bytes, ContentType, Width, Height, ByteSize, Kind, CreatedAtUtc, PaletteJson FROM dbo.ImageBlob WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
+        _ = cmd.AddParam("@id", imageId);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
+        {
             return null;
+        }
+
         return new ImageBlob
         {
             ImageId = reader.GetString(0),
@@ -62,16 +65,16 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("UPDATE dbo.ImageBlob SET PaletteJson = @p WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
-        cmd.AddLargeParam("@p", paletteJson);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@id", imageId);
+        _ = cmd.AddLargeParam("@p", paletteJson);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<string?> GetPaletteAsync(string imageId, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("SELECT PaletteJson FROM dbo.ImageBlob WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
+        _ = cmd.AddParam("@id", imageId);
         object? v = await cmd.ExecuteScalarAsync(ct);
         return v is null or DBNull ? null : (string)v;
     }
@@ -80,25 +83,27 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("UPDATE dbo.ImageBlob SET FrequenciesJson = @f WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
-        cmd.AddLargeParam("@f", frequenciesJson);
-        await cmd.ExecuteNonQueryAsync(ct);
+        _ = cmd.AddParam("@id", imageId);
+        _ = cmd.AddLargeParam("@f", frequenciesJson);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<string?> GetFrequenciesAsync(string imageId, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command("SELECT FrequenciesJson FROM dbo.ImageBlob WHERE ImageId = @id;");
-        cmd.AddParam("@id", imageId);
+        _ = cmd.AddParam("@id", imageId);
         object? v = await cmd.ExecuteScalarAsync(ct);
         return v is null or DBNull ? null : (string)v;
     }
 
     public async Task<IReadOnlyDictionary<string, string>> GetContentTypesAsync(IReadOnlyCollection<string> imageIds, CancellationToken ct)
     {
-        Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> result = new(StringComparer.Ordinal);
         if (imageIds.Count == 0)
+        {
             return result;
+        }
 
         List<string> ids = imageIds.ToList();
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
@@ -112,17 +117,24 @@ VALUES (@id, @bytes, @ct, @w, @h, @size, @kind);");
             List<string> chunk = ids.GetRange(start, Math.Min(chunkSize, ids.Count - start));
             string[] ps = new string[chunk.Count];
             for (int i = 0; i < chunk.Count; i++)
+            {
                 ps[i] = "@i" + i;
+            }
 
             await using DbCommand cmd = conn.Command(
                 $"SELECT ImageId, ContentType FROM dbo.ImageBlob WHERE ImageId IN ({string.Join(',', ps)});");
             for (int i = 0; i < chunk.Count; i++)
-                cmd.AddParam(ps[i], chunk[i]);
+            {
+                _ = cmd.AddParam(ps[i], chunk[i]);
+            }
 
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
+            {
                 result[reader.GetString(0)] = reader.GetString(1);
+            }
         }
+
         return result;
     }
 }

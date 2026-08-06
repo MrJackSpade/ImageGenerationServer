@@ -88,7 +88,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
 
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(Rule, JustificationRule);
+        [Rule, JustificationRule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -132,7 +132,9 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         AnalyzeArguments(context, method, invocation.ArgumentList.Arguments);
 
         if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: nameof(object.Equals) } member)
+        {
             ReportIfLiteral(context, member.Expression);
+        }
     }
 
     /// <summary>
@@ -143,7 +145,10 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     {
         BaseObjectCreationExpressionSyntax creation = (BaseObjectCreationExpressionSyntax)context.Node;
         if (creation.ArgumentList is null)
+        {
             return;
+        }
+
         IMethodSymbol? constructor = context.SemanticModel.GetSymbolInfo(creation, context.CancellationToken).Symbol as IMethodSymbol;
         AnalyzeArguments(context, constructor, creation.ArgumentList.Arguments);
     }
@@ -165,7 +170,10 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
             if (method is not null
                 && ResolveParameter(method, argument, i) is { } parameter
                 && (HasAllowAttribute(parameter) || IsExemptWellKnownParameter(method, parameter)))
+            {
                 continue;
+            }
+
             ReportIfLiteral(context, argument.Expression);
         }
     }
@@ -177,9 +185,15 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static IParameterSymbol? ResolveParameter(IMethodSymbol method, ArgumentSyntax argument, int index)
     {
         if (argument.NameColon?.Name.Identifier.ValueText is { } name)
+        {
             return method.Parameters.FirstOrDefault(p => p.Name == name);
+        }
+
         if (index < method.Parameters.Length)
+        {
             return method.Parameters[index];
+        }
+
         IParameterSymbol? last = method.Parameters.LastOrDefault();
         return last is { IsParams: true } ? last : null;
     }
@@ -213,8 +227,13 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static bool DerivesFromException(ITypeSymbol? type)
     {
         for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
             if (current.ToDisplayString() == typeof(System.Exception).FullName)
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 
@@ -232,7 +251,9 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
             _ => default,
         };
         foreach (ArgumentSyntax argument in arguments)
+        {
             ReportIfLiteral(context, argument.Expression);
+        }
     }
 
     /// <summary>Flags a string literal in a constant pattern — <c>is "a"</c>, <c>"a" =&gt; …</c>, <c>case "a" when …</c>.</summary>
@@ -261,16 +282,26 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     {
         AssignmentExpressionSyntax assignment = (AssignmentExpressionSyntax)context.Node;
         if (assignment.Parent is not InitializerExpressionSyntax { RawKind: (int)SyntaxKind.ObjectInitializerExpression })
+        {
             return;
+        }
+
         if (context.SemanticModel.GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol is { } member
             && (HasAllowAttribute(member) || IsExemptWellKnownProperty(member.Name)))
+        {
             return;
+        }
+
         if (GetCollectionElements(assignment.Right) is { } elements)
         {
             foreach (ExpressionSyntax element in elements)
+            {
                 ReportIfLiteral(context, element);
+            }
+
             return;
         }
+
         ReportIfLiteral(context, assignment.Right);
     }
 
@@ -316,9 +347,15 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static void ReportIfLiteral(SyntaxNodeAnalysisContext context, ExpressionSyntax? expression)
     {
         if (expression is not LiteralExpressionSyntax literal || !literal.IsKind(SyntaxKind.StringLiteralExpression))
+        {
             return;
+        }
+
         if (IsExempt(context.ContainingSymbol))
+        {
             return;
+        }
+
         context.ReportDiagnostic(Diagnostic.Create(Rule, literal.GetLocation(), literal.Token.Text));
     }
 
@@ -331,15 +368,25 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     {
         AttributeSyntax attribute = (AttributeSyntax)context.Node;
         if (context.SemanticModel.GetSymbolInfo(attribute, context.CancellationToken).Symbol is not IMethodSymbol ctor)
+        {
             return;
+        }
+
         if (ctor.ContainingType?.Name != AllowAttributeName)
+        {
             return;
+        }
+
         if (attribute.ArgumentList?.Arguments.FirstOrDefault() is not { } argument)
+        {
             return;
+        }
 
         Optional<object?> justification = context.SemanticModel.GetConstantValue(argument.Expression, context.CancellationToken);
         if (justification is { HasValue: true, Value: string text } && string.IsNullOrWhiteSpace(text))
+        {
             context.ReportDiagnostic(Diagnostic.Create(JustificationRule, argument.GetLocation()));
+        }
     }
 
     /// <summary>True when <paramref name="symbol"/> carries <c>[AllowMagicStrings]</c> directly.</summary>
@@ -354,8 +401,13 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static bool IsExempt(ISymbol? symbol)
     {
         for (ISymbol? current = symbol; current is not null; current = current.ContainingSymbol)
+        {
             if (HasAllowAttribute(current))
+            {
                 return true;
+            }
+        }
+
         return false;
     }
 }

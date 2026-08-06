@@ -1,3 +1,52 @@
+using ImageGen.Comfy.Edit.AnimaInpaint;
+using ImageGen.Comfy.Edit.AnimaOutpaint;
+using ImageGen.Comfy.Edit.AnimateDiffLightningI2V;
+using ImageGen.Comfy.Edit.AnimateDiffSd15;
+using ImageGen.Comfy.Edit.AnimateLcmI2V;
+using ImageGen.Comfy.Edit.BiRefNetMatte;
+using ImageGen.Comfy.Edit.BiRefNetMatteVideo;
+using ImageGen.Comfy.Edit.BooguEdit;
+using ImageGen.Comfy.Edit.ChronoEdit;
+using ImageGen.Comfy.Edit.DeflickerAutoVideo;
+using ImageGen.Comfy.Edit.DreamOmni2Edit;
+using ImageGen.Comfy.Edit.DreamOmni2Pixelize;
+using ImageGen.Comfy.Edit.Flux2Klein4bEdit;
+using ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
+using ImageGen.Comfy.Edit.Flux2Klein9bEdit;
+using ImageGen.Comfy.Edit.FluxFillInpaint;
+using ImageGen.Comfy.Edit.FluxFillOutpaint;
+using ImageGen.Comfy.Edit.FluxKontextEdit;
+using ImageGen.Comfy.Edit.FluxKontextPixelize;
+using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
+using ImageGen.Comfy.Edit.Img2ImgRedraw;
+using ImageGen.Comfy.Edit.Krea2Redraw;
+using ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
+using ImageGen.Comfy.Edit.LineThickenControlNet;
+using ImageGen.Comfy.Edit.LineThickenErode;
+using ImageGen.Comfy.Edit.LineThickenSketchKeras;
+using ImageGen.Comfy.Edit.LineThickenXDoG;
+using ImageGen.Comfy.Edit.LtxV2I2V;
+using ImageGen.Comfy.Edit.LtxvI2V;
+using ImageGen.Comfy.Edit.MageFlowEdit;
+using ImageGen.Comfy.Edit.MageFlowEditTurbo;
+using ImageGen.Comfy.Edit.MiniMaxH3I2V;
+using ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
+using ImageGen.Comfy.Edit.Pixelize;
+using ImageGen.Comfy.Edit.PixelQuantize;
+using ImageGen.Comfy.Edit.PixelQuantizeBatch;
+using ImageGen.Comfy.Edit.PixelQuantizeVideo;
+using ImageGen.Comfy.Edit.PixelVideo;
+using ImageGen.Comfy.Edit.QwenImageEdit;
+using ImageGen.Comfy.Edit.QwenImageInpaint;
+using ImageGen.Comfy.Edit.QwenImageOutpaint;
+using ImageGen.Comfy.Edit.QwenPixelize;
+using ImageGen.Comfy.Edit.QwenRapidAio;
+using ImageGen.Comfy.Edit.SdxlAnimateDiff;
+using ImageGen.Comfy.Edit.SeedVr2Upscale;
+using ImageGen.Comfy.Edit.Step1XEdit;
+using ImageGen.Comfy.Edit.Upscale;
+using ImageGen.Comfy.Edit.WanA14bI2V;
+using ImageGen.Comfy.Edit.WanI2V;
 using ImageGen.Comfy.Generation.Anima;
 using ImageGen.Comfy.Generation.AutismMix;
 using ImageGen.Comfy.Generation.BooguBase;
@@ -32,55 +81,6 @@ using ImageGen.Comfy.Generation.Wan22T2v;
 using ImageGen.Comfy.Generation.WanA14bT2V;
 using ImageGen.Comfy.Generation.ZImage;
 using ImageGen.Comfy.Generation.ZImageTurbo;
-using ImageGen.Comfy.Edit.AnimaInpaint;
-using ImageGen.Comfy.Edit.AnimaOutpaint;
-using ImageGen.Comfy.Edit.AnimateDiffLightningI2V;
-using ImageGen.Comfy.Edit.AnimateDiffSd15;
-using ImageGen.Comfy.Edit.AnimateLcmI2V;
-using ImageGen.Comfy.Edit.BiRefNetMatte;
-using ImageGen.Comfy.Edit.BiRefNetMatteVideo;
-using ImageGen.Comfy.Edit.BooguEdit;
-using ImageGen.Comfy.Edit.ChronoEdit;
-using ImageGen.Comfy.Edit.DeflickerAutoVideo;
-using ImageGen.Comfy.Edit.DreamOmni2Edit;
-using ImageGen.Comfy.Edit.DreamOmni2Pixelize;
-using ImageGen.Comfy.Edit.Flux2Klein4bEdit;
-using ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
-using ImageGen.Comfy.Edit.Flux2Klein9bEdit;
-using ImageGen.Comfy.Edit.FluxFillInpaint;
-using ImageGen.Comfy.Edit.FluxFillOutpaint;
-using ImageGen.Comfy.Edit.FluxKontextEdit;
-using ImageGen.Comfy.Edit.FluxKontextPixelize;
-using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
-using ImageGen.Comfy.Edit.Img2ImgRedraw;
-using ImageGen.Comfy.Edit.Krea2Redraw;
-using ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
-using ImageGen.Comfy.Edit.LineThickenControlNet;
-using ImageGen.Comfy.Edit.LineThickenErode;
-using ImageGen.Comfy.Edit.LineThickenSketchKeras;
-using ImageGen.Comfy.Edit.LineThickenXDoG;
-using ImageGen.Comfy.Edit.LtxV2I2V;
-using ImageGen.Comfy.Edit.LtxvI2V;
-using ImageGen.Comfy.Edit.MageFlowEdit;
-using ImageGen.Comfy.Edit.MageFlowEditTurbo;
-using ImageGen.Comfy.Edit.MiniMaxH3I2V;
-using ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
-using ImageGen.Comfy.Edit.PixelQuantize;
-using ImageGen.Comfy.Edit.PixelQuantizeBatch;
-using ImageGen.Comfy.Edit.PixelQuantizeVideo;
-using ImageGen.Comfy.Edit.PixelVideo;
-using ImageGen.Comfy.Edit.Pixelize;
-using ImageGen.Comfy.Edit.QwenImageEdit;
-using ImageGen.Comfy.Edit.QwenImageInpaint;
-using ImageGen.Comfy.Edit.QwenImageOutpaint;
-using ImageGen.Comfy.Edit.QwenPixelize;
-using ImageGen.Comfy.Edit.QwenRapidAio;
-using ImageGen.Comfy.Edit.SdxlAnimateDiff;
-using ImageGen.Comfy.Edit.SeedVr2Upscale;
-using ImageGen.Comfy.Edit.Step1XEdit;
-using ImageGen.Comfy.Edit.Upscale;
-using ImageGen.Comfy.Edit.WanA14bI2V;
-using ImageGen.Comfy.Edit.WanI2V;
 
 namespace ImageGen.Comfy;
 
@@ -97,105 +97,105 @@ public static class WorkflowRegistration
     public static IServiceCollection AddWorkflows(this IServiceCollection services)
     {
         // Generation (text → image)
-        services.AddSingleton<IWorkflow, Sd15Workflow>();
-        services.AddSingleton<IWorkflow, Sd21Workflow>();
-        services.AddSingleton<IWorkflow, SdxlWorkflow>();
-        services.AddSingleton<IWorkflow, PonyV6Workflow>();
-        services.AddSingleton<IWorkflow, AutismMixWorkflow>();
-        services.AddSingleton<IWorkflow, Lumina2Workflow>();
-        services.AddSingleton<IWorkflow, AnimaWorkflow>();
-        services.AddSingleton<IWorkflow, PixelAnimaWorkflow>();     // Anima txt2img under the per-step pixel-manifold projection + final PixelQuantize
-        services.AddSingleton<IWorkflow, PhotAnimaWorkflow>();
-        services.AddSingleton<IWorkflow, ZImageTurboWorkflow>();
-        services.AddSingleton<IWorkflow, ZImageWorkflow>();
-        services.AddSingleton<IWorkflow, MageFlowWorkflow>();       // Mage-Flow (RL) text-to-image (TextEncodeMageFlowEdit, text-only)
-        services.AddSingleton<IWorkflow, MageFlowTurboWorkflow>();  // Mage-Flow-Turbo (4-step) text-to-image
-        services.AddSingleton<IWorkflow, Flux1DevWorkflow>();
-        services.AddSingleton<IWorkflow, Flux1SchnellWorkflow>();
-        services.AddSingleton<IWorkflow, Flux2Klein4bWorkflow>();
-        services.AddSingleton<IWorkflow, Flux2Klein9bWorkflow>();
-        services.AddSingleton<IWorkflow, Wan22T2vWorkflow>();
-        services.AddSingleton<IWorkflow, Sd35MediumWorkflow>();
-        services.AddSingleton<IWorkflow, PixelDiTWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Sd15Workflow>();
+        _ = services.AddSingleton<IWorkflow, Sd21Workflow>();
+        _ = services.AddSingleton<IWorkflow, SdxlWorkflow>();
+        _ = services.AddSingleton<IWorkflow, PonyV6Workflow>();
+        _ = services.AddSingleton<IWorkflow, AutismMixWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Lumina2Workflow>();
+        _ = services.AddSingleton<IWorkflow, AnimaWorkflow>();
+        _ = services.AddSingleton<IWorkflow, PixelAnimaWorkflow>();     // Anima txt2img under the per-step pixel-manifold projection + final PixelQuantize
+        _ = services.AddSingleton<IWorkflow, PhotAnimaWorkflow>();
+        _ = services.AddSingleton<IWorkflow, ZImageTurboWorkflow>();
+        _ = services.AddSingleton<IWorkflow, ZImageWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MageFlowWorkflow>();       // Mage-Flow (RL) text-to-image (TextEncodeMageFlowEdit, text-only)
+        _ = services.AddSingleton<IWorkflow, MageFlowTurboWorkflow>();  // Mage-Flow-Turbo (4-step) text-to-image
+        _ = services.AddSingleton<IWorkflow, Flux1DevWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux1SchnellWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux2Klein4bWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux2Klein9bWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Wan22T2vWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Sd35MediumWorkflow>();
+        _ = services.AddSingleton<IWorkflow, PixelDiTWorkflow>();
         // 24GB-tier generation models
-        services.AddSingleton<IWorkflow, QwenImageWorkflow>();
-        services.AddSingleton<IWorkflow, Flux2DevWorkflow>();
-        services.AddSingleton<IWorkflow, HiDreamWorkflow>();
-        services.AddSingleton<IWorkflow, Sd35TripleClipWorkflow>();
-        services.AddSingleton<IWorkflow, ChromaWorkflow>();
-        services.AddSingleton<IWorkflow, HunyuanImage21Workflow>();
-        services.AddSingleton<IWorkflow, BooguBaseWorkflow>();      // Boogu-Image-0.1-Base text-to-image (reuses txt2img topology)
-        services.AddSingleton<IWorkflow, Krea2Workflow>();          // Krea 2 RAW text-to-image (reuses txt2img topology)
-        services.AddSingleton<IWorkflow, Krea2RefineWorkflow>();    // Krea 2 base → Turbo polish (two-stage latent refiner)
-        services.AddSingleton<IWorkflow, Ideogram4Workflow>();      // Ideogram 4 text-to-image (custom dual-model guider graph)
+        _ = services.AddSingleton<IWorkflow, QwenImageWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux2DevWorkflow>();
+        _ = services.AddSingleton<IWorkflow, HiDreamWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Sd35TripleClipWorkflow>();
+        _ = services.AddSingleton<IWorkflow, ChromaWorkflow>();
+        _ = services.AddSingleton<IWorkflow, HunyuanImage21Workflow>();
+        _ = services.AddSingleton<IWorkflow, BooguBaseWorkflow>();      // Boogu-Image-0.1-Base text-to-image (reuses txt2img topology)
+        _ = services.AddSingleton<IWorkflow, Krea2Workflow>();          // Krea 2 RAW text-to-image (reuses txt2img topology)
+        _ = services.AddSingleton<IWorkflow, Krea2RefineWorkflow>();    // Krea 2 base → Turbo polish (two-stage latent refiner)
+        _ = services.AddSingleton<IWorkflow, Ideogram4Workflow>();      // Ideogram 4 text-to-image (custom dual-model guider graph)
 
         // Edit (image + instruction)
-        services.AddSingleton<IWorkflow, QwenImageEditWorkflow>();
-        services.AddSingleton<IWorkflow, QwenRapidAioWorkflow>();
-        services.AddSingleton<IWorkflow, MageFlowEditWorkflow>();       // Mage-Flow-Edit (RL) instruction editing (TextEncodeMageFlowEdit + references)
-        services.AddSingleton<IWorkflow, MageFlowEditTurboWorkflow>();  // Mage-Flow-Edit-Turbo (4-step) instruction editing
-        services.AddSingleton<IWorkflow, AnimaInpaintWorkflow>();   // masked img2img inpaint on the Anima checkpoint
-        services.AddSingleton<IWorkflow, AnimaOutpaintWorkflow>();  // ImagePadForOutpaint + masked img2img on the Anima checkpoint
-        services.AddSingleton<IWorkflow, QwenImageInpaintWorkflow>();   // base Qwen-Image + InstantX inpainting ControlNet (NOT the Edit fine-tune)
-        services.AddSingleton<IWorkflow, QwenImageOutpaintWorkflow>();  // same ControlNet, canvas extended by ImagePadForOutpaint
-        services.AddSingleton<IWorkflow, FluxFillInpaintWorkflow>();    // FLUX.1 Fill [dev] — mask is a NATIVE model input, not a ControlNet
-        services.AddSingleton<IWorkflow, FluxFillOutpaintWorkflow>();   // same model, canvas extended by ImagePadForOutpaint
-        services.AddSingleton<IWorkflow, Img2ImgRedrawWorkflow>();  // whole-image img2img redraw on any gen checkpoint (anima / photanima)
-        services.AddSingleton<IWorkflow, Krea2RedrawWorkflow>();    // whole-image partial-denoise polish on Krea 2 Turbo
-        services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)
-        services.AddSingleton<IWorkflow, SeedVr2UpscaleWorkflow>(); // one-step diffusion upscale/restore (SeedVR2 3B)
-        services.AddSingleton<IWorkflow, WanI2VWorkflow>();
-        services.AddSingleton<IWorkflow, AnimateDiffSd15Workflow>();
-        services.AddSingleton<IWorkflow, SdxlAnimateDiffWorkflow>();
-        services.AddSingleton<IWorkflow, LtxvI2VWorkflow>();
-        services.AddSingleton<IWorkflow, LtxV2I2VWorkflow>();
-        services.AddSingleton<IWorkflow, HunyuanVideo15I2VWorkflow>();
-        services.AddSingleton<IWorkflow, AnimateDiffLightningI2VWorkflow>();
-        services.AddSingleton<IWorkflow, AnimateLcmI2VWorkflow>();
-        services.AddSingleton<IWorkflow, FluxKontextEditWorkflow>();
-        services.AddSingleton<IWorkflow, Flux2Klein4bEditWorkflow>();
-        services.AddSingleton<IWorkflow, Flux2Klein9bEditWorkflow>();
-        services.AddSingleton<IWorkflow, BooguEditWorkflow>();      // Boogu-Image-0.1-Edit instruction editing (TextEncodeBooguEdit)
-        services.AddSingleton<IWorkflow, ChronoEditWorkflow>();     // ChronoEdit-14B (Wan2.1-I2V backbone, last-frame edit; native nodes)
-        services.AddSingleton<IWorkflow, DreamOmni2EditWorkflow>(); // DreamOmni2 reference edit (HM-RunningHub pipeline nodes, no llama.cpp)
-        services.AddSingleton<IWorkflow, Step1XEditWorkflow>();     // Step1X-Edit i1258 (raykindle node, flash-attn->SDPA patched)
-        services.AddSingleton<IWorkflow, PixelQuantizeWorkflow>();  // API-only model-free pixelizer (ComfyUI-PixelHarness)
-        services.AddSingleton<IWorkflow, PixelQuantizeBatchWorkflow>(); // model-free BATCH-of-images pixelizer (LoadImage×N -> ImageBatch -> PixelQuantizeFP): derives the global palette over a set of stills, no video
-        services.AddSingleton<IWorkflow, PixelQuantizeVideoWorkflow>(); // model-free video-to-video pixelizer (LoadVideo -> PixelQuantize -> SaveAnimatedWEBP)
-        services.AddSingleton<IWorkflow, BiRefNetMatteVideoWorkflow>(); // background-removal matte (BiRefNetMatte node -> transparent lossless WEBP)
-        services.AddSingleton<IWorkflow, BiRefNetMatteWorkflow>();      // still sibling: single-image matte (LoadImage -> BiRefNetMatte -> PNG w/ alpha)
-        services.AddSingleton<IWorkflow, DeflickerAutoVideoWorkflow>(); // auto flicker/wash fix (DeflickerAuto node: BiRefNet stats -> drift-aware histmatch)
-        services.AddSingleton<IWorkflow, LineThickenErodeWorkflow>(); // model-free outline thickener (min filter / cv2.erode)
-        services.AddSingleton<IWorkflow, LineThickenXDoGWorkflow>();  // model-free outline-only thickener (XDoG extract + multiply)
-        services.AddSingleton<IWorkflow, LineThickenAnime2SketchWorkflow>(); // anime line-extract (controlnet_aux) + thicken + composite
-        services.AddSingleton<IWorkflow, LineThickenSketchKerasWorkflow>();  // sketchKeras line-extract + thicken + composite
-        services.AddSingleton<IWorkflow, LineThickenControlNetWorkflow>();   // lineart ControlNet re-render through an anime checkpoint
-        services.AddSingleton<IWorkflow, PixelizeWorkflow>();       // API-only diffusion pixelizer (per-step manifold projection)
-        services.AddSingleton<IWorkflow, QwenPixelizeWorkflow>();   // API-only QIE pixelizer (pixel art direct from a reference)
-        services.AddSingleton<IWorkflow, FluxKontextPixelizeWorkflow>();   // pixelize on FLUX.1-Kontext (per-step projection)
-        services.AddSingleton<IWorkflow, Flux2Klein4bPixelizeWorkflow>();  // pixelize on FLUX.2-Klein 4B (per-step projection)
-        services.AddSingleton<IWorkflow, DreamOmni2PixelizeWorkflow>();    // pixelize on DreamOmni2 (in-pipeline per-step projection)
+        _ = services.AddSingleton<IWorkflow, QwenImageEditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, QwenRapidAioWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MageFlowEditWorkflow>();       // Mage-Flow-Edit (RL) instruction editing (TextEncodeMageFlowEdit + references)
+        _ = services.AddSingleton<IWorkflow, MageFlowEditTurboWorkflow>();  // Mage-Flow-Edit-Turbo (4-step) instruction editing
+        _ = services.AddSingleton<IWorkflow, AnimaInpaintWorkflow>();   // masked img2img inpaint on the Anima checkpoint
+        _ = services.AddSingleton<IWorkflow, AnimaOutpaintWorkflow>();  // ImagePadForOutpaint + masked img2img on the Anima checkpoint
+        _ = services.AddSingleton<IWorkflow, QwenImageInpaintWorkflow>();   // base Qwen-Image + InstantX inpainting ControlNet (NOT the Edit fine-tune)
+        _ = services.AddSingleton<IWorkflow, QwenImageOutpaintWorkflow>();  // same ControlNet, canvas extended by ImagePadForOutpaint
+        _ = services.AddSingleton<IWorkflow, FluxFillInpaintWorkflow>();    // FLUX.1 Fill [dev] — mask is a NATIVE model input, not a ControlNet
+        _ = services.AddSingleton<IWorkflow, FluxFillOutpaintWorkflow>();   // same model, canvas extended by ImagePadForOutpaint
+        _ = services.AddSingleton<IWorkflow, Img2ImgRedrawWorkflow>();  // whole-image img2img redraw on any gen checkpoint (anima / photanima)
+        _ = services.AddSingleton<IWorkflow, Krea2RedrawWorkflow>();    // whole-image partial-denoise polish on Krea 2 Turbo
+        _ = services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)
+        _ = services.AddSingleton<IWorkflow, SeedVr2UpscaleWorkflow>(); // one-step diffusion upscale/restore (SeedVR2 3B)
+        _ = services.AddSingleton<IWorkflow, WanI2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, AnimateDiffSd15Workflow>();
+        _ = services.AddSingleton<IWorkflow, SdxlAnimateDiffWorkflow>();
+        _ = services.AddSingleton<IWorkflow, LtxvI2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, LtxV2I2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, HunyuanVideo15I2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, AnimateDiffLightningI2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, AnimateLcmI2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, FluxKontextEditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux2Klein4bEditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, Flux2Klein9bEditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, BooguEditWorkflow>();      // Boogu-Image-0.1-Edit instruction editing (TextEncodeBooguEdit)
+        _ = services.AddSingleton<IWorkflow, ChronoEditWorkflow>();     // ChronoEdit-14B (Wan2.1-I2V backbone, last-frame edit; native nodes)
+        _ = services.AddSingleton<IWorkflow, DreamOmni2EditWorkflow>(); // DreamOmni2 reference edit (HM-RunningHub pipeline nodes, no llama.cpp)
+        _ = services.AddSingleton<IWorkflow, Step1XEditWorkflow>();     // Step1X-Edit i1258 (raykindle node, flash-attn->SDPA patched)
+        _ = services.AddSingleton<IWorkflow, PixelQuantizeWorkflow>();  // API-only model-free pixelizer (ComfyUI-PixelHarness)
+        _ = services.AddSingleton<IWorkflow, PixelQuantizeBatchWorkflow>(); // model-free BATCH-of-images pixelizer (LoadImage×N -> ImageBatch -> PixelQuantizeFP): derives the global palette over a set of stills, no video
+        _ = services.AddSingleton<IWorkflow, PixelQuantizeVideoWorkflow>(); // model-free video-to-video pixelizer (LoadVideo -> PixelQuantize -> SaveAnimatedWEBP)
+        _ = services.AddSingleton<IWorkflow, BiRefNetMatteVideoWorkflow>(); // background-removal matte (BiRefNetMatte node -> transparent lossless WEBP)
+        _ = services.AddSingleton<IWorkflow, BiRefNetMatteWorkflow>();      // still sibling: single-image matte (LoadImage -> BiRefNetMatte -> PNG w/ alpha)
+        _ = services.AddSingleton<IWorkflow, DeflickerAutoVideoWorkflow>(); // auto flicker/wash fix (DeflickerAuto node: BiRefNet stats -> drift-aware histmatch)
+        _ = services.AddSingleton<IWorkflow, LineThickenErodeWorkflow>(); // model-free outline thickener (min filter / cv2.erode)
+        _ = services.AddSingleton<IWorkflow, LineThickenXDoGWorkflow>();  // model-free outline-only thickener (XDoG extract + multiply)
+        _ = services.AddSingleton<IWorkflow, LineThickenAnime2SketchWorkflow>(); // anime line-extract (controlnet_aux) + thicken + composite
+        _ = services.AddSingleton<IWorkflow, LineThickenSketchKerasWorkflow>();  // sketchKeras line-extract + thicken + composite
+        _ = services.AddSingleton<IWorkflow, LineThickenControlNetWorkflow>();   // lineart ControlNet re-render through an anime checkpoint
+        _ = services.AddSingleton<IWorkflow, PixelizeWorkflow>();       // API-only diffusion pixelizer (per-step manifold projection)
+        _ = services.AddSingleton<IWorkflow, QwenPixelizeWorkflow>();   // API-only QIE pixelizer (pixel art direct from a reference)
+        _ = services.AddSingleton<IWorkflow, FluxKontextPixelizeWorkflow>();   // pixelize on FLUX.1-Kontext (per-step projection)
+        _ = services.AddSingleton<IWorkflow, Flux2Klein4bPixelizeWorkflow>();  // pixelize on FLUX.2-Klein 4B (per-step projection)
+        _ = services.AddSingleton<IWorkflow, DreamOmni2PixelizeWorkflow>();    // pixelize on DreamOmni2 (in-pipeline per-step projection)
         // Pixel-art VIDEO: any i2v base + per-frame PixelQuantize (locked palette = temporally consistent). One line
         // per base CLASS; the decorator reuses the base graph and the quantizer node as-is. Each model variant then
         // gets a "-pixel" config in workflows.json binding to one of these (LTX-2/2.3/dev all share LtxV2I2VWorkflow).
-        services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new LtxV2I2VWorkflow()));    // ltx2-i2v-pixel  (LTX-2 / 2.3 / dev)
-        services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new LtxvI2VWorkflow()));     // ltxv-i2v-pixel  (LTX 0.9.8 / 13b)
-        services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanI2VWorkflow()));      // wan22-ti2v-5b-pixel
-        services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanA14bI2VWorkflow()));  // wan22-i2v-a14b-pixel
+        _ = services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new LtxV2I2VWorkflow()));    // ltx2-i2v-pixel  (LTX-2 / 2.3 / dev)
+        _ = services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new LtxvI2VWorkflow()));     // ltxv-i2v-pixel  (LTX 0.9.8 / 13b)
+        _ = services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanI2VWorkflow()));      // wan22-ti2v-5b-pixel
+        _ = services.AddSingleton<IWorkflow>(_ => new PixelVideoWorkflow(new WanA14bI2VWorkflow()));  // wan22-i2v-a14b-pixel
         // Guiding (per-step PixelManifoldProjection) is the `guided` boolean param on these, not a separate set.
         // 24GB-tier video: Wan 2.2 A14B MoE (i2v + t2v) and native HunyuanVideo text-to-video
-        services.AddSingleton<IWorkflow, WanA14bI2VWorkflow>();
-        services.AddSingleton<IWorkflow, WanA14bT2VWorkflow>();
-        services.AddSingleton<IWorkflow, HunyuanVideo15T2VWorkflow>();
-        services.AddSingleton<IWorkflow, HunyuanVideoT2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, WanA14bI2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, WanA14bT2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, HunyuanVideo15T2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, HunyuanVideoT2VWorkflow>();
         // MiniMax-H3 — omni-modal video with NATIVE audio (mp4, not the silent SaveAnimatedWEBP). One fl2va model
         // serves all three: T2V (generation), I2V (edit, optional last frame) and ref2va (edit, subject-reference
         // conditioning). Needs ComfyUI >= v0.30.1.
-        services.AddSingleton<IWorkflow, MiniMaxH3T2VWorkflow>();
-        services.AddSingleton<IWorkflow, MiniMaxH3I2VWorkflow>();
-        services.AddSingleton<IWorkflow, MiniMaxH3Ref2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MiniMaxH3T2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MiniMaxH3I2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MiniMaxH3Ref2VWorkflow>();
 
-        services.AddSingleton<WorkflowRegistry>();
+        _ = services.AddSingleton<WorkflowRegistry>();
         return services;
     }
 }

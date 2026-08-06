@@ -32,7 +32,7 @@ public sealed class NullForgivingOperatorAnalyzer : DiagnosticAnalyzer
             + "'is { } x' patterns, non-null flow, or throwing helpers so the compiler proves non-null itself.");
 
     /// <inheritdoc />
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)

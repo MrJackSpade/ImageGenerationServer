@@ -1,4 +1,3 @@
-using ImageGen.Comfy;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -15,6 +14,6 @@ public sealed record Krea2RefineParams : Krea2Params
     [Range(1, 30)] public required int RefinerSteps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefinerCfg)]
     [Range(1.0, 4.0)] public required double RefinerCfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.RefinerSampler)]   public string? RefinerSampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefinerSampler)] public string? RefinerSampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefinerScheduler)] public string? RefinerScheduler { get; init; }
 }

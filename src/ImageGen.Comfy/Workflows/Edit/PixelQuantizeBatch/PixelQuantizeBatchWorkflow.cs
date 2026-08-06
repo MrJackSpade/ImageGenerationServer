@@ -1,8 +1,4 @@
-using ImageGen.Comfy;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.PixelQuantizeBatch;
 
@@ -55,7 +51,7 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         // core ImageBatch nodes (image1 accumulates, image2 is the next frame). The batch order is the order the caller
         // uploaded them (source, ref0, ref1, …), which the caller keeps == frame order, so the emitted lossless_frames
         // come back in that same order. All frames share one resolution, so ImageBatch never has to rescale.
-        ComfyWorkflowGraph g = new ComfyWorkflowGraph
+        ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("The pixel quantizer needs a source image, but none was provided.") },
         };
@@ -63,9 +59,9 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
         int node = 100;
         foreach (string refName in inputs.ReferenceImageNames)
         {
-            string loadId = (node++).ToString();
+            string loadId = node++.ToString();
             g[loadId] = new LoadImage { Image = refName };
-            string batchId = (node++).ToString();
+            string batchId = node++.ToString();
             g[batchId] = new ImageBatch { Image1 = batch, Image2 = LoadImage.ImageOut(loadId) };
             batch = ImageBatch.Out(batchId);
         }

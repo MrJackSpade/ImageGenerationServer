@@ -63,7 +63,9 @@ public sealed class PromptFinalizerGatingTests
     public void Non_tag_model_treats_markers_and_underscores_as_literal_text(string prompt)
     {
         foreach (WorkflowTagging? tg in NonTag)
+        {
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
+        }
     }
 
     /// <summary>The ticket's exact reproduction and its family: a comma segment BEGINNING with '~' must survive verbatim
@@ -81,7 +83,9 @@ public sealed class PromptFinalizerGatingTests
     public void Non_tag_model_keeps_a_tilde_led_segment_verbatim(string prompt)
     {
         foreach (WorkflowTagging? tg in NonTag)
+        {
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
+        }
     }
 
     /// <summary>A '~' that is not at a segment's start is part of the word for every model — so a non-tag prompt with an
@@ -92,7 +96,9 @@ public sealed class PromptFinalizerGatingTests
     public void Non_tag_model_leaves_an_interior_tilde_alone(string prompt)
     {
         foreach (WorkflowTagging? tg in NonTag)
+        {
             Assert.Equal(prompt, PromptFinalizer.Finalize(prompt, tg).Rendered);
+        }
     }
 
     /// <summary>The ticket calls out BOTH the positive and the negative: a non-tag model's negative box is passed
@@ -102,7 +108,9 @@ public sealed class PromptFinalizerGatingTests
     {
         const string neg = "blurry, ~watermark, low quality";
         foreach (WorkflowTagging? tg in NonTag)
+        {
             Assert.Equal(neg, PromptFinalizer.Finalize(neg, tg).Rendered);
+        }
     }
 
     /// <summary>Null maps to empty; empty and whitespace-only prompts survive unchanged; a non-tag prompt has no
@@ -125,7 +133,7 @@ public sealed class PromptFinalizerGatingTests
     public void A_block_with_neither_tags_nor_artists_matches_the_null_non_tag_path()
     {
         const string p = "wide shot, ~5 meters away, dusk";
-        WorkflowTagging neither = new WorkflowTagging(Tags: false, Artists: false, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging neither = new(Tags: false, Artists: false, KeepArtistMarker: false, UnderscoresToSpaces: false);
 
         Assert.Equal(PromptFinalizer.Finalize(p, null).Rendered, PromptFinalizer.Finalize(p, neither).Rendered);
         Assert.Equal(p, PromptFinalizer.Finalize(p, neither).Rendered);   // ...and that shared answer is verbatim
@@ -139,7 +147,7 @@ public sealed class PromptFinalizerGatingTests
     [InlineData(true, true)]     // both
     public void Any_block_that_speaks_tags_or_artists_is_a_tag_model_and_drops_a_guide(bool tags, bool artists)
     {
-        WorkflowTagging tg = new WorkflowTagging(tags, artists, KeepArtistMarker: false, UnderscoresToSpaces: false);
+        WorkflowTagging tg = new(tags, artists, KeepArtistMarker: false, UnderscoresToSpaces: false);
         Assert.Equal("wide shot, dusk", PromptFinalizer.Finalize("wide shot, ~5 meters away, dusk", tg).Rendered);
     }
 
@@ -182,11 +190,8 @@ public sealed class PromptFinalizerGatingTests
     /// (here '@' is dropped because neither documents it). Pinned so the gate flips on tags-OR-artists, not tags-AND.</summary>
     [Theory]
     [MemberData(nameof(SingleAxisTagModels))]
-    public void A_single_axis_tag_model_still_strips_markers(WorkflowTagging tg)
-    {
-        Assert.Equal("foo, bar", PromptFinalizer.Finalize("#foo, @bar", tg).Rendered);
-    }
+    public void A_single_axis_tag_model_still_strips_markers(WorkflowTagging tg) => Assert.Equal("foo, bar", PromptFinalizer.Finalize("#foo, @bar", tg).Rendered);
 
     /// <summary>The tags-only and artists-only blocks, for <see cref="A_single_axis_tag_model_still_strips_markers"/>.</summary>
-    public static TheoryData<WorkflowTagging> SingleAxisTagModels() => new() { TagsOnly, ArtistsOnly };
+    public static TheoryData<WorkflowTagging> SingleAxisTagModels() => [TagsOnly, ArtistsOnly];
 }
