@@ -95,8 +95,13 @@
   sel.addEventListener("change", render);
   if (form) form.addEventListener("submit", e => {
     e.preventDefault();
-    const name = normToken(input.value); if (!name) return;
-    input.value = ""; addBan(kindSel ? kindSel.value : "tag", name);
+    // A comma-separated entry (e.g. "day, night, sun") is several tags, one per segment — not one long token.
+    const seen = new Set();
+    const names = input.value.split(",").map(normToken).filter(n => n && !seen.has(n) && seen.add(n));
+    if (!names.length) return;
+    input.value = "";
+    const kind = kindSel ? kindSel.value : "tag";
+    for (const name of names) addBan(kind, name);
   });
   render();
 })();
