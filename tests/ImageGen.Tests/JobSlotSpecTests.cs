@@ -32,13 +32,16 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             Workflow = "anima",
             Prompt = "1girl, #long_hair, @monet",
             NegativePrompt = "worst quality",
-            Aspect = "portrait",
-            RandomArtist = TriState.True,
-            RandomPrompt = TriState.False,
-            Temperature = 0.85,
-            TagTypesJson = """["character","meta"]""",
             OverridesJson = """{"seed":1234,"steps":28}""",
             LorasJson = """[{"Name":"anime/foo.safetensors","Weight":0.8}]""",
+            Generate = new GenerateSlotData
+            {
+                Aspect = "portrait",
+                RandomArtist = TriState.True,
+                RandomPrompt = TriState.False,
+                Temperature = 0.85,
+                TagTypesJson = """["character","meta"]""",
+            },
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
@@ -49,13 +52,15 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal("anima", back.Workflow);
         Assert.Equal("1girl, #long_hair, @monet", back.Prompt);
         Assert.Equal("worst quality", back.NegativePrompt);
-        Assert.Equal("portrait", back.Aspect);
-        Assert.Equal(TriState.True, back.RandomArtist);
-        Assert.Equal(TriState.False, back.RandomPrompt);
-        Assert.Equal(0.85, back.Temperature);
-        Assert.Equal("""["character","meta"]""", back.TagTypesJson);
         Assert.Equal("""{"seed":1234,"steps":28}""", back.OverridesJson);
         Assert.Equal("""[{"Name":"anime/foo.safetensors","Weight":0.8}]""", back.LorasJson);
+        Assert.Null(back.Edit);                        // a generate carries no edit data
+        Assert.NotNull(back.Generate);
+        Assert.Equal("portrait", back.Generate.Aspect);
+        Assert.Equal(TriState.True, back.Generate.RandomArtist);
+        Assert.Equal(TriState.False, back.Generate.RandomPrompt);
+        Assert.Equal(0.85, back.Generate.Temperature);
+        Assert.Equal("""["character","meta"]""", back.Generate.TagTypesJson);
     }
 
     /// <summary>
@@ -76,10 +81,13 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             State = JobSlotState.Queued,
             Workflow = "anima-inpaint",
             Prompt = "make it night",
-            SourceImageId = "src-1",
-            MaskImageId = "mask-1",
-            LastFrameImageId = "last-1",
-            ReferenceImageIds = ["ref-a", "ref-b", "ref-c"],
+            Edit = new EditSlotData
+            {
+                SourceImageId = "src-1",
+                MaskImageId = "mask-1",
+                LastFrameImageId = "last-1",
+                ReferenceImageIds = ["ref-a", "ref-b", "ref-c"],
+            },
         };
 
         await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
@@ -87,13 +95,13 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.NotNull(job);
         JobSlotRecord back = job.Slots.Single();
 
-        Assert.Equal("src-1", back.SourceImageId);
-        Assert.Equal("mask-1", back.MaskImageId);
-        Assert.Equal("last-1", back.LastFrameImageId);
-        Assert.Equal(["ref-a", "ref-b", "ref-c"], back.ReferenceImageIds);
-        // An unset tri-state persists as a NULL bit and reads back as Unspecified — the "not provided" state, not False.
-        Assert.Equal(TriState.Unspecified, back.RandomArtist);
-        Assert.Equal(TriState.Unspecified, back.RandomPrompt);
+        Assert.NotNull(back.Edit);
+        Assert.Equal("src-1", back.Edit.SourceImageId);
+        Assert.Equal("mask-1", back.Edit.MaskImageId);
+        Assert.Equal("last-1", back.Edit.LastFrameImageId);
+        Assert.Equal(["ref-a", "ref-b", "ref-c"], back.Edit.ReferenceImageIds);
+        // An edit carries no generate data at all — the generate-only fields aren't null-on-an-edit, they're absent.
+        Assert.Null(back.Generate);
     }
 
     /// <summary>
@@ -109,8 +117,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         [
             new JobSlotRecord
             {
-                JobId = jobId, SlotIndex = 0, IsEdit = true, State = JobSlotState.Queued,
-                Workflow = "anima-inpaint", SourceImageId = "shared-input", ReferenceImageIds = ["shared-input"],
+                JobId = jobId, SlotIndex = 0, IsEdit = true, State = JobSlotState.Queued, Workflow = "anima-inpaint",
+                Edit = new EditSlotData { SourceImageId = "shared-input", ReferenceImageIds = ["shared-input"] },
             },
         ]), Ct);
 
@@ -193,7 +201,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             new JobSlotRecord
             {
                 JobId = jobId, SlotIndex = 0, IsEdit = true, State = JobSlotState.Queued, Workflow = "anima-inpaint",
-                SourceImageId = "src", ReferenceImageIds = [.. refs],
+                Edit = new EditSlotData { SourceImageId = "src", ReferenceImageIds = [.. refs] },
                 Marks = [new Mark("long_hair", TokenKind.Tag)],
             },
         ]);
@@ -204,7 +212,8 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
         Assert.NotNull(job);
         JobSlotRecord back = job.Slots.Single();
-        Assert.Equal(["a"], back.ReferenceImageIds);
+        Assert.NotNull(back.Edit);
+        Assert.Equal(["a"], back.Edit.ReferenceImageIds);
         Assert.Single(back.Marks);
     }
 

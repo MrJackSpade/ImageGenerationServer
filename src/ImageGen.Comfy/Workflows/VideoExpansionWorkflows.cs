@@ -424,9 +424,13 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         g[HunyuanVideo15T2VWorkflowNodes.Noise] = new RandomNoise { NoiseSeed = seed };
         g[HunyuanVideo15T2VWorkflowNodes.Guider] = new CFGGuider { Model = model, Positive = CLIPTextEncode.Out(Nodes.Positive), Negative = CLIPTextEncode.Out(Nodes.Negative), Cfg = p.RequiredCfg() };
         g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(HunyuanVideo15T2VWorkflowNodes.Noise), Guider = CFGGuider.Out(HunyuanVideo15T2VWorkflowNodes.Guider), Sampler = KSamplerSelect.Out(HunyuanVideo15T2VWorkflowNodes.SamplerSelect), Sigmas = BasicScheduler.Out(HunyuanVideo15T2VWorkflowNodes.Scheduler), LatentImage = EmptyHunyuanVideo15Latent.Out(HunyuanVideo15T2VWorkflowNodes.VideoLatent) };
-        // Optional super-resolution second pass (1080p). t2v has no source image, so no start_image/CLIP-vision cues.
-        Output<Slot.Latent> outLatent = HunyuanSr.Refine(g, p, SamplerCustomAdvanced.Out(Nodes.Sampler), CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), vae, null, null, sampler, scheduler, seed);
-        g[Nodes.Decode] = HunyuanSr.Enabled(p)
+        // Optional super-resolution second pass (1080p) — present iff this is the SR contract. t2v has no source image,
+        // so no start_image/CLIP-vision cues.
+        IHunyuanSrPass? srPass = HunyuanSr.PassOf(p);
+        Output<Slot.Latent> outLatent = srPass is null
+            ? SamplerCustomAdvanced.Out(Nodes.Sampler)
+            : HunyuanSr.Refine(g, srPass, SamplerCustomAdvanced.Out(Nodes.Sampler), CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), vae, null, null, sampler, scheduler, seed);
+        g[Nodes.Decode] = srPass is not null
             ? new VAEDecodeTiled { Samples = outLatent, Vae = vae, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
             : new VAEDecode { Samples = outLatent, Vae = vae };
         g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Nodes.Decode, 0), FilenamePrefix = OutputPrefixes.Generate, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
@@ -446,30 +450,43 @@ file static class HunyuanVideo15T2VWorkflowNodes
     public const string Guider = "58";
 }
 
-/// <summary>HunyuanVideo 1.5 text→video parameters. The flow <c>shift</c>, clip <c>length</c> and playback <c>fps</c> ride
-/// on top of the shared txt2img knobs; the optional super-resolution second pass (<c>sr</c> + the <c>sr_*</c> settings)
-/// is exposed through <see cref="IHunyuanSrParams"/> — all nullable, since a non-SR config supplies none of them.</summary>
-public sealed record HunyuanVideo15T2VParams : Txt2ImgParams, IHunyuanSrParams
+/// <summary>HunyuanVideo 1.5 text→video parameters shared by BOTH SR contracts. The flow <c>shift</c>, clip <c>length</c>
+/// and playback <c>fps</c> ride on top of the shared txt2img knobs. The super-resolution second pass is a CONTRACT, not a
+/// set of nullable knobs: a config either asks for SR (<see cref="HunyuanVideo15T2VSrParams"/>, every <c>sr_*</c>
+/// required) or does not (<see cref="HunyuanVideo15T2VNoSrParams"/>, none present); <see cref="HunyuanVideo15T2VParamsConverter"/>
+/// reads the <c>sr</c> toggle and materializes the right one (audit #125 C).</summary>
+public abstract record HunyuanVideo15T2VParams : Txt2ImgParams
 {
     [JsonPropertyName(WorkflowParamKeys.Shift)]       public required double Shift { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)]      public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)]         public required double Fps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sr)]          public bool Sr { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrModel)]     public string? SrModel { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrUpsampler)] public string? SrUpsampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrWidth)]     [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrWidth { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrHeight)]    [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrHeight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
-    [Range(1, 50)]                                    [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public int? SrSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
-    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrDenoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
-    [Range(0.0, 1.0)]                                 [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrNoiseAug { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
-    [Range(1.0, 12.0)]                                [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrCfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrShift)]
-    [Range(1.0, 12.0)]                                [AllowNullable("null = the config didn't parameterize the super-resolution pass; SR node input emitted only when set, distinct from a real 0")] public double? SrShift { get; init; }
 }
+
+/// <summary>The t2v params for a config with NO super-resolution pass.</summary>
+public sealed record HunyuanVideo15T2VNoSrParams : HunyuanVideo15T2VParams;
+
+/// <summary>The t2v params for a config WITH the super-resolution second pass — every <c>sr_*</c> knob required.</summary>
+public sealed record HunyuanVideo15T2VSrParams : HunyuanVideo15T2VParams, IHunyuanSrPass
+{
+    [JsonPropertyName(WorkflowParamKeys.SrModel)]     public required string SrModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrUpsampler)] public required string SrUpsampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrWidth)]     public required int SrWidth { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrHeight)]    public required int SrHeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
+    [Range(1, 50)]                                    public required int SrSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public required double SrDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
+    [Range(0.0, 1.0)]                                 public required double SrNoiseAug { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
+    [Range(1.0, 12.0)]                                public required double SrCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrShift)]
+    [Range(1.0, 12.0)]                                public required double SrShift { get; init; }
+}
+
+/// <summary>Picks <see cref="HunyuanVideo15T2VSrParams"/> vs <see cref="HunyuanVideo15T2VNoSrParams"/> by the <c>sr</c> toggle.</summary>
+public sealed class HunyuanVideo15T2VParamsConverter
+    : HunyuanSrToggleConverter<HunyuanVideo15T2VParams, HunyuanVideo15T2VSrParams, HunyuanVideo15T2VNoSrParams>;
 
 /// <summary>Original HunyuanVideo 13B text→video. The diffusion loader follows the bound file; the LLaVA-Llama3/CLIP-L DualCLIPLoader
 /// (type "hunyuan_video") + ModelSamplingSD3 + embedded FluxGuidance + EmptyHunyuanLatentVideo + a

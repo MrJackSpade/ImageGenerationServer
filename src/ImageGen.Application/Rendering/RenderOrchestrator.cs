@@ -164,7 +164,11 @@ public sealed class RenderOrchestrator
             // the exact seed is persisted with the request and is what the workflow builds with.
             if (gen is not null) gen = gen with { Overrides = WithSeed(gen.Overrides) };
             if (edit is not null) edit = edit with { Overrides = WithSeed(edit.Overrides) };
-            job.Slots.Add(new RenderSlot { Job = job, Index = i, Gen = gen, Edit = edit, Notice = notice, IsBackground = items[i].Background });
+            job.Slots.Add(new RenderSlot
+            {
+                Job = job, Index = i, Gen = gen, Edit = edit, Notice = notice, IsBackground = items[i].Background,
+                EditResult = edit is not null ? new EditResult() : null,
+            });
         }
 
         lock (_lock) _jobs[job.JobId] = job;   // visible to Get()/owner lookups now; NOT yet schedulable
@@ -1074,7 +1078,8 @@ public sealed class RenderOrchestrator
         {
             if (slot.Terminal) return;   // cancelled while the result was landing — don't resurrect it as Done
             slot.ImageId = id; slot.Width = w; slot.Height = h;
-            slot.Changed = changed; slot.ChangeScore = score;
+            // Only an edit slot carries an outcome; a generate's default (changed, no score) has nowhere to go and needs none.
+            if (slot.EditResult is { } outcome) { outcome.Changed = changed; outcome.ChangeScore = score; }
             slot.State = SlotState.Done;
         }
     }
@@ -1084,7 +1089,8 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             if (slot.Terminal) return;
-            slot.Changed = false; slot.ChangeScore = score; slot.State = SlotState.Done;
+            EditResult outcome = slot.EditResult ?? throw new InvalidOperationException("SlotEditNoChange on a non-edit slot.");
+            outcome.Changed = false; outcome.ChangeScore = score; slot.State = SlotState.Done;
         }
     }
 
@@ -1321,8 +1327,6 @@ public sealed class RenderOrchestrator
                 ImageId = s.ImageId,
                 Width = s.Width == 0 ? null : s.Width,
                 Height = s.Height == 0 ? null : s.Height,
-                Changed = s.Changed,
-                ChangeScore = s.ChangeScore,
                 Error = s.Error,
                 EffectivePrompt = s.EffectivePrompt,
                 RawPrompt = s.RawPrompt,
@@ -1331,21 +1335,30 @@ public sealed class RenderOrchestrator
                 GenStartedAtUtc = s.GenStartedAt?.UtcDateTime,
                 ExpectedGenSeconds = s.ExpectedGenSeconds,
                 // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the
-                // database can join and cascade on them.
+                // database can join and cascade on them. The mode-specific columns are grouped: exactly one of the two
+                // is populated, by mode, and each field is absent (not forced-null) from the other mode's slot.
                 Workflow = s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
                 Prompt = s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
                 NegativePrompt = s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
-                Aspect = s.IsEdit ? null : s.RequireGen().Aspect,
-                RandomArtist = s.IsEdit ? TriState.Unspecified : s.RequireGen().RandomArtist,
-                RandomPrompt = s.IsEdit ? TriState.Unspecified : s.RequireGen().RandomPrompt,
-                Temperature = s.IsEdit ? null : s.RequireGen().Temperature,
-                TagTypesJson = s.IsEdit || s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
                 OverridesJson = OverridesJsonOf(s),
                 LorasJson = LorasJsonOf(s),
-                SourceImageId = s.IsEdit ? s.RequireEdit().ImageId : null,
-                MaskImageId = s.IsEdit ? s.RequireEdit().MaskImageId : null,
-                LastFrameImageId = s.IsEdit ? s.RequireEdit().LastFrameImageId : null,
-                ReferenceImageIds = s.IsEdit ? [.. s.RequireEdit().ReferenceImageIds ?? []] : [],
+                Generate = s.IsEdit ? null : new GenerateSlotData
+                {
+                    Aspect = s.RequireGen().Aspect,
+                    RandomArtist = s.RequireGen().RandomArtist,
+                    RandomPrompt = s.RequireGen().RandomPrompt,
+                    Temperature = s.RequireGen().Temperature,
+                    TagTypesJson = s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
+                },
+                Edit = !s.IsEdit ? null : new EditSlotData
+                {
+                    Changed = s.EditResult?.Changed ?? true,
+                    ChangeScore = s.EditResult?.ChangeScore,
+                    SourceImageId = s.RequireEdit().ImageId,
+                    MaskImageId = s.RequireEdit().MaskImageId,
+                    LastFrameImageId = s.RequireEdit().LastFrameImageId,
+                    ReferenceImageIds = [.. s.RequireEdit().ReferenceImageIds ?? []],
+                },
             });
         return rec;
     }
@@ -1369,28 +1382,36 @@ public sealed class RenderOrchestrator
 
     /// <summary>Rebuild a slot's generate spec from its typed columns. No deserialization contract to get wrong: a
     /// column that went missing is a database error, not a silently-null property.</summary>
-    private static GenerateSpec GenerateSpecOf(JobSlotRecord sr) => new(
-        sr.Workflow ?? "",
-        sr.Prompt ?? "",
-        sr.NegativePrompt,
-        sr.Aspect,
-        sr.RandomArtist,
-        sr.RandomPrompt,
-        sr.Temperature,
-        Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
-        Deser<List<string>>(sr.TagTypesJson),
-        Loras: Deser<List<LoraSelection>>(sr.LorasJson));
+    private static GenerateSpec GenerateSpecOf(JobSlotRecord sr)
+    {
+        GenerateSlotData g = sr.Generate ?? throw new InvalidOperationException("Generate slot record has no generate data.");
+        return new(
+            sr.Workflow ?? "",
+            sr.Prompt ?? "",
+            sr.NegativePrompt,
+            g.Aspect,
+            g.RandomArtist,
+            g.RandomPrompt,
+            g.Temperature,
+            Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
+            Deser<List<string>>(g.TagTypesJson),
+            Loras: Deser<List<LoraSelection>>(sr.LorasJson));
+    }
 
     /// <summary>Rebuild a slot's edit spec from its typed columns and its reference child rows.</summary>
-    private static EditSpec EditSpecOf(JobSlotRecord sr) => new(
-        sr.Workflow ?? "",
-        sr.Prompt ?? "",
-        sr.SourceImageId ?? "",
-        sr.NegativePrompt,
-        [.. sr.ReferenceImageIds],
-        Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
-        sr.MaskImageId,
-        sr.LastFrameImageId);
+    private static EditSpec EditSpecOf(JobSlotRecord sr)
+    {
+        EditSlotData e = sr.Edit ?? throw new InvalidOperationException("Edit slot record has no edit data.");
+        return new(
+            sr.Workflow ?? "",
+            sr.Prompt ?? "",
+            e.SourceImageId ?? "",
+            sr.NegativePrompt,
+            [.. e.ReferenceImageIds],
+            Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
+            e.MaskImageId,
+            e.LastFrameImageId);
+    }
 
     /// <summary>Reload this instance's still-active jobs and resume them: a mid-render slot keeps its
     /// prompt id and is re-queued to RESUME polling; an unsubmitted slot renders fresh; a slot whose request payload
@@ -1524,8 +1545,7 @@ public sealed class RenderOrchestrator
                 ImageId = sr.ImageId,
                 Width = sr.Width ?? 0,
                 Height = sr.Height ?? 0,
-                Changed = sr.Changed,
-                ChangeScore = sr.ChangeScore,
+                EditResult = sr.Edit is { } e ? new EditResult { Changed = e.Changed, ChangeScore = e.ChangeScore } : null,
                 Error = parseError ?? sr.Error,
                 EffectivePrompt = sr.EffectivePrompt,
                 RawPrompt = sr.RawPrompt,

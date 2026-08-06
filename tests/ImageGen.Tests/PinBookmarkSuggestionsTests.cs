@@ -8,8 +8,8 @@ namespace ImageGen.Tests;
 /// appears once (as the pin), and the endpoint's limit still holds.</summary>
 public sealed class PinBookmarkMergeTests
 {
-    private static ForgeApi.TagSuggestionItem Ranked(string name) => new(name, 0.1, null, 100, 0, false);
-    private static ForgeApi.TagSuggestionItem Pin(string name) => new(name, null, null, 100, 0, true);
+    private static ForgeApi.TagSuggestionItem Ranked(string name) => new(name, 100, 0, false, new ForgeApi.Ranking(0.1, null));
+    private static ForgeApi.TagSuggestionItem Pin(string name) => new(name, 100, 0, true, Ranking: null);
 
     [Fact]
     public void Pins_come_first_then_the_ranked_remainder()

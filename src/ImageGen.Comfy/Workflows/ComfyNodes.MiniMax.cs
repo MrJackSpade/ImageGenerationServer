@@ -29,10 +29,9 @@ public sealed record MiniMaxH3ImageToVideoT2V : ComfyNode
 }
 
 /// <summary>MiniMax-H3's conditioning+latent node in IMAGE→video mode: the source is the first frame and the clip size
-/// derives from it (wired width/height from a <see cref="GetImageSize"/> on the scaled source). An optional
-/// <c>last_frame</c> pins the ending; it is omitted from the emitted inputs when absent (WhenWritingNull) so the graph
-/// stays byte-identical to the old dictionary that only added the key when an end frame was supplied. Output 0 =
-/// positive conditioning, 1 = video latent.</summary>
+/// derives from it (wired width/height from a <see cref="GetImageSize"/> on the scaled source), with NO end frame. The
+/// first/last-frame loop is its own record (<see cref="MiniMaxH3FirstLastFrameToVideo"/>) rather than an optional
+/// nullable <c>last_frame</c> on this one (audit #125 A′). Output 0 = positive conditioning, 1 = video latent.</summary>
 public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.MiniMaxH3ImageToVideo;
@@ -43,10 +42,24 @@ public sealed record MiniMaxH3ImageToVideoI2V : ComfyNode
     [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
     [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
     [JsonPropertyName("first_frame")] public required Output<Slot.Image> FirstFrame { get; init; }
-    [JsonPropertyName("last_frame")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [AllowNullable("null = no end/last frame is wired for this graph; the last_frame node input is omitted when absent, distinct from a default node handle")]
-    public Output<Slot.Image>? LastFrame { get; init; }
+    public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
+    public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
+}
+
+/// <summary>MiniMax-H3's conditioning+latent node for a FIRST/LAST-frame loop: the same i2v node as
+/// <see cref="MiniMaxH3ImageToVideoI2V"/> plus a REQUIRED <c>last_frame</c> pinning the ending. Same ComfyUI class type;
+/// a distinct record so the end frame is never a conditional-nullable input. Output 0 = positive, 1 = video latent.</summary>
+public sealed record MiniMaxH3FirstLastFrameToVideo : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.MiniMaxH3ImageToVideo;
+    [JsonPropertyName("clip")]        public required Output<Slot.Clip> Clip { get; init; }
+    [JsonPropertyName("vae")]         public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("prompt")]      public required string Prompt { get; init; }
+    [JsonPropertyName("length")]      public required int Length { get; init; }
+    [JsonPropertyName("width")]       public required Output<Slot.Int> Width { get; init; }
+    [JsonPropertyName("height")]      public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("first_frame")] public required Output<Slot.Image> FirstFrame { get; init; }
+    [JsonPropertyName("last_frame")]  public required Output<Slot.Image> LastFrame { get; init; }
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
 }

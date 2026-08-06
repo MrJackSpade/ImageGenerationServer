@@ -58,10 +58,14 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         g[Nodes.Noise] = new RandomNoise { NoiseSeed = seed };
         g[Nodes.Guider] = new CFGGuider { Model = modelS, Positive = HunyuanVideo15ImageToVideo.PositiveOut(Nodes.ImageToVideo), Negative = HunyuanVideo15ImageToVideo.NegativeOut(Nodes.ImageToVideo), Cfg = p.RequiredCfg() };
         g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Nodes.Noise), Guider = CFGGuider.Out(Nodes.Guider), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = BasicScheduler.Out(Nodes.Scheduler), LatentImage = HunyuanVideo15ImageToVideo.LatentOut(Nodes.ImageToVideo) };
-        // Optional super-resolution second pass (1080p). Conditioning is the raw text encode (Positive/Negative); the source
-        // image (raw LoadImage EditNodes.Source) + SigCLIP vision (ClipVisionEncode) carry over as SR consistency cues. Returns the sampler node unchanged when off.
-        Output<Slot.Latent> outLatent = HunyuanSr.Refine(g, p, SamplerCustomAdvanced.Out(Nodes.Sampler), CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), vae0, LoadImage.ImageOut(EditNodes.Source), CLIPVisionEncode.Out(Nodes.ClipVisionEncode), sampler, scheduler, seed);
-        g[Nodes.Decode] = HunyuanSr.Enabled(p)
+        // Optional super-resolution second pass (1080p) — present iff this is the SR contract. Conditioning is the raw
+        // text encode (Positive/Negative); the source image (raw LoadImage EditNodes.Source) + SigCLIP vision
+        // (ClipVisionEncode) carry over as SR consistency cues.
+        IHunyuanSrPass? srPass = HunyuanSr.PassOf(p);
+        Output<Slot.Latent> outLatent = srPass is null
+            ? SamplerCustomAdvanced.Out(Nodes.Sampler)
+            : HunyuanSr.Refine(g, srPass, SamplerCustomAdvanced.Out(Nodes.Sampler), CLIPTextEncode.Out(Nodes.Positive), CLIPTextEncode.Out(Nodes.Negative), vae0, LoadImage.ImageOut(EditNodes.Source), CLIPVisionEncode.Out(Nodes.ClipVisionEncode), sampler, scheduler, seed);
+        g[Nodes.Decode] = srPass is not null
             ? new VAEDecodeTiled { Samples = outLatent, Vae = vae0, TileSize = 256, Overlap = 64, TemporalSize = 64, TemporalOverlap = 8 }
             : new VAEDecode { Samples = outLatent, Vae = vae0 };
         g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = new Output<Slot.Image>(Nodes.Decode, 0), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
@@ -89,14 +93,15 @@ file static class Nodes
     public const string Save = "9";
 }
 
-/// <summary>HunyuanVideo 1.5 image→video parameters — the shared loader-head knobs (<c>loader</c>/<c>weight_dtype</c>/
-/// <c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings + flow <c>shift</c>, the SigCLIP vision encoder
-/// (<c>clip_vision</c>, a resolved model ref), the clip <c>length</c> + playback <c>fps</c>, an optional preset LoRA, and
-/// the optional super-resolution second pass exposed through <see cref="IHunyuanSrParams"/> (all <c>sr_*</c> nullable —
-/// a non-SR config supplies none). The <c>*Req</c>/head reads are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c>
-/// are nullable, <c>lora</c> a nullable model-ref with a defaulted <c>lora_strength</c>, <c>seed</c> the single-sourced
-/// seed. <c>cfg</c> is nullable-with-throw (mirrors the shared txt2img contract; always present in the i2v configs).</summary>
-public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
+/// <summary>HunyuanVideo 1.5 image→video parameters shared by BOTH SR contracts — the shared loader-head knobs
+/// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings + flow
+/// <c>shift</c>, the SigCLIP vision encoder (<c>clip_vision</c>, a resolved model ref), the clip <c>length</c> + playback
+/// <c>fps</c>, and an optional preset LoRA. The super-resolution second pass is a CONTRACT, not a set of nullable knobs:
+/// a config either asks for SR (<see cref="HunyuanVideo15I2VSrParams"/>, every <c>sr_*</c> required) or does not
+/// (<see cref="HunyuanVideo15I2VNoSrParams"/>, none present); <see cref="HunyuanVideo15I2VParamsConverter"/> reads the
+/// <c>sr</c> toggle and materializes the right one (audit #125 C). <c>cfg</c> is nullable-with-throw (mirrors the shared
+/// txt2img contract; always present in the i2v configs) — a separate concern from SR.</summary>
+public abstract record HunyuanVideo15I2VParams
 {
     [JsonPropertyName(WorkflowParamKeys.Loader)]       public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)]  public string? WeightDtype { get; init; }
@@ -117,31 +122,35 @@ public sealed record HunyuanVideo15I2VParams : IHunyuanSrParams
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)]         public long Seed { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Sr)]           public bool Sr { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrModel)]      public string? SrModel { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrUpsampler)]  public string? SrUpsampler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrWidth)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrWidth { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrHeight)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrHeight { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
-    [Range(1, 50)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public int? SrSteps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
-    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrDenoise { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
-    [Range(0.0, 1.0)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrNoiseAug { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
-    [Range(1.0, 12.0)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrCfg { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.SrShift)]
-    [Range(1.0, 12.0)]
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")] public double? SrShift { get; init; }
 
     /// <summary>CFG, required by this graph's real-CFG guider — the base's nullable <c>cfg</c>, or a refusal naming it
     /// (the typed form of <c>DblReq(cfg)</c>).</summary>
     public double RequiredCfg() => Cfg ?? throw new RenderValidationException(
         $"This configuration needs a value for '{WorkflowParamKeys.Cfg}' and none is set. It must supply one — there is no default.");
 }
+
+/// <summary>The i2v params for a config with NO super-resolution pass.</summary>
+public sealed record HunyuanVideo15I2VNoSrParams : HunyuanVideo15I2VParams;
+
+/// <summary>The i2v params for a config WITH the super-resolution second pass — every <c>sr_*</c> knob required.</summary>
+public sealed record HunyuanVideo15I2VSrParams : HunyuanVideo15I2VParams, IHunyuanSrPass
+{
+    [JsonPropertyName(WorkflowParamKeys.SrModel)]      public required string SrModel { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrUpsampler)]  public required string SrUpsampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrWidth)]      public required int SrWidth { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrHeight)]     public required int SrHeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrSteps)]
+    [Range(1, 50)]                                     public required int SrSteps { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrDenoise)]
+    [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public required double SrDenoise { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrNoiseAug)]
+    [Range(0.0, 1.0)]                                  public required double SrNoiseAug { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrCfg)]
+    [Range(1.0, 12.0)]                                 public required double SrCfg { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.SrShift)]
+    [Range(1.0, 12.0)]                                 public required double SrShift { get; init; }
+}
+
+/// <summary>Picks <see cref="HunyuanVideo15I2VSrParams"/> vs <see cref="HunyuanVideo15I2VNoSrParams"/> by the <c>sr</c> toggle.</summary>
+public sealed class HunyuanVideo15I2VParamsConverter
+    : HunyuanSrToggleConverter<HunyuanVideo15I2VParams, HunyuanVideo15I2VSrParams, HunyuanVideo15I2VNoSrParams>;

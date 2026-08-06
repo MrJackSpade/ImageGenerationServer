@@ -75,11 +75,11 @@ public sealed class RenderSlot
     public int Width;
     /// <summary>Produced image height.</summary>
     public int Height;
-    /// <summary>Edits: false when the model declined (no new image).</summary>
-    public bool Changed = true;
-    /// <summary>Edits only (pHash distance).</summary>
-    [AllowNullable("null = not an edit / distance not computed; 0.0 is a real identical-image score")]
-    public double? ChangeScore;
+    /// <summary>The edit outcome — present iff this is an edit slot (mirrors <see cref="IsEdit"/> / <see cref="Edit"/>),
+    /// null for a generate. A generate always produces a fresh image, so "did it change" and the pHash distance are
+    /// meaningless for it; the old flat "null = not an edit" <c>ChangeScore</c> is replaced by this group's presence
+    /// (audit #125 A1).</summary>
+    public EditResult? EditResult;
     /// <summary>Failure reason when State == Error.</summary>
     public string? Error;
     /// <summary>A non-fatal, user-facing notice set at enqueue when an input was normalized to a valid value.</summary>
@@ -167,4 +167,15 @@ public sealed class RenderJob
     /// <summary>The positional image-id array the client diffs: <c>imageIds[i]</c> is slot i's produced image (or null
     /// until it lands / if it failed).</summary>
     public List<string?> ImageIds() => Slots.OrderBy(s => s.Index).Select(s => s.ImageId).ToList();
+}
+
+/// <summary>The mutable outcome of an edit render: whether the model changed the image, and the pHash distance from the
+/// source (null until scored). Hung on a <see cref="RenderSlot"/> exactly when it is an edit slot.</summary>
+public sealed class EditResult
+{
+    /// <summary>False when the model declined (no new image).</summary>
+    public bool Changed = true;
+    /// <summary>pHash distance from the source; null until computed.</summary>
+    [AllowNullable("null = distance not computed yet; 0.0 is a real identical-image score")]
+    public double? ChangeScore;
 }

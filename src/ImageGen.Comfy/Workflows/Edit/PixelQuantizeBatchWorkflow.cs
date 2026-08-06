@@ -78,36 +78,35 @@ public sealed class PixelQuantizeBatchWorkflow : EditWorkflow<PixelQuantizeBatch
 
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == ComfyWidgets.PixelEngine.Fp)
+        // The engine is a contract, not a flag: the concrete params type IS the branch, and its knobs are all present.
+        g[Nodes.Quantize] = p switch
         {
             // Feature-preserving: derives ONE global palette + frequencies across all N frames (no replay globals —
-            // this IS the derivation pass), so 'palette'/'final_method' are unused. Same node + knobs as the video fp.
-            g[Nodes.Quantize] = new PixelQuantizeFP
+            // this IS the derivation pass). Same node + knobs as the video fp.
+            PixelQuantizeBatchFpParams fp => new PixelQuantizeFP
             {
                 Image = batch,
                 GridW = gw,
                 GridH = gh,
                 VirtualResolution = p.VirtualResolution,
-                Thicken = QuantizeGuards.Req(p.Thicken, WorkflowParamKeys.Thicken),
-                Tau = QuantizeGuards.Req(p.Tau, WorkflowParamKeys.Tau),
-                Lam = QuantizeGuards.Req(p.Lam, WorkflowParamKeys.Lam),
-                K = QuantizeGuards.Req(p.K, WorkflowParamKeys.K),
-                Beta = QuantizeGuards.Req(p.Beta, WorkflowParamKeys.Beta),
-                Step = QuantizeGuards.Req(p.Step, WorkflowParamKeys.Step),
-            };
-        }
-        else
-        {
-            g[Nodes.Quantize] = new PixelQuantize
+                Thicken = fp.Thicken,
+                Tau = fp.Tau,
+                Lam = fp.Lam,
+                K = fp.K,
+                Beta = fp.Beta,
+                Step = fp.Step,
+            },
+            PixelQuantizeBatchMedianParams md => new PixelQuantize
             {
                 Image = batch,
                 GridW = gw,
                 GridH = gh,
-                Palette = QuantizeGuards.Req(p.Palette, WorkflowParamKeys.Palette),
-                Method = QuantizeGuards.Req(p.FinalMethod, WorkflowParamKeys.FinalMethod),
+                Palette = md.Palette,
+                Method = md.FinalMethod,
                 VirtualResolution = p.VirtualResolution,
-            };
-        }
+            },
+            _ => throw new InvalidOperationException($"Unknown pixel-quantize engine contract: {p.GetType().Name}."),
+        };
         g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
@@ -121,13 +120,16 @@ file static class Nodes
     public const string Save = "9";
 }
 
-/// <summary>Batch pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the
-/// feature-preserving engine knobs (this is the batch derivation pass, so there are no fp replay globals). The
-/// always-read values (<c>virtual_resolution</c>/<c>grid_w</c>/<c>grid_h</c>/<c>engine</c>) are <c>required</c>; the
-/// branch-only knobs (<c>palette</c>/<c>final_method</c> for median, <c>thicken</c>…<c>step</c> for fp,
-/// <c>matte_threshold</c> for keying) are nullable and guarded in their branch with <c>QuantizeGuards.Req</c> (the old
-/// <c>*Req</c> throw); <c>key_background</c> is a defaulted bool.</summary>
-public sealed record PixelQuantizeBatchParams
+/// <summary>Batch pixel-quantizer parameters shared by BOTH engine contracts — the grid/virtual-resolution snap and
+/// the key-background matte. <c>engine</c> is a CONTRACT DISCRIMINATOR: a config is either the feature-preserving engine
+/// (<see cref="PixelQuantizeBatchFpParams"/>) or the median named-palette engine (<see cref="PixelQuantizeBatchMedianParams"/>),
+/// each carrying only ITS engine's knobs, all <c>required</c> (audit #125 C). This is the batch derivation pass, so the
+/// fp contract has no replay globals. (<c>matte_threshold</c> stays nullable — a separate optional gated by
+/// <c>key_background</c>, orthogonal to the engine.)</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = WorkflowParamKeys.Engine)]
+[JsonDerivedType(typeof(PixelQuantizeBatchFpParams), ComfyWidgets.PixelEngine.Fp)]
+[JsonDerivedType(typeof(PixelQuantizeBatchMedianParams), ComfyWidgets.PixelEngine.Median)]
+public abstract record PixelQuantizeBatchParams
 {
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
     [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }
@@ -135,29 +137,32 @@ public sealed record PixelQuantizeBatchParams
     [Range(0, 4096)]                                        public required int GridW { get; init; }
     [JsonPropertyName(WorkflowParamKeys.GridH)]
     [Range(0, 4096)]                                        public required int GridH { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Engine)]            public required string Engine { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Thicken)]
-    [AllowNullable("null = the config didn't set the FP line-thicken; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0 (no thicken)")]
-    [Range(0.0, 8.0)]                                       public double? Thicken { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Tau)]
-    [AllowNullable("null = the config didn't set the FP de-AA tau; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(0.0, 2.0)]                                       public double? Tau { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Lam)]
-    [AllowNullable("null = the config didn't set the FP flatten strength; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real value")]
-    [Range(0.001, 0.2)]                                     public double? Lam { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.K)]
-    [AllowNullable("null = the config didn't set the FP palette k-means count; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(2, 128)]                                         public int? K { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Beta)]
-    [AllowNullable("null = the config didn't set the FP rarity bias; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(0.0, 4.0)]                                       public double? Beta { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Step)]
-    [AllowNullable("null = the config didn't set the FP DIN99d lattice step; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(1.0, 20.0)]                                      public double? Step { get; init; }
     [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]
     [AllowNullable("null = the config didn't set the matte cutoff; the BiRefNet node input is emitted only when key_background is on, distinct from a real 0 (soft matte)")]
     [Range(0.0, 1.0)]                                       public double? MatteThreshold { get; init; }
+}
+
+/// <summary>The feature-preserving (fp) batch contract — the global-palette derivation pass. Every knob is <c>required</c>.</summary>
+public sealed record PixelQuantizeBatchFpParams : PixelQuantizeBatchParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Thicken)]
+    [Range(0.0, 8.0)]                                       public required double Thicken { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]
+    [Range(0.0, 2.0)]                                       public required double Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lam)]
+    [Range(0.001, 0.2)]                                     public required double Lam { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]
+    [Range(2, 128)]                                         public required int K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Beta)]
+    [Range(0.0, 4.0)]                                       public required double Beta { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step)]
+    [Range(1.0, 20.0)]                                      public required double Step { get; init; }
+}
+
+/// <summary>The median named-palette batch contract. Both knobs are <c>required</c>.</summary>
+public sealed record PixelQuantizeBatchMedianParams : PixelQuantizeBatchParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public required string FinalMethod { get; init; }
 }

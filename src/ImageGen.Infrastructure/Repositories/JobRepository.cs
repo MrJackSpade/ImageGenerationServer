@@ -83,8 +83,8 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             cmd.AddParam("@imageId", (object?)slot.ImageId ?? DBNull.Value);
             cmd.AddParam("@width", (object?)slot.Width ?? DBNull.Value);
             cmd.AddParam("@height", (object?)slot.Height ?? DBNull.Value);
-            cmd.AddParam("@changed", slot.Changed);
-            cmd.AddParam("@score", (object?)slot.ChangeScore ?? DBNull.Value);
+            cmd.AddParam("@changed", slot.Edit?.Changed ?? true);
+            cmd.AddParam("@score", (object?)slot.Edit?.ChangeScore ?? DBNull.Value);
             cmd.AddParam("@error", (object?)slot.Error ?? DBNull.Value);
             cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
             cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
@@ -95,16 +95,16 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             cmd.AddParam("@workflow", (object?)slot.Workflow ?? DBNull.Value);
             cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
             cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
-            cmd.AddParam("@aspect", (object?)slot.Aspect ?? DBNull.Value);
-            cmd.AddParam("@randomArtist", slot.RandomArtist.ToNullableBitParam());
-            cmd.AddParam("@randomPrompt", slot.RandomPrompt.ToNullableBitParam());
-            cmd.AddParam("@temperature", (object?)slot.Temperature ?? DBNull.Value);
-            cmd.AddParam("@tagTypes", (object?)slot.TagTypesJson ?? DBNull.Value);
+            cmd.AddParam("@aspect", (object?)slot.Generate?.Aspect ?? DBNull.Value);
+            cmd.AddParam("@randomArtist", (slot.Generate?.RandomArtist ?? TriState.Unspecified).ToNullableBitParam());
+            cmd.AddParam("@randomPrompt", (slot.Generate?.RandomPrompt ?? TriState.Unspecified).ToNullableBitParam());
+            cmd.AddParam("@temperature", (object?)slot.Generate?.Temperature ?? DBNull.Value);
+            cmd.AddParam("@tagTypes", (object?)slot.Generate?.TagTypesJson ?? DBNull.Value);
             cmd.AddParam("@overrides", (object?)slot.OverridesJson ?? DBNull.Value);
             cmd.AddParam("@loras", (object?)slot.LorasJson ?? DBNull.Value);
-            cmd.AddParam("@source", (object?)slot.SourceImageId ?? DBNull.Value);
-            cmd.AddParam("@mask", (object?)slot.MaskImageId ?? DBNull.Value);
-            cmd.AddParam("@lastFrame", (object?)slot.LastFrameImageId ?? DBNull.Value);
+            cmd.AddParam("@source", (object?)slot.Edit?.SourceImageId ?? DBNull.Value);
+            cmd.AddParam("@mask", (object?)slot.Edit?.MaskImageId ?? DBNull.Value);
+            cmd.AddParam("@lastFrame", (object?)slot.Edit?.LastFrameImageId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(ct);
 
             // The slot's child rows are REPLACED, not merged: this is a write-through of the whole in-memory slot,
@@ -464,7 +464,9 @@ WHERE JobId = @jobId
             await del.ExecuteNonQueryAsync(ct);
         }
 
-        for (int i = 0; i < slot.ReferenceImageIds.Count; i++)
+        // References belong to an edit slot; a generate carries none.
+        List<string> references = slot.Edit?.ReferenceImageIds ?? [];
+        for (int i = 0; i < references.Count; i++)
         {
             await using DbCommand cmd = conn.Command(
                 "INSERT INTO dbo.JobSlotReference (JobId, SlotIndex, Ordinal, ImageId) VALUES (@jobId, @idx, @ord, @img);",
@@ -472,7 +474,7 @@ WHERE JobId = @jobId
             cmd.AddParam("@jobId", slot.JobId);
             cmd.AddParam("@idx", slot.SlotIndex);
             cmd.AddParam("@ord", i);
-            cmd.AddParam("@img", slot.ReferenceImageIds[i]);
+            cmd.AddParam("@img", references[i]);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -506,8 +508,8 @@ WHERE JobId = @jobId
             cmd.AddParam("@jobId", job.JobId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
-                if (bySlot.TryGetValue(reader.AsInt32(0), out JobSlotRecord? slot))
-                    slot.ReferenceImageIds.Add(reader.GetString(1));
+                if (bySlot.TryGetValue(reader.AsInt32(0), out JobSlotRecord? slot) && slot.Edit is { } e)
+                    e.ReferenceImageIds.Add(reader.GetString(1));
         }
 
         // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection, which
@@ -526,37 +528,48 @@ WHERE JobId = @jobId
                 slot.Marks.Add(new Mark(await _cipher.DecryptDeterministicAsync(job.UserId, token, ct), kind));
     }
 
-    private static JobSlotRecord MapSlot(DbDataReader r) => new()
+    private static JobSlotRecord MapSlot(DbDataReader r)
     {
-        JobId = r.GetString(0),
-        SlotIndex = r.AsInt32(1),
-        IsEdit = r.AsBool(2),
-        State = (JobSlotState)r.AsByte(3),
-        ComfyPromptId = r.IsDBNull(4) ? null : r.GetString(4),
-        ImageId = r.IsDBNull(5) ? null : r.GetString(5),
-        Width = r.AsNullableInt32(6),
-        Height = r.AsNullableInt32(7),
-        Changed = r.AsBool(8),
-        ChangeScore = r.AsNullableDouble(9),
-        Error = r.IsDBNull(10) ? null : r.GetString(10),
-        EffectivePrompt = r.IsDBNull(11) ? null : r.GetString(11),
-        GenStartedAtUtc = r.IsDBNull(12) ? null : DateTime.SpecifyKind(r.GetDateTime(12), DateTimeKind.Utc),
-        ExpectedGenSeconds = r.AsNullableDouble(13),
-        RawPrompt = r.IsDBNull(14) ? null : r.GetString(14),
-        RawNegativePrompt = r.IsDBNull(15) ? null : r.GetString(15),
-        Workflow = r.IsDBNull(16) ? null : r.GetString(16),
-        Prompt = r.IsDBNull(17) ? null : r.GetString(17),
-        NegativePrompt = r.IsDBNull(18) ? null : r.GetString(18),
-        Aspect = r.IsDBNull(19) ? null : r.GetString(19),
-        RandomArtist = r.AsTriState(20),
-        RandomPrompt = r.AsTriState(21),
-        Temperature = r.AsNullableDouble(22),
-        TagTypesJson = r.IsDBNull(23) ? null : r.GetString(23),
-        OverridesJson = r.IsDBNull(24) ? null : r.GetString(24),
-        SourceImageId = r.IsDBNull(25) ? null : r.GetString(25),
-        MaskImageId = r.IsDBNull(26) ? null : r.GetString(26),
-        LastFrameImageId = r.IsDBNull(27) ? null : r.GetString(27),
-        LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
-        IsBackground = r.AsBool(29),
-    };
+        bool isEdit = r.AsBool(2);
+        return new()
+        {
+            JobId = r.GetString(0),
+            SlotIndex = r.AsInt32(1),
+            IsEdit = isEdit,
+            State = (JobSlotState)r.AsByte(3),
+            ComfyPromptId = r.IsDBNull(4) ? null : r.GetString(4),
+            ImageId = r.IsDBNull(5) ? null : r.GetString(5),
+            Width = r.AsNullableInt32(6),
+            Height = r.AsNullableInt32(7),
+            Error = r.IsDBNull(10) ? null : r.GetString(10),
+            EffectivePrompt = r.IsDBNull(11) ? null : r.GetString(11),
+            GenStartedAtUtc = r.IsDBNull(12) ? null : DateTime.SpecifyKind(r.GetDateTime(12), DateTimeKind.Utc),
+            ExpectedGenSeconds = r.AsNullableDouble(13),
+            RawPrompt = r.IsDBNull(14) ? null : r.GetString(14),
+            RawNegativePrompt = r.IsDBNull(15) ? null : r.GetString(15),
+            Workflow = r.IsDBNull(16) ? null : r.GetString(16),
+            Prompt = r.IsDBNull(17) ? null : r.GetString(17),
+            NegativePrompt = r.IsDBNull(18) ? null : r.GetString(18),
+            OverridesJson = r.IsDBNull(24) ? null : r.GetString(24),
+            LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
+            IsBackground = r.AsBool(29),
+            // Exactly one mode group is populated, by IsEdit — each field read from its own (unchanged) column.
+            Generate = isEdit ? null : new GenerateSlotData
+            {
+                Aspect = r.IsDBNull(19) ? null : r.GetString(19),
+                RandomArtist = r.AsTriState(20),
+                RandomPrompt = r.AsTriState(21),
+                Temperature = r.AsNullableDouble(22),
+                TagTypesJson = r.IsDBNull(23) ? null : r.GetString(23),
+            },
+            Edit = !isEdit ? null : new EditSlotData
+            {
+                Changed = r.AsBool(8),
+                ChangeScore = r.AsNullableDouble(9),
+                SourceImageId = r.IsDBNull(25) ? null : r.GetString(25),
+                MaskImageId = r.IsDBNull(26) ? null : r.GetString(26),
+                LastFrameImageId = r.IsDBNull(27) ? null : r.GetString(27),
+            },
+        };
+    }
 }

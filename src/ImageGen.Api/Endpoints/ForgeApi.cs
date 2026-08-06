@@ -588,13 +588,19 @@ public static class ForgeApi
             Results.Ok(new { loaded = tags.Loaded, status = tags.Status, tags = tags.TagCount, artists = tags.ArtistCount }));
     }
 
-    /// <summary>One autocomplete suggestion on the wire: the token name, its model-ranked probability/lift (null on the
-    /// count-ranked path), its catalog count/category, and whether it is one of the caller's bookmarks (pinned).</summary>
+    /// <summary>One autocomplete suggestion on the wire: the token name, its catalog count/category, whether it is one of
+    /// the caller's bookmarks (pinned), and — ONLY when the model ranked it — its <see cref="Ranking"/>. The two ranking
+    /// paths are two shapes, not one with holes: the count-ranked and bookmark producers carry no <see cref="Ranking"/>
+    /// (it is null), and the model-ranked producer always carries one. This is the polymorphic replacement for a pair of
+    /// "null on the count-ranked path" nullables (audit #125 A2).</summary>
     internal sealed record TagSuggestionItem(
-        string Name,
-        [property: AllowNullable("null on the count-ranked path (no model probability); 0.0 would be a real probability")] double? P,
-        [property: AllowNullable("null on the count-ranked path (no model lift); 0.0 would be a real lift value")] double? Lift,
-        int Count, int Type, bool Bookmarked);
+        string Name, int Count, int Type, bool Bookmarked, Ranking? Ranking);
+
+    /// <summary>The model-ranked scores a suggestion carries only when a tag model produced it: the shown probability
+    /// (always present on this path) and the lift over the tag's base rate (absent when the tag has no base rate).</summary>
+    internal sealed record Ranking(
+        double P,
+        [property: AllowNullable("null = no base rate for the tag, so no lift; 0.0 would be a real lift value")] double? Lift);
 
     /// <summary>Merge the caller's pinned bookmarks in front of the ranked suggestions: the <paramref name="pinned"/>
     /// items first (in the order given), then the <paramref name="ranked"/> items with any whose name a pin already
@@ -624,12 +630,12 @@ public static class ForgeApi
                 return sug.Take(n).Select(s =>
                 {
                     TagEntry? meta = tags.Lookup(s.Name);
-                    return new TagSuggestionItem(s.Name, s.P, s.Lift, meta?.Count ?? 0, meta?.Type ?? 0, false);
+                    return new TagSuggestionItem(s.Name, meta?.Count ?? 0, meta?.Type ?? 0, false, new Ranking(s.P, s.Lift));
                 }).ToList();
         }
 
         return tags.Query(frag, artist, n)
-            .Select(t => new TagSuggestionItem(t.Name, null, null, t.Count, t.Type, false))
+            .Select(t => new TagSuggestionItem(t.Name, t.Count, t.Type, false, Ranking: null))
             .ToList();
     }
 
@@ -639,7 +645,7 @@ public static class ForgeApi
     private static TagSuggestionItem BookmarkItem(string name, ITagCatalog tags)
     {
         TagEntry? meta = tags.Lookup(name);
-        return new TagSuggestionItem(name, null, null, meta?.Count ?? 0, meta?.Type ?? 0, true);
+        return new TagSuggestionItem(name, meta?.Count ?? 0, meta?.Type ?? 0, true, Ranking: null);
     }
 
     #endregion
@@ -697,14 +703,14 @@ public static class ForgeApi
             {
                 RenderSlot s = job.Slots[0];
                 return Results.Ok(LegacyResultSlot(RenderPhases.Of(s.State), s.ImageId, s.ExpectedGenSeconds, s.GenStartedAt,
-                    s.Width, s.Height, s.IsEdit, s.Changed, s.ChangeScore, s.EffectivePrompt, s.Marks, s.Error, queue.JobsAhead(job), s.Notice));
+                    s.Width, s.Height, s.IsEdit, s.EditResult?.Changed ?? true, s.EditResult?.ChangeScore, s.EffectivePrompt, s.Marks, s.Error, queue.JobsAhead(job), s.Notice));
             }
             JobRecord? rec = await jobs.GetAsync(id, ct);
             if (rec is null || rec.Slots.Count == 0) return Results.Ok(new { status = "error", error = "unknown job id" });
             JobSlotRecord sr = rec.Slots.OrderBy(x => x.SlotIndex).First();
             return Results.Ok(LegacyResultSlot(RenderPhases.Of(sr.State), sr.ImageId, sr.ExpectedGenSeconds,
                 sr.GenStartedAtUtc is { } g ? new DateTimeOffset(DateTime.SpecifyKind(g, DateTimeKind.Utc)) : null,
-                sr.Width ?? 0, sr.Height ?? 0, sr.IsEdit, sr.Changed, sr.ChangeScore, sr.EffectivePrompt, MarksMap(sr.Marks), sr.Error, 0));
+                sr.Width ?? 0, sr.Height ?? 0, sr.IsEdit, sr.Edit?.Changed ?? true, sr.Edit?.ChangeScore, sr.EffectivePrompt, MarksMap(sr.Marks), sr.Error, 0));
         });
 
         // SYNC: this user's ACTIVE jobs only. A finalized job is not here — its absence is the client's reconcile cue.
@@ -881,7 +887,7 @@ public static class ForgeApi
     private static object SlotViewOf(RenderSlot s) => SlotView(
         s.Index, RenderPhases.Of(s.State).Wire(),
         s.ImageId, s.Model, s.EffectivePrompt, s.Marks, s.Width, s.Height,
-        s.IsEdit ? s.Changed : (bool?)null, s.ChangeScore, s.Error, s.Notice);
+        s.EditResult?.Changed, s.EditResult?.ChangeScore, s.Error, s.Notice);
 
     private static object JobViewOf(RenderJob j, RenderOrchestrator q)
     {
@@ -1010,7 +1016,7 @@ public static class ForgeApi
             slots = r.Slots.OrderBy(s => s.SlotIndex).Select(s => SlotView(
                 s.SlotIndex, RenderPhases.Of(s.State).Wire(),
                 s.ImageId, r.Model, s.EffectivePrompt, MarksMap(s.Marks), s.Width ?? 0, s.Height ?? 0,
-                s.IsEdit ? s.Changed : (bool?)null, s.ChangeScore, s.Error)),
+                s.Edit?.Changed, s.Edit?.ChangeScore, s.Error)),
             createdAt = AsUtc(r.CreatedAtUtc),
             finishedAt = AsUtc(r.FinishedAtUtc)
         };

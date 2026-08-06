@@ -90,17 +90,30 @@ file static class H3
                     g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
                     lastFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledEndFrame);
                 }
-                g[H3Nodes.Encode] = new MiniMaxH3ImageToVideoI2V
-                {
-                    Clip = clip,
-                    Vae = videoVae,
-                    Prompt = inputs.Positive,
-                    Length = length,
-                    Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
-                    Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
-                    FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
-                    LastFrame = lastFrame,
-                };
+                // First/last-frame loop vs plain i2v is a choice of NODE, not a nullable input: the end frame either pins
+                // the ending (its own record) or there is none.
+                g[H3Nodes.Encode] = lastFrame is { } endFrame
+                    ? new MiniMaxH3FirstLastFrameToVideo
+                    {
+                        Clip = clip,
+                        Vae = videoVae,
+                        Prompt = inputs.Positive,
+                        Length = length,
+                        Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
+                        Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
+                        FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+                        LastFrame = endFrame,
+                    }
+                    : new MiniMaxH3ImageToVideoI2V
+                    {
+                        Clip = clip,
+                        Vae = videoVae,
+                        Prompt = inputs.Positive,
+                        Length = length,
+                        Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
+                        Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
+                        FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+                    };
                 break;
             }
             case H3Mode.Ref2V:

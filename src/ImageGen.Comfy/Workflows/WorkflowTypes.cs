@@ -168,6 +168,17 @@ public static class ParamsCodec
     {
         RespectRequiredConstructorParameters = true,
         RespectNullableAnnotations = true,
+        // A params DTO may be a CONTRACT hierarchy ([JsonPolymorphic] on a discriminator key like "engine"): the merged
+        // bag is a dictionary, so the discriminator is not guaranteed to be the first property. Read it wherever it sits.
+        AllowOutOfOrderMetadataProperties = true,
+        // Contract hierarchies whose discriminator is a BOOL (the HunyuanVideo 1.5 `sr` toggle) can't be expressed with
+        // [JsonPolymorphic] (string/int discriminators only), so a converter reads the toggle and materializes the
+        // matching SR-or-not shape. Registered against the abstract bases only — the concrete subtypes deserialize normally.
+        Converters =
+        {
+            new HunyuanVideo15I2VParamsConverter(),
+            new HunyuanVideo15T2VParamsConverter(),
+        },
     };
 
     /// <summary>Deserialize the merged parameters into a strongly-typed params DTO in ONE System.Text.Json pass — STJ

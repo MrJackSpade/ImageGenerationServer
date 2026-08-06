@@ -84,38 +84,37 @@ public sealed class PixelQuantizeWorkflow : EditWorkflow<PixelQuantizeParams>
         }
         int gw = p.GridW;
         int gh = p.GridH;
-        if (p.Engine == ComfyWidgets.PixelEngine.Fp)
+        // The engine is a contract, not a flag: the concrete params type IS the branch, and its knobs are all present.
+        g[Nodes.Quantize] = p switch
         {
             // Feature-preserving engine, same node + knobs as pixel-quantize-video's fp branch, plus the replay
             // globals so a single frame can reproduce its whole-batch result exactly.
-            g[Nodes.Quantize] = new PixelQuantizeFPReplay
+            PixelQuantizeFpParams fp => new PixelQuantizeFPReplay
             {
                 Image = src,
                 GridW = gw,
                 GridH = gh,
                 VirtualResolution = p.VirtualResolution,
-                Thicken = QuantizeGuards.Req(p.Thicken, WorkflowParamKeys.Thicken),
-                Tau = QuantizeGuards.Req(p.Tau, WorkflowParamKeys.Tau),
-                Lam = QuantizeGuards.Req(p.Lam, WorkflowParamKeys.Lam),
-                K = QuantizeGuards.Req(p.K, WorkflowParamKeys.K),
-                Beta = QuantizeGuards.Req(p.Beta, WorkflowParamKeys.Beta),
-                Step = QuantizeGuards.Req(p.Step, WorkflowParamKeys.Step),
-                Palette = p.FpPalette ?? "",
-                Frequencies = p.FpFrequencies ?? "",
-            };
-        }
-        else
-        {
-            g[Nodes.Quantize] = new PixelQuantize
+                Thicken = fp.Thicken,
+                Tau = fp.Tau,
+                Lam = fp.Lam,
+                K = fp.K,
+                Beta = fp.Beta,
+                Step = fp.Step,
+                Palette = fp.FpPalette ?? "",
+                Frequencies = fp.FpFrequencies ?? "",
+            },
+            PixelQuantizeMedianParams md => new PixelQuantize
             {
                 Image = src,
                 GridW = gw,
                 GridH = gh,
-                Palette = QuantizeGuards.Req(p.Palette, WorkflowParamKeys.Palette),
-                Method = QuantizeGuards.Req(p.FinalMethod, WorkflowParamKeys.FinalMethod),
+                Palette = md.Palette,
+                Method = md.FinalMethod,
                 VirtualResolution = p.VirtualResolution,
-            };
-        }
+            },
+            _ => throw new InvalidOperationException($"Unknown pixel-quantize engine contract: {p.GetType().Name}."),
+        };
         g[Nodes.Save] = new SaveImage { Images = PixelQuantize.Out(Nodes.Quantize), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
@@ -129,13 +128,17 @@ file static class Nodes
     public const string Save = "9";
 }
 
-/// <summary>Pixel-quantizer parameters — the grid/virtual-resolution snap, the engine selector, and the
-/// feature-preserving engine knobs. The always-read values (<c>virtual_resolution</c>/<c>grid_w</c>/<c>grid_h</c>/
-/// <c>engine</c>) are <c>required</c>; the branch-only knobs (<c>palette</c>/<c>final_method</c> for median,
-/// <c>thicken</c>…<c>step</c> for fp, <c>matte_threshold</c> for keying) are nullable and guarded in their branch with
-/// <c>QuantizeGuards.Req</c> (the old <c>*Req</c> throw), so a config on the other branch may omit them; the two fp
-/// replay globals are nullable strings (empty = derive) and <c>key_background</c> a defaulted bool.</summary>
-public sealed record PixelQuantizeParams
+/// <summary>Pixel-quantizer parameters shared by BOTH engine contracts — the grid/virtual-resolution snap and the
+/// key-background matte. <c>engine</c> is a CONTRACT DISCRIMINATOR, not a field: a config is either the feature-preserving
+/// engine (<see cref="PixelQuantizeFpParams"/>) or the median named-palette engine (<see cref="PixelQuantizeMedianParams"/>),
+/// and the deserializer materializes the one the <c>engine</c> key names — each carrying only ITS engine's knobs, all
+/// <c>required</c> (audit #125 C). The two are distinct shapes; neither is the other with its fields nulled out.
+/// <para>(<c>matte_threshold</c> is still nullable — it is a SEPARATE optional gated by <c>key_background</c>, a keyed/
+/// un-keyed distinction orthogonal to the engine; splitting that is its own contract question.)</para></summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = WorkflowParamKeys.Engine)]
+[JsonDerivedType(typeof(PixelQuantizeFpParams), ComfyWidgets.PixelEngine.Fp)]
+[JsonDerivedType(typeof(PixelQuantizeMedianParams), ComfyWidgets.PixelEngine.Median)]
+public abstract record PixelQuantizeParams
 {
     [JsonPropertyName(WorkflowParamKeys.VirtualResolution)]
     [Range(0, 4096)]                                        public required int VirtualResolution { get; init; }
@@ -143,31 +146,39 @@ public sealed record PixelQuantizeParams
     [Range(0, 4096)]                                        public required int GridW { get; init; }
     [JsonPropertyName(WorkflowParamKeys.GridH)]
     [Range(0, 4096)]                                        public required int GridH { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Engine)]            public required string Engine { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Palette)]           public string? Palette { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public string? FinalMethod { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Thicken)]
-    [AllowNullable("null = the config didn't set the FP line-thicken; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0 (no thicken)")]
-    [Range(0.0, 8.0)]                                       public double? Thicken { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Tau)]
-    [AllowNullable("null = the config didn't set the FP de-AA tau; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(0.0, 2.0)]                                       public double? Tau { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Lam)]
-    [AllowNullable("null = the config didn't set the FP flatten strength; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real value")]
-    [Range(0.001, 0.2)]                                     public double? Lam { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.K)]
-    [AllowNullable("null = the config didn't set the FP palette k-means count; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(2, 128)]                                         public int? K { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Beta)]
-    [AllowNullable("null = the config didn't set the FP rarity bias; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(0.0, 4.0)]                                       public double? Beta { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Step)]
-    [AllowNullable("null = the config didn't set the FP DIN99d lattice step; the PixelQuantizeFP node input is emitted only on the fp branch when set, distinct from a real 0")]
-    [Range(1.0, 20.0)]                                      public double? Step { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.FpPalette)]         public string? FpPalette { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.FpFrequencies)]     public string? FpFrequencies { get; init; }
     [JsonPropertyName(WorkflowParamKeys.KeyBackground)]     public bool KeyBackground { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MatteThreshold)]
     [AllowNullable("null = the config didn't set the matte cutoff; the BiRefNet node input is emitted only when key_background is on, distinct from a real 0 (soft matte)")]
     [Range(0.0, 1.0)]                                       public double? MatteThreshold { get; init; }
+}
+
+/// <summary>The feature-preserving (fp) pixel-quantize contract: L0 flatten + XDoG thicken + de-AA + DIN99d global
+/// palette. Every knob is <c>required</c> — an fp config supplies them all; a median config is a different shape and
+/// carries none of them.</summary>
+public sealed record PixelQuantizeFpParams : PixelQuantizeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Thicken)]
+    [Range(0.0, 8.0)]                                       public required double Thicken { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Tau)]
+    [Range(0.0, 2.0)]                                       public required double Tau { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Lam)]
+    [Range(0.001, 0.2)]                                     public required double Lam { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.K)]
+    [Range(2, 128)]                                         public required int K { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Beta)]
+    [Range(0.0, 4.0)]                                       public required double Beta { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Step)]
+    [Range(1.0, 20.0)]                                      public required double Step { get; init; }
+    /// <summary>Replay globals from a previous fp run — genuinely optional WITHIN the fp contract (empty = derive from
+    /// this image), so nullable strings, not a branch on another shape.</summary>
+    [JsonPropertyName(WorkflowParamKeys.FpPalette)]         public string? FpPalette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FpFrequencies)]     public string? FpFrequencies { get; init; }
+}
+
+/// <summary>The median named-palette pixel-quantize contract: OKLab nearest snap onto a named/inline palette. Both knobs
+/// are <c>required</c> — a median config supplies them; an fp config is a different shape.</summary>
+public sealed record PixelQuantizeMedianParams : PixelQuantizeParams
+{
+    [JsonPropertyName(WorkflowParamKeys.Palette)]           public required string Palette { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.FinalMethod)]       public required string FinalMethod { get; init; }
 }

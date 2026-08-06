@@ -172,12 +172,20 @@ public sealed record HunyuanVideo15LatentUpscaleWithModel : ComfyNode
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
 
-/// <summary>Re-emits the (positive, negative, latent) triple conditioned for the HunyuanVideo 1.5 SR model (ComfyUI
-/// core). The <c>start_image</c> and <c>clip_vision_output</c> inputs are CONDITIONAL — the i2v path supplies them and
-/// the t2v path omits them entirely — so they are nullable and marked <see cref="JsonIgnoreCondition.WhenWritingNull"/>
-/// to be dropped from the emitted node when null, byte-identical to the old conditional input dictionary. Output 0 =
-/// positive, 1 = negative, 2 = latent.</summary>
-public sealed record HunyuanVideo15SuperResolution : ComfyNode
+/// <summary>The HunyuanVideo 1.5 SR conditioning node in either input shape — <see cref="HunyuanVideo15SuperResolutionI2V"/>
+/// (start image + clip-vision cue) or <see cref="HunyuanVideo15SuperResolutionT2V"/> (neither). Same ComfyUI class type and
+/// the same (positive, negative, latent) output triple; the two paths are DISTINCT records rather than one with conditional
+/// nullable inputs (audit #125 A′). The shared output-slot accessors live here so both shapes expose one output contract.</summary>
+public interface IHunyuanVideo15SuperResolution
+{
+    static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
+    static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
+    static Output<Slot.Latent> LatentOut(string id) => new(id, 2);
+}
+
+/// <summary>The i2v shape of the HunyuanVideo 1.5 SR node: re-emits the (positive, negative, latent) triple for the SR model
+/// with the source image + clip-vision cue baked in as the consistency signal. Output 0 = positive, 1 = negative, 2 = latent.</summary>
+public sealed record HunyuanVideo15SuperResolutionI2V : ComfyNode, IHunyuanVideo15SuperResolution
 {
     internal override string ClassType => ComfyNodeTypes.HunyuanVideo15SuperResolution;
     [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
@@ -185,20 +193,21 @@ public sealed record HunyuanVideo15SuperResolution : ComfyNode
     [JsonPropertyName("latent")]             public required Output<Slot.Latent> Latent { get; init; }
     [JsonPropertyName("noise_augmentation")] public required double NoiseAugmentation { get; init; }
     [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
+    /// <summary>The i2v start image (the SR consistency cue).</summary>
+    [JsonPropertyName("start_image")]        public required Output<Slot.Image> StartImage { get; init; }
+    /// <summary>The i2v clip-vision cue.</summary>
+    [JsonPropertyName("clip_vision_output")] public required Output<Slot.ClipVision> ClipVisionOutput { get; init; }
+}
 
-    /// <summary>The i2v start image (the SR consistency cue); null on the t2v path, where it is omitted from the node.</summary>
-    [JsonPropertyName("start_image")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [AllowNullable("null = no start image is wired (the t2v path has no source frame); the start_image node input is omitted when absent, distinct from a default node handle")]
-    public Output<Slot.Image>? StartImage { get; init; }
-
-    /// <summary>The i2v clip-vision cue; null on the t2v path, where it is omitted from the node.</summary>
-    [JsonPropertyName("clip_vision_output")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [AllowNullable("null = no clip-vision output is wired (the t2v path has no source frame to encode); the clip_vision_output node input is omitted when absent, distinct from a default node handle")]
-    public Output<Slot.ClipVision>? ClipVisionOutput { get; init; }
-
-    public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
-    public static Output<Slot.Conditioning> NegativeOut(string id) => new(id, 1);
-    public static Output<Slot.Latent> LatentOut(string id) => new(id, 2);
+/// <summary>The t2v shape of the HunyuanVideo 1.5 SR node: the (positive, negative, latent) triple with NO source frame — no
+/// start image, no clip-vision cue. Byte-identical to the i2v node with those two inputs absent. Output 0 = positive, 1 =
+/// negative, 2 = latent.</summary>
+public sealed record HunyuanVideo15SuperResolutionT2V : ComfyNode, IHunyuanVideo15SuperResolution
+{
+    internal override string ClassType => ComfyNodeTypes.HunyuanVideo15SuperResolution;
+    [JsonPropertyName("positive")]           public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("negative")]           public required Output<Slot.Conditioning> Negative { get; init; }
+    [JsonPropertyName("latent")]             public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("noise_augmentation")] public required double NoiseAugmentation { get; init; }
+    [JsonPropertyName("vae")]                public required Output<Slot.Vae> Vae { get; init; }
 }

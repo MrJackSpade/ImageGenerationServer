@@ -82,11 +82,6 @@ public sealed class JobSlotRecord
     public int? Width { get; set; }
     [AllowNullable("null = image not yet produced; mirrors the nullable dbo.JobSlot column. A produced image is never 0px, so a default can't stand in for absent")]
     public int? Height { get; set; }
-    /// <summary>Edits: false when the model declined (no new image).</summary>
-    public bool Changed { get; set; } = true;
-    /// <summary>Edits only (pHash distance).</summary>
-    [AllowNullable("null = not an edit / distance not computed; mirrors the nullable dbo.JobSlot column. 0.0 is a real identical-image score")]
-    public double? ChangeScore { get; set; }
     public string? Error { get; set; }
     /// <summary>The finalized prompt this slot rendered.</summary>
     public string? EffectivePrompt { get; set; }
@@ -109,20 +104,6 @@ public sealed class JobSlotRecord
     public string? Prompt { get; set; }
     /// <summary>The submitted negative, if any. User text: ENCRYPTED at rest.</summary>
     public string? NegativePrompt { get; set; }
-    /// <summary>"square" | "landscape" | "portrait" (generates only).</summary>
-    public string? Aspect { get; set; }
-    /// <summary>Whether the worker should sample an artist for this slot. <see cref="TriState.Unspecified"/> = the caller
-    /// specified none / not applicable to an edit slot; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
-    public TriState RandomArtist { get; set; }
-    /// <summary>Whether the worker should generate the prompt from the tag model. <see cref="TriState.Unspecified"/> = the
-    /// caller specified none / not applicable to an edit slot; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
-    public TriState RandomPrompt { get; set; }
-    /// <summary>The random-prompt sampling temperature. Null = the caller specified none.</summary>
-    [AllowNullable("null = use the tag model's default sampling; mirrors the nullable dbo.JobSlot column. 0.0 is a real (greedy) temperature")]
-    public double? Temperature { get; set; }
-    /// <summary>The generation mask for this slot as a JSON array of type NAMES. A value set, not a relation — the
-    /// same shape (and the same plain storage) as <c>AppUser.GenerationTagTypes</c>. Null = the caller sent none.</summary>
-    public string? TagTypesJson { get; set; }
     /// <summary>The workflow's exposed parameter values as a JSON map. An arbitrary bag keyed by parameter name, not
     /// a relation to anything, and not protected — stored plain so it is readable without a key.</summary>
     public string? OverridesJson { get; set; }
@@ -130,13 +111,49 @@ public sealed class JobSlotRecord
     /// relation — stored plain and per-slot like <see cref="OverridesJson"/>, so a batch resumed after a restart
     /// re-renders with its LoRAs intact. Null when the slot used none.</summary>
     public string? LorasJson { get; set; }
-    /// <summary>Edits: the source image. A real, joinable id.</summary>
+
+    /// <summary>Generate-only fields, present iff <see cref="IsEdit"/> is false. Each field applies to a GENERATE and to
+    /// no edit; grouping them here means a generate value can't be set on an edit slot and vice versa, which the old flat
+    /// "null = not applicable to an edit slot" columns could not express (audit #125 A1). The columns are unchanged —
+    /// they are read into / written from this group by mode.</summary>
+    public GenerateSlotData? Generate { get; set; }
+    /// <summary>Edit-only fields, present iff <see cref="IsEdit"/> is true. See <see cref="Generate"/> for why the split.</summary>
+    public EditSlotData? Edit { get; set; }
+}
+
+/// <summary>The generate-only columns of a <see cref="JobSlotRecord"/>. Populated only for a generate slot.</summary>
+public sealed class GenerateSlotData
+{
+    /// <summary>"square" | "landscape" | "portrait".</summary>
+    public string? Aspect { get; set; }
+    /// <summary>Whether the worker should sample an artist for this slot. <see cref="TriState.Unspecified"/> = the caller
+    /// specified none; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
+    public TriState RandomArtist { get; set; }
+    /// <summary>Whether the worker should generate the prompt from the tag model. <see cref="TriState.Unspecified"/> = the
+    /// caller specified none; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
+    public TriState RandomPrompt { get; set; }
+    /// <summary>The random-prompt sampling temperature.</summary>
+    [AllowNullable("null = the caller specified none, so use the tag model's default sampling; mirrors the nullable dbo.JobSlot column. 0.0 is a real (greedy) temperature")]
+    public double? Temperature { get; set; }
+    /// <summary>The generation mask for this slot as a JSON array of type NAMES. A value set, not a relation — the
+    /// same shape (and the same plain storage) as <c>AppUser.GenerationTagTypes</c>. Null = the caller sent none.</summary>
+    public string? TagTypesJson { get; set; }
+}
+
+/// <summary>The edit-only columns and child rows of a <see cref="JobSlotRecord"/>. Populated only for an edit slot.</summary>
+public sealed class EditSlotData
+{
+    /// <summary>False when the model declined (no new image).</summary>
+    public bool Changed { get; set; } = true;
+    /// <summary>pHash distance from the source.</summary>
+    [AllowNullable("null = distance not computed yet; mirrors the nullable dbo.JobSlot column. 0.0 is a real identical-image score")]
+    public double? ChangeScore { get; set; }
+    /// <summary>The source image. A real, joinable id.</summary>
     public string? SourceImageId { get; set; }
     /// <summary>Inpaint: the mask image. A real, joinable id.</summary>
     public string? MaskImageId { get; set; }
     /// <summary>Image-to-video: the end frame. A real, joinable id.</summary>
     public string? LastFrameImageId { get; set; }
-    /// <summary>Edits: the reference images, in order (dbo.JobSlotReference). Ordered because they are positional to
-    /// the workflow.</summary>
+    /// <summary>The reference images, in order (dbo.JobSlotReference). Ordered because they are positional to the workflow.</summary>
     public List<string> ReferenceImageIds { get; set; } = [];
 }

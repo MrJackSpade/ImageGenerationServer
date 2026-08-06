@@ -452,6 +452,39 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void PixelQuantize_median_config_deserializes_to_the_median_contract()
+    {
+        // The shipped single-frame config is engine=median; it must materialize as PixelQuantizeMedianParams and emit
+        // the median node with its palette — never the fp node.
+        string json = BuildJson("pixel-quantize", Edit);
+        Assert.Contains("\"PixelQuantize\"", json);
+        Assert.DoesNotContain("\"PixelQuantizeFP\"", json);
+        Assert.Contains("\"palette\":\"adaptive\"", json);
+        Assert.Contains("\"virtual_resolution\":384", json);
+    }
+
+    [Fact]
+    public void PixelQuantize_fp_engine_deserializes_to_the_fp_contract()
+    {
+        // Flip the engine to fp (the API-submission path past the UI): the same bag must now materialize as
+        // PixelQuantizeFpParams and route to the feature-preserving node with its knobs, never the median node.
+        Dictionary<string, object?> fp = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [WorkflowParamKeys.Engine] = "fp",
+            [WorkflowParamKeys.Thicken] = 0.75,
+            [WorkflowParamKeys.Tau] = 0.6,
+            [WorkflowParamKeys.Lam] = 0.015,
+            [WorkflowParamKeys.K] = 31,
+            [WorkflowParamKeys.Beta] = 0.5,
+            [WorkflowParamKeys.Step] = 5.6,
+        };
+        string json = BuildJson("pixel-quantize", Edit, fp);
+        Assert.Contains("\"PixelQuantizeFP\"", json);
+        Assert.DoesNotContain("\"PixelQuantize\"", json);   // the median node must NOT be emitted for fp
+        Assert.Contains("\"thicken\":0.75", json);
+    }
+
+    [Fact]
     public void AnimaInpaint_builds_masked_img2img_with_separate_mask()
     {
         string json = BuildJson("anima-inpaint", EditMasked);

@@ -1,41 +1,34 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
-/// <summary>The typed view of the SR knobs a HunyuanVideo 1.5 i2v/t2v params record exposes for the super-resolution
-/// second pass. The values are nullable because SR is optional — a config that leaves <c>sr</c> off supplies none of
-/// them; the typed <see cref="HunyuanSr.Refine"/> reads them (with a fail-fast refusal on an absent value) only once
-/// <see cref="HunyuanSr.Enabled(IHunyuanSrParams)"/> is true.</summary>
-public interface IHunyuanSrParams
+/// <summary>The super-resolution pass CONTRACT — a HunyuanVideo 1.5 params record implements this exactly when its config
+/// asked for SR (the concrete <c>*SrParams</c> subtype; a non-SR config is a different, SR-less params shape). Every knob
+/// is non-null: an SR config supplies them all, so there is nothing to guard at read time (audit #125 C). Consumed by
+/// <see cref="HunyuanSr.Refine"/>; the toggle is the PRESENCE of this interface, resolved by <see cref="HunyuanSr.PassOf"/>.</summary>
+public interface IHunyuanSrPass
 {
-    /// <summary>The SR on/off toggle.</summary>
-    bool Sr { get; }
-    /// <summary>The SR distilled UNet filename (resolved model ref); null/blank means SR is not actually wired.</summary>
-    string? SrModel { get; }
+    /// <summary>The SR distilled UNet filename (resolved model ref).</summary>
+    string SrModel { get; }
     /// <summary>The latent upsampler filename (resolved model ref).</summary>
-    string? SrUpsampler { get; }
+    string SrUpsampler { get; }
     /// <summary>The SR latent-upscale target width.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    int? SrWidth { get; }
+    int SrWidth { get; }
     /// <summary>The SR latent-upscale target height.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    int? SrHeight { get; }
+    int SrHeight { get; }
     /// <summary>The SR refine step count.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    int? SrSteps { get; }
+    int SrSteps { get; }
     /// <summary>The SR refine denoise fraction.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    double? SrDenoise { get; }
+    double SrDenoise { get; }
     /// <summary>The SR noise-augmentation amount fed to the SR conditioning node.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    double? SrNoiseAug { get; }
+    double SrNoiseAug { get; }
     /// <summary>The SR real-CFG scale.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    double? SrCfg { get; }
+    double SrCfg { get; }
     /// <summary>The SR model's flow shift.</summary>
-    [AllowNullable("null = the config didn't enable/parameterize the super-resolution pass; the SR node input is emitted only when set, distinct from a real 0")]
-    double? SrShift { get; }
+    double SrShift { get; }
 }
 
 /// <summary>
@@ -89,67 +82,89 @@ internal static class HunyuanSr
         new() { Key = WorkflowParamKeys.SrShift,     Type = ParamType.Double, Min = 1.0, Max = 12.0 },
     };
 
-    /// <summary>True when the config asked for SR and supplied an SR model file.</summary>
-    public static bool Enabled(IHunyuanSrParams p) => p.Sr && !string.IsNullOrWhiteSpace(p.SrModel);
+    /// <summary>The SR pass for these params, or null when SR is off — the toggle is the params SHAPE (a concrete SR
+    /// subtype implements <see cref="IHunyuanSrPass"/>) plus a supplied SR model file. Callers gate <see cref="Refine"/>
+    /// and the tiled decode on a non-null result.</summary>
+    public static IHunyuanSrPass? PassOf(object? p) =>
+        p is IHunyuanSrPass sr && !string.IsNullOrWhiteSpace(sr.SrModel) ? sr : null;
 
-    /// <summary>Append the SR pass over a typed <see cref="ComfyWorkflowGraph"/> and return its refined latent; returns
-    /// <paramref name="baseLatent"/> unchanged when SR is off.
+    /// <summary>Append the SR pass over a typed <see cref="ComfyWorkflowGraph"/> and return its refined latent. Called
+    /// only for an SR config (the caller gates on <see cref="PassOf"/>), so every knob on <paramref name="p"/> is present.
     /// <paramref name="positive"/>/<paramref name="negative"/> are the raw text-encode conditioning;
     /// <paramref name="startImage"/>/<paramref name="clipVisionOutput"/> are optional (null for t2v — omitted from the SR
     /// node). <paramref name="sampler"/>/<paramref name="scheduler"/> are the ALREADY-MAPPED ComfyUI names.</summary>
-    public static Output<Slot.Latent> Refine(ComfyWorkflowGraph g, IHunyuanSrParams p, Output<Slot.Latent> baseLatent,
+    public static Output<Slot.Latent> Refine(ComfyWorkflowGraph g, IHunyuanSrPass p, Output<Slot.Latent> baseLatent,
         Output<Slot.Conditioning> positive, Output<Slot.Conditioning> negative, Output<Slot.Vae> vae,
         Output<Slot.Image>? startImage, Output<Slot.ClipVision>? clipVisionOutput, string sampler, string scheduler, long seed)
     {
-        if (!Enabled(p)) return baseLatent;
-
-        g[Nodes.UpsamplerLoader] = new LatentUpscaleModelLoader { ModelName = Req(p.SrUpsampler, WorkflowParamKeys.SrUpsampler) };
+        g[Nodes.UpsamplerLoader] = new LatentUpscaleModelLoader { ModelName = p.SrUpsampler };
         g[Nodes.LatentUpscale] = new HunyuanVideo15LatentUpscaleWithModel
         {
             Model = LatentUpscaleModelLoader.Out(Nodes.UpsamplerLoader),
             Samples = baseLatent,
             UpscaleMethod = ComfyWidgets.Upscale.Bilinear,
-            Width = Req(p.SrWidth, WorkflowParamKeys.SrWidth),
-            Height = Req(p.SrHeight, WorkflowParamKeys.SrHeight),
+            Width = p.SrWidth,
+            Height = p.SrHeight,
             Crop = ComfyWidgets.Crop.Disabled,
         };
         // The SR node re-emits a (positive, negative, latent) triple for the SR model (mirrors HunyuanVideo15ImageToVideo).
-        // start_image/clip_vision_output ride the i2v path only; null here omits them, byte-identical to the old conditional dict.
-        g[Nodes.SuperResolution] = new HunyuanVideo15SuperResolution
+        // start_image/clip_vision_output ride the i2v path only — they arrive together (i2v) or not at all (t2v), which is a
+        // choice of NODE, not a pair of conditional-nullable inputs.
+        Output<Slot.Latent> upscaled = HunyuanVideo15LatentUpscaleWithModel.Out(Nodes.LatentUpscale);
+        g[Nodes.SuperResolution] = (startImage, clipVisionOutput) switch
         {
-            Positive = positive,
-            Negative = negative,
-            Latent = HunyuanVideo15LatentUpscaleWithModel.Out(Nodes.LatentUpscale),
-            NoiseAugmentation = Req(p.SrNoiseAug, WorkflowParamKeys.SrNoiseAug),
-            Vae = vae,
-            StartImage = startImage,
-            ClipVisionOutput = clipVisionOutput,
+            ({ } start, { } clip) => new HunyuanVideo15SuperResolutionI2V
+            {
+                Positive = positive, Negative = negative, Latent = upscaled, NoiseAugmentation = p.SrNoiseAug, Vae = vae,
+                StartImage = start, ClipVisionOutput = clip,
+            },
+            (null, null) => new HunyuanVideo15SuperResolutionT2V
+            {
+                Positive = positive, Negative = negative, Latent = upscaled, NoiseAugmentation = p.SrNoiseAug, Vae = vae,
+            },
+            _ => throw new InvalidOperationException(
+                "HunyuanVideo 1.5 SR needs start_image and clip_vision_output supplied together (i2v) or both omitted (t2v)."),
         };
 
-        g[Nodes.SrModel] = ComfyGraph.DiffusionLoaderNode(Req(p.SrModel, WorkflowParamKeys.SrModel));
-        g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.SrModel), Shift = Req(p.SrShift, WorkflowParamKeys.SrShift) };
+        g[Nodes.SrModel] = ComfyGraph.DiffusionLoaderNode(p.SrModel);
+        g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.SrModel), Shift = p.SrShift };
         Output<Slot.Model> srModel = ModelSamplingSD3.Out(Nodes.ModelSampling);
-        g[Nodes.Scheduler] = new BasicScheduler { Model = srModel, Scheduler = scheduler, Steps = Req(p.SrSteps, WorkflowParamKeys.SrSteps), Denoise = Req(p.SrDenoise, WorkflowParamKeys.SrDenoise) };
+        g[Nodes.Scheduler] = new BasicScheduler { Model = srModel, Scheduler = scheduler, Steps = p.SrSteps, Denoise = p.SrDenoise };
         g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = sampler };
         g[Nodes.Noise] = new RandomNoise { NoiseSeed = seed };
-        g[Nodes.Guider] = new CFGGuider { Model = srModel, Positive = HunyuanVideo15SuperResolution.PositiveOut(Nodes.SuperResolution), Negative = HunyuanVideo15SuperResolution.NegativeOut(Nodes.SuperResolution), Cfg = Req(p.SrCfg, WorkflowParamKeys.SrCfg) };
+        g[Nodes.Guider] = new CFGGuider { Model = srModel, Positive = IHunyuanVideo15SuperResolution.PositiveOut(Nodes.SuperResolution), Negative = IHunyuanVideo15SuperResolution.NegativeOut(Nodes.SuperResolution), Cfg = p.SrCfg };
         g[Nodes.Sampler] = new SamplerCustomAdvanced
         {
             Noise = RandomNoise.Out(Nodes.Noise),
             Guider = CFGGuider.Out(Nodes.Guider),
             Sampler = KSamplerSelect.Out(Nodes.SamplerSelect),
             Sigmas = BasicScheduler.Out(Nodes.Scheduler),
-            LatentImage = HunyuanVideo15SuperResolution.LatentOut(Nodes.SuperResolution),
+            LatentImage = IHunyuanVideo15SuperResolution.LatentOut(Nodes.SuperResolution),
         };
         return SamplerCustomAdvanced.Out(Nodes.Sampler);
     }
+}
 
-    /// <summary>A required SR scalar: present, or the render is REFUSED (SR configs always supply these; an absent one
-    /// is a broken config, never a silent default).</summary>
-    private static T Req<T>(T? value, string key) where T : struct =>
-        value ?? throw new RenderValidationException($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
+/// <summary>Deserializes a HunyuanVideo 1.5 params base into the concrete SR-or-not contract chosen by the boolean
+/// <c>sr</c> toggle in the flat bag — the params equivalent of a discriminated union. STJ can key polymorphism on a
+/// string/int discriminator but not a bool, and the SR knobs are flat model-ref config (can't be nested), so this reads
+/// <c>sr</c> and materializes the matching concrete shape (audit #125 C). Registered against the abstract base only, so
+/// deserializing the concrete subtype does not recurse.</summary>
+public abstract class HunyuanSrToggleConverter<TBase, TSr, TNoSr> : JsonConverter<TBase>
+    where TSr : TBase where TNoSr : TBase
+{
+    public override TBase Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        using JsonDocument doc = JsonDocument.ParseValue(ref reader);
+        JsonElement root = doc.RootElement;
+        bool sr = root.TryGetProperty(WorkflowParamKeys.Sr, out JsonElement e)
+            && (e.ValueKind == JsonValueKind.True
+                || (e.ValueKind == JsonValueKind.String && bool.TryParse(e.GetString(), out bool b) && b));
+        TBase? dto = sr ? root.Deserialize<TSr>(options) : root.Deserialize<TNoSr>(options);
+        return dto ?? throw new JsonException($"The merged parameters could not be read as {typeToConvert.Name}.");
+    }
 
-    /// <summary>A required SR filename (resolved model ref): present, or the render is REFUSED.</summary>
-    private static string Req(string? value, string key) =>
-        !string.IsNullOrWhiteSpace(value) ? value : throw new RenderValidationException($"This configuration needs a value for '{key}' and none is set. It must supply one — there is no default.");
+    [AllowMagicStrings("exception message")]
+    public override void Write(Utf8JsonWriter writer, TBase value, JsonSerializerOptions options)
+        => throw new NotSupportedException("Params DTOs are read from config, never written.");
 }

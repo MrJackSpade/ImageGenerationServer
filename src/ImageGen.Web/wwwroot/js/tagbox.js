@@ -43,7 +43,8 @@ function initTagBox(opts) {
     state.items.forEach((it, i) => {
       const cat = tagCategoryClass(it.type);
       const o = document.createElement("div"); o.className = "opt" + (i === state.sel ? " sel" : "") + (cat ? " " + cat : "") + (it.bookmarked ? " bookmarked" : ""); o.setAttribute("role", "option"); o.dataset.i = i;
-      const meta = (it.p != null) ? `${(it.p * 100).toFixed(it.p >= 0.01 ? 1 : 2)}%` + (it.lift != null ? ` · ×${it.lift >= 10 ? Math.round(it.lift) : it.lift.toFixed(1)}` : "") : Number(it.count || 0).toLocaleString();
+      const rk = it.ranking;
+      const meta = (rk != null) ? `${(rk.p * 100).toFixed(rk.p >= 0.01 ? 1 : 2)}%` + (rk.lift != null ? ` · ×${rk.lift >= 10 ? Math.round(rk.lift) : rk.lift.toFixed(1)}` : "") : Number(it.count || 0).toLocaleString();
       // The ★ IS the "bookmarked" indicator — no label. Inside .nm (before the marker) so the row keeps its two-group
       // name↔count layout and the star inherits the name's category colour.
       const pin = it.bookmarked ? `<span class="pin" title="Bookmarked" aria-label="Bookmarked">★</span>` : "";
