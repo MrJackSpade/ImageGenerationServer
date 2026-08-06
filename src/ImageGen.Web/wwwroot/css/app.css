@@ -221,6 +221,7 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .tag-pop .opt .ct{flex:none;color:var(--ink-faint);font:12px var(--mono)}
 .tag-pop .opt.sel,.tag-pop .opt:hover{background:var(--panel)}
 /* Category-color a suggestion's name (a left bar would jump on select) so it matches its future chip's border. */
+.tag-pop .opt.cat-artist .nm{color:var(--cat-artist)}
 .tag-pop .opt.cat-character .nm{color:var(--cat-character)}
 .tag-pop .opt.cat-copyright .nm{color:var(--cat-copyright)}
 .tag-pop .opt.cat-meta .nm{color:var(--cat-meta)}
@@ -483,8 +484,10 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .tagchip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:13px;border:1px solid var(--line);background:var(--elev);color:var(--ink);user-select:none;cursor:pointer}
 .tagchip.tag{border-color:#2e4a52}
 .tagchip.artist{border-color:var(--accent);color:var(--accent-hi)}
-/* Shared booru-category colors — used by both the prompt/bookmark chips (border) and the autocomplete popup (name). */
-:root{--cat-character:#3fb950;--cat-copyright:#b072d6;--cat-meta:#e0823c}
+/* Shared booru-category colors — used by both the prompt/bookmark chips (border) and the autocomplete popup (name).
+   --cat-artist is popup-only: artist chips are colored by their .artist kind (accent), not this slug. It's a red,
+   the booru convention for artists, kept clear of copyright's purple so the two don't blur together in the list. */
+:root{--cat-artist:#e05561;--cat-character:#3fb950;--cat-copyright:#b072d6;--cat-meta:#e0823c}
 /* Border color by booru tag category, so a character/copyright/meta tag stands out from plain (general) words. These
    sit after .tag so they win its neutral border; the .on/.banned states below still override (an explicit toggle). */
 .tagchip.cat-character{border-color:var(--cat-character)}
