@@ -670,7 +670,11 @@ const editSupportsLastFrame = () => { const m = editModel(); return !!(m && m.su
 // While active it hides the pick-a-distinct-last-frame affordances: the source stands in as the final frame instead.
 const editLoopActive = () => editSupportsLastFrame() && !!($editLoop && $editLoop.checked);
 // Show the Loop checkbox on exactly the editors that show the last-frame button (supportsLastFrame).
-function updateEditLoop() { if ($editLoopWrap) $editLoopWrap.classList.toggle("hidden", !editSupportsLastFrame()); }
+// Loop and ＋ last frame are mutually exclusive: Loop shows only for a first/last-frame editor AND while no last frame
+// is picked (picking one sends that frame, not the source, so Loop is meaningless). Checking Loop hides the ＋ last
+// frame button instead, so the two only ever appear together when neither is chosen. renderEditLastFrame re-runs this
+// whenever a last frame is set/cleared.
+function updateEditLoop() { if ($editLoopWrap) $editLoopWrap.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId); }
 // The pick-a-last-frame button hides once one is picked, when the model doesn't support one, or while looping.
 function updateEditLastFrameBtn() { $editLastFrameBtn.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId || editLoopActive()); }
 function renderEditLastFrame() {
