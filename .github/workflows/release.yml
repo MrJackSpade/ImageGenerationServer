@@ -68,6 +68,12 @@ jobs:
         run: |
           cp -r configurations staging/imagegen/bin/
           cp THIRD-PARTY-NOTICES.md LICENSE staging/imagegen/
+          # The always-on installers sit at the archive root: Install.bat registers a SYSTEM scheduled task that
+          # starts the app at boot and restarts it on failure (Install.sh = a systemd service); the Uninstall
+          # scripts remove it. They resolve the binary as %~dp0bin\ImageGen.Web.exe, one level up from bin/, so
+          # the root is exactly where they have to live.
+          cp Install.bat Install.sh Uninstall.bat Uninstall.sh staging/imagegen/
+          chmod +x staging/imagegen/Install.sh staging/imagegen/Uninstall.sh
           cat > staging/imagegen/README.md <<'EOF'
           # ImageGen
 
@@ -81,6 +87,13 @@ jobs:
 
           The first start downloads the tag model, about 900 MB, and verifies it against published checksums.
           Later starts skip it.
+
+          ## Always on
+
+          To keep it running in the background and start it at boot, run the installer once (as admin/root):
+
+          - **Windows** — `Install.bat` registers a startup task and starts it; `Uninstall.bat` removes it.
+          - **Linux** — `./Install.sh` installs a systemd service; `./Uninstall.sh` removes it.
 
           ## What it needs
 
@@ -207,7 +220,7 @@ jobs:
           # The point of the layout: the root holds what a person opens, and nothing else. Checked against the
           # EXACT set staged above rather than a count — a threshold would be a number nobody chose, and it would
           # pass a root that had swapped the README for a stray DLL.
-          expected=$(printf '%s\n' LICENSE README.md THIRD-PARTY-NOTICES.md start.bat start.ps1 start.sh | sort)
+          expected=$(printf '%s\n' Install.bat Install.sh LICENSE README.md THIRD-PARTY-NOTICES.md Uninstall.bat Uninstall.sh start.bat start.ps1 start.sh | sort)
           actual=$(find staging/imagegen -maxdepth 1 -type f -printf '%f\n' | sort)
           if [ "$expected" != "$actual" ]; then
             echo "expected at the archive root:"; echo "$expected"
