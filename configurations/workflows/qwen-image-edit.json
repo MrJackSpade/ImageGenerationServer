@@ -63,8 +63,8 @@
       "source": "https://huggingface.co/Qwen/Qwen-Image-Edit-2511"
     },
     "negative": {
-      "supported": true,
-      "note": "Runs at CFG ~4 with an empty negative."
+      "supported": false,
+      "note": "Official usage passes a single-space negative (effectively none); the graph zeroes out the negative conditioning, so no user negative is consumed."
     },
     "speed": {
       "class": "slow",
