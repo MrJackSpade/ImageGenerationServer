@@ -27,29 +27,11 @@ public abstract class Workflow<TParams> : IWorkflow
     public virtual FrameRule? FrameRule => null;
     public virtual ModelResolution? ResolutionEnvelope => null;
 
-    /// <summary>Pre-build parameter normalization — the frame-count snap (enqueue + submit). Bag-based because it runs
-    /// BEFORE the DTO is deserialized (it mutates the values that then feed the DTO). Mirrors the
-    /// <see cref="IWorkflow.Normalize"/> default.</summary>
+    /// <summary>Pre-build parameter normalization — the seconds→frames conversion and frame-count snap (enqueue +
+    /// submit). Bag-based because it runs BEFORE the DTO is deserialized (it mutates the values that then feed the
+    /// DTO). Mirrors the <see cref="IWorkflow.Normalize"/> default via the shared <see cref="FrameNormalization"/>.</summary>
     public virtual IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
-    {
-        List<string> notices = [];
-
-        if (FrameRule is { } fr && p.TryGetValue(WorkflowParamKeys.Length, out object? raw) && raw is not null)
-        {
-            int req = ParamsCodec.AsInt(raw);
-            if (req > 0)
-            {
-                int snapped = fr.Snap(req);
-                if (snapped != req)
-                {
-                    p[WorkflowParamKeys.Length] = snapped;
-                    notices.Add($"{req} frames isn’t valid for this model — rendering {snapped} (frame count must be {fr.Step}n+{fr.Base}).");
-                }
-            }
-        }
-
-        return notices;
-    }
+        => FrameNormalization.Apply(FrameRule, p);
 
     /// <summary>The non-generic build entry the renderer dispatches to: deserialize the merged bag into this workflow's
     /// <typeparamref name="TParams"/> at the <see cref="ParamsCodec"/> boundary, then build the TYPED graph. This is the

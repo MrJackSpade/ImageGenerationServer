@@ -89,27 +89,7 @@ public interface IWorkflow
     /// in place; returns one human-readable notice per USER-VISIBLE change (yellow text on the cards). Snapping rather
     /// than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing.</summary>
     IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
-    {
-        List<string> notices = [];
-
-        // Frame-count snap (stepped video models). Param-only → fires on BOTH passes; idempotent, so the submit pass
-        // is a no-op once enqueue has already snapped. This is the one that produces a user notice.
-        if (FrameRule is { } fr && p.TryGetValue(WorkflowParamKeys.Length, out object? raw) && raw is not null)
-        {
-            int req = ParamsCodec.AsInt(raw);
-            if (req > 0)
-            {
-                int snapped = fr.Snap(req);
-                if (snapped != req)
-                {
-                    p[WorkflowParamKeys.Length] = snapped;
-                    notices.Add($"{req} frames isn’t valid for this model — rendering {snapped} (frame count must be {fr.Step}n+{fr.Base}).");
-                }
-            }
-        }
-
-        return notices;
-    }
+        => FrameNormalization.Apply(FrameRule, p);
 
 
 

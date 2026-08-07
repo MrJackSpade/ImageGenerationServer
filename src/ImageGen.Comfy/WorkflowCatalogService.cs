@@ -450,20 +450,7 @@ public sealed partial class WorkflowCatalogService(
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
         List<WorkflowExposedParam> exposed = [.. cfg.Params
             .Where(kv => kv.Value.Exposed)
-            .Select(kv =>
-            {
-                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
-                return new WorkflowExposedParam(
-                    kv.Key,
-                    (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
-                    machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value,
-                    kv.Value.Min ?? spec?.Min,
-                    kv.Value.Max ?? spec?.Max,
-                    kv.Value.Step ?? spec?.Step,
-                    spec?.Label ?? kv.Key,
-                    spec?.Help,
-                    spec?.Choices);
-            })];
+            .Select(kv => ExposedParam(kv, wf, cfg, machine))];
         bool canEdit = wf.Kind != WorkflowKind.Generate;
         return new WorkflowDescriptor(
             Id: cfg.Id,
@@ -516,6 +503,74 @@ public sealed partial class WorkflowCatalogService(
             CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize),
             // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
             IsVariant: _catalog.IsVariant(cfg.Id));
+    }
+
+    /// <summary>One exposed parameter as the composer sees it. Normally a straight projection of the schema/config, but
+    /// a stepped video model's <c>length</c> (frames) is offered in SECONDS instead (issue #194): the control's value,
+    /// range and step are converted with the model's own <c>fps</c>, and the composer sends back
+    /// <see cref="WorkflowParamKeys.DurationSeconds"/>, which <see cref="FrameNormalization"/> turns back into frames at
+    /// enqueue. People think in "a 5-second clip", not "121 frames".</summary>
+    private static WorkflowExposedParam ExposedParam(
+        KeyValuePair<string, ConfigParam> kv, IWorkflow wf, WorkflowConfiguration cfg,
+        IReadOnlyDictionary<string, JsonElement> machine)
+    {
+        ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+        object? value = machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value;
+
+        if (string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
+            && wf.FrameRule is { } fr
+            && TryFps(cfg, machine, out double fps))
+        {
+            double frames = ParamsCodec.AsDouble(value);
+            double? minFrames = kv.Value.Min ?? spec?.Min;
+            double? maxFrames = kv.Value.Max ?? spec?.Max;
+            return new WorkflowExposedParam(
+                WorkflowParamKeys.DurationSeconds,
+                ParamType.Double.ToString().ToLowerInvariant(),
+                Math.Round(frames / fps, 1),
+                Math.Round((minFrames ?? fr.Base) / fps, 1),
+                maxFrames is { } hi ? Math.Round(hi / fps, 1) : null,
+                // 0.1s reaches the one-decimal default; the exact frame count is settled by the cadence snap server-side.
+                0.1,
+                "Length (seconds)",
+                "Video length in seconds, snapped to this model’s frame cadence.",
+                null);
+        }
+
+        return new WorkflowExposedParam(
+            kv.Key,
+            (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
+            value,
+            kv.Value.Min ?? spec?.Min,
+            kv.Value.Max ?? spec?.Max,
+            kv.Value.Step ?? spec?.Step,
+            spec?.Label ?? kv.Key,
+            spec?.Help,
+            spec?.Choices);
+    }
+
+    /// <summary>This machine's effective frames-per-second for a config (machine override, else the config's scalar),
+    /// or false when none is declared — a video model without an fps can't have its length shown in seconds.</summary>
+    private static bool TryFps(
+        WorkflowConfiguration cfg, IReadOnlyDictionary<string, JsonElement> machine, out double fps)
+    {
+        if (machine.TryGetValue(WorkflowParamKeys.Fps, out JsonElement mo)
+            && mo.ValueKind == JsonValueKind.Number && mo.TryGetDouble(out fps) && fps > 0)
+        {
+            return true;
+        }
+
+        if (cfg.Params.TryGetValue(WorkflowParamKeys.Fps, out ConfigParam? cp))
+        {
+            fps = ParamsCodec.AsDouble(cp.Value);
+            if (fps > 0)
+            {
+                return true;
+            }
+        }
+
+        fps = 0;
+        return false;
     }
 
     /// <summary>Settings-page override keys (persisted per machine).</summary>

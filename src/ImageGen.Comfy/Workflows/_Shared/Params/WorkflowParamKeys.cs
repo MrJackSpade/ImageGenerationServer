@@ -37,6 +37,7 @@ internal static class WorkflowParamKeys
     public const string DiffusionModel = "diffusion_model";
     public const string DitModel = "dit_model";
     public const string Dual = "dual";
+    public const string DurationSeconds = "duration_seconds";
     public const string EndPadBottomPct = "end_pad_bottom_pct";
     public const string EndPadLeftPct = "end_pad_left_pct";
     public const string EndPadRightPct = "end_pad_right_pct";

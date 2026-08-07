@@ -295,6 +295,20 @@ public static class ParamsCodec
         string s => int.TryParse(s, out int p) ? p : dflt,
         _ => dflt
     };
+
+    /// <summary>Read a bag value as a double, tolerating the same loose forms as <see cref="AsInt"/> — used by the
+    /// pre-DTO normalization pass (video length in seconds, fps) that runs on the loose bag before it is typed.</summary>
+    public static double AsDouble(object? v, double dflt = 0) => v switch
+    {
+        null => dflt,
+        JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : dflt,
+        double d => d,
+        float f => f,
+        long l => l,
+        int i => i,
+        string s => double.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out double p) ? p : dflt,
+        _ => dflt
+    };
 }
 
 /// <summary>The cross-workflow submission parameters the client (not a workflow) reads off the merged bag: the ETA
