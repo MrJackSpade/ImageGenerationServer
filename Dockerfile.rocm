@@ -61,12 +61,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # --- ComfyUI ---
-# Pinned to a release tag rather than tracking master: an image that silently changes its backend between builds is
-# not reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately, in both Dockerfiles.
-ARG COMFYUI_REF=v0.29.2
+# Pinned to a fixed revision (tag or exact commit) rather than tracking a branch: an image that silently changes its
+# backend between builds is not reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately,
+# in both Dockerfiles. Currently an exact commit past v0.30.2 -- see Dockerfile for why (H3 AV sampling has no tag yet).
+ARG COMFYUI_REF=531ea7db139a856a830182694441e9755f0e260a
 # The ROCm wheel channel. ComfyUI's own AMD instructions use this exact index; keep it in step with the base image.
 ARG ROCM_CHANNEL=rocm7.2
-RUN git clone --depth 1 --branch "${COMFYUI_REF}" https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \
+# init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.
+RUN git init /opt/ComfyUI \
+    && git -C /opt/ComfyUI remote add origin https://github.com/comfyanonymous/ComfyUI.git \
+    && git -C /opt/ComfyUI fetch --depth 1 origin "${COMFYUI_REF}" \
+    && git -C /opt/ComfyUI checkout --detach FETCH_HEAD \
     && python3 -m venv /opt/comfy-venv \
     && /opt/comfy-venv/bin/pip install --no-cache-dir --upgrade pip \
     && /opt/comfy-venv/bin/pip install --no-cache-dir torch torchvision torchaudio \

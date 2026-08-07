@@ -71,12 +71,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # --- ComfyUI ---
-# Pinned to the latest release TAG (a fixed version), NEVER master: master moves, so tracking it would silently change
-# the backend between builds -- non-reproducible, and a deployment could then fail for a reason nobody chose (a patch
-# stops applying, a workflow graph breaks). When updating, bump this to the newest tag that has what we need -- a fixed
-# version, never a branch.
-ARG COMFYUI_REF=v0.30.1
-RUN git clone --depth 1 --branch "${COMFYUI_REF}" https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \
+# Pinned to a FIXED revision (a tag, or an exact commit when the needed feature has no tag yet), NEVER a branch:
+# a branch moves, so tracking it would silently change the backend between builds -- non-reproducible, and a
+# deployment could then fail for a reason nobody chose (a patch stops applying, a workflow graph breaks). Currently
+# an exact commit past v0.30.2: MiniMax-H3's native dual-schedule AV sampling (ModelSamplingAV), which the 6-step
+# H3 Turbo configs' audio depends on, is not on any release tag yet. Move back to the newest tag once one carries it.
+ARG COMFYUI_REF=531ea7db139a856a830182694441e9755f0e260a
+# init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.
+RUN git init /opt/ComfyUI \
+    && git -C /opt/ComfyUI remote add origin https://github.com/comfyanonymous/ComfyUI.git \
+    && git -C /opt/ComfyUI fetch --depth 1 origin "${COMFYUI_REF}" \
+    && git -C /opt/ComfyUI checkout --detach FETCH_HEAD \
     && python3 -m venv /opt/comfy-venv \
     && /opt/comfy-venv/bin/pip install --no-cache-dir --upgrade pip \
     && /opt/comfy-venv/bin/pip install --no-cache-dir torch torchvision torchaudio \
