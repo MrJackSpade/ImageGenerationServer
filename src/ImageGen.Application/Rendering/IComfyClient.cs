@@ -63,4 +63,8 @@ public interface IComfyClient
     /// <summary>Connect to the backend's live-progress WebSocket under this client's id, so the API can proxy
     /// progress/preview frames to the browser.</summary>
     Task<WebSocket> ConnectProgressSocketAsync(CancellationToken ct);
+
+    /// <summary>Flush the cached present-files capability snapshot so the next read re-probes ComfyUI — for the LoRA
+    /// refresh action, when the user knows files on disk changed. Cheap; the actual re-probe runs on the sync worker.</summary>
+    void InvalidatePresentFiles();
 }

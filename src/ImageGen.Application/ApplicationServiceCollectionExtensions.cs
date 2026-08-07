@@ -3,6 +3,7 @@ using ImageGen.Application.Logging;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Security;
 using ImageGen.Application.Services;
+using ImageGen.Application.Snapshots;
 using ImageGen.Domain.Logging;
 using ImageGen.Domain.Repositories;
 
@@ -45,6 +46,16 @@ public static class ApplicationServiceCollectionExtensions
 
         _ = services.AddSingleton(renderOptions);
         _ = services.AddSingleton<RenderOrchestrator>();
+
+        // Per-model recent-average render timings (#200): a machine-scoped SQL read that used to run live inside both
+        // /forge/workflows and the ~2s-polled /forge/queue. Flushed on job finalization (RenderOrchestrator), backstop
+        // 5 minutes. The window (10) matches the pre-snapshot query. Registered here because the orchestrator that
+        // flushes it lives here; the loader resolves the singleton repository from the root provider.
+        _ = services.AddSnapshot(
+            static async (sp, ct) => new GenTimingAverages(
+                await sp.GetRequiredService<IGenTimingRepository>().RecentAveragesMsAsync(Environment.MachineName, 10, ct)),
+            new SnapshotOptions { BackstopInterval = TimeSpan.FromMinutes(5) });
+
         return services;
     }
 }

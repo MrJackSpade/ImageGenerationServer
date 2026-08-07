@@ -350,6 +350,10 @@ public partial class Program
         // hosted service). Registered here, alongside the singleton the AddApplication call created.
         _ = builder.Services.AddHostedService<RenderWorker>();
 
+        // Run the single snapshot sync worker's serial rebuild loop (warms every registered source on boot, then
+        // rebuilds on invalidation/backstop). Same plain-singleton-adapted-to-hosted-service split as RenderWorker.
+        _ = builder.Services.AddHostedService<SnapshotSyncService>();
+
         // Vestigial reconciler: reaps stale PendingJob rows (history is worker-written). Toggle off via Reconciler:Enabled.
         if (config.IsOn(ConfigKeys.ReconcilerEnabled))
         {

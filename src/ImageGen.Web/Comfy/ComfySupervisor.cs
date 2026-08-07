@@ -1,3 +1,4 @@
+using ImageGen.Comfy.Snapshots;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -20,7 +21,7 @@ namespace ImageGen.Web.Comfy;
 /// restart and a crash stay distinguishable, and a crash still takes the container down, which is the honest
 /// signal it has always been.</para>
 /// </summary>
-public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervisor> log)
+public sealed class ComfySupervisor(IConfiguration config, ComfyProbeSnapshots probes, ILogger<ComfySupervisor> log)
 {
     public static class Keys
     {
@@ -40,6 +41,7 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
     private const int Sigterm = 15;
 
     private readonly IConfiguration _config = config;
+    private readonly ComfyProbeSnapshots _probes = probes;
     private readonly ILogger<ComfySupervisor> _log = log;
 
     private string? Directory
@@ -95,6 +97,10 @@ public sealed class ComfySupervisor(IConfiguration config, ILogger<ComfySupervis
         }
 
         _log.LogInformation("Asked the supervisor to restart ComfyUI (pid {Pid})", pid);
+
+        // ComfyUI is coming back with a fresh module import, so its capability probes may change (new nodes, new
+        // files a patch put in place). Flush all three so the next read re-probes rather than serving pre-restart state.
+        _probes.InvalidateAll();
     }
 
     /// <summary>ComfyUI's process id, if the supervisor has written one and that process is still alive.</summary>

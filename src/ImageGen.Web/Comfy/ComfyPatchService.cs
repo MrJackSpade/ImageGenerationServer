@@ -1,4 +1,5 @@
 using ImageGen.Comfy.Patches;
+using ImageGen.Comfy.Snapshots;
 
 namespace ImageGen.Web.Comfy;
 
@@ -44,6 +45,7 @@ public sealed class ComfyPatchService(
     ComfySupervisor supervisor,
     PatchInstaller installer,
     Configuration.MachineConfigService machine,
+    ComfyProbeSnapshots probes,
     IWebHostEnvironment environment,
     ILogger<ComfyPatchService> log)
 {
@@ -60,6 +62,7 @@ public sealed class ComfyPatchService(
     private readonly ComfySupervisor _supervisor = supervisor;
     private readonly PatchInstaller _installer = installer;
     private readonly Configuration.MachineConfigService _machine = machine;
+    private readonly ComfyProbeSnapshots _probes = probes;
     private readonly IWebHostEnvironment _environment = environment;
     private readonly ILogger<ComfyPatchService> _log = log;
 
@@ -118,7 +121,11 @@ public sealed class ComfyPatchService(
         string root = _install.RequireRoot();
         ComfyPatch patch = Find(id);
         _log.LogInformation("Applying ComfyUI patch {Id} to {Root} (overwrite: {Overwrite})", id, root, overwrite);
-        return await _installer.ApplyAsync(patch, root, _install.Python, overwrite, ct);
+        string? note = await _installer.ApplyAsync(patch, root, _install.Python, overwrite, ct);
+        // A patch changes the files/nodes on disk (a node pack, a loader), so flush the capability probes; the change
+        // takes full effect on the restart the page prompts for, but the snapshots must not keep serving pre-patch state.
+        _probes.InvalidateAll();
+        return note;
     }
 
     /// <summary>Apply everything not already applied, in order. Stops at the first refusal rather than
@@ -142,6 +149,7 @@ public sealed class ComfyPatchService(
             }
         }
 
+        _probes.InvalidateAll();   // disk changed — flush the capability probes (as ApplyAsync does)
         return notes;
     }
 
@@ -152,6 +160,7 @@ public sealed class ComfyPatchService(
         ComfyPatch patch = Find(id);
         _log.LogInformation("Removing ComfyUI patch {Id} from {Root}", id, root);
         _installer.Remove(patch, root);
+        _probes.InvalidateAll();   // disk changed — flush the capability probes
     }
 
     /// <summary>Restart the renderer, where this deployment is the thing that can.</summary>

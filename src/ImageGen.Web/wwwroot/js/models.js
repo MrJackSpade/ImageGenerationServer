@@ -184,5 +184,31 @@
     });
   }
 
+  // Rescan: force an immediate Comfy re-probe and re-render from the returned status (same shape as the initial
+  // /forge/catalog/status load). The server coalesces concurrent clicks into one rebuild, so no client debounce.
+  const $rescan = document.getElementById("rescanBtn");
+  if ($rescan) {
+    $rescan.addEventListener("click", async () => {
+      const label = $rescan.textContent;
+      $rescan.disabled = true;
+      $rescan.textContent = "Rescanning…";
+      try {
+        const res = await fetch("/forge/catalog/rescan", { method: "POST", headers: { Accept: "application/json" } });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          $status.textContent = body.error || "Could not rescan.";
+          return;
+        }
+        state = await res.json();
+        render();
+      } catch (err) {
+        $status.textContent = `Could not rescan: ${err.message || err}`;
+      } finally {
+        $rescan.disabled = false;
+        $rescan.textContent = label;
+      }
+    });
+  }
+
   load();
 })();

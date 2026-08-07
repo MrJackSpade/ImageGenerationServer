@@ -1,4 +1,6 @@
-﻿using ImageGen.Application.Workflows;
+﻿using ImageGen.Application.Snapshots;
+using ImageGen.Application.Workflows;
+using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using System.Linq;
@@ -14,13 +16,15 @@ namespace ImageGen.Comfy;
 /// — the core sees only the resulting descriptors and guides.
 /// </summary>
 public sealed partial class WorkflowCatalogService(
-    WorkflowCatalog catalog, WorkflowRegistry registry, ComfyClient comfy, IGenTimingRepository timings,
-    ICatalogOverrideRepository overrides, IWorkflowVariantRepository variants, ILogger<WorkflowCatalogService> log) : IWorkflowCatalog
+    WorkflowCatalog catalog, WorkflowRegistry registry, ComfyProbeSnapshots probes, CatalogSnapshots snapshots,
+    ISnapshot<GenTimingAverages> timings, ICatalogOverrideRepository overrides, IWorkflowVariantRepository variants,
+    ILogger<WorkflowCatalogService> log) : IWorkflowCatalog
 {
     private readonly WorkflowCatalog _catalog = catalog;
     private readonly WorkflowRegistry _registry = registry;
-    private readonly ComfyClient _comfy = comfy;
-    private readonly IGenTimingRepository _timings = timings;
+    private readonly ComfyProbeSnapshots _probes = probes;
+    private readonly CatalogSnapshots _snapshots = snapshots;
+    private readonly ISnapshot<GenTimingAverages> _timings = timings;
     private readonly ICatalogOverrideRepository _overrides = overrides;
     private readonly IWorkflowVariantRepository _variants = variants;
     private readonly ILogger<WorkflowCatalogService> _log = log;
@@ -46,37 +50,6 @@ public sealed partial class WorkflowCatalogService(
     private static WorkflowReference? BuildReference(ModelCard card) =>
         card.EditReferenceTypes.Count > 0 ? new WorkflowReference(card.EditReferenceTypes, card.EditReferenceHint) : null;
 
-    /// <summary>Load this machine's variants from the store and fold them into the in-memory catalogue. Pushed
-    /// alongside the bindings/overrides for the same reason: the sync submit path resolves a variant id without a
-    /// query, so the push has to have happened first.</summary>
-    private async Task PushVariantsAsync(string machine, CancellationToken ct)
-    {
-        IReadOnlyList<WorkflowVariant> rows = await _variants.VariantsAsync(machine, ct);
-        List<VariantSpec> specs = [];
-        foreach (WorkflowVariant v in rows)
-        {
-            Dictionary<string, JsonElement> snap = ParseSnapshot(v.VariantId, v.ParamsJson);
-            specs.Add(new VariantSpec(v.VariantId, v.BaseConfigId, v.FriendlyName, snap));
-        }
-
-        _catalog.SetVariants(specs);
-    }
-
-    /// <summary>Parse a variant's stored parameter snapshot; a corrupt blob yields an empty snapshot (the variant then
-    /// renders the base's own values) rather than taking the whole catalogue load down.</summary>
-    private Dictionary<string, JsonElement> ParseSnapshot(string variantId, string paramsJson)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(paramsJson) ?? [];
-        }
-        catch (JsonException ex)
-        {
-            _log.LogError(ex, "Workflow variant '{Id}' has an unreadable parameter snapshot; using the base's values.", variantId);
-            return [];
-        }
-    }
-
     /// <inheritdoc/>
     public async Task<string> DuplicateWorkflowAsync(string baseConfigId, string friendlyName, CancellationToken ct)
     {
@@ -95,7 +68,10 @@ public sealed partial class WorkflowCatalogService(
         string variantId = NextVariantId(baseCfg.Id);
         string paramsJson = JsonSerializer.Serialize(SnapshotParams(baseCfg));
         await _variants.AddAsync(Environment.MachineName, new WorkflowVariant(variantId, fileBaseId, name, paramsJson), ct);
-        await PushVariantsAsync(Environment.MachineName, ct);
+        // Flush the variants snapshot and await its rebuild, which re-reads and folds the new variant into the in-memory
+        // catalog — so the caller (and the sync submit path) sees it immediately, without the old inline re-read/push.
+        _snapshots.Variants.Invalidate();
+        _ = await _snapshots.Variants.GetAsync(ct);
         return variantId;
     }
 
@@ -112,7 +88,11 @@ public sealed partial class WorkflowCatalogService(
         await _variants.DeleteAsync(Environment.MachineName, variantId, ct);
         // Its per-variant tweaks are overrides keyed on the variant id; drop them so they can't outlive it.
         await _overrides.ClearOverridesAsync(Environment.MachineName, variantId, ct);
-        await PushVariantsAsync(Environment.MachineName, ct);
+        // Delete touched BOTH stores — flush both snapshots and await their rebuilds so the removal is observed.
+        _snapshots.Variants.Invalidate();
+        _snapshots.ParamOverrides.Invalidate();
+        _ = await _snapshots.Variants.GetAsync(ct);
+        _ = await _snapshots.ParamOverrides.GetAsync(ct);
     }
 
     /// <summary>The shipped-file id a config is ultimately rooted at: itself when it is a file, else the base its
@@ -161,30 +141,16 @@ public sealed partial class WorkflowCatalogService(
     /// <inheritdoc/>
     public async Task<IReadOnlyList<WorkflowDescriptor>> ListEligibleAsync(CancellationToken ct)
     {
-        // Throws (HttpRequestException/etc.) when ComfyUI is unreachable — the caller maps that to a 502.
-        IReadOnlySet<string> present = await _comfy.GetPresentFilesAsync(ct);
-
-        // Bindings say which file on THIS machine fills each slot. Pushed into the catalog as well as read here,
-        // so the sync Resolve() used on every submit sees the same snapshot without a query on the render path.
-        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(Environment.MachineName, ct);
-        _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
-        // And this machine's per-configuration settings. The settings page only stores rows; the merge reads them
-        // from the in-memory catalog, so without pushing them here every override would silently do nothing. Pushed
-        // alongside the bindings, for the same reason.
-        _catalog.SetParamOverrides(await _overrides.OverridesAsync(Environment.MachineName, ct));
-        // And this machine's DB-backed variants, folded into the catalogue so they list and resolve like any config.
-        await PushVariantsAsync(Environment.MachineName, ct);
-
-        // Which custom nodes this ComfyUI has, asked once: the file lists cannot answer it, because a pack that
-        // loads no weights contributes no filenames to look for.
-        List<string> declaredNodes = [.. _catalog.AllRequirements()
-            .Where(r => !string.IsNullOrWhiteSpace(r.Node))
-            .Select(r => r.Node)
-            .OfType<string>()
-            .Distinct()];
-        IReadOnlySet<string> presentNodes = declaredNodes.Count == 0
-            ? new HashSet<string>()
-            : await _comfy.GetPresentNodesAsync(declaredNodes, ct);
+        // Pure in-memory projection over the snapshot sources (#201): ZERO ComfyUI round trips and ZERO SQL reads on
+        // this path. Each read blocks only if its source is mid-rebuild; a ComfyUI-unreachable fault rethrows the
+        // loader's HttpRequestException, which the caller maps to a 502 exactly as the live probes did.
+        IReadOnlySet<string> present = (await _probes.FilesByKind.GetAsync(ct)).AllFiles;
+        IReadOnlyDictionary<string, ModelBinding> bindings = (await _snapshots.Bindings.GetAsync(ct)).Bindings;
+        IReadOnlySet<string> presentNodes = (await _probes.PresentNodes.GetAsync(ct)).Nodes;
+        // ParamOverrides and Variants are consumed through the in-memory catalog (their rebuilds do the push).
+        // Awaiting them here guarantees those pushes have landed before AllConfigs()/ParamOverridesFor() read below.
+        _ = await _snapshots.ParamOverrides.GetAsync(ct);
+        _ = await _snapshots.Variants.GetAsync(ct);
 
         List<(WorkflowConfiguration cfg, IWorkflow wf)> eligible = [];
         foreach (WorkflowConfiguration cfg in _catalog.AllConfigs())
@@ -234,18 +200,18 @@ public sealed partial class WorkflowCatalogService(
         }
 
         // Per-model average runtime (machine-specific, last 10 renders). Purely a decoration on rows that are already
-        // decided — the eligibility above is what this method is FOR — so a timings hiccup must not take the model
-        // picker down with it. It is reported, though: swallowing it in a bare catch would present a
-        // permanently-broken timings table as "no model has ever been run here", with nothing anywhere to disagree.
-        IReadOnlyDictionary<string, double> avgs;
+        // decided, so a timings hiccup must not take the model picker down with it — the degrade-with-log catch stays
+        // AT THIS CONSUMER around the snapshot read (#200): a faulted GenTimingAverages lists workflows without ETAs,
+        // it does not 502. Do not widen this catch's scope.
+        GenTimingAverages avgs;
         try
         {
-            avgs = await _timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct);
+            avgs = await _timings.GetAsync(ct);
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Recent-average lookup failed; listing workflows without their ETAs.");
-            avgs = new Dictionary<string, double>();
+            avgs = new GenTimingAverages(new Dictionary<string, double>());
         }
 
         // Shared display name (within a kind + effect + edit section) → keep the first. The section is part of the
@@ -255,7 +221,7 @@ public sealed partial class WorkflowCatalogService(
             .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
-                avgs.TryGetValue(e.cfg.Id, out double ms) ? (int?)Math.Round(ms / 1000.0) : null))];
+                avgs.SecondsFor(e.cfg.Id) is double s ? (int?)Math.Round(s) : null))];
     }
 
     /// <inheritdoc/>

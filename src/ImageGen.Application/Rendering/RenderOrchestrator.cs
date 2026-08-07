@@ -91,6 +91,7 @@ public sealed class RenderOrchestrator
     private readonly IImageBlobRepository _blobs;
     private readonly IImageFrameRepository _frames;
     private readonly IGenTimingRepository _timings;
+    private readonly Snapshots.ISnapshot<Snapshots.GenTimingAverages> _timingAverages;
     private readonly IUserLogService _userLog;
     private readonly IDatabaseAvailability _db;
     private readonly RenderOptions _options;
@@ -103,7 +104,8 @@ public sealed class RenderOrchestrator
         IComfyClient comfy, IWorkflowCatalog catalog, ITagModelClient tagModel, ITagCatalog tags,
         IMediaProcessor media, IJobRepository jobRepo, IUploadStore uploads, IImageBlobRepository blobs,
         IImageFrameRepository frames,
-        IGenTimingRepository timings, IUserLogService userLog, IDatabaseAvailability databaseAvailability,
+        IGenTimingRepository timings, Snapshots.ISnapshot<Snapshots.GenTimingAverages> timingAverages,
+        IUserLogService userLog, IDatabaseAvailability databaseAvailability,
         RenderOptions options,
         IServiceScopeFactory scopeFactory, ILogger<RenderOrchestrator> log)
     {
@@ -117,6 +119,7 @@ public sealed class RenderOrchestrator
         _blobs = blobs;
         _frames = frames;
         _timings = timings;
+        _timingAverages = timingAverages;
         _userLog = userLog;
         _db = databaseAvailability;
         _options = options;
@@ -1377,6 +1380,9 @@ public sealed class RenderOrchestrator
                 EtaSignature? etaSig = slot.EtaSignature;
                 await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, ms,
                     etaSig?.Width, etaSig?.Height, etaSig?.Steps, etaSig?.Frames), ct);
+                // The sample is persisted — flush the averages snapshot so the next /forge/workflows and /forge/queue
+                // read reflects it. Done AFTER the insert so the rebuild can't race it and re-cache the old averages.
+                _timingAverages.Invalidate();
             }
             catch (Exception ex)
             {

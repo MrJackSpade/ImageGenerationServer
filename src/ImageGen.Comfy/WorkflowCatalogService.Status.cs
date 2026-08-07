@@ -1,4 +1,5 @@
 ﻿using ImageGen.Application.Workflows;
+using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain.Repositories;
 using System.Text.Json;
 
@@ -16,38 +17,18 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task<CatalogStatus> GetStatusAsync(CancellationToken ct)
     {
-        string machine = Environment.MachineName;
-        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = await _comfy.GetPresentFilesByKindAsync(ct);
+        // Read-only projection over the snapshots (#201): no ComfyUI round trips, no SQL reads, no auto-bind write —
+        // the recognition pass now runs inside the bindings rebuild (#199), so the candidates below come from the SAME
+        // rebuild that recognition ran against and the page's numbers agree with what it saw.
+        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = (await _probes.FilesByKind.GetAsync(ct)).ByKind;
+        BindingsSnapshot bindingsSnap = await _snapshots.Bindings.GetAsync(ct);
+        IReadOnlyDictionary<string, ModelBinding> bindings = bindingsSnap.Bindings;
+        // Fold in this machine's DB-backed variants so the status list includes them (their rebuild pushes into the catalog).
+        _ = await _snapshots.Variants.GetAsync(ct);
 
-        // Recognise what we can before reporting, so a fresh install has already bound the obvious things.
         IReadOnlyList<Requirement> slots = _catalog.AllRequirements();
-        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(machine, ct);
-        IReadOnlyList<SlotMatch> matches = ModelMatcher.Match(
-            slots.Where(s => !bindings.ContainsKey(s.Id))
-                 .Select(s => new MatchableSlot(s.Id, s.Kind, s.Match)),
-            byKind);
-
-        Dictionary<string, string> auto = new(StringComparer.OrdinalIgnoreCase);
-        foreach (SlotMatch m in matches)
-        {
-            if (m.AutoBind is { } bind)
-            {
-                auto[m.SlotId] = bind;
-            }
-        }
-
-        if (auto.Count > 0)
-        {
-            await _overrides.AddAutoBindingsAsync(machine, auto, ct);
-            bindings = await _overrides.BindingsAsync(machine, ct);
-            _log.LogInformation("Recognised {Count} model file(s) automatically on {Machine}.", auto.Count, machine);
-        }
-
-        _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
-        // Fold in this machine's DB-backed variants so the status list includes them alongside the shipped configs.
-        await PushVariantsAsync(machine, ct);
-
-        Dictionary<string, IReadOnlyList<string>> candidatesBySlot = matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, IReadOnlyList<string>> candidatesBySlot =
+            new(bindingsSnap.Candidates, StringComparer.OrdinalIgnoreCase);
         List<ModelSlotStatus> slotStatus = [.. slots
             .OrderBy(s => s.Label, StringComparer.OrdinalIgnoreCase)
             .Select(s => new ModelSlotStatus(
@@ -60,12 +41,9 @@ public sealed partial class WorkflowCatalogService
                 byKind.TryGetValue(s.Kind, out IReadOnlyList<string>? files) ? files : []))];
 
         // A requirement that names a node is a custom-node PACK, not a file: there is nothing to bind, and it is
-        // met exactly when ComfyUI has that node registered. Asked separately because the file lists cannot answer
-        // it — a node that loads nothing contributes no filenames to disappear when the pack does.
-        List<Requirement> nodeRequirements = [.. slots.Where(s => !string.IsNullOrWhiteSpace(s.Node))];
-        IReadOnlySet<string> presentNodes = nodeRequirements.Count == 0
-            ? new HashSet<string>()
-            : await _comfy.GetPresentNodesAsync(nodeRequirements.Select(s => s.Node).OfType<string>(), ct);
+        // met exactly when ComfyUI has that node registered. The present-nodes snapshot is probed over ALL declared
+        // node requirements, so a Contains check here answers the same question the live probe did.
+        IReadOnlySet<string> presentNodes = (await _probes.PresentNodes.GetAsync(ct)).Nodes;
 
         // A bound file that ComfyUI no longer reports is as missing as one that was never bound — the weights were
         // moved or deleted, and saying "bound" would be a lie the picker then contradicts.
@@ -121,6 +99,16 @@ public sealed partial class WorkflowCatalogService
     }
 
     /// <inheritdoc/>
+    public async Task<CatalogStatus> RescanAsync(CancellationToken ct)
+    {
+        // Flush the three Comfy probes, then read status — GetStatusAsync awaits the rebuilt snapshots, and because the
+        // files invalidation cascades to the bindings source, the recognition/auto-bind pass has re-run against the new
+        // files by the time this returns. Concurrent rescans coalesce on the sync worker into one rebuild.
+        _probes.InvalidateAll();
+        return await GetStatusAsync(ct);
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<ConfigSlotStatus>?> GetConfigSlotsAsync(string configId, CancellationToken ct)
     {
         if (_catalog.FindConfig(configId) is null)
@@ -164,11 +152,12 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct)
     {
-        string machine = Environment.MachineName;
         // isAuto: false — a person chose this, so auto-matching must never overwrite it later.
-        await _overrides.SetBindingAsync(machine, slotId, fileName, isAuto: false, ct);
-        IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(machine, ct);
-        _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
+        await _overrides.SetBindingAsync(Environment.MachineName, slotId, fileName, isAuto: false, ct);
+        // Flush the bindings snapshot and await its rebuild, which re-reads and pushes into the in-memory catalog.
+        // Block-until-rebuilt gives the write its old synchronous behavior without the duplicated inline re-read/push.
+        _snapshots.Bindings.Invalidate();
+        _ = await _snapshots.Bindings.GetAsync(ct);
     }
 
     /// <summary>
@@ -253,8 +242,9 @@ public sealed partial class WorkflowCatalogService
         }
 
         await _overrides.SetOverrideAsync(Environment.MachineName, configId, settingKey, settingValue, ct);
-        // Re-push immediately: the merge reads an in-memory snapshot, so without this the value would not apply
-        // until something else reloaded the catalog.
-        _catalog.SetParamOverrides(await _overrides.OverridesAsync(Environment.MachineName, ct));
+        // Flush the overrides snapshot and await its rebuild, which re-reads and pushes into the in-memory catalog so
+        // the merge sees the new value immediately (replaces the old inline re-push).
+        _snapshots.ParamOverrides.Invalidate();
+        _ = await _snapshots.ParamOverrides.GetAsync(ct);
     }
 }

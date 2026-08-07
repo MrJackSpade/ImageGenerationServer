@@ -1,6 +1,8 @@
 ﻿using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Snapshots;
 using ImageGen.Application.Workflows;
+using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using System.Net.Http.Json;
@@ -25,6 +27,7 @@ public sealed class ComfyClient : IComfyClient
     private readonly WorkflowCatalog _catalog;
     private readonly WorkflowRegistry _registry;
     private readonly IMediaProcessor _media;
+    private readonly ISnapshot<ComfyFilesByKind> _presentFiles;
     private readonly ILogger<ComfyClient> _logger;
     private readonly string _clientId = Guid.NewGuid().ToString("N");
     private static readonly JsonSerializerOptions LogJson = new() { WriteIndented = true };
@@ -149,13 +152,14 @@ public sealed class ComfyClient : IComfyClient
     }
 
     /// <summary>Construct the ComfyUI adapter.</summary>
-    public ComfyClient(IHttpClientFactory httpFactory, IComfyEndpoint endpoint, WorkflowCatalog catalog, WorkflowRegistry registry, IMediaProcessor media, ILogger<ComfyClient> logger)
+    public ComfyClient(IHttpClientFactory httpFactory, IComfyEndpoint endpoint, WorkflowCatalog catalog, WorkflowRegistry registry, IMediaProcessor media, ISnapshot<ComfyFilesByKind> presentFiles, ILogger<ComfyClient> logger)
     {
         _httpFactory = httpFactory;
         _endpoint = endpoint;
         _catalog = catalog;
         _registry = registry;
         _media = media;
+        _presentFiles = presentFiles;
         _logger = logger;
     }
 
@@ -355,44 +359,6 @@ public sealed class ComfyClient : IComfyClient
         }
 
         return result;
-    }
-
-    /// <summary>Every loadable filename across the loaders a workflow might use, for presence-gating a configuration.</summary>
-    public async Task<IReadOnlySet<string>> GetPresentFilesAsync(CancellationToken ct = default)
-    {
-        HashSet<string> files = await ReadLoaderFilesAsync(
-        [
-            ("CheckpointLoaderSimple", "ckpt_name"),
-            ("UnetLoaderGGUF", "unet_name"),
-            ("UNETLoader", "unet_name"),
-            ("VAELoader", "vae_name"),
-            ("CLIPLoader", "clip_name"),
-            ("CLIPLoaderGGUF", "clip_name"),
-            ("DualCLIPLoader", "clip_name1"),
-            ("DualCLIPLoader", "clip_name2"),
-            ("ADE_LoadAnimateDiffModel", "model_name"),
-            ("LoraLoaderModelOnly", "lora_name"),
-            ("IPAdapterModelLoader", "ipadapter_file"),
-            ("CLIPVisionLoader", "clip_name"),
-            ("ControlNetLoader", "control_net_name"),
-            // HunyuanVideo 1.5 super-resolution latent upsampler (own folder, own loader node).
-            ("LatentUpscaleModelLoader", "model_name"),
-            // ESRGAN-family image upscalers (models/upscale_models), for the Upscale editors.
-            ("UpscaleModelLoader", "model_name"),
-            // SeedVR2 diffusion upscaler — numz custom-node loaders. Absent unless the node pack is installed, which
-            // is exactly the gate we want. NOTE: these nodes list their whole model registry whether or not the
-            // weights are on disk (the pack downloads on first use), so this gates on the PACK, not the weights.
-            ("SeedVR2LoadDiTModel", "model"),
-            ("SeedVR2LoadVAEModel", "model"),
-        ], ct);
-        if (files.Count == 0)
-        {
-            throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
-        }
-
-        // Presence-gate on the same collapsed names the picker offers, so a slot bound to a sharded model's folder
-        // stays satisfied while its individual shards — which no slot should be bound to — are absent (issue #184).
-        return new HashSet<string>(HuggingFaceShards.Collapse(files), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -632,6 +598,9 @@ public sealed class ComfyClient : IComfyClient
     private static int? EtaInt(IWorkflow wf, int? value, string key) =>
         wf.Schema.Any(s => s.Key == key && s.EtaVariable) ? (value ?? 0) : null;
 
+    /// <inheritdoc/>
+    public void InvalidatePresentFiles() => _presentFiles.Invalidate();
+
     /// <summary>Validate a user LoRA stack against the LoRAs ComfyUI actually offers, failing fast on any unknown name
     /// (never silently dropping one). Skips the backend probe entirely when the stack is empty — the common case.</summary>
     private async Task<IReadOnlyList<LoraSelection>> ValidateLorasAsync(IReadOnlyList<LoraSelection>? loras, CancellationToken ct)
@@ -641,10 +610,12 @@ public sealed class ComfyClient : IComfyClient
             return [];
         }
 
-        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> present = await GetPresentFilesByKindAsync(ct);
-        HashSet<string> available = present.TryGetValue(RequirementKind.Lora, out IReadOnlyList<string>? l)
-            ? new HashSet<string>(l, StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Read the cached capability sweep, not a live probe: the snapshot is flushed on restart/patch/refresh and by
+        // the directory watcher (#198), so the LoRA list here is current without a per-submit ComfyUI round trip. An
+        // API caller naming a LoRA newer than the last rebuild gets the fail-fast refusal below until a flush lands
+        // (the UI picker offers names from this same snapshot, so it cannot hit that).
+        ComfyFilesByKind present = await _presentFiles.GetAsync(ct);
+        HashSet<string> available = new(present.ForKind(RequirementKind.Lora), StringComparer.OrdinalIgnoreCase);
         foreach (LoraSelection lo in loras)
         {
             if (string.IsNullOrWhiteSpace(lo.Name) || !available.Contains(lo.Name))

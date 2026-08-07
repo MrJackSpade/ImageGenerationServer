@@ -43,6 +43,15 @@ public interface IWorkflowCatalog
     Task<CatalogStatus> GetStatusAsync(CancellationToken ct);
 
     /// <summary>
+    /// Force an immediate re-probe of ComfyUI's capability state (present files, nodes, folder paths), then return the
+    /// freshly-rebuilt status — the models page's manual Rescan, for changes the automatic triggers can't see instantly
+    /// (a remote-ComfyUI file change, a node pack installed outside the app, or simply "look again now"). Does NOT touch
+    /// the machine SQL sources; the relocated auto-bind pass re-runs off the file invalidation. Throws when the renderer
+    /// is unreachable (mapped to a 502), exactly as <see cref="GetStatusAsync"/> does.
+    /// </summary>
+    Task<CatalogStatus> RescanAsync(CancellationToken ct);
+
+    /// <summary>
     /// The LoRA files present on this machine, for the composer's LoRA picker. When <paramref name="workflowId"/> is
     /// given, each entry is annotated with whether it will actually apply to that workflow's base model (and whether it
     /// affects CLIP); when null, compatibility is not evaluated and every entry is reported compatible. The picker is

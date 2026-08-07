@@ -14,8 +14,9 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task<IReadOnlyList<LoraCatalogEntry>> ListLorasAsync(string? workflowId, CancellationToken ct)
     {
-        IReadOnlyDictionary<RequirementKind, IReadOnlyList<string>> byKind = await _comfy.GetPresentFilesByKindAsync(ct);
-        IReadOnlyList<string> loras = byKind.TryGetValue(RequirementKind.Lora, out IReadOnlyList<string>? files) ? files : [];
+        // LoRA file list from the snapshot, not a live probe (#202): flushed on restart/patch/refresh and by the
+        // directory watcher. Throws the loader's HttpRequestException when ComfyUI is unreachable — mapped to 502.
+        IReadOnlyList<string> loras = (await _probes.FilesByKind.GetAsync(ct)).ForKind(RequirementKind.Lora);
         List<string> names = [.. loras.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)];
 
         // Without a workflow to check against, compatibility isn't evaluated — the picker shows the full list.
@@ -27,8 +28,11 @@ public sealed partial class WorkflowCatalogService
 
         // Resolve the workflow's bound checkpoint and ComfyUI's on-disk roots, read the checkpoint's layer dimensions
         // once, then compare each LoRA's feature dimensions against them (file headers only, cached per file).
+        // Await the bindings snapshot first so the in-memory catalog the sync Resolve() reads has been pushed — the
+        // checkpoint resolution depends on it, so don't rely on a prior call having populated the catalog.
+        _ = await _snapshots.Bindings.GetAsync(ct);
         string checkpointFile = _catalog.Resolve(cfg).Checkpoint;
-        IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await _comfy.GetFolderPathsAsync(ct);
+        IReadOnlyDictionary<string, IReadOnlyList<string>> folders = (await _probes.FolderPaths.GetAsync(ct)).Roots;
         IReadOnlySet<long>? checkpointDims = ResolveCheckpointDims(checkpointFile, folders);
         IReadOnlyList<string> loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? lr) ? lr : [];
 

@@ -5,6 +5,7 @@ using ImageGen.Application.Images;
 using ImageGen.Application.Media;
 using ImageGen.Application.Platform;
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Snapshots;
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Application.Workflows;
@@ -52,6 +53,8 @@ public static class ForgeApi
         public const string Workflows = "/workflows";
         /// <summary><c>GET /catalog/status</c> — everything this machine can and cannot run, and why.</summary>
         public const string CatalogStatus = "/catalog/status";
+        /// <summary><c>POST /catalog/rescan</c> — force an immediate Comfy re-probe, then return the fresh status.</summary>
+        public const string CatalogRescan = "/catalog/rescan";
         /// <summary><c>GET /loras</c> — the composer's LoRA picker data.</summary>
         public const string Loras = "/loras";
         /// <summary><c>GET /loras/manage</c> — the LoRA manager page's data.</summary>
@@ -373,6 +376,22 @@ public static class ForgeApi
             }
         });
 
+        // Force an immediate Comfy re-probe (files/nodes/folder paths) and return the fresh status in one round trip —
+        // for the models page's Rescan button, covering remote-ComfyUI file changes, out-of-app node installs, or just
+        // "look again NOW" instead of waiting out the backstop. A write verb: it mutates cache state and can trigger
+        // auto-bind writes. Concurrent clicks coalesce on the sync worker into one rebuild. Same payload as GET /status.
+        _ = app.MapPost(Routes.CatalogRescan, async (IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await catalog.RescanAsync(ct));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
+            {
+                return Results.Json(new { error = "The image renderer isn't reachable — is ComfyUI running?" }, statusCode: 502);
+            }
+        });
+
         // The LoRA files this machine offers, for the composer's picker: each file's subfolder-qualified name, the
         // subfolder it lives in, and this user's chosen cover image (if any). An optional ?workflow= annotates each
         // with whether it will actually apply to that workflow's base model (and whether it affects CLIP).
@@ -386,12 +405,19 @@ public static class ForgeApi
                 // The picker is offered only for a single selected model, so compatibility is judged against that one.
                 IReadOnlyList<LoraCatalogEntry> entries = await catalog.ListLorasAsync(workflow, ct);
                 List<string> names = [.. entries.Select(e => e.Name)];
-                IReadOnlyDictionary<string, string> covers = await loras.GetCoversAsync(userId, names, ct);
-                // Cached metadata + this user's overrides — never blocking. A file that isn't cached yet comes back as
-                // a stub (ready:false), and Request() kicks its background population off; the client polls /loras/meta.
-                IReadOnlyDictionary<string, LoraMeta> metaByName = await meta.GetManyAsync(names, ct);
-                IReadOnlyDictionary<string, string> previewTypes = await previews.GetContentTypesAsync(names, ct);
-                IReadOnlyDictionary<string, LoraUserSetting> settingsByName = await userSettings.GetManyAsync(userId, names, ct);
+                // The four per-user reads are independent and each opens its own connection (IDbConnectionFactory opens
+                // one per call), so issue them concurrently and await together — the latency is the slowest single query,
+                // not their sum (#202). Cached metadata + this user's overrides, never blocking: an uncached file comes
+                // back as a stub (ready:false) and Request() kicks off its background population; the client polls /loras/meta.
+                Task<IReadOnlyDictionary<string, string>> coversTask = loras.GetCoversAsync(userId, names, ct);
+                Task<IReadOnlyDictionary<string, LoraMeta>> metaTask = meta.GetManyAsync(names, ct);
+                Task<IReadOnlyDictionary<string, string>> previewTask = previews.GetContentTypesAsync(names, ct);
+                Task<IReadOnlyDictionary<string, LoraUserSetting>> settingsTask = userSettings.GetManyAsync(userId, names, ct);
+                await Task.WhenAll(coversTask, metaTask, previewTask, settingsTask);
+                IReadOnlyDictionary<string, string> covers = await coversTask;
+                IReadOnlyDictionary<string, LoraMeta> metaByName = await metaTask;
+                IReadOnlyDictionary<string, string> previewTypes = await previewTask;
+                IReadOnlyDictionary<string, LoraUserSetting> settingsByName = await settingsTask;
                 bool enabled = civitai.IsEnabled();
                 populator.Request(names);
                 var rows = entries.Select(e => new
@@ -428,10 +454,16 @@ public static class ForgeApi
                 long userId = OwnerOf(http);
                 IReadOnlyList<LoraCatalogEntry> entries = await catalog.ListLorasAsync(null, ct);   // all LoRAs; compatibility isn't relevant here
                 List<string> names = [.. entries.Select(e => e.Name)];
-                IReadOnlyDictionary<string, LoraMeta> metaByName = await meta.GetManyAsync(names, ct);
-                IReadOnlyDictionary<string, string> previewTypes = await previews.GetContentTypesAsync(names, ct);
-                IReadOnlyDictionary<string, LoraUserSetting> settings = await userSettings.GetManyAsync(userId, names, ct);
-                IReadOnlyDictionary<string, string> covers = await loras.GetCoversAsync(userId, names, ct);
+                // Four independent per-user reads, each on its own connection — issued concurrently (#202).
+                Task<IReadOnlyDictionary<string, LoraMeta>> metaTask = meta.GetManyAsync(names, ct);
+                Task<IReadOnlyDictionary<string, string>> previewTask = previews.GetContentTypesAsync(names, ct);
+                Task<IReadOnlyDictionary<string, LoraUserSetting>> settingsTask = userSettings.GetManyAsync(userId, names, ct);
+                Task<IReadOnlyDictionary<string, string>> coversTask = loras.GetCoversAsync(userId, names, ct);
+                await Task.WhenAll(metaTask, previewTask, settingsTask, coversTask);
+                IReadOnlyDictionary<string, LoraMeta> metaByName = await metaTask;
+                IReadOnlyDictionary<string, string> previewTypes = await previewTask;
+                IReadOnlyDictionary<string, LoraUserSetting> settings = await settingsTask;
+                IReadOnlyDictionary<string, string> covers = await coversTask;
                 bool enabled = civitai.IsEnabled();
                 populator.Request(names);
                 var rows = entries.Select(e =>
@@ -478,9 +510,14 @@ public static class ForgeApi
                 return Results.Ok(new { items = Array.Empty<object>(), pending = false });
             }
 
-            IReadOnlyDictionary<string, LoraMeta> metaByName = await meta.GetManyAsync(names, ct);
-            IReadOnlyDictionary<string, string> previewTypes = await previews.GetContentTypesAsync(names, ct);
-            IReadOnlyDictionary<string, LoraUserSetting> settingsByName = await userSettings.GetManyAsync(userId, names, ct);
+            // Three independent per-user reads, each on its own connection — issued concurrently (#202).
+            Task<IReadOnlyDictionary<string, LoraMeta>> metaTask = meta.GetManyAsync(names, ct);
+            Task<IReadOnlyDictionary<string, string>> previewTask = previews.GetContentTypesAsync(names, ct);
+            Task<IReadOnlyDictionary<string, LoraUserSetting>> settingsTask = userSettings.GetManyAsync(userId, names, ct);
+            await Task.WhenAll(metaTask, previewTask, settingsTask);
+            IReadOnlyDictionary<string, LoraMeta> metaByName = await metaTask;
+            IReadOnlyDictionary<string, string> previewTypes = await previewTask;
+            IReadOnlyDictionary<string, LoraUserSetting> settingsByName = await settingsTask;
             bool enabled = civitai.IsEnabled();
             populator.Request(names);   // idempotent: resumes anything still pending, starts nothing already cached
 
@@ -501,10 +538,14 @@ public static class ForgeApi
         // the list is empty — then re-queue them so the populator re-fetches. A no-op when CivitAI is off (there is
         // nothing to fetch, and wiping the cache would leave the cards blank). The client polls /loras/meta after.
         _ = app.MapPost(Routes.LorasRefresh, async (LoraRefreshRequest body, IWorkflowCatalog catalog, ILoraMetaRepository meta,
-            ILoraPreviewRepository previews, ICivitaiClient civitai, ILoraMetaPopulator populator, CancellationToken ct) =>
+            ILoraPreviewRepository previews, ICivitaiClient civitai, ILoraMetaPopulator populator, IComfyClient comfy, CancellationToken ct) =>
         {
             try
             {
+                // The refresh button is where a user says "I changed files on disk" — flush the present-files snapshot
+                // so the LoRA list re-probes ComfyUI. Independent of CivitAI (the meta/preview clearing below).
+                comfy.InvalidatePresentFiles();
+
                 if (!civitai.IsEnabled())
                 {
                     return Results.Ok(new { refreshed = Array.Empty<string>() });
@@ -837,7 +878,7 @@ public static class ForgeApi
 
         // Cross-user QUEUE + history: a page of every gen on this box, live rows overlaid with in-memory state.
         _ = app.MapGet(Routes.Queue, async (HttpRequest http, RenderOrchestrator queue, IJobRepository jobs,
-            IGenTimingRepository timings, int? page, int? pageSize, CancellationToken ct) =>
+            ISnapshot<GenTimingAverages> timings, ILoggerFactory loggerFactory, int? page, int? pageSize, CancellationToken ct) =>
         {
             long me = OwnerOf(http);
             // Out-of-range page/size are refused, not clamped (a clamped page silently returns a different page than
@@ -886,7 +927,7 @@ public static class ForgeApi
                 total = pr.Total,
                 // For the "waiting for idle (Nm)" label on background rows — the live, operator-set delay.
                 backgroundIdleMinutes = (int)Math.Round(queue.IdleDelay().TotalMinutes),
-                outstanding = await OutstandingViewAsync(queue, timings, me, ct),
+                outstanding = await OutstandingViewAsync(queue, timings, me, loggerFactory.CreateLogger(nameof(ForgeApi)), ct),
             });
         });
 
@@ -979,7 +1020,7 @@ public static class ForgeApi
     /// their work interleaves with everyone else's, and a subtotal would be a confidently wrong number.</para>
     /// </summary>
     private static async Task<object> OutstandingViewAsync(
-        RenderOrchestrator queue, IGenTimingRepository timings, long viewer, CancellationToken ct)
+        RenderOrchestrator queue, ISnapshot<GenTimingAverages> timings, long viewer, ILogger logger, CancellationToken ct)
     {
         OutstandingSnapshot o = queue.Outstanding(viewer);
         if (o.Images == 0)
@@ -987,7 +1028,19 @@ public static class ForgeApi
             return new { jobs = 0, mineJobs = 0, images = 0, etaSeconds = (double?)null, unpricedImages = 0 };
         }
 
-        IReadOnlyDictionary<string, double> averagesMs = await timings.RecentAveragesMsAsync(Environment.MachineName, 10, ct);
+        // Timings are a decoration on already-decided rows; a faulted GenTimingAverages must not 502 the queue (#200).
+        // Degrade to "no priced averages" — ETA from the running remainder only, the rest unpriced — and log the fault.
+        IReadOnlyDictionary<string, double> averagesMs;
+        try
+        {
+            averagesMs = (await timings.GetAsync(ct)).ByModel;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Gen-timing averages unavailable; the queue ETA omits them.");
+            averagesMs = new Dictionary<string, double>();
+        }
+
         double eta = o.RunningRemainingSeconds ?? 0;
         int unpriced = 0;
         foreach (string model in o.WaitingModels)
