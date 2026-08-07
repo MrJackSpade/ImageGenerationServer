@@ -527,13 +527,13 @@ public sealed partial class WorkflowCatalogService(
             return new WorkflowExposedParam(
                 WorkflowParamKeys.DurationSeconds,
                 ParamType.Double.ToString().ToLowerInvariant(),
-                Math.Round(frames / fps, 1),
-                Math.Round((minFrames ?? fr.Base) / fps, 1),
-                maxFrames is { } hi ? Math.Round(hi / fps, 1) : null,
-                // Step by the model's real frame cadence (in tenths of a second), not a flat 0.1s — so the control
-                // shows the coarse increments this model actually renders instead of pretending to a resolution it
+                Math.Round(frames / fps, 2),
+                Math.Round((minFrames ?? fr.Base) / fps, 2),
+                maxFrames is { } hi ? Math.Round(hi / fps, 2) : null,
+                // Step by the model's real frame cadence (in hundredths of a second), not a flat step — so the control
+                // shows the exact increments this model actually renders instead of pretending to a resolution it
                 // hasn't got. The exact frame is settled by the nearest-cadence snap at generation.
-                Math.Max(0.1, Math.Round(fr.Step / fps, 1)),
+                Math.Max(0.01, Math.Round(fr.Step / fps, 2)),
                 "Length (seconds)",
                 "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
                 null);

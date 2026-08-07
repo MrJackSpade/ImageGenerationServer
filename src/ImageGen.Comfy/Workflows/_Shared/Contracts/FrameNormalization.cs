@@ -46,7 +46,7 @@ public static class FrameNormalization
                 if (frames != rawFrames)
                 {
                     notices.Add(string.Create(CultureInfo.InvariantCulture,
-                        $"{seconds:0.#}s isn’t an exact length for this model — rendering {frames} frames (~{frames / fps:0.#}s)."));
+                        $"{seconds:0.##}s isn’t an exact length for this model — rendering {frames} frames (~{frames / fps:0.##}s)."));
                 }
             }
         }
