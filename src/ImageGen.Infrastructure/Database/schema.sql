@@ -86,6 +86,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'PinBookmarkSuggestions' A
     ALTER TABLE dbo.AppUser ADD PinBookmarkSuggestions BIT NOT NULL CONSTRAINT DF_AppUser_PinBookmarkSuggestions DEFAULT 0;
 GO
 
+-- Per-user parameter-visibility overrides (issue #191): which workflow params this user has revealed or hidden on the
+-- generation page, as an opaque JSON blob (config id -> param key -> bool) the server stores verbatim. The keys are
+-- catalog identifiers, not user content -- stored plain, like GenerationTagTypes. NULL = no overrides (shipped
+-- visibility applies).
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ParamVisibilityPrefs' AND Object_ID = Object_ID('dbo.AppUser'))
+    ALTER TABLE dbo.AppUser ADD ParamVisibilityPrefs NVARCHAR(MAX) NULL;
+GO
+
 -- Per-user data-encryption key, kept in its OWN deliberately-obvious table (not on AppUser) so routine queries over
 -- user/history/bookmark data never pull key material into a result set, and the table name flags it as "don't SELECT".
 -- KeyMaterial is a random 32 bytes; the app derives subkeys (HKDF) for randomized + deterministic column encryption.

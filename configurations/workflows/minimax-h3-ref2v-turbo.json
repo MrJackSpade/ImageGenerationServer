@@ -17,20 +17,38 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 6,
-    "sampler": "euler",
-    "scheduler": "simple",
+    "steps": {
+      "value": 6,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "lora": "minimax-h3-turbo-lora",
-    "lora_strength": 1.0,
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 124,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 362,
       "step": 17
     },
-    "fps": 24,
-    "reference_max": 3
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 3,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "MiniMax-H3 ref2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — REFERENCE-TO-VIDEO with native audio, low-step",
@@ -86,9 +104,18 @@
     ],
     "reference": {
       "types": [
-        { "kind": "image", "max": 3 },
-        { "kind": "video", "max": 3 },
-        { "kind": "audio", "max": 3 }
+        {
+          "kind": "image",
+          "max": 3
+        },
+        {
+          "kind": "video",
+          "max": 3
+        },
+        {
+          "kind": "audio",
+          "max": 3
+        }
       ],
       "hint": "The current image is <Picture 1>; picker refs follow as <Picture 2>…, <Video 1>…, <Audio 1>… Refer to them by those exact tags in the prompt and say which drives identity, setting/motion, and voice."
     }

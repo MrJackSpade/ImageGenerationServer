@@ -17,21 +17,42 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 6,
-    "sampler": "euler",
-    "scheduler": "simple",
+    "steps": {
+      "value": 6,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "lora": "minimax-h3-turbo-lora",
-    "lora_strength": 1.0,
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 124,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 362,
       "step": 17
     },
-    "fps": 24,
-    "width": 1344,
-    "height": 768,
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1344,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 768,
+      "visibility": "hidden"
+    },
     "negative_supported": false,
     "aspect": {
       "square": [

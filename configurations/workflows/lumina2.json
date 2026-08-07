@@ -11,13 +11,34 @@
     "clip_type": null,
     "dual": false,
     "latent": "sd3",
-    "clip_skip": 0,
-    "steps": 50,
-    "cfg": 4.0,
-    "sampler": "Euler",
-    "scheduler": "simple",
-    "width": 1024,
-    "height": 1024,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 50,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "auraflow": 6,
     "aspect": {

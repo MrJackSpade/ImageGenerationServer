@@ -7,7 +7,7 @@
   "params": {
     "thickness": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 32
     }

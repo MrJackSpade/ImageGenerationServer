@@ -17,17 +17,29 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 20,
-    "sampler": "res_multistep",
-    "scheduler": "simple",
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "res_multistep",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "length": {
       "value": 124,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 362,
       "step": 17
     },
-    "fps": 24
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) — IMAGE-TO-VIDEO with native audio",

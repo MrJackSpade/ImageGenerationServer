@@ -911,7 +911,7 @@ body.auth .page{max-width:none;padding:0}
 /* Every row carries the SAME template, so the controls line up down the page without the rows having to be
    grid items themselves — the row stays a real box, which is what carries its help tooltip, its striping and
    its hover. (display:contents would align identically and generate no box, losing all three.) */
-.wf-setting{display:grid;grid-template-columns:minmax(9rem,14rem) 1fr;align-items:center;gap:6px 18px;
+.wf-setting{display:grid;grid-template-columns:minmax(9rem,14rem) 1fr auto;align-items:center;gap:6px 18px;
   padding:7px 10px;border-radius:8px;min-width:0}
 .wf-setting:nth-child(even){background:color-mix(in srgb,var(--elev) 55%,transparent)}
 .wf-setting:hover{background:var(--elev)}
@@ -926,6 +926,8 @@ body.auth .page{max-width:none;padding:0}
   /* One column on a phone: 9rem of label plus a control is narrower than either wants. */
   .wf-setting{grid-template-columns:1fr;gap:2px;padding:8px 10px}
 }
+/* The per-account show/hide checkbox at the row's end (#191). */
+.wf-vis{justify-self:end;margin:0}
 .wf-reset{appearance:none;background:none;border:none;padding:0;margin-left:6px;font:inherit;font-size:10px;
   text-transform:none;letter-spacing:0;color:var(--ink-faint);text-decoration:underline;cursor:pointer}
 .wf-reset:hover{color:var(--danger)}

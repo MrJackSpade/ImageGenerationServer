@@ -10,28 +10,46 @@
   },
   "params": {
     "loader": "checkpoint",
-    "steps": 20,
-    "cfg": 7.0,
-    "sampler": "dpmpp_2m",
-    "scheduler": "karras",
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "dpmpp_2m",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "karras",
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.55,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.1,
       "max": 1.0
     },
-    "style_prompt": "masterpiece, best quality, anime, clean bold outlines",
+    "style_prompt": {
+      "value": "masterpiece, best quality, anime, clean bold outlines",
+      "visibility": "hidden"
+    },
     "coarse": {
       "value": "enable",
-      "exposed": true
+      "visibility": "exposed"
     },
     "controlnet_strength": {
       "value": 0.9,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 2.0
     },
-    "resolution": 512
+    "resolution": {
+      "value": 512,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "SD1.5 lineart ControlNet (control_v11p_sd15_lineart) over the Counterfeit-V3 anime checkpoint, driven by a lineart preprocessor (coarse=bolder) — img2img re-render",

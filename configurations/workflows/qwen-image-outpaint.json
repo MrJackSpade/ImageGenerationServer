@@ -15,39 +15,72 @@
     "loader": "unet",
     "clip_type": "qwen_image",
     "dual": false,
-    "steps": 20,
-    "cfg": 2.5,
-    "sampler": "euler",
-    "scheduler": "simple",
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 2.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "auraflow": 3.1,
-    "cn_start": 0.0,
-    "cn_end": 1.0,
-    "max_dimension": 1536,
-    "pad_left": 0,
-    "pad_top": 0,
-    "pad_right": 0,
-    "pad_bottom": 0,
+    "cn_start": {
+      "value": 0.0,
+      "visibility": "hidden"
+    },
+    "cn_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "max_dimension": {
+      "value": 1536,
+      "visibility": "hidden"
+    },
+    "pad_left": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_top": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_right": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_bottom": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 1.0,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.5,
       "max": 1.0
     },
     "cn_strength": {
       "value": 1.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 2.0
     },
     "mask_grow": {
       "value": 16,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 64
     },
     "mask_blur": {
       "value": 31,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 31
     }

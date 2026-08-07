@@ -18,60 +18,114 @@
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-i2v-low-noise-14b",
-    "steps": 40,
-    "boundary": 15,
-    "cfg_high": 3.5,
-    "cfg_low": 3.5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 5.0,
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "boundary": {
+      "value": 15,
+      "visibility": "hidden"
+    },
+    "cfg_high": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "cfg_low": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 81,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 81,
       "step": 4
     },
-    "fps": 16,
-    "width": 640,
-    "height": 640,
+    "fps": {
+      "value": 16,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 640,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 640,
+      "visibility": "hidden"
+    },
     "negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
     "virtual_resolution": {
       "value": 128,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
-    "palette": "chroma-256",
-    "method": "median",
-    "w_start": 0.5,
-    "w_end": 1.0,
-    "end_percent": 1.0,
-    "project_every": 1,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
+    "palette": {
+      "value": "chroma-256",
+      "visibility": "hidden"
+    },
+    "method": {
+      "value": "median",
+      "visibility": "hidden"
+    },
+    "w_start": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "w_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "end_percent": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "project_every": {
+      "value": 1,
+      "visibility": "hidden"
+    },
     "guided": {
       "value": false,
-      "exposed": true
+      "visibility": "exposed"
     },
     "start_percent": {
       "value": 0.6,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     }
   },
   "card": {
-    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) \u2014 IMAGE-TO-VIDEO + per-frame PixelQuantize",
-    "summary": "Pixel-art image-to-video (locked-palette per-frame quantize). The high-quality 14B image\u2192video (two-expert MoE) \u2014 much better motion/detail than the 5B TI2V. Source image is the first frame; two-stage sampling (high-noise expert then low-noise). Self-quanted int8 ConvRot on 24 GB.",
+    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) — IMAGE-TO-VIDEO + per-frame PixelQuantize",
+    "summary": "Pixel-art image-to-video (locked-palette per-frame quantize). The high-quality 14B image→video (two-expert MoE) — much better motion/detail than the 5B TI2V. Source image is the first frame; two-stage sampling (high-noise expert then low-noise). Self-quanted int8 ConvRot on 24 GB.",
     "use_cases": [
-      "high-quality image\u2192video",
+      "high-quality image→video",
       "camera moves / subject motion on a still",
       "5s 480-720p clips"
     ],
     "nsfw_capable": "no",
     "commercial_use": "yes",
-    "pick_when": "You want the best Wan image\u2192video quality on a 24 GB card (heavier/slower than the 5B).",
+    "pick_when": "You want the best Wan image→video quality on a 24 GB card (heavier/slower than the 5B).",
     "prompt": {
       "format": "natural_language",
       "guidance": "Describe the motion/scene; the prompt directs the motion.",
@@ -98,7 +152,7 @@
         "The woman slowly turns her head to the left while maintaining eye contact with the camera, her hair drifting gently in a light breeze. Slow push-in on her face, shallow depth of field. Soft window light shifts subtly across her skin, warm color grade, calm and intimate mood, gentle pacing throughout.",
         "The mech's chest panels hiss open and steam vents to the sides as it raises one arm toward the camera. The camera slowly dollies out and tilts up to reveal its full height. Sparks fall in the foreground, harsh industrial overhead lighting, cool blue-grey color grade, deliberate and weighty motion."
       ],
-      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: \u8272\u8c03\u8273\u4e3d\uff0c\u8fc7\u66dd\uff0c\u9759\u6001\uff0c\u7ec6\u8282\u6a21\u7cca\u4e0d\u6e05\uff0c\u5b57\u5e55\uff0c\u98ce\u683c\uff0c\u4f5c\u54c1\uff0c\u753b\u4f5c\uff0c\u753b\u9762\uff0c\u9759\u6b62\uff0c\u6574\u4f53\u53d1\u7070\uff0c\u6700\u5dee\u8d28\u91cf\uff0c\u4f4e\u8d28\u91cf\uff0cJPEG\u538b\u7f29\u6b8b\u7559\uff0c\u4e11\u964b\u7684\uff0c\u6b8b\u7f3a\u7684\uff0c\u591a\u4f59\u7684\u624b\u6307\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u624b\u90e8\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u8138\u90e8\uff0c\u7578\u5f62\u7684\uff0c\u6bc1\u5bb9\u7684\uff0c\u5f62\u6001\u7578\u5f62\u7684\u80a2\u4f53\uff0c\u624b\u6307\u878d\u5408\uff0c\u9759\u6b62\u4e0d\u52a8\u7684\u753b\u9762\uff0c\u6742\u4e71\u7684\u80cc\u666f\uff0c\u4e09\u6761\u817f\uff0c\u80cc\u666f\u4eba\u5f88\u591a\uff0c\u5012\u7740\u8d70 . For video, add terms like morphing, warping, distortion, flickering, jittering, face deformation, sudden changes.",
+      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: 色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走 . For video, add terms like morphing, warping, distortion, flickering, jittering, face deformation, sudden changes.",
       "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples ; https://www.veed.io/learn/wan-2-2-prompting-guide"
     },
     "negative": {
@@ -111,7 +165,7 @@
     },
     "ui_help": {
       "note": "Animate the current picture into a higher-quality clip (14B). Describe the motion.",
-      "good_for": "high-quality image\u2192video (14B)"
+      "good_for": "high-quality image→video (14B)"
     },
     "edit_use_cases": [
       "image-to-video: animate the current picture into a high-quality 14B clip"

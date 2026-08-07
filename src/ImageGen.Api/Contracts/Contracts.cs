@@ -210,6 +210,14 @@ public sealed record BookmarkPrefsRequest
     public string? BookmarkPrefs { get; init; }
 }
 
+/// <summary>The user's per-workflow parameter-visibility overrides (config id → param key → show/hide), an opaque
+/// JSON string the server stores verbatim — visibility is applied client-side, and the submit path is gated by the
+/// catalog's locked state, never by this blob. Null/blank clears it.</summary>
+public sealed record ParamVisibilityPrefsRequest
+{
+    public string? ParamVisibilityPrefs { get; init; }
+}
+
 /// <summary>The workflows the user has starred. A real list, not a JSON string: these are rows now (user × workflow),
 /// so the wire carries the relation rather than a blob the server would have to parse to find out what it holds. An
 /// empty list is a valid choice — star nothing.</summary>

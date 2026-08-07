@@ -182,8 +182,23 @@ function explodeInfo(text) {
 // EVERY selected model accepts it (so e.g. vres/mode stay visible across multiple pixelizers, but a param unique
 // to one model hides). The first model's spec (value/choices/range/label) drives the control. Accepts a single
 // model, an array of models, or null/[].
+//
+// Per-user visibility (#191) applies BEFORE the intersection: each model's effective set is its shipped exposed
+// params minus the ones this user hid, plus the shipped hidden-but-revealable ones this user revealed — so a
+// revealed param obeys the same every-model rule an exposed one does.
+let PARAM_VIS = {};   // configId -> paramKey -> bool (true = show, false = hide; absent = shipped default)
+// The seconds control is the length param renamed by the server's frames→seconds projection; the visibility pref is
+// keyed by the config param it rides on.
+const paramVisKey = p => p.key === "duration_seconds" ? "length" : p.key;
+function effectiveParams(m) {
+  const vis = PARAM_VIS[m.id] || {};
+  return [
+    ...(m.exposedParams || []).filter(p => vis[paramVisKey(p)] !== false),
+    ...(m.hiddenParams || []).filter(p => vis[paramVisKey(p)] === true),
+  ];
+}
 function sharedExposedParams(models) {
-  const lists = models.map(m => (m && m.exposedParams) || []);
+  const lists = models.map(m => (m && effectiveParams(m)) || []);
   if (!lists.length) return [];
   return lists[0].filter(p => lists.every(l => l.some(q => q.key === p.key && q.type === p.type)));
 }
@@ -843,6 +858,9 @@ const saveWorkflowTags = map => Api.send("/api/settings/workflow-tags", "PUT", {
 const saveHiddenWorkflows = ids => Api.send("/api/settings/hidden", "PUT", { hiddenWorkflowIds: ids });
 // Workflows hidden from the API workflow list — a separate per-user set from the UI-picker one above.
 const saveHiddenApiWorkflows = ids => Api.send("/api/settings/hidden-api", "PUT", { hiddenApiWorkflowIds: ids });
+// Per-workflow parameter-visibility overrides (configId -> paramKey -> bool) as an opaque JSON string on its own
+// route. Null clears the column (no overrides left).
+const saveParamVisibility = json => Api.send("/api/settings/param-visibility", "PUT", { paramVisibilityPrefs: json });
 // NOTE: no client writes the ACCOUNT-level generation mask any more. The mask is a per-generation choice now — the
 // chip row under the composer's Random prompt slider — so it rides in the generate/enqueue body as `tagTypes` and in
 // the composer prefs draft. The stored account value survives as the server-side fallback for a caller that sends no
@@ -870,6 +888,13 @@ function parseWorkflowTags(s) {
   if (!m || typeof m !== "object" || Array.isArray(m)) throw new Error("customWorkflowTags is not an object");
   return m;
 }
+function parseParamVis(s) {
+  const raw = s.paramVisibilityPrefs;
+  if (raw == null || raw === "") return {};
+  const m = JSON.parse(raw);
+  if (!m || typeof m !== "object" || Array.isArray(m)) throw new Error("paramVisibilityPrefs is not an object");
+  return m;
+}
 
 // The per-user workflow preferences (favorites / hidden / custom tags), loaded as ONE unit with an explicit ok flag.
 //
@@ -883,20 +908,26 @@ function parseWorkflowTags(s) {
 // blob out of it (the edit page's editPrefs) read it from here rather than issuing a second GET, and can tell a
 // failed fetch from blobs that arrived but would not parse.
 async function loadWorkflowPrefs() {
-  const empty = { favs: new Set(), hidden: new Set(), hiddenApi: new Set(), tags: {} };
+  const empty = { favs: new Set(), hidden: new Set(), hiddenApi: new Set(), tags: {}, paramVis: {} };
   let s;
   try {
     s = await fetchSettings();
   } catch (e) {
     console.error("Workflow preferences could not be loaded:", e);
+    PARAM_VIS = {};
     return { ok: false, settings: null, ...empty };
   }
   try {
-    return { ok: true, settings: s, favs: new Set(parseFavs(s)), hidden: new Set(parseHidden(s)), hiddenApi: new Set(parseHiddenApi(s)), tags: parseWorkflowTags(s) };
+    const prefs = { ok: true, settings: s, favs: new Set(parseFavs(s)), hidden: new Set(parseHidden(s)), hiddenApi: new Set(parseHiddenApi(s)), tags: parseWorkflowTags(s), paramVis: parseParamVis(s) };
+    // The param renderers below overlay this without every caller having to thread it through — reads fall back to
+    // the shipped visibility when it never loaded, exactly like the un-personalized workflow list.
+    PARAM_VIS = prefs.paramVis;
+    return prefs;
   } catch (e) {
-    // The response arrived; these three blobs are what is unreadable. Other blobs in it are still fine, so it is
+    // The response arrived; these blobs are what is unreadable. Other blobs in it are still fine, so it is
     // handed back — but ok stays false, so nothing writes over the ones that failed.
     console.error("Stored workflow preferences are not readable:", e);
+    PARAM_VIS = {};
     return { ok: false, settings: s, ...empty };
   }
 }

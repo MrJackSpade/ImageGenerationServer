@@ -198,6 +198,7 @@ function adaptWorkflow(r) {
   return {
     id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, default: !!r.default, avgSeconds: r.avgSeconds,
     kind: r.kind, canEdit: !!r.canEdit, media: r.media === "video" ? "video" : "image", hasAudio: !!r.hasAudio, exposedParams: r.exposedParams || [],
+    hiddenParams: r.hiddenParams || [],   // shipped hidden-but-revealable params — shown only where the user's visibility prefs reveal them (#191)
     loraFolder: r.loraFolder || "",   // the workflow's default LoRA-picker folder (Part H); "" = smart-route by id
     negativeSupported: c.negativeSupported === true,   // model's card declares it uses a negative prompt
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,

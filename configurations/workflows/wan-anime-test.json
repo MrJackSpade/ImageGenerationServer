@@ -17,23 +17,50 @@
     "loader": "unet_gguf",
     "clip_type": "wan",
     "dual": false,
-    "steps": 50,
-    "cfg": 5.0,
-    "shift": 5.0,
-    "sampler": "uni_pc",
-    "scheduler": "simple",
-    "width": 1280,
-    "height": 704,
-    "fps": 24,
+    "steps": {
+      "value": 50,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "uni_pc",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1280,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 704,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 121,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 121,
       "step": 4
     },
     "lora": "wan-anime-test-lora",
-    "lora_strength": 1.0
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Wan 2.2 TI2V-5B diffusion transformer (umT5 encoder) \u2014 IMAGE-TO-VIDEO",

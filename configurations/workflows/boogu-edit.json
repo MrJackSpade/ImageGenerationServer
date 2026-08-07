@@ -14,13 +14,31 @@
     "loader": "unet",
     "clip_type": "boogu",
     "dual": false,
-    "steps": 25,
-    "cfg": 3.5,
-    "sampler": "DPM++ 2M",
-    "scheduler": "simple",
+    "steps": {
+      "value": 25,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "DPM++ 2M",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "negative": "",
-    "megapixels": 1.0,
-    "reference_max": 0
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 0,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Boogu-Image-0.1 10B unified DiT edit model (Qwen3-VL encoder, FLUX.1 VAE); Apache-2.0; bf16 (full precision)",

@@ -17,13 +17,34 @@
     "loader": "unet_gguf",
     "dual": false,
     "latent": "sd3",
-    "steps": 50,
-    "cfg": 5.0,
-    "sampler": "uni_pc",
-    "scheduler": "simple",
-    "shift": 3.0,
-    "width": 1024,
-    "height": 1024,
+    "steps": {
+      "value": 50,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "uni_pc",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 3.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

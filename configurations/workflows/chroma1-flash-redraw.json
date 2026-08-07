@@ -15,15 +15,33 @@
     "loader": "unet",
     "clip_type": "chroma",
     "dual": false,
-    "sampler": "heun",
-    "scheduler": "beta",
-    "shift": 1.0,
-    "steps": 8,
-    "cfg": 1.5,
-    "native_pixels": 0,
+    "sampler": {
+      "value": "heun",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "beta",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.5,
+      "visibility": "hidden"
+    },
+    "native_pixels": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.6,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.2,
       "max": 1.0
     }

@@ -14,25 +14,46 @@
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,
-    "steps": 20,
-    "cfg": 8.0,
-    "sampler": "euler",
-    "scheduler": "normal",
-    "width": 512,
-    "height": 512,
-    "fps": 8,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 8.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 512,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 512,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
     "motion_model": "v3-sd15-mm",
     "sparsectrl_name": "v3-sd15-sparsectrl-rgb",
     "length": {
       "value": 16,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 16,
       "step": 4
     },
     "beta_schedule": {
       "value": "sqrt_linear (AnimateDiff)",
-      "exposed": false
+      "visibility": "hidden"
     }
   },
   "card": {

@@ -18,52 +18,76 @@
     "loader": "unet",
     "clip_type": "stable_diffusion",
     "dual": false,
-    "steps": 40,
-    "cfg": 4.5,
-    "sampler": "Euler a",
-    "scheduler": "automatic",
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler a",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "automatic",
+      "visibility": "hidden"
+    },
     "required_prefix": "masterpiece, best quality, score_7,",
     "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
     "denoise": {
       "value": 1.0,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.5,
       "max": 1.0
     },
     "feather": {
       "value": 24,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 256
     },
     "mask_grow": {
       "value": 8,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 64
     },
     "lllite_strength": {
       "value": 1.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 2.0
     },
     "lllite_start": {
       "value": 0.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     },
     "lllite_end": {
       "value": 1.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     },
-    "pad_left": 0,
-    "pad_top": 0,
-    "pad_right": 0,
-    "pad_bottom": 0
+    "pad_left": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_top": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_right": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_bottom": {
+      "value": 0,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE), ImagePadForOutpaint + masked img2img (same op as anima-inpaint)",

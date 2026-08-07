@@ -300,6 +300,7 @@ async function loadEditModels() {
         id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, workflow: r.workflow,
         kind: r.kind,   // the catalog's resolved kind — every tab routes off this (issue #163)
         exposedParams: r.exposedParams || [], avgSeconds: r.avgSeconds,
+        hiddenParams: r.hiddenParams || [],   // shipped hidden-but-revealable params — shown only where the user's visibility prefs reveal them (#191)
         media: r.media === "video" ? "video" : "image", promptDirectsMotion: r.promptDirectsMotion !== false,
         sourceMedia: r.sourceMedia === "video" ? "video" : "image",
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to

@@ -1,3 +1,4 @@
+using ImageGen.Application.Workflows;
 using ImageGen.Comfy;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -71,7 +72,25 @@ public sealed class CatalogDeserializationTests
     [Fact]
     public void An_unknown_key_in_a_param_envelope_is_rejected()
         => Assert.Throws<JsonException>(() =>
-            Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"expsoed":true}}}"""));
+            Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"visibilty":"exposed"}}}"""));
+
+    [Fact]
+    public void The_retired_exposed_envelope_key_is_rejected_not_aliased()
+        => Assert.Throws<JsonException>(() =>
+            Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"exposed":true}}}"""));
+
+    [Fact]
+    public void An_envelope_without_a_visibility_is_rejected()
+        => Assert.Throws<JsonException>(() =>
+            Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8}}}"""));
+
+    [Theory]
+    [InlineData(""""revealed"""")]   // a plausible misspelling must throw, never coerce to a default
+    [InlineData("true")]             // the old bool shape
+    [InlineData("null")]
+    public void An_unrecognized_visibility_value_is_rejected(string visibility)
+        => Assert.Throws<JsonException>(() =>
+            Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"visibility":""" + visibility + "}}}"));
 
     [Fact]
     public void Param_forms_all_deserialize_to_the_expected_shape()
@@ -80,9 +99,10 @@ public sealed class CatalogDeserializationTests
             {
               "id":"x","workflow":"W",
               "params":{
-                "steps": 8,
-                "cfg": { "value": 7, "exposed": true, "min": 1, "max": 30, "step": 0.5 },
-                "baked": { "value": 4, "exposed": false },
+                "loader": "unet",
+                "cfg": { "value": 7, "visibility": "exposed", "min": 1, "max": 30, "step": 0.5 },
+                "steps": { "value": 8, "visibility": "hidden" },
+                "baked": { "value": 4, "visibility": "locked" },
                 "aspect": { "square": [1024,1024] },
                 "clip_type": null
               }
@@ -92,29 +112,26 @@ public sealed class CatalogDeserializationTests
         Dictionary<string, ConfigParamDto>? p = dto.Params;
         Assert.NotNull(p);
 
-        // Bare scalar shorthand: the token is the value, nothing exposed or bounded.
-        ConfigParamDto steps = p["steps"];
-        Assert.Equal(8, steps.Value.GetInt32());
-        Assert.False(steps.Exposed);
-        Assert.False(steps.Locked);
-        Assert.Null(steps.Min);
+        // Bare scalar shorthand: the token is the value, and the form IS the state — a locked structural constant.
+        ConfigParamDto loader = p["loader"];
+        Assert.Equal("unet", loader.Value.GetString());
+        Assert.Equal(ParamVisibility.Locked, loader.Visibility);
+        Assert.Null(loader.Min);
 
-        // Envelope form: value plus the exposed/min/max/step siblings.
+        // Envelope form: value plus the mandatory visibility and the min/max/step siblings. All three states round-trip.
         ConfigParamDto cfg = p["cfg"];
         Assert.Equal(7, cfg.Value.GetInt32());
-        Assert.True(cfg.Exposed);
-        Assert.False(cfg.Locked);
+        Assert.Equal(ParamVisibility.Exposed, cfg.Visibility);
         Assert.Equal(1, cfg.Min);
         Assert.Equal(30, cfg.Max);
         Assert.Equal(0.5, cfg.Step);
+        Assert.Equal(ParamVisibility.Hidden, p["steps"].Visibility);
+        Assert.Equal(ParamVisibility.Locked, p["baked"].Visibility);
 
-        // Explicit "exposed": false is a baked, locked knob.
-        ConfigParamDto baked = p["baked"];
-        Assert.False(baked.Exposed);
-        Assert.True(baked.Locked);
-
-        // Object WITHOUT "value" (the aspect map) is the value itself, captured whole.
+        // Object WITHOUT "value" (the aspect map) is the value itself, captured whole — and, being the bare form,
+        // locked.
         Assert.Equal(JsonValueKind.Object, p["aspect"].Value.ValueKind);
+        Assert.Equal(ParamVisibility.Locked, p["aspect"].Visibility);
 
         // A bare null is a real value, not a dropped entry.
         Assert.Equal(JsonValueKind.Null, p["clip_type"].Value.ValueKind);

@@ -19,31 +19,79 @@
     "loader": "unet",
     "clip_type": "hunyuan_video_15",
     "dual": true,
-    "steps": 20,
-    "cfg": 1.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 7.0,
-    "width": 832,
-    "height": 480,
-    "fps": 24,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 832,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 480,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 49,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 121,
       "step": 4
     },
-    "sr": true,
+    "sr": {
+      "value": true,
+      "visibility": "hidden"
+    },
     "sr_model": "hunyuanvideo15-1080p-sr-distilled",
     "sr_upsampler": "hunyuanvideo15-latent-upsampler-1080p",
-    "sr_width": 1920,
-    "sr_height": 1080,
-    "sr_steps": 8,
-    "sr_denoise": 0.7,
-    "sr_noise_aug": 0.0,
-    "sr_cfg": 1.0,
-    "sr_shift": 2.0
+    "sr_width": {
+      "value": 1920,
+      "visibility": "hidden"
+    },
+    "sr_height": {
+      "value": 1080,
+      "visibility": "hidden"
+    },
+    "sr_steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "sr_denoise": {
+      "value": 0.7,
+      "visibility": "hidden"
+    },
+    "sr_noise_aug": {
+      "value": 0.0,
+      "visibility": "hidden"
+    },
+    "sr_cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "sr_shift": {
+      "value": 2.0,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "HunyuanVideo 1.5 t2v (480p cfg-distilled fp8) + 1080p super-resolution second pass \u2014 TEXT-TO-VIDEO",

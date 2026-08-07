@@ -17,23 +17,53 @@
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-t2v-low-noise-14b",
-    "steps": 40,
-    "boundary": 26,
-    "cfg_high": 4.0,
-    "cfg_low": 3.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 12.0,
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "boundary": {
+      "value": 26,
+      "visibility": "hidden"
+    },
+    "cfg_high": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "cfg_low": {
+      "value": 3.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 12.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 81,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 81,
       "step": 4
     },
-    "fps": 16,
-    "width": 960,
-    "height": 960,
+    "fps": {
+      "value": 16,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 960,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 960,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
     "aspect": {
@@ -48,10 +78,10 @@
     }
   },
   "card": {
-    "architecture": "Wan 2.2 T2V-A14B MoE (high+low noise experts, umT5) \u2014 TEXT-TO-VIDEO, 720P tier",
-    "summary": "Text\u2192video at the 14B's HIGH resolution tier (1280x720 / 720x1280, the official 720P buckets). Best per-frame detail; substantially slower than the 480P config.",
+    "architecture": "Wan 2.2 T2V-A14B MoE (high+low noise experts, umT5) — TEXT-TO-VIDEO, 720P tier",
+    "summary": "Text→video at the 14B's HIGH resolution tier (1280x720 / 720x1280, the official 720P buckets). Best per-frame detail; substantially slower than the 480P config.",
     "use_cases": [
-      "highest-quality short text\u2192video clips",
+      "highest-quality short text→video clips",
       "clips where per-frame sharpness matters"
     ],
     "nsfw_capable": "no",
@@ -82,7 +112,7 @@
       "examples": [
         "A lone astronaut in a weathered white spacesuit walks slowly across a red Martian dune at dusk, kicking up fine dust with each step. The camera tracks alongside in a smooth lateral dolly, then arcs into a slow clockwise orbit. Long shadows stretch across the sand, low golden backlight rims the suit, cinematic anamorphic lens with subtle grain, vast and lonely atmosphere, unhurried slow-motion pacing."
       ],
-      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: \u8272\u8c03\u8273\u4e3d\uff0c\u8fc7\u66dd\uff0c\u9759\u6001\uff0c\u7ec6\u8282\u6a21\u7cca\u4e0d\u6e05\uff0c\u5b57\u5e55\uff0c\u98ce\u683c\uff0c\u4f5c\u54c1\uff0c\u753b\u4f5c\uff0c\u753b\u9762\uff0c\u9759\u6b62\uff0c\u6574\u4f53\u53d1\u7070\uff0c\u6700\u5dee\u8d28\u91cf\uff0c\u4f4e\u8d28\u91cf\uff0cJPEG\u538b\u7f29\u6b8b\u7559\uff0c\u4e11\u964b\u7684\uff0c\u6b8b\u7f3a\u7684\uff0c\u591a\u4f59\u7684\u624b\u6307\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u624b\u90e8\uff0c\u753b\u5f97\u4e0d\u597d\u7684\u8138\u90e8\uff0c\u7578\u5f62\u7684\uff0c\u6bc1\u5bb9\u7684\uff0c\u5f62\u6001\u7578\u5f62\u7684\u80a2\u4f53\uff0c\u624b\u6307\u878d\u5408\uff0c\u9759\u6b62\u4e0d\u52a8\u7684\u753b\u9762\uff0c\u6742\u4e71\u7684\u80cc\u666f\uff0c\u4e09\u6761\u817f\uff0c\u80cc\u666f\u4eba\u5f88\u591a\uff0c\u5012\u7740\u8d70 . For video, add terms like morphing, warping, distortion, flickering, jittering.",
+      "negative_guidance": "Wan 2.2 enforces negatives more reliably than 2.1; the canonical default is the Chinese string shipped in the official Wan repo/ComfyUI workflows: 色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走 . For video, add terms like morphing, warping, distortion, flickering, jittering.",
       "source": "https://github.com/Wan-Video/Wan2.2 ; https://www.viewcomfy.com/blog/wan2.2_prompt_guide_with_examples"
     },
     "negative": {
@@ -95,7 +125,7 @@
     },
     "ui_help": {
       "note": "Makes a short video from text at the 14B's full 720P quality tier. Describe the action and camera.",
-      "good_for": "maximum-quality short text\u2192video clips"
+      "good_for": "maximum-quality short text→video clips"
     }
   },
   "resolution": {

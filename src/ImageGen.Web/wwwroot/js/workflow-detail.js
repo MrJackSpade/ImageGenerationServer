@@ -6,7 +6,7 @@
   if (!$root) return;
   const id = $root.dataset.id;
 
-  let workflow = null, STATUS = null, favs = new Set(), hidden = new Set(), hiddenApi = new Set(), tags = {};
+  let workflow = null, STATUS = null, favs = new Set(), hidden = new Set(), hiddenApi = new Set(), tags = {}, paramVis = {};
   // As on the library page: the star/hide/tag writes each send the WHOLE set, so none of them may run against
   // preferences that were never loaded.
   let prefsOk = false;
@@ -32,6 +32,7 @@
     hidden = prefs.hidden;
     hiddenApi = prefs.hiddenApi;
     tags = prefs.tags;
+    paramVis = prefs.paramVis;
     renderInfo();
     // The model picker is offered whenever this id is a real config — including one that can't run yet because a
     // slot is unset, which is exactly when it's most useful (renderInfo puts the #mdSlots mount in that case too).
@@ -229,6 +230,11 @@
 
     if (s.type === "aspect") { row.appendChild(aspectEditor(s, settingsData && settingsData.resolution)); return row; }
 
+    // Per-ACCOUNT show/hide for this param on the generation page (#191) — beside the per-MACHINE value field on
+    // purpose: "what the box renders with" vs "what I see". Only params the catalogue marks toggleable (not locked,
+    // and not a synthetic machine setting, where visibility is null) get one.
+    const vis = visCheckbox(s);
+
     let input;
     if (s.type === "bool") {
       input = document.createElement("input"); input.type = "checkbox"; input.className = "fld-input";
@@ -257,7 +263,31 @@
       });
     }
     row.appendChild(input);
+    if (vis) row.appendChild(vis);
     return row;
+  }
+
+  // The inline visibility checkbox: checked = this account sees the param on the generation page. Saves the whole
+  // per-user override map (a pref back at its shipped default is REMOVED from the map, so the blob only carries real
+  // deviations and clears entirely when none are left).
+  function visCheckbox(s) {
+    if (!s.visibility || s.visibility === "locked") return null;
+    const shippedShown = s.visibility === "exposed";
+    const userV = (paramVis[id] || {})[s.key];
+    const box = document.createElement("input");
+    box.type = "checkbox"; box.className = "wf-vis";
+    box.title = "Show on the generation page";
+    box.checked = userV ?? shippedShown;
+    box.addEventListener("change", async () => {
+      if (!canWritePrefs()) { box.checked = !box.checked; return; }
+      const m = paramVis[id] || (paramVis[id] = {});
+      if (box.checked === shippedShown) delete m[s.key]; else m[s.key] = box.checked;
+      if (!Object.keys(m).length) delete paramVis[id];
+      try {
+        await saveParamVisibility(Object.keys(paramVis).length ? JSON.stringify(paramVis) : null);
+      } catch (e) { console.error("save param visibility failed:", e); toast("Couldn't save"); }
+    });
+    return box;
   }
 
   // The render size, as three width/height pairs. Nobody should have to type a JSON object into a form to make

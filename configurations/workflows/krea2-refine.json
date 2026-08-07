@@ -19,34 +19,58 @@
     "clip_type": "krea2",
     "dual": false,
     "latent": "std",
-    "clip_skip": 0,
-    "steps": 28,
-    "cfg": 4.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "width": 1024,
-    "height": 1024,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 28,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "polish_denoise": {
       "value": 0.35,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.1,
       "max": 0.9
     },
     "refiner_steps": {
       "value": 8,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 1,
       "max": 30
     },
-    "refiner_cfg": 1.0,
+    "refiner_cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "rebalance_multiplier": {
       "value": 4.0,
-      "exposed": false
+      "visibility": "hidden"
     },
     "per_layer_weights": {
       "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
-      "exposed": false
+      "visibility": "locked"
     },
     "aspect": {
       "square": [

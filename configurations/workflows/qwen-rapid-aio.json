@@ -10,11 +10,26 @@
     "loader": "checkpoint",
     "clip_type": "qwen_image",
     "dual": false,
-    "steps": 4,
-    "cfg": 1.0,
-    "sampler": "sa_solver",
-    "scheduler": "beta",
-    "reference_max": 2,
+    "steps": {
+      "value": 4,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "sa_solver",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "beta",
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 2,
+      "visibility": "hidden"
+    },
     "reference_inputs": [
       "image2",
       "image3"

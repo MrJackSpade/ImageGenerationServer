@@ -7,25 +7,34 @@
   "params": {
     "thickness": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 32
     },
     "sigma": {
       "value": 1.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.3,
       "max": 8.0
     },
-    "k": 1.6,
-    "tau": 0.98,
+    "k": {
+      "value": 1.6,
+      "visibility": "hidden"
+    },
+    "tau": {
+      "value": 0.98,
+      "visibility": "hidden"
+    },
     "epsilon": {
       "value": 0.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": -1.0,
       "max": 1.0
     },
-    "phi": 10.0
+    "phi": {
+      "value": 10.0,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "XDoG line extraction + dilate + multiply composite (no model) — XDoGLines + LineThicken (ComfyUI-PixelHarness)",

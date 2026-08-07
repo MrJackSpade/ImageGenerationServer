@@ -15,15 +15,42 @@
     "loader": "unet",
     "clip_type": "ideogram4",
     "latent": "flux2",
-    "steps": 20,
-    "cfg": 7.0,
-    "cfg_override": 3.0,
-    "mu": 0.5,
-    "std": 1.75,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "width": 1024,
-    "height": 1024,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "cfg_override": {
+      "value": 3.0,
+      "visibility": "hidden"
+    },
+    "mu": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "std": {
+      "value": 1.75,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": false,
     "aspect": {
       "square": [

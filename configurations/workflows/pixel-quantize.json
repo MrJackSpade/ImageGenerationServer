@@ -7,22 +7,34 @@
   "params": {
     "virtual_resolution": {
       "value": 384,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
-    "block": 1,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
+    "block": {
+      "value": 1,
+      "visibility": "hidden"
+    },
     "palette": {
       "value": "adaptive",
-      "exposed": true
+      "visibility": "exposed"
     },
     "final_method": {
       "value": "median",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "engine": "median"
+    "engine": {
+      "value": "median",
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Deterministic OKLab palette + grid quantizer (no model) — PixelQuantize node (ComfyUI-PixelHarness)",

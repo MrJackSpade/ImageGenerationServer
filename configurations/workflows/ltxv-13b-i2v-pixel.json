@@ -13,39 +13,78 @@
   "params": {
     "loader": "checkpoint",
     "clip_type": "ltxv",
-    "steps": 8,
-    "cfg": 1,
-    "sampler": "euler",
-    "scheduler": "normal",
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
     "length": {
       "value": 97,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 9,
       "max": 161,
       "step": 8
     },
-    "fps": 24,
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
     "virtual_resolution": {
       "value": 128,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
-    "palette": "chroma-256",
-    "method": "median",
-    "w_start": 0.5,
-    "w_end": 1.0,
-    "end_percent": 1.0,
-    "project_every": 1,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
+    "palette": {
+      "value": "chroma-256",
+      "visibility": "hidden"
+    },
+    "method": {
+      "value": "median",
+      "visibility": "hidden"
+    },
+    "w_start": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "w_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "end_percent": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "project_every": {
+      "value": 1,
+      "visibility": "hidden"
+    },
     "guided": {
       "value": false,
-      "exposed": true
+      "visibility": "exposed"
     },
     "start_percent": {
       "value": 0.6,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     }

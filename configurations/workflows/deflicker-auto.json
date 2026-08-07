@@ -6,25 +6,25 @@
   "params": {
     "mad_k": {
       "value": 4.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.5,
       "max": 20.0
     },
     "min_dev": {
       "value": 1.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 16.0
     },
     "alpha_cut": {
       "value": 0.5,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     },
     "time_sigma": {
       "value": 3.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.1,
       "max": 32.0
     }

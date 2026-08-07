@@ -13,16 +13,37 @@
     "loader": "checkpoint",
     "clip_type": "ltxv",
     "dual": false,
-    "steps": 8,
-    "cfg": 5.0,
-    "sampler": "euler",
-    "scheduler": "normal",
-    "width": 768,
-    "height": 512,
-    "fps": 24,
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 768,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 512,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 97,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 9,
       "max": 97,
       "step": 8

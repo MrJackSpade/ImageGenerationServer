@@ -1,5 +1,6 @@
 ﻿using ImageGen.Application.Media;
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using System.Net.Http.Json;
@@ -800,13 +801,14 @@ public sealed class ComfyClient : IComfyClient
         {
             v[kv.Key] = kv.Value;
         }
-        // A locked param (object-form "exposed": false) is a baked value the caller cannot override — its request
-        // value is dropped so the configuration's setting is enforced on every generation. All other keys overlay.
+        // A locked param is a baked value the caller cannot override — its request value is dropped so the
+        // configuration's setting is enforced on every generation. Exposed AND hidden params both overlay: visibility
+        // is a UI concern (a hidden param is merely un-surfaced by default), lockability is this gate.
         if (overrides is not null)
         {
             foreach (KeyValuePair<string, JsonElement> kv in overrides)
             {
-                if (!(cfg.Params.TryGetValue(kv.Key, out ConfigParam? cp) && cp.Locked))
+                if (!(cfg.Params.TryGetValue(kv.Key, out ConfigParam? cp) && cp.Visibility == ParamVisibility.Locked))
                 {
                     v[kv.Key] = kv.Value;
                 }

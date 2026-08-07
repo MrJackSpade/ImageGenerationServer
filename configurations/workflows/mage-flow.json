@@ -13,12 +13,30 @@
   "params": {
     "loader": "unet",
     "clip_type": "mage",
-    "steps": 20,
-    "cfg": 5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "width": 1024,
-    "height": 1024,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

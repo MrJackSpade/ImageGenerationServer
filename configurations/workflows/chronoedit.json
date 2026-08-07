@@ -17,13 +17,28 @@
     "loader": "unet",
     "clip_type": "wan",
     "dual": false,
-    "steps": 20,
-    "cfg": 4.0,
-    "sampler": "uni_pc",
-    "scheduler": "simple",
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "uni_pc",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "length": 5,
     "lora": "chronoedit-distill-lora",
-    "lora_strength": 1.0,
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "clip_vision": "clip-vit-h-14-laion2b-s32b-b79k"
   },
   "card": {

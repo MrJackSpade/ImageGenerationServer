@@ -25,6 +25,44 @@ public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
     WorkflowReference? Reference = null);
 
+/// <summary>How one workflow parameter may be surfaced, per its configuration file. Three explicit states — there is
+/// no fourth "absent" meaning, and no flag pair welding visibility to lockability (issue #191).</summary>
+public enum ParamVisibility
+{
+    /// <summary>Shown in the composer by default. A user may hide it per-account; any caller may override it at submit.</summary>
+    Exposed,
+
+    /// <summary>Hidden from the composer by default, but a user may reveal it per-account. Overridable at submit by any
+    /// caller regardless of who has revealed it — visibility is a UI concern, lockability is the submit gate.</summary>
+    Hidden,
+
+    /// <summary>Never surfaced and never overridable at submit: a structural constant (loader switches, model-slot
+    /// refs, memory/device knobs). The one state that gates the submit path.</summary>
+    Locked,
+}
+
+/// <summary>The wire spellings of <see cref="ParamVisibility"/> — the catalog JSON's <c>visibility</c> envelope values
+/// and the tokens the settings/descriptor DTOs carry to the client.</summary>
+public static class ParamVisibilityTokens
+{
+    public const string Exposed = "exposed";
+    public const string Hidden = "hidden";
+    public const string Locked = "locked";
+}
+
+/// <summary>Enum ↔ wire-token bridging for <see cref="ParamVisibility"/>.</summary>
+public static class ParamVisibilityExtensions
+{
+    /// <summary>The wire token for <paramref name="visibility"/>.</summary>
+    public static string Token(this ParamVisibility visibility) => visibility switch
+    {
+        ParamVisibility.Exposed => ParamVisibilityTokens.Exposed,
+        ParamVisibility.Hidden => ParamVisibilityTokens.Hidden,
+        ParamVisibility.Locked => ParamVisibilityTokens.Locked,
+        _ => throw new ArgumentOutOfRangeException(nameof(visibility), visibility, null),
+    };
+}
+
 /// <summary>One UI-exposed parameter of a workflow configuration, joined to its schema for type/range/label.</summary>
 /// <param name="Key">Parameter key.</param>
 /// <param name="Type">CLR type token, lowercased (int/double/string/bool/enum).</param>
@@ -127,6 +165,7 @@ public sealed record WorkflowDescriptor(
     bool Default,
     [property: AllowNullable("null = no timing samples yet on this machine; 0 would be a real (instant) average")] int? AvgSeconds,
     IReadOnlyList<WorkflowExposedParam> ExposedParams,
+    IReadOnlyList<WorkflowExposedParam> HiddenParams,
     bool CanEdit,
     WorkflowReference? Reference,
     WorkflowCardSummary Card,
@@ -211,6 +250,9 @@ public sealed record WorkflowStatus(
 /// </summary>
 /// <param name="Shipped">The value in the catalogue file. What "reset" restores.</param>
 /// <param name="Override">This machine's value, or null when it has not been changed here.</param>
+/// <param name="Visibility">The param's SHIPPED <see cref="ParamVisibilityTokens"/> token. Everything but
+/// <see cref="ParamVisibilityTokens.Locked"/> gets a per-account show/hide checkbox in the editor. Null = not a config
+/// param at all (a synthetic per-machine setting like the custom-size toggle), which likewise gets no checkbox.</param>
 public sealed record ConfigSetting(
     string Key,
     [AllowMagicStrings("human-readable UI setting label")] string Label,
@@ -220,7 +262,8 @@ public sealed record ConfigSetting(
     [property: AllowNullable("null = the setting has no maximum bound; 0 is a real maximum, distinct from unbounded")] double? Max,
     [property: AllowNullable("null = the setting declares no increment (free-entry); distinct from a 0 step")] double? Step,
     IReadOnlyList<string>? Choices,
-    object? Shipped, object? Override);
+    object? Shipped, object? Override,
+    [property: AllowNullable("null = not a configuration param (a synthetic per-machine setting) — no visibility checkbox")] string? Visibility = null);
 
 /// <summary>
 /// The model's documented output-resolution envelope: the smallest and largest side it supports, and the latent

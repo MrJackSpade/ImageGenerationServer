@@ -11,13 +11,34 @@
     "clip_type": null,
     "dual": false,
     "latent": "std",
-    "clip_skip": 1,
-    "steps": 28,
-    "cfg": 7,
-    "sampler": "DPM++ 2M",
-    "scheduler": "karras",
-    "width": 512,
-    "height": 512,
+    "clip_skip": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 28,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 7,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "DPM++ 2M",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "karras",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 512,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 512,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

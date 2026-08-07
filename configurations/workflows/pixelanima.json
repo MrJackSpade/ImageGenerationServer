@@ -15,13 +15,34 @@
     "clip_type": "stable_diffusion",
     "dual": false,
     "latent": "std",
-    "clip_skip": 0,
-    "steps": 40,
-    "cfg": 4.5,
-    "sampler": "Euler a",
-    "scheduler": "automatic",
-    "width": 1024,
-    "height": 1024,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler a",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "automatic",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [
@@ -41,26 +62,50 @@
     "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
     "virtual_resolution": {
       "value": 384,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
     "palette": {
       "value": "adaptive",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "proj_method": "median",
+    "proj_method": {
+      "value": "median",
+      "visibility": "hidden"
+    },
     "final_method": {
       "value": "median",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "w_start": 0.5,
-    "w_end": 1.0,
-    "start_percent": 0.0,
-    "end_percent": 1.0,
-    "project_every": 1
+    "w_start": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "w_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "start_percent": {
+      "value": 0.0,
+      "visibility": "hidden"
+    },
+    "end_percent": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "project_every": {
+      "value": 1,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Anima 2B anime base (Qwen3-0.6B encoder, Qwen-Image VAE) generating text-to-image under a per-step PixelManifoldProjection + final PixelQuantize",

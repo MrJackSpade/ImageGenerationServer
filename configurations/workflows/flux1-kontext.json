@@ -15,12 +15,30 @@
     "loader": "unet",
     "clip_type": "flux",
     "dual": true,
-    "steps": 20,
-    "cfg": 1.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "guidance": 2.5,
-    "reference_max": 3
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "guidance": {
+      "value": 2.5,
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 3,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Rectified-flow DiT in-context editing (T5-XXL + CLIP)",

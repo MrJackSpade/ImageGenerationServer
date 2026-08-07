@@ -15,13 +15,34 @@
     "clip_type": "flux2",
     "dual": false,
     "latent": "flux2",
-    "clip_skip": 0,
-    "steps": 20,
-    "cfg": 5.0,
-    "sampler": "Euler",
-    "scheduler": "simple",
-    "width": 1408,
-    "height": 1408,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1408,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1408,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

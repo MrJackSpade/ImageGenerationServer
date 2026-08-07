@@ -14,44 +14,89 @@
   "params": {
     "snap_resolution": {
       "value": true,
-      "exposed": true
+      "visibility": "exposed"
     },
     "loader": "unet_gguf",
     "clip_type": "longcat_image",
     "dual": false,
-    "steps": 24,
-    "cfg": 4.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 3.1,
-    "style_prompt": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+    "steps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 3.1,
+      "visibility": "hidden"
+    },
+    "style_prompt": {
+      "value": "Convert to pixel art, flat colors, clean crisp pixels, limited palette",
+      "visibility": "hidden"
+    },
     "reference": {
       "value": 0,
-      "exposed": true
+      "visibility": "exposed"
     },
     "virtual_resolution": {
       "value": 256,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
-    "out_scale": 3,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
+    "out_scale": {
+      "value": 3,
+      "visibility": "hidden"
+    },
     "palette": {
       "value": "adaptive",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "proj_method": "median",
+    "proj_method": {
+      "value": "median",
+      "visibility": "hidden"
+    },
     "final_method": {
       "value": "median",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "w_start": 0.5,
-    "w_end": 1.0,
-    "start_percent": 0.0,
-    "end_percent": 1.0,
-    "project_every": 1
+    "w_start": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "w_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "start_percent": {
+      "value": 0.0,
+      "visibility": "hidden"
+    },
+    "end_percent": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "project_every": {
+      "value": 1,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "LongCat-Image-Edit (Qwen-Image-Edit topology) with per-step pixel-manifold projection + final PixelQuantize",

@@ -18,24 +18,36 @@
     "loader": "unet",
     "clip_type": "krea2",
     "dual": false,
-    "steps": 8,
-    "cfg": 1,
-    "sampler": "euler",
-    "scheduler": "simple",
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "negative_supported": false,
     "denoise": {
       "value": 0.35,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.1,
       "max": 0.9
     },
     "rebalance_multiplier": {
       "value": 4.0,
-      "exposed": false
+      "visibility": "hidden"
     },
     "per_layer_weights": {
       "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
-      "exposed": false
+      "visibility": "locked"
     }
   },
   "card": {

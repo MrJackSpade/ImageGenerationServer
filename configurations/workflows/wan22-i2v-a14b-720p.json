@@ -17,30 +17,60 @@
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-i2v-low-noise-14b",
-    "steps": 40,
-    "boundary": 15,
-    "cfg_high": 3.5,
-    "cfg_low": 3.5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 5.0,
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "boundary": {
+      "value": 15,
+      "visibility": "hidden"
+    },
+    "cfg_high": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "cfg_low": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 81,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 81,
       "step": 4
     },
-    "fps": 16,
-    "width": 1280,
-    "height": 720,
+    "fps": {
+      "value": 16,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1280,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 720,
+      "visibility": "hidden"
+    },
     "negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
   },
   "card": {
-    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) \u2014 IMAGE-TO-VIDEO, 720P tier",
-    "summary": "The 14B image\u2192video at its HIGH resolution tier: the source frame is fitted (at its own aspect) into the official 720P pixel area (1280x720 = 0.92 MP) instead of the 480P tier. Best per-frame detail Wan can do here; substantially slower and heavier than the 480P config.",
+    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) — IMAGE-TO-VIDEO, 720P tier",
+    "summary": "The 14B image→video at its HIGH resolution tier: the source frame is fitted (at its own aspect) into the official 720P pixel area (1280x720 = 0.92 MP) instead of the 480P tier. Best per-frame detail Wan can do here; substantially slower and heavier than the 480P config.",
     "use_cases": [
-      "highest-quality image\u2192video",
+      "highest-quality image→video",
       "clips where per-frame sharpness matters (motion smear on the 480P tier)",
       "5s 720P clips"
     ],
@@ -83,7 +113,7 @@
     },
     "ui_help": {
       "note": "Animate the current picture at the 14B's full 720P quality tier. Describe the motion.",
-      "good_for": "maximum-quality image\u2192video (14B, 720P)"
+      "good_for": "maximum-quality image→video (14B, 720P)"
     },
     "edit_use_cases": [
       "image-to-video: animate the current picture at the highest Wan quality tier"

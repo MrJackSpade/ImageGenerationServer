@@ -15,46 +15,97 @@
   "params": {
     "snap_resolution": {
       "value": true,
-      "exposed": true
+      "visibility": "exposed"
     },
     "reference": {
       "value": 70,
-      "exposed": true
+      "visibility": "exposed"
     },
     "loader": "unet_gguf",
     "clip_type": "flux",
     "dual": true,
-    "steps": 28,
-    "cfg": 1,
-    "guidance": 2.5,
-    "sampler": "Euler",
-    "scheduler": "simple",
-    "style_prompt": "16-bit pixel art, flat colors, clean crisp pixels, vibrant",
-    "strength": 0.3,
+    "steps": {
+      "value": 28,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "guidance": {
+      "value": 2.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "style_prompt": {
+      "value": "16-bit pixel art, flat colors, clean crisp pixels, vibrant",
+      "visibility": "hidden"
+    },
+    "strength": {
+      "value": 0.3,
+      "visibility": "hidden"
+    },
     "virtual_resolution": {
       "value": 384,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 32,
       "max": 1024
     },
-    "grid_w": 384,
-    "grid_h": 256,
-    "megapixels": 1.0,
-    "out_scale": 3,
+    "grid_w": {
+      "value": 384,
+      "visibility": "hidden"
+    },
+    "grid_h": {
+      "value": 256,
+      "visibility": "hidden"
+    },
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "out_scale": {
+      "value": 3,
+      "visibility": "hidden"
+    },
     "palette": {
       "value": "adaptive",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "proj_method": "median",
+    "proj_method": {
+      "value": "median",
+      "visibility": "hidden"
+    },
     "final_method": {
       "value": "median",
-      "exposed": true
+      "visibility": "exposed"
     },
-    "w_start": 0.5,
-    "w_end": 1.0,
-    "start_percent": 0.0,
-    "end_percent": 1.0,
-    "project_every": 1
+    "w_start": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "w_end": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "start_percent": {
+      "value": 0.0,
+      "visibility": "hidden"
+    },
+    "end_percent": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "project_every": {
+      "value": 1,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Flux-dev img2img with per-step pixel-manifold projection (PixelManifoldProjection patch + PixelQuantize final render)",

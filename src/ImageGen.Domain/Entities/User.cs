@@ -50,6 +50,13 @@ public sealed class User
     /// it did before the toggle existed.</summary>
     public bool PinBookmarkSuggestions { get; init; }
 
+    /// <summary>Opaque JSON of the user's per-workflow parameter-visibility overrides — a map of config id to a map of
+    /// param key to bool (true = show the param on the generation page, false = hide it; absent = the shipped
+    /// default). Stored and returned verbatim; the server never parses it (visibility is applied client-side, and the
+    /// submit path is gated by the catalog's locked state, not by this). Config/param ids are catalog identifiers,
+    /// not user content — stored plain, like <see cref="GenerationTagTypes"/>. Null = no overrides.</summary>
+    public string? ParamVisibilityPrefs { get; init; }
+
     /// <summary>Bearer API key (a bare GUID) for non-browser callers — presenting it as the <c>X-Api-Key</c> /
     /// <c>Authorization: Bearer</c> header authenticates the request as this user. A secret: stored as-is (lookup is
     /// by equality) and never serialised into a user-facing response. Null = no key (cookie login only).</summary>

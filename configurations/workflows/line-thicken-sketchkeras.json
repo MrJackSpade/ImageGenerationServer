@@ -7,13 +7,13 @@
   "params": {
     "thickness": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 32
     },
     "threshold": {
       "value": 0.1,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     }

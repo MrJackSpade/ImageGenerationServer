@@ -16,15 +16,33 @@
     "loader": "unet",
     "clip_type": "flux",
     "dual": true,
-    "steps": 28,
-    "cfg": 1,
-    "guidance": 4.5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "native_pixels": 0,
+    "steps": {
+      "value": 28,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "guidance": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "native_pixels": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.6,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.2,
       "max": 1.0
     }

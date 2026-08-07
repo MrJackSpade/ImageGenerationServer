@@ -18,33 +18,60 @@
   },
   "params": {
     "motion_model": "animatelcm-sd15-t2v",
-    "beta_schedule": "sqrt_linear (AnimateDiff)",
-    "sampler": "lcm",
-    "scheduler": "sgm_uniform",
-    "steps": 8,
-    "cfg": 1.5,
-    "width": 512,
-    "height": 768,
+    "beta_schedule": {
+      "value": "sqrt_linear (AnimateDiff)",
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "lcm",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "sgm_uniform",
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.5,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 512,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 768,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 16,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 8,
       "max": 32,
       "step": 4
     },
-    "fps": 8,
+    "fps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
     "sparsectrl_name": "v3-sd15-sparsectrl-rgb",
-    "sparsectrl_strength": 0.8,
+    "sparsectrl_strength": {
+      "value": 0.8,
+      "visibility": "hidden"
+    },
     "sparsectrl_end": {
       "value": 0.7,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.2,
       "max": 1.0
     },
     "ipadapter_preset": "PLUS (high strength)",
     "ipadapter_weight": {
       "value": 0.7,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.5
     },

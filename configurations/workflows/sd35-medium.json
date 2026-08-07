@@ -11,13 +11,34 @@
     "clip_type": null,
     "dual": false,
     "latent": "sd3",
-    "clip_skip": 0,
-    "steps": 30,
-    "cfg": 4.5,
-    "sampler": "euler",
-    "scheduler": "sgm_uniform",
-    "width": 1024,
-    "height": 1024,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 30,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "sgm_uniform",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

@@ -12,18 +12,33 @@
   "params": {
     "loader": "checkpoint",
     "clip_type": "ltxv",
-    "steps": 8,
-    "cfg": 1,
-    "sampler": "euler",
-    "scheduler": "normal",
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
     "length": {
       "value": 97,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 9,
       "max": 161,
       "step": 8
     },
-    "fps": 24
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "LTX-Video 13B 0.9.8 distilled (T5) \u2014 IMAGE-TO-VIDEO",

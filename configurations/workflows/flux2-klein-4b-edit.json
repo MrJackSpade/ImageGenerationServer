@@ -14,12 +14,30 @@
     "loader": "unet",
     "clip_type": "flux2",
     "dual": false,
-    "steps": 4,
-    "cfg": 1.0,
-    "guidance": 4.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "reference_max": 3
+    "steps": {
+      "value": 4,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "guidance": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 3,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Flux.2 rectified-flow DiT (Qwen3 encoder), 4-step distilled",

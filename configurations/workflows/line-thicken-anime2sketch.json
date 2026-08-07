@@ -7,13 +7,13 @@
   "params": {
     "thickness": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 32
     },
     "resolution": {
       "value": 512,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 256,
       "max": 2048
     }

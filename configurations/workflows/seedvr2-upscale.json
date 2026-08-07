@@ -14,66 +14,66 @@
   "params": {
     "dit_model": {
       "value": "seedvr2-3b",
-      "exposed": false
+      "visibility": "locked"
     },
     "vae_model": {
       "value": "seedvr2-vae",
-      "exposed": false
+      "visibility": "locked"
     },
     "scale": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 1,
       "max": 4,
       "step": 1
     },
     "max_resolution": {
       "value": 0,
-      "exposed": false
+      "visibility": "locked"
     },
     "color_correction": {
       "value": "lab",
-      "exposed": true
+      "visibility": "exposed"
     },
     "device": {
       "value": "cuda:0",
-      "exposed": false
+      "visibility": "locked"
     },
     "offload_device": {
       "value": "cpu",
-      "exposed": false
+      "visibility": "locked"
     },
     "attention_mode": {
       "value": "sdpa",
-      "exposed": false
+      "visibility": "locked"
     },
     "blocks_to_swap": {
       "value": 32,
-      "exposed": false
+      "visibility": "locked"
     },
     "swap_io_components": {
       "value": true,
-      "exposed": false
+      "visibility": "locked"
     },
     "cache_model": {
       "value": false,
-      "exposed": false
+      "visibility": "locked"
     },
     "vae_tiled": {
       "value": true,
-      "exposed": false
+      "visibility": "locked"
     },
     "vae_tile_size": {
       "value": 512,
-      "exposed": false
+      "visibility": "locked"
     },
     "vae_tile_overlap": {
       "value": 64,
-      "exposed": false
+      "visibility": "locked"
     },
     "batch_size": {
       "value": 1,
-      "exposed": false
+      "visibility": "locked"
     }
   },
   "card": {

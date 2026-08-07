@@ -14,13 +14,34 @@
   "params": {
     "loader": "checkpoint",
     "latent": "sd3",
-    "clip_skip": 0,
-    "steps": 20,
-    "cfg": 4.5,
-    "sampler": "euler",
-    "scheduler": "sgm_uniform",
-    "width": 1280,
-    "height": 1280,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "sgm_uniform",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1280,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1280,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

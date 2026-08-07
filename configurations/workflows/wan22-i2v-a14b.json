@@ -17,37 +17,70 @@
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-i2v-low-noise-14b",
-    "steps": 40,
-    "boundary": 15,
-    "cfg_high": 3.5,
-    "cfg_low": 3.5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 5.0,
-    "refiner_steps": 25,
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "boundary": {
+      "value": 15,
+      "visibility": "hidden"
+    },
+    "cfg_high": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "cfg_low": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "refiner_steps": {
+      "value": 25,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 81,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 81,
       "step": 4
     },
-    "fps": 16,
-    "width": 640,
-    "height": 640,
+    "fps": {
+      "value": 16,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 640,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 640,
+      "visibility": "hidden"
+    },
     "negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
   },
   "card": {
-    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) \u2014 IMAGE-TO-VIDEO",
-    "summary": "The high-quality 14B image\u2192video (two-expert MoE) \u2014 much better motion/detail than the 5B TI2V. Source image is the first frame; two-stage sampling (high-noise expert then low-noise). Self-quanted int8 ConvRot on 24 GB.",
+    "architecture": "Wan 2.2 I2V-A14B MoE (high+low noise experts, umT5) — IMAGE-TO-VIDEO",
+    "summary": "The high-quality 14B image→video (two-expert MoE) — much better motion/detail than the 5B TI2V. Source image is the first frame; two-stage sampling (high-noise expert then low-noise). Self-quanted int8 ConvRot on 24 GB.",
     "use_cases": [
-      "high-quality image\u2192video",
+      "high-quality image→video",
       "camera moves / subject motion on a still",
       "5s 480-720p clips"
     ],
     "nsfw_capable": "no",
     "commercial_use": "yes",
-    "pick_when": "You want the best Wan image\u2192video quality on a 24 GB card (heavier/slower than the 5B).",
+    "pick_when": "You want the best Wan image→video quality on a 24 GB card (heavier/slower than the 5B).",
     "prompt": {
       "format": "natural_language",
       "guidance": "Describe the motion/scene; the prompt directs the motion.",
@@ -85,7 +118,7 @@
     },
     "ui_help": {
       "note": "Animate the current picture into a higher-quality clip (14B). Describe the motion.",
-      "good_for": "high-quality image\u2192video (14B)"
+      "good_for": "high-quality image→video (14B)"
     },
     "edit_use_cases": [
       "image-to-video: animate the current picture into a high-quality 14B clip"

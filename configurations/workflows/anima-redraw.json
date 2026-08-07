@@ -15,16 +15,31 @@
     "loader": "unet",
     "clip_type": "stable_diffusion",
     "dual": false,
-    "steps": 40,
-    "cfg": 4.5,
-    "sampler": "Euler a",
-    "scheduler": "automatic",
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler a",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "automatic",
+      "visibility": "hidden"
+    },
     "required_prefix": "masterpiece, best quality, score_7,",
     "negative": "worst quality, low quality, score_1, score_2, score_3, artist name",
-    "native_pixels": 921600,
+    "native_pixels": {
+      "value": 921600,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.6,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.2,
       "max": 1.0
     }

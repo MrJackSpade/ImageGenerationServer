@@ -16,36 +16,66 @@
     "weight_dtype": "fp8_e4m3fn",
     "clip_type": "flux",
     "dual": true,
-    "steps": 20,
-    "cfg": 1,
-    "sampler": "euler",
-    "scheduler": "normal",
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
     "negative_supported": false,
-    "max_dimension": 1536,
-    "diffdiff": true,
-    "pad_left": 0,
-    "pad_top": 0,
-    "pad_right": 0,
-    "pad_bottom": 0,
+    "max_dimension": {
+      "value": 1536,
+      "visibility": "hidden"
+    },
+    "diffdiff": {
+      "value": true,
+      "visibility": "hidden"
+    },
+    "pad_left": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_top": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_right": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "pad_bottom": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "guidance": {
       "value": 30.0,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 1.0,
       "max": 60.0
     },
     "color_correct": {
       "value": true,
-      "exposed": true
+      "visibility": "exposed"
     },
     "mask_grow": {
       "value": 16,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 64
     },
     "mask_blur": {
       "value": 31,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 0,
       "max": 31
     }

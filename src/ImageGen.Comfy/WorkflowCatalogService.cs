@@ -297,7 +297,8 @@ public sealed partial class WorkflowCatalogService(
                     kv.Value.Step ?? spec?.Step,
                     spec?.Choices,
                     kv.Value.Value,
-                    overrides.TryGetValue(kv.Key, out JsonElement o) ? o : null);
+                    overrides.TryGetValue(kv.Key, out JsonElement o) ? o : null,
+                    kv.Value.Visibility.Token());
             })];
 
         // A per-machine "default LoRA folder" for this workflow's composer picker. It is NOT a config/graph param, so
@@ -449,7 +450,13 @@ public sealed partial class WorkflowCatalogService(
         // would put the composer and the graph into disagreement — the control would read 40 steps and produce 12.
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
         List<WorkflowExposedParam> exposed = [.. cfg.Params
-            .Where(kv => kv.Value.Exposed)
+            .Where(kv => kv.Value.Visibility == ParamVisibility.Exposed)
+            .Select(kv => ExposedParam(kv, wf, cfg, machine))];
+        // The SHIPPED default-hidden-but-revealable set, projected exactly like the exposed one so a param a user
+        // reveals renders through the same control path (including the length→seconds conversion). The per-user
+        // reveal/hide overlay is applied client-side from the account's visibility prefs — this stays user-free.
+        List<WorkflowExposedParam> revealable = [.. cfg.Params
+            .Where(kv => kv.Value.Visibility == ParamVisibility.Hidden)
             .Select(kv => ExposedParam(kv, wf, cfg, machine))];
         bool canEdit = wf.Kind != WorkflowKind.Generate;
         return new WorkflowDescriptor(
@@ -474,6 +481,7 @@ public sealed partial class WorkflowCatalogService(
             Default: cfg.Default,
             AvgSeconds: avgSeconds,
             ExposedParams: exposed,
+            HiddenParams: revealable,
             CanEdit: canEdit,
             Reference: canEdit ? BuildReference(c) : null,
             Card: new WorkflowCardSummary(

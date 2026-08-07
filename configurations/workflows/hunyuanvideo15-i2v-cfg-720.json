@@ -18,17 +18,41 @@
     "loader": "unet",
     "clip_type": "hunyuan_video_15",
     "dual": true,
-    "steps": 30,
-    "cfg": 6.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 7.0,
-    "width": 1280,
-    "height": 720,
-    "fps": 24,
+    "steps": {
+      "value": 30,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 6.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1280,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 720,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 49,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 121,
       "step": 4

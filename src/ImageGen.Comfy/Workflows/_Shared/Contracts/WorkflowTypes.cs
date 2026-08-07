@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Workflows;
 using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 using ImageGen.Comfy.Generation.HunyuanVideo15T2V;
 using ImageGen.Domain;
@@ -582,16 +583,16 @@ public sealed class RequirementLinks
     }
 }
 
-/// <summary>One key of a configuration's settings layer: the value supplied for a workflow parameter, plus whether
-/// it is surfaced to the UI as an editable control (vs a retained, hidden default).</summary>
+/// <summary>One key of a configuration's settings layer: the value supplied for a workflow parameter, plus its
+/// explicit surfacing state (shown by default / hidden but user-revealable / locked structural constant).</summary>
 public sealed class ConfigParam
 {
     public required object? Value { get; init; }
-    public bool Exposed { get; init; }
-    /// <summary>A knob explicitly declared object-form with <c>"exposed": false</c> — a baked-in value that is neither
-    /// surfaced to the UI nor overridable by a caller's request (the value is enforced on every generation). Bare
-    /// scalar defaults (e.g. <c>"steps": 8</c>) are NOT locked and remain freely overridable via the request.</summary>
-    public bool Locked { get; init; }
+
+    /// <summary>The param's explicit state. <see cref="ParamVisibility.Locked"/> is the only state the submit path
+    /// enforces (the caller's override is dropped); <see cref="ParamVisibility.Exposed"/> and
+    /// <see cref="ParamVisibility.Hidden"/> differ only in default UI surfacing, which a user may flip per-account.</summary>
+    public required ParamVisibility Visibility { get; init; }
     /// <summary>Optional per-config range override for an exposed numeric control.</summary>
     [AllowNullable("null = no per-config minimum override, so the schema's Min stands; distinct from a real 0 bound")]
     public double? Min { get; init; }

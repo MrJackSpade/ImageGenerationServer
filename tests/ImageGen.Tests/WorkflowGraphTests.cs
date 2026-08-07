@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
@@ -776,7 +777,8 @@ public sealed class WorkflowGraphTests
         ParamSpec spec = wf.Schema.First(s => s.Key == "denoise");
         Assert.Equal(0.01, spec.Step);
         Assert.Null(cfg.Params["denoise"].Step);   // nothing overrides it at the config layer
-        Assert.True(cfg.Params["denoise"].Exposed);
+        // Hidden, not locked: redraw strength ships un-surfaced but stays user-revealable and API-overridable (#191).
+        Assert.Equal(ParamVisibility.Hidden, cfg.Params["denoise"].Visibility);
     }
 
     [Fact]

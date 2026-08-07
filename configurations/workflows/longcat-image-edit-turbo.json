@@ -14,11 +14,26 @@
     "loader": "unet_gguf",
     "clip_type": "longcat_image",
     "dual": false,
-    "steps": 8,
-    "cfg": 1.0,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "reference_max": 2,
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 2,
+      "visibility": "hidden"
+    },
     "reference_inputs": [
       "image2",
       "image3"

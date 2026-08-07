@@ -67,6 +67,10 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     public Task SetPinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct) =>
         _users.UpdatePinBookmarkSuggestionsAsync(userId, pin, ct);
 
+    /// <summary>Set (or clear, when blank) the user's opaque per-workflow parameter-visibility override blob.</summary>
+    public Task SetParamVisibilityPrefsAsync(long userId, string? prefsJson, CancellationToken ct) =>
+        _users.UpdateParamVisibilityPrefsAsync(userId, string.IsNullOrWhiteSpace(prefsJson) ? null : prefsJson, ct);
+
     /// <summary>Create a new account. Returns null if the username is already taken.</summary>
     public Task<User?> RegisterAsync(string username, string password, string displayName, CancellationToken ct)
     {

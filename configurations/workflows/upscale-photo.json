@@ -12,22 +12,22 @@
   "params": {
     "upscale_model": {
       "value": "nomos2-hq-dat2-4x",
-      "exposed": false
+      "visibility": "locked"
     },
     "model_scale": {
       "value": 4.0,
-      "exposed": false
+      "visibility": "hidden"
     },
     "scale": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 1,
       "max": 4,
       "step": 1
     },
     "resample": {
       "value": "lanczos",
-      "exposed": false
+      "visibility": "hidden"
     }
   },
   "card": {

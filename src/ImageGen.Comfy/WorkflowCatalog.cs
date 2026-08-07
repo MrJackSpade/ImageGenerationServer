@@ -588,8 +588,8 @@ public sealed class WorkflowCatalog
 
     /// <summary>Build a variant configuration: the base's structure (workflow class, requirements, card, resolution)
     /// with the variant's own id, friendly name, and snapshotted parameter values. A snapshot value replaces the base
-    /// param's value (through <see cref="CloneValue"/>, so it is byte-identical to a file-loaded one); the exposed/
-    /// locked/range structure stays the base's. A snapshot key the base no longer has is dropped (a stale param).</summary>
+    /// param's value (through <see cref="CloneValue"/>, so it is byte-identical to a file-loaded one); the visibility/
+    /// range structure stays the base's. A snapshot key the base no longer has is dropped (a stale param).</summary>
     private static WorkflowConfiguration BuildVariant(WorkflowConfiguration baseCfg, VariantSpec spec)
     {
         Dictionary<string, ConfigParam> pars = new(StringComparer.OrdinalIgnoreCase);
@@ -599,8 +599,7 @@ public sealed class WorkflowCatalog
             pars[key] = new ConfigParam
             {
                 Value = value,
-                Exposed = bp.Exposed,
-                Locked = bp.Locked,
+                Visibility = bp.Visibility,
                 Min = bp.Min,
                 Max = bp.Max,
                 Step = bp.Step,
@@ -732,8 +731,7 @@ public sealed class WorkflowCatalog
                 pars[name] = new ConfigParam
                 {
                     Value = CloneValue(p.Value),
-                    Exposed = p.Exposed,
-                    Locked = p.Locked,
+                    Visibility = p.Visibility,
                     Min = p.Min,
                     Max = p.Max,
                     Step = p.Step,

@@ -4,9 +4,18 @@
   "friendly_name": "DreamOmni2 (reference edit)",
   "default": false,
   "params": {
-    "steps": 30,
-    "cfg": 3.5,
-    "reference_max": 1,
+    "steps": {
+      "value": 30,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 3.5,
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 1,
+      "visibility": "hidden"
+    },
     "reference_inputs": [
       "image2"
     ]

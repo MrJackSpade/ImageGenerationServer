@@ -13,11 +13,26 @@
   "params": {
     "loader": "unet",
     "clip_type": "mage",
-    "steps": 30,
-    "cfg": 5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "reference_max": 3
+    "steps": {
+      "value": 30,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 3,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "Mage-Flow-Edit 4B native-resolution MMDiT (Mage-VAE + Qwen3-VL-4B encoder, rectified flow), RL-aligned",

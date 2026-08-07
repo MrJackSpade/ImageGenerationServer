@@ -15,13 +15,34 @@
     "clip_type": "chroma",
     "dual": false,
     "latent": "sd3",
-    "steps": 8,
-    "cfg": 1.5,
-    "sampler": "heun",
-    "scheduler": "beta",
-    "shift": 1.0,
-    "width": 1024,
-    "height": 1024,
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "heun",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "beta",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

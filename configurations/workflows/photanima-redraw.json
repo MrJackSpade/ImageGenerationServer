@@ -15,16 +15,31 @@
     "loader": "unet",
     "clip_type": "stable_diffusion",
     "dual": false,
-    "steps": 40,
-    "cfg": 4,
-    "sampler": "er_sde",
-    "scheduler": "simple",
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "er_sde",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "negative": "toon (style), anime coloring, painting (medium), airbrushed, mutation, distortion, ai-assisted, glossy, shiny, shiny skin, worst quality, score_3, score_4",
     "required_prefix": "masterpiece, score_9, absurdres, best quality, highres, photo \\(medium\\), real life,",
-    "native_pixels": 1044480,
+    "native_pixels": {
+      "value": 1044480,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.6,
-      "exposed": false,
+      "visibility": "hidden",
       "min": 0.2,
       "max": 1.0
     }

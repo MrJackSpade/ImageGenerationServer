@@ -13,28 +13,49 @@
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,
-    "steps": 20,
-    "cfg": 6.0,
-    "sampler": "euler",
-    "scheduler": "normal",
-    "width": 1024,
-    "height": 576,
-    "fps": 8,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 6.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 576,
+      "visibility": "hidden"
+    },
+    "fps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
     "motion_model": "mm-sdxl-v10-beta",
     "denoise": {
       "value": 0.8,
-      "exposed": false
+      "visibility": "hidden"
     },
     "length": {
       "value": 16,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 16,
       "step": 4
     },
     "beta_schedule": {
       "value": "linear (AnimateDiff-SDXL)",
-      "exposed": false
+      "visibility": "hidden"
     }
   },
   "card": {

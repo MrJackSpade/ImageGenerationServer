@@ -17,19 +17,34 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 6,
-    "sampler": "euler",
-    "scheduler": "simple",
+    "steps": {
+      "value": 6,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
     "lora": "minimax-h3-turbo-lora",
-    "lora_strength": 1.0,
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "length": {
       "value": 124,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 5,
       "max": 362,
       "step": 17
     },
-    "fps": 24
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — IMAGE-TO-VIDEO with native audio, low-step",

@@ -1,3 +1,4 @@
+using ImageGen.Application.Workflows;
 using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -182,7 +183,7 @@ internal sealed record TaggingDto
 
 /// <summary>
 /// One entry of a configuration's <c>params</c> map, in either the bare-scalar shorthand (<c>"steps": 25</c>) or the
-/// wrapped envelope form (<c>{ "value": 25, "exposed": true, "min": 1, "max": 50, "step": 1 }</c>). Handled by
+/// wrapped envelope form (<c>{ "value": 25, "visibility": "exposed", "min": 1, "max": 50, "step": 1 }</c>). Handled by
 /// <see cref="ConfigParamDtoConverter"/> because the two forms cannot be expressed as one static shape.
 /// </summary>
 [JsonConverter(typeof(ConfigParamDtoConverter))]
@@ -192,12 +193,10 @@ internal sealed record ConfigParamDto
     /// dims map, a reference-inputs list) captured whole.</summary>
     public required JsonElement Value { get; init; }
 
-    /// <summary>Envelope form with <c>"exposed": true</c>: surfaced to the UI as an editable control.</summary>
-    public bool Exposed { get; init; }
-
-    /// <summary>Envelope form with an explicit <c>"exposed": false</c>: a baked, locked knob — hidden from the UI and
-    /// not overridable by the request.</summary>
-    public bool Locked { get; init; }
+    /// <summary>The param's explicit surfacing state. An envelope declares it in full (<c>"visibility"</c> is
+    /// mandatory there); the bare-scalar shorthand IS the third state — a structural constant, always
+    /// <see cref="ParamVisibility.Locked"/>.</summary>
+    public required ParamVisibility Visibility { get; init; }
 
     [AllowNullable("null = the envelope declared no minimum bound; 0 is a real minimum, distinct from unbounded")] public double? Min { get; init; }
     [AllowNullable("null = the envelope declared no maximum bound; 0 is a real maximum, distinct from unbounded")] public double? Max { get; init; }
@@ -207,8 +206,11 @@ internal sealed record ConfigParamDto
 /// <summary>
 /// Reads a <c>params</c> entry in either form. The envelope form is signalled by an object carrying an explicit
 /// <c>value</c> member; anything else — a bare scalar, a bare array, or an object without <c>value</c> (the aspect
-/// map) — IS the value. The envelope's own keys are validated the same way the rest of the catalog is: a key other
-/// than <c>value</c>/<c>exposed</c>/<c>min</c>/<c>max</c>/<c>step</c> is an error, not silently ignored.
+/// map) — IS the value, and the bare form always means a locked structural constant. The envelope's own keys are
+/// validated the same way the rest of the catalog is: a key other than
+/// <c>value</c>/<c>visibility</c>/<c>min</c>/<c>max</c>/<c>step</c> is an error, not silently ignored — and
+/// <c>visibility</c> itself is mandatory with exactly three spellings; a missing or unrecognized one throws rather
+/// than coercing to a default.
 /// </summary>
 internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
 {
@@ -221,7 +223,7 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
     private static class EnvelopeMember
     {
         public const string Value = "value";
-        public const string Exposed = "exposed";
+        public const string Visibility = "visibility";
         public const string Min = "min";
         public const string Max = "max";
         public const string Step = "step";
@@ -236,30 +238,49 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
         {
             foreach (JsonProperty member in pv.EnumerateObject())
             {
-                if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Exposed or EnvelopeMember.Min or EnvelopeMember.Max or EnvelopeMember.Step))
+                if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Visibility or EnvelopeMember.Min or EnvelopeMember.Max or EnvelopeMember.Step))
                 {
                     throw new JsonException(
                         $"Unknown key '{member.Name}' in a parameter envelope. A wrapped parameter may declare only "
-                        + "value, exposed, min, max and step.");
+                        + "value, visibility, min, max and step.");
                 }
             }
 
-            bool? exposed = pv.TryGetProperty(EnvelopeMember.Exposed, out JsonElement e) && e.ValueKind is JsonValueKind.True or JsonValueKind.False
-                ? e.GetBoolean()
-                : null;
             return new ConfigParamDto
             {
                 Value = value.Clone(),
-                Exposed = exposed == true,
-                Locked = exposed == false,
+                Visibility = ReadVisibility(pv),
                 Min = Number(pv, EnvelopeMember.Min),
                 Max = Number(pv, EnvelopeMember.Max),
                 Step = Number(pv, EnvelopeMember.Step),
             };
         }
 
-        // Shorthand: the token itself is the value. Not exposed, not locked, no range overrides.
-        return new ConfigParamDto { Value = pv.Clone() };
+        // Shorthand: the token itself is the value, and the form is the state — a locked structural constant
+        // (loader switches, model-slot refs, plumbing). A param that is a real knob is written as an envelope
+        // with an explicit visibility instead.
+        return new ConfigParamDto { Value = pv.Clone(), Visibility = ParamVisibility.Locked };
+    }
+
+    /// <summary>The envelope's mandatory <c>visibility</c>, with no coercion: absent, non-string and unrecognized
+    /// spellings all throw — a typo that silently defaulted would flip a param's exposure without a trace.</summary>
+    private static ParamVisibility ReadVisibility(JsonElement envelope)
+    {
+        if (!envelope.TryGetProperty(EnvelopeMember.Visibility, out JsonElement v))
+        {
+            throw new JsonException("A parameter envelope must declare visibility: \"exposed\", \"hidden\" or \"locked\".");
+        }
+
+        string? token = v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+        return token switch
+        {
+            ParamVisibilityTokens.Exposed => ParamVisibility.Exposed,
+            ParamVisibilityTokens.Hidden => ParamVisibility.Hidden,
+            ParamVisibilityTokens.Locked => ParamVisibility.Locked,
+            _ => throw new JsonException(
+                $"Unrecognized visibility {v.GetRawText()}. A parameter's visibility is exactly one of "
+                + "\"exposed\", \"hidden\" or \"locked\"."),
+        };
     }
 
     public override void Write(Utf8JsonWriter writer, ConfigParamDto value, JsonSerializerOptions options) =>

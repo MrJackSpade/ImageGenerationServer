@@ -16,13 +16,34 @@
     "clip_type": "hunyuan_image",
     "dual": true,
     "latent": "sd3",
-    "steps": 8,
-    "cfg": 2.5,
-    "sampler": "euler",
-    "scheduler": "simple",
-    "shift": 5.0,
-    "width": 2048,
-    "height": 2048,
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 2.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "shift": {
+      "value": 5.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 2048,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 2048,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

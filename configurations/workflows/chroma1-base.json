@@ -15,14 +15,35 @@
     "clip_type": "chroma",
     "dual": false,
     "latent": "sd3",
-    "steps": 26,
-    "cfg": 4.0,
-    "sampler": "euler",
-    "scheduler": "beta",
+    "steps": {
+      "value": 26,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "beta",
+      "visibility": "hidden"
+    },
     "negative": "low quality, ugly, unfinished, out of focus, deformed, disfigure, blurry, smudged, restricted palette, flat colors",
-    "shift": 1.0,
-    "width": 1024,
-    "height": 1024,
+    "shift": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

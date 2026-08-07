@@ -15,13 +15,34 @@
     "clip_type": "stable_diffusion",
     "dual": false,
     "latent": "std",
-    "clip_skip": 0,
-    "steps": 40,
-    "cfg": 4.5,
-    "sampler": "Euler a",
-    "scheduler": "automatic",
-    "width": 1024,
-    "height": 1024,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler a",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "automatic",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "aspect": {
       "square": [

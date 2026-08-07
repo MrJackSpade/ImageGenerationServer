@@ -15,18 +15,33 @@
     "loader": "unet_gguf",
     "clip_type": "ltxv",
     "dual": true,
-    "steps": 8,
-    "cfg": 1,
-    "sampler": "euler",
-    "scheduler": "normal",
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
     "length": {
       "value": 97,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 9,
       "max": 161,
       "step": 8
     },
-    "fps": 24
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    }
   },
   "card": {
     "architecture": "LTX-2.3 22B distilled-1.1 (Gemma-3-12B) \u2014 IMAGE-TO-VIDEO",

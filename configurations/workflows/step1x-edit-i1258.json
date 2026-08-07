@@ -4,9 +4,18 @@
   "friendly_name": "Step1X-Edit (i1258)",
   "default": false,
   "params": {
-    "steps": 28,
-    "cfg": 6.0,
-    "width": 1024,
+    "steps": {
+      "value": 28,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 6.0,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
     "diffusion_model": "step1x-edit-i1258",
     "step1x_vae": "step1x-edit-vae"
   },

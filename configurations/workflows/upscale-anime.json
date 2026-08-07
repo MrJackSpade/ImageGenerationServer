@@ -12,22 +12,22 @@
   "params": {
     "upscale_model": {
       "value": "anime-sharp-v2-rplksr-sharp-2x",
-      "exposed": false
+      "visibility": "locked"
     },
     "model_scale": {
       "value": 2.0,
-      "exposed": false
+      "visibility": "hidden"
     },
     "scale": {
       "value": 2,
-      "exposed": true,
+      "visibility": "exposed",
       "min": 1,
       "max": 2,
       "step": 1
     },
     "resample": {
       "value": "lanczos",
-      "exposed": false
+      "visibility": "hidden"
     }
   },
   "card": {

@@ -31,6 +31,7 @@ public static class SettingsEndpoints
                 composerPrefs = user.ComposerPrefs,
                 editPrefs = user.EditPrefs,
                 bookmarkPrefs = user.BookmarkPrefs,
+                paramVisibilityPrefs = user.ParamVisibilityPrefs,
                 pinBookmarks = user.PinBookmarkSuggestions,
                 favoriteWorkflowIds = workflows.Favorites,
                 customWorkflowTags = workflows.Tags,
@@ -142,6 +143,22 @@ public static class SettingsEndpoints
             return Results.NoContent();
         });
 
+        // The user's per-workflow parameter-visibility overrides (issue #191) — one PUT, one column. An opaque blob
+        // the client merges over each workflow's shipped exposed/hidden params; the server never reads it (the
+        // submit path is gated by the catalog's locked state, not by visibility).
+        _ = api.MapPut(Routes.ParamVisibility, async (HttpContext context, UserService users) =>
+        {
+            ParamVisibilityPrefsRequest? request = await Json.ReadAsync<ParamVisibilityPrefsRequest>(context);
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
+
+            long userId = context.User.GetRequiredUserId();
+            await users.SetParamVisibilityPrefsAsync(userId, request.ParamVisibilityPrefs, context.RequestAborted);
+            return Results.NoContent();
+        });
+
         // The generation mask — which tag types the random-prompt model may emit — one PUT, one column. Bounds ONLY
         // random-prompt generation; tag autocomplete keeps ranking every type regardless of what is set here.
         _ = api.MapPut(Routes.GenerationTagTypes, async (HttpContext context, UserService users) =>
@@ -200,6 +217,9 @@ public static class SettingsEndpoints
 
         /// <summary>Workflows hidden from the API workflow list.</summary>
         public const string HiddenApi = "/settings/hidden-api";
+
+        /// <summary>The user's per-workflow parameter-visibility overrides.</summary>
+        public const string ParamVisibility = "/settings/param-visibility";
 
         /// <summary>The generation mask (which tag types the random-prompt model may emit).</summary>
         public const string GenerationTagTypes = "/settings/generation-tag-types";

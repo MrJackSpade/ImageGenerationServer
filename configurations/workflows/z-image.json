@@ -15,13 +15,34 @@
     "clip_type": "lumina2",
     "dual": false,
     "latent": "sd3",
-    "clip_skip": 0,
-    "steps": 40,
-    "cfg": 4.5,
-    "sampler": "Euler",
-    "scheduler": "simple",
-    "width": 1536,
-    "height": 1536,
+    "clip_skip": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 40,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.5,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "Euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1536,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1536,
+      "visibility": "hidden"
+    },
     "negative_supported": true,
     "auraflow": 3,
     "aspect": {

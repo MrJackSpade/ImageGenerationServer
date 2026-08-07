@@ -572,3 +572,10 @@ CREATE TABLE IF NOT EXISTS dbo.WorkflowVariant
     CreatedAtUtc TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_WorkflowVariant_Machine_Variant ON WorkflowVariant (MachineName, VariantId);
+
+-- Per-user parameter-visibility overrides (issue #191): which workflow params this user has revealed or hidden on the
+-- generation page, as an opaque JSON blob (config id -> param key -> bool) the server stores verbatim. New column on
+-- the pre-existing AppUser table, so it MUST be an ALTER (an existing database skips the 0.9.0 CREATE, so an inlined
+-- column would never arrive; the runner adds it only when absent). Catalog identifiers, not user content -- stored
+-- plain, like GenerationTagTypes. NULL = no overrides (shipped visibility applies).
+ALTER TABLE dbo.AppUser ADD COLUMN ParamVisibilityPrefs TEXT NULL;

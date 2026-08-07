@@ -54,4 +54,8 @@ public interface IUserRepository
 
     /// <summary>Set whether the '#'/'@' autocomplete pins this user's matching bookmarked tags/artists to the top.</summary>
     Task UpdatePinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct);
+
+    /// <summary>Set (or clear, when null) a user's opaque per-workflow parameter-visibility override blob
+    /// (config id → param key → show/hide; stored plain — catalog identifiers, not user content).</summary>
+    Task UpdateParamVisibilityPrefsAsync(long userId, string? prefsJson, CancellationToken ct);
 }
