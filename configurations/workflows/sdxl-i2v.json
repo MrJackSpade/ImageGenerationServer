@@ -23,7 +23,7 @@
     "motion_model": "mm-sdxl-v10-beta",
     "denoise": {
       "value": 0.8,
-      "exposed": true
+      "exposed": false
     },
     "length": {
       "value": 16,
