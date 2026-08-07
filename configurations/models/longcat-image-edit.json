@@ -1,5 +1,6 @@
 {
   "id": "longcat-image-edit",
   "kind": "unet",
-  "label": "LongCat-Image-Edit"
+  "label": "LongCat-Image-Edit",
+  "page": "https://huggingface.co/Comfy-Org/LongCat-Image"
 }

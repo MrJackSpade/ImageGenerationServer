@@ -487,6 +487,10 @@ public sealed class Requirement
     /// not apply.</para>
     /// </summary>
     public string? Node { get; init; }
+
+    /// <summary>The model's landing page — where a person goes to download the file this slot needs (a Hugging Face
+    /// repo page, a Civitai model page). A page, never a direct file URL.</summary>
+    public string? Page { get; init; }
 }
 
 /// <summary>A configuration's soft links to its requirements, by requirement id. Resolved to filenames via the

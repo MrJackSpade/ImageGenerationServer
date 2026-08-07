@@ -4,5 +4,6 @@
   "label": "SDXL 1.0",
   "match": [
     "sd[-_. ]?xl[-_. ]?base"
-  ]
+  ],
+  "page": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0"
 }

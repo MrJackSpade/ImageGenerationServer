@@ -4,5 +4,6 @@
   "label": "Stable Diffusion 1.5",
   "match": [
     "v1[-_. ]?5[-_. ]?pruned"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive"
 }

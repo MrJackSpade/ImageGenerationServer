@@ -4,5 +4,6 @@
   "label": "Mage-Flow-Edit",
   "match": [
     "mage[-_]?flow[-_]edit[-_](int8|bf16)"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Mage-Flow"
 }

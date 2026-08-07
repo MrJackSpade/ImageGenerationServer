@@ -1,5 +1,6 @@
 {
   "id": "chronoedit-14b",
   "kind": "unet",
-  "label": "ChronoEdit 14B"
+  "label": "ChronoEdit 14B",
+  "page": "https://huggingface.co/nvidia/ChronoEdit-14B-Diffusers"
 }

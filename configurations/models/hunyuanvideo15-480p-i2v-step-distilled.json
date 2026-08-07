@@ -1,5 +1,6 @@
 {
   "id": "hunyuanvideo15-480p-i2v-step-distilled",
   "kind": "unet",
-  "label": "HunyuanVideo 1.5 480p I2V Step-Distilled"
+  "label": "HunyuanVideo 1.5 480p I2V Step-Distilled",
+  "page": "https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged"
 }

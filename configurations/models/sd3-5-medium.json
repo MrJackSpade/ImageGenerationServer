@@ -4,5 +4,6 @@
   "label": "Stable Diffusion 3.5 Medium",
   "match": [
     "sd3[-_. ]?5[-_. ]?medium"
-  ]
+  ],
+  "page": "https://huggingface.co/stabilityai/stable-diffusion-3.5-medium"
 }

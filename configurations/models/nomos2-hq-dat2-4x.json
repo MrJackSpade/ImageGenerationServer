@@ -1,5 +1,6 @@
 {
   "id": "nomos2-hq-dat2-4x",
   "kind": "upscale_model",
-  "label": "Nomos2 HQ DAT2 4x"
+  "label": "Nomos2 HQ DAT2 4x",
+  "page": "https://huggingface.co/Phips/4xNomos2_hq_dat2"
 }

@@ -4,5 +4,6 @@
   "label": "Chroma1-Radiance",
   "match": [
     "chroma.*radiance"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Chroma1-Radiance_Repackaged"
 }

@@ -1,5 +1,6 @@
 {
   "id": "wan2-2-i2v-high-noise-14b",
   "kind": "unet",
-  "label": "Wan 2.2 I2V 14B High-Noise"
+  "label": "Wan 2.2 I2V 14B High-Noise",
+  "page": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged"
 }

@@ -1,5 +1,6 @@
 {
   "id": "photanima-v21-noturbo",
   "kind": "unet",
-  "label": "Photanima 2.1"
+  "label": "Photanima 2.1",
+  "page": "https://civitai.com/models/2645333/photanima"
 }

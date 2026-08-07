@@ -1,5 +1,6 @@
 {
   "id": "anima-base-v1-0",
   "kind": "unet",
-  "label": "Anima"
+  "label": "Anima",
+  "page": "https://huggingface.co/circlestone-labs/Anima"
 }

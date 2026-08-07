@@ -1,5 +1,6 @@
 {
   "id": "hunyuanvideo15-480p-t2v-cfg-distilled",
   "kind": "unet",
-  "label": "HunyuanVideo 1.5 480p T2V CFG-Distilled"
+  "label": "HunyuanVideo 1.5 480p T2V CFG-Distilled",
+  "page": "https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged"
 }

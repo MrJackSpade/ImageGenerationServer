@@ -1,5 +1,6 @@
 {
   "id": "ltx-2-3-22b-distilled-1-1",
   "kind": "unet",
-  "label": "LTX-2.3 22B Distilled"
+  "label": "LTX-2.3 22B Distilled",
+  "page": "https://huggingface.co/Lightricks/LTX-2.3"
 }

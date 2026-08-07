@@ -1,5 +1,6 @@
 {
   "id": "ltxv-2b-0-9-8-distilled",
   "kind": "checkpoint",
-  "label": "LTX Video 2B"
+  "label": "LTX Video 2B",
+  "page": "https://huggingface.co/Lightricks/LTX-Video"
 }

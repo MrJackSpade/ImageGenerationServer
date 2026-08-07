@@ -4,5 +4,6 @@
   "label": "MiniMax-H3 ref2va (reference→video)",
   "match": [
     "minimax[-_]?h3[-_]?ref2va"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/MiniMax-H3"
 }

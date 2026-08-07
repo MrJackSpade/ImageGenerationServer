@@ -4,5 +4,6 @@
   "label": "Step1X-Edit i1258",
   "match": [
     "step1x[-_. ]?edit[-_. ]?i1258"
-  ]
+  ],
+  "page": "https://huggingface.co/stepfun-ai/Step1X-Edit"
 }

@@ -1,5 +1,6 @@
 {
   "id": "firered-image-edit-1-1",
   "kind": "unet",
-  "label": "FireRed-Image-Edit 1.1"
+  "label": "FireRed-Image-Edit 1.1",
+  "page": "https://huggingface.co/FireRedTeam/FireRed-Image-Edit-1.1"
 }

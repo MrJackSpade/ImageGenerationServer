@@ -1,5 +1,6 @@
 {
   "id": "seedvr2-3b",
   "kind": "seedvr2",
-  "label": "SeedVR2 3B"
+  "label": "SeedVR2 3B",
+  "page": "https://huggingface.co/Comfy-Org/SeedVR2"
 }

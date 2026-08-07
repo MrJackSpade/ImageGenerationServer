@@ -4,5 +4,6 @@
   "label": "FLUX.1 Krea",
   "match": [
     "flux1[-_. ]?krea"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/FLUX.1-Krea-dev_ComfyUI"
 }

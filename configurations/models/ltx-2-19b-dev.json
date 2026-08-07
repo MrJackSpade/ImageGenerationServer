@@ -1,5 +1,6 @@
 {
   "id": "ltx-2-19b-dev",
   "kind": "unet",
-  "label": "LTX-2 19B Dev"
+  "label": "LTX-2 19B Dev",
+  "page": "https://huggingface.co/Lightricks/LTX-2"
 }

@@ -1,5 +1,6 @@
 {
   "id": "chroma1-hd",
   "kind": "unet",
-  "label": "Chroma1-HD"
+  "label": "Chroma1-HD",
+  "page": "https://huggingface.co/Comfy-Org/Chroma1-HD_repackaged"
 }

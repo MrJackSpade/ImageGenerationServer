@@ -4,5 +4,6 @@
   "label": "FLUX.1-schnell",
   "match": [
     "flux1[-_. ]?schnell.*q4"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/flux1-schnell"
 }

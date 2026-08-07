@@ -4,5 +4,6 @@
   "label": "Mage-Flow Turbo",
   "match": [
     "mage[-_]?flow[-_]turbo[-_](int8|bf16)"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Mage-Flow"
 }

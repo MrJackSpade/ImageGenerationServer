@@ -1,5 +1,6 @@
 {
   "id": "flux1-fill-dev",
   "kind": "unet",
-  "label": "FLUX.1 Fill"
+  "label": "FLUX.1 Fill",
+  "page": "https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev"
 }

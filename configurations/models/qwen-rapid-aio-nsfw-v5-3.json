@@ -1,5 +1,6 @@
 {
   "id": "qwen-rapid-aio-nsfw-v5-3",
   "kind": "checkpoint",
-  "label": "Qwen Rapid AIO"
+  "label": "Qwen Rapid AIO",
+  "page": "https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO"
 }

@@ -4,5 +4,6 @@
   "label": "Qwen-Image",
   "match": [
     "qwen[-_. ]?image[-_. ]?q6"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI"
 }

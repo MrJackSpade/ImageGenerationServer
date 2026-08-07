@@ -1,5 +1,6 @@
 {
   "id": "pixeldit-1300m-1024px",
   "kind": "unet",
-  "label": "PixelDiT 1300M"
+  "label": "PixelDiT 1300M",
+  "page": "https://huggingface.co/Comfy-Org/PixelDiT"
 }

@@ -1,5 +1,6 @@
 {
   "id": "counterfeit-v3-0",
   "kind": "checkpoint",
-  "label": "Counterfeit V3.0"
+  "label": "Counterfeit V3.0",
+  "page": "https://huggingface.co/gsdf/Counterfeit-V3.0"
 }

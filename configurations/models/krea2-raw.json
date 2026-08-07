@@ -1,5 +1,6 @@
 {
   "id": "krea2-raw",
   "kind": "unet",
-  "label": "Krea 2 Raw"
+  "label": "Krea 2 Raw",
+  "page": "https://huggingface.co/Comfy-Org/Krea-2"
 }

@@ -1,5 +1,6 @@
 {
   "id": "hunyuan-video-t2v-720p",
   "kind": "unet",
-  "label": "HunyuanVideo T2V 720p"
+  "label": "HunyuanVideo T2V 720p",
+  "page": "https://huggingface.co/Comfy-Org/HunyuanVideo_repackaged"
 }

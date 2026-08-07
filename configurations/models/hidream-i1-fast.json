@@ -1,5 +1,6 @@
 {
   "id": "hidream-i1-fast",
   "kind": "unet",
-  "label": "HiDream-I1 Fast"
+  "label": "HiDream-I1 Fast",
+  "page": "https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI"
 }

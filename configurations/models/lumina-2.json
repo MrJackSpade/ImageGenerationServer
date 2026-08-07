@@ -1,5 +1,6 @@
 {
   "id": "lumina-2",
   "kind": "checkpoint",
-  "label": "Lumina-Image 2.0"
+  "label": "Lumina-Image 2.0",
+  "page": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged"
 }

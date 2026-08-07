@@ -5,5 +5,6 @@
   "match": [
     "pony.*diffusion.*v6",
     "pony.*xl.*v6"
-  ]
+  ],
+  "page": "https://civitai.com/models/257749/pony-diffusion-v6-xl"
 }

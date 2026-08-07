@@ -4,5 +4,6 @@
   "label": "Stable Diffusion 3.5 Large",
   "match": [
     "sd3[-_. ]?5[-_. ]?large[-_. ]?fp8"
-  ]
+  ],
+  "page": "https://huggingface.co/stabilityai/stable-diffusion-3.5-large"
 }

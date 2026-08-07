@@ -458,6 +458,7 @@ public sealed class WorkflowCatalog
                     Label = dto.Label ?? id,
                     Match = Arr(dto.Match),
                     Node = dto.Node,
+                    Page = dto.Page,
                 };
             }
         }

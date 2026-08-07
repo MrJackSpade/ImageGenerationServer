@@ -1,5 +1,6 @@
 {
   "id": "qwen-image-2512",
   "kind": "unet",
-  "label": "Qwen-Image 2512"
+  "label": "Qwen-Image 2512",
+  "page": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI"
 }

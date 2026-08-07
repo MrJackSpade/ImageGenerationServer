@@ -4,5 +4,6 @@
   "label": "MiniMax-H3 fl2va (T2V/I2V)",
   "match": [
     "minimax[-_]?h3[-_]?fl2va"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/MiniMax-H3"
 }

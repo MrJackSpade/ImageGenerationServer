@@ -4,5 +4,6 @@
   "label": "AutismMix Confetti",
   "match": [
     "autism.*mix.*confetti"
-  ]
+  ],
+  "page": "https://civitai.com/models/288584/autismmix-sdxl"
 }

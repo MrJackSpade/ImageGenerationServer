@@ -5,5 +5,6 @@
   "match": [
     "z[-_. ]?image[-_. ]?bf16",
     "z[-_. ]?image[-_. ]?q4"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/z_image"
 }

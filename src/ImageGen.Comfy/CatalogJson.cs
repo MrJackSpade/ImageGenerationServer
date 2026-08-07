@@ -30,6 +30,7 @@ internal sealed record ModelFileDto
     [JsonPropertyName("label")] public string? Label { get; init; }
     [JsonPropertyName("match")] public string[]? Match { get; init; }
     [JsonPropertyName("node")] public string? Node { get; init; }
+    [JsonPropertyName("page")] public string? Page { get; init; }
 }
 
 /// <summary>A <c>workflows/&lt;id&gt;.json</c> file: a workflow class bound to its settings layer, requirement links,

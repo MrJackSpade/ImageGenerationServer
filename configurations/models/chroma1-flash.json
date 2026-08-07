@@ -4,5 +4,6 @@
   "label": "Chroma1-Flash",
   "match": [
     "chroma1[-_. ]?hd[-_. ]?flash"
-  ]
+  ],
+  "page": "https://huggingface.co/lodestones/Chroma1-Flash"
 }

@@ -1,5 +1,6 @@
 {
   "id": "flux2-dev",
   "kind": "unet",
-  "label": "FLUX.2-dev"
+  "label": "FLUX.2-dev",
+  "page": "https://huggingface.co/Comfy-Org/flux2-dev"
 }

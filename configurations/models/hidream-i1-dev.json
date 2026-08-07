@@ -1,5 +1,6 @@
 {
   "id": "hidream-i1-dev",
   "kind": "unet",
-  "label": "HiDream-I1 Dev"
+  "label": "HiDream-I1 Dev",
+  "page": "https://huggingface.co/Comfy-Org/HiDream-I1_ComfyUI"
 }

@@ -1,5 +1,6 @@
 {
   "id": "ideogram4",
   "kind": "unet",
-  "label": "Ideogram 4"
+  "label": "Ideogram 4",
+  "page": "https://huggingface.co/Comfy-Org/Ideogram-4"
 }

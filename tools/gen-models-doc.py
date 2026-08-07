@@ -18,6 +18,7 @@ import re
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CATALOG = os.path.join(ROOT, "configurations", "workflows")
+MODELS = os.path.join(ROOT, "configurations", "models")
 OUT = os.path.join(ROOT, "docs", "MODELS.md")
 
 VIDEO_PARAMS = {"fps", "length"}
@@ -44,6 +45,31 @@ def speaks_tags(cfg):
     return bool((cfg.get("card") or {}).get("tagging"))
 
 
+def pages(cfg, reqs):
+    """The landing pages of a configuration's model files, primary first.
+
+    The checkpoint is the model a reader means when they ask "where do I get it"; the motion module, ControlNet
+    and extras only lead when there is no checkpoint (upscalers, SeedVR2). Encoders/VAEs are deliberately not
+    walked — a FLUX row linking to a T5 repo answers a question nobody asked.
+    """
+    links = cfg.get("requirements") or {}
+    ids = [links.get("checkpoint"), links.get("motion_model"), links.get("controlnet")]
+    ids += links.get("extra") or []
+    out = []
+    for rid in ids:
+        page = (reqs.get(rid) or {}).get("page") if rid else None
+        if page and page not in out:
+            out.append(page)
+    return out
+
+
+def page_link(url):
+    """A markdown link labelled by host, so the table says where a link leads before it is clicked."""
+    host = re.sub(r"^https?://(www\.)?", "", url).split("/")[0]
+    label = {"huggingface.co": "Hugging Face", "civitai.com": "Civitai", "github.com": "GitHub"}.get(host, host)
+    return f"[{label}]({url})"
+
+
 def first_sentence(text, limit=200):
     if not text:
         return ""
@@ -59,6 +85,8 @@ def main():
     # One file per configuration; the two monolithic catalogue files were retired with the split.
     configs = [json.load(io.open(f, encoding="utf-8"))
                for f in sorted(glob.glob(os.path.join(CATALOG, "*.json")))]
+    reqs = {r["id"]: r for r in (json.load(io.open(f, encoding="utf-8"))
+                                 for f in sorted(glob.glob(os.path.join(MODELS, "*.json"))))}
 
     # Collapse configurations to models. Several configurations are settings variants of one model (a Turbo
     # preset, a 720p preset, a bf16 test), and a reader wants the model, not the preset.
@@ -69,9 +97,10 @@ def main():
         card = cfg.get("card") or {}
         name = cfg.get("friendly_name") or cfg.get("id")
         key = (category(cfg), name)
-        entry = models.setdefault(key, {"variants": 0, "arch": "", "summary": "", "tags": False})
+        entry = models.setdefault(key, {"variants": 0, "arch": "", "summary": "", "tags": False, "pages": []})
         entry["variants"] += 1
         entry["tags"] = entry["tags"] or speaks_tags(cfg)
+        entry["pages"] += [p for p in pages(cfg, reqs) if p not in entry["pages"]]
         if not entry["arch"]:
             entry["arch"] = first_sentence(card.get("architecture"), 150)
         if not entry["summary"]:
@@ -103,19 +132,23 @@ def main():
         "🏷 marks a **booru-tagged** model — the ones with tag autocomplete, `#tag` / `@artist` markers and "
         "tag bans. Every other model takes an ordinary sentence.",
         "",
+        "The Download column links the landing page of the row's main model file. Rows without one need no "
+        "download of their own: they run on pure image ops or on weights their ComfyUI node fetches itself.",
+        "",
     ]
 
     for key, title, blurb in sections:
         rows = sorted(((n, m) for (c, n), m in models.items() if c == key), key=lambda r: r[0].lower())
         if not rows:
             continue
-        lines += [f"## {title}", "", blurb, "", "| Model | What it is |", "| --- | --- |"]
+        lines += [f"## {title}", "", blurb, "", "| Model | What it is | Download |", "| --- | --- | --- |"]
         for name, m in rows:
             label = f"**{name}**" + (" 🏷" if m["tags"] else "")
             if m["variants"] > 1:
                 label += f" ×{m['variants']}"
             detail = m["summary"] or m["arch"] or ""
-            lines.append(f"| {label} | {detail.replace('|', '\\|')} |")
+            links = " · ".join(page_link(p) for p in m["pages"])
+            lines.append(f"| {label} | {detail.replace('|', '\\|')} | {links} |")
         lines.append("")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

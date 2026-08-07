@@ -4,5 +4,6 @@
   "label": "FLUX.1 Kontext",
   "match": [
     "flux1[-_. ]?dev[-_. ]?kontext"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI"
 }

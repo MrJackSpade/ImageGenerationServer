@@ -1,5 +1,6 @@
 {
   "id": "boogu-image-edit",
   "kind": "unet",
-  "label": "Boogu Image Edit"
+  "label": "Boogu Image Edit",
+  "page": "https://huggingface.co/Comfy-Org/Boogu-Image"
 }

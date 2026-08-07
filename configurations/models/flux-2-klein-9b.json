@@ -1,5 +1,6 @@
 {
   "id": "flux-2-klein-9b",
   "kind": "unet",
-  "label": "FLUX.2-Klein 9B"
+  "label": "FLUX.2-Klein 9B",
+  "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9B"
 }

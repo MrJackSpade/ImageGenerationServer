@@ -1,5 +1,6 @@
 {
   "id": "boogu-image-base",
   "kind": "unet",
-  "label": "Boogu Image Base"
+  "label": "Boogu Image Base",
+  "page": "https://huggingface.co/Comfy-Org/Boogu-Image"
 }

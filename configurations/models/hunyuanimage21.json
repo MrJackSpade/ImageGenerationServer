@@ -1,5 +1,6 @@
 {
   "id": "hunyuanimage21",
   "kind": "unet",
-  "label": "HunyuanImage 2.1"
+  "label": "HunyuanImage 2.1",
+  "page": "https://huggingface.co/Comfy-Org/HunyuanImage_2.1_ComfyUI"
 }

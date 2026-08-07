@@ -4,5 +4,6 @@
   "label": "Qwen-Image-Edit 2511",
   "match": [
     "qwen[-_. ]?image[-_. ]?edit[-_. ]?2511[-_. ]?q6"
-  ]
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI"
 }
