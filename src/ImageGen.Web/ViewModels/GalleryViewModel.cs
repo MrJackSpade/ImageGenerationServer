@@ -12,8 +12,11 @@ public sealed class GalleryViewModel
     /// <summary>What the search box holds ("" when unfiltered). <see cref="Total"/> counts MATCHES when it is set.</summary>
     public required string Search { get; init; }
 
-    /// <summary>The selected workflow's configuration id ("" for all workflows).</summary>
-    public required string Workflow { get; init; }
+    /// <summary>The selected workflow filter: <c>null</c> when none is selected (All), otherwise the configuration id
+    /// to filter on — which may be the empty string, the legacy model-scoped "Anima" group. Kept distinct from null so
+    /// the select renders the right option and the JS initial state can tell "no filter" from "the empty-id workflow"
+    /// (#188).</summary>
+    public required string? Workflow { get; init; }
 
     /// <summary>Narrow the grid to images this user has never opened. A query-string parameter like the others, so
     /// the filtered view survives a reload and a bookmark.</summary>

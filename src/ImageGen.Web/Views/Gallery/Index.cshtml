@@ -20,11 +20,15 @@
     @if (Model.Workflows.Count > 0)
     {
         <select id="galleryWorkflow" name="workflow" aria-label="Filter by workflow">
-            <option value="">All workflows</option>
+            @* data-all marks the no-filter option; its value is the sentinel so the no-JS GET submit is distinct from
+               the legacy workflow whose id is "" (both would otherwise submit value="", the #188 collision). *@
+            <option value="@GalleryFilter.AllWorkflows" data-all selected="@(Model.Workflow is null)">All workflows</option>
             @foreach (var w in Model.Workflows)
             {
-                @* data-name: the bare display name, so the empty-state message can say it without the count. *@
-                <option value="@w.ModelId" data-name="@w.ModelFriendly" selected="@(w.ModelId == Model.Workflow)">@w.ModelFriendly (@w.Count)</option>
+                @* data-name: the bare display name, so the empty-state message can say it without the count. A
+                   workflow option is selected only when a filter is actually set (Model.Workflow is not null); the
+                   legacy id is "", which must not be confused with the null "no filter" state. *@
+                <option value="@w.ModelId" data-name="@w.ModelFriendly" selected="@(Model.Workflow is not null && w.ModelId == Model.Workflow)">@w.ModelFriendly (@w.Count)</option>
             }
         </select>
     }
@@ -36,8 +40,12 @@
     <noscript><button type="submit" class="pager-btn">Filter</button></noscript>
 </form>
 
+@* data-workflow-set marks whether a workflow filter is active at all; without it the empty string (the legacy
+   empty-ModelId workflow) and null (no filter) would both render as an empty data-workflow and be indistinguishable
+   to gallery.js — the same #188 overload, on the client. *@
 <div id="gallery" data-total="@Model.Total" data-page-size="@Model.PageSize" data-loaded-page="@Model.Page"
-     data-search="@Model.Search" data-workflow="@Model.Workflow" data-unviewed="@(Model.UnviewedOnly ? "1" : "")">
+     data-search="@Model.Search" data-workflow="@Model.Workflow" data-workflow-set="@(Model.Workflow is not null ? "1" : "")"
+     data-unviewed="@(Model.UnviewedOnly ? "1" : "")">
     <div class="cardgrid">
         @foreach (var r in Model.Items)
         {

@@ -10,7 +10,12 @@ namespace ImageGen.Domain.Repositories;
 /// <param name="PageSize">Maximum entries per page.</param>
 /// <param name="Artist">When set, restrict to entries marked with this artist token.</param>
 /// <param name="Tag">When set, restrict to entries marked with this tag token.</param>
-/// <param name="Model">When set, restrict to entries produced by this configuration id.</param>
+/// <param name="Model">
+/// The workflow filter. <c>null</c> means NO filter (the whole history); any non-null value — <b>including the empty
+/// string</b> — restricts to entries whose <c>ModelId</c> equals it exactly. The empty string is a real, distinct id:
+/// the legacy model-scoped rows carry <c>ModelId = ''</c> (friendly "Anima"), and filtering to them is <c>Model = ""</c>,
+/// not <c>Model = null</c>. Absent-vs-empty must stay distinct end to end; do not collapse "" to null (that was #188).
+/// </param>
 /// <param name="Search">
 /// When set, restrict to entries whose prompt contains EVERY whitespace-separated term of it (case-insensitive
 /// substring, underscores folded to spaces). Unlike the others this one cannot be a SQL predicate — the prompt is

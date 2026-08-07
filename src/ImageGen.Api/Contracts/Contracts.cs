@@ -186,6 +186,11 @@ public sealed record TagQueryRequest(
 /// <param name="UnviewedOnly">Restrict to images this user has never opened. Applied in the query, so paging and the
 /// total describe the filtered set — a client that filtered a returned page instead would report the wrong count and
 /// stall its scroll on any page that happened to be entirely viewed.</param>
+/// <param name="Workflow">The workflow filter, carried straight to <c>HistoryQuery.Model</c>. Absent/null = no filter
+/// (the whole history); any present value — the empty string included — filters to that exact <c>ModelId</c>. The
+/// client must send these distinctly: <c>null</c> for "All", <c>""</c> for the legacy empty-ModelId "Anima" group.
+/// Never coerce "" to null on the way in — that overload was #188 (the option listed a count, then returned
+/// everything).</param>
 public sealed record HistoryQueryRequest(
     int Page = 1, int PageSize = 40, string? Artist = null, string? Tag = null, string? Workflow = null,
     string? Search = null, bool UnviewedOnly = false);

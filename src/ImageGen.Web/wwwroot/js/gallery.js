@@ -24,7 +24,11 @@
   let loaded = grid.querySelectorAll("a.imgcard").length;
   let loading = false, done = loaded >= total;
   let search = root.dataset.search || "";
-  let workflow = root.dataset.workflow || "";
+  // The workflow filter: null = none (All), otherwise the configuration id to filter on — which may be "" (the legacy
+  // empty-ModelId "Anima" workflow). null and "" are DISTINCT states and must stay so all the way to the server:
+  // sending "" as "no filter" was #188. data-workflow-set marks whether a filter is active; only then is data-workflow
+  // (possibly "") the id.
+  let workflow = root.dataset.workflowSet ? (root.dataset.workflow || "") : null;
   // Server-side like the other two: filtering an already-paged result would give short pages, a wrong total, and a
   // scroll that stalls whenever a page happens to be entirely viewed.
   let unviewed = !!root.dataset.unviewed;
@@ -54,6 +58,15 @@
     return (opt && opt.dataset.name) || "";
   }
 
+  // The chosen filter as the server takes it: null for the "All" option (an explicit no-filter, marked data-all),
+  // otherwise the option's value — which is "" for the legacy empty-ModelId workflow and an id for the rest. Keeping
+  // null and "" apart here is the client half of the #188 fix; the old `workflow || null` collapsed "" to null.
+  function selectedWorkflow() {
+    const opt = wfSelect && wfSelect.selectedOptions[0];
+    if (!opt || opt.dataset.all !== undefined) return null;
+    return opt.value;
+  }
+
   function render() {
     status.textContent = done ? (total ? `${total} image${total === 1 ? "" : "s"}` : "") : "Loading…";
     const showEmpty = done && total === 0;
@@ -62,12 +75,15 @@
     // Say which filter came up empty — with any of them on, "no images yet" would read as though the history were
     // empty. The unviewed filter earns its own wording: emptying it is the NORMAL end state (you opened everything,
     // or you just pressed Mark all viewed), not a search that found nothing.
-    const wf = workflow ? `<b>${escapeHtml(workflowName() || workflow)}</b>` : "";
-    if (unviewed && (search || workflow)) empty.innerHTML = "Nothing unviewed matches those filters.";
+    // workflow === null is "no workflow filter"; "" is a real filter (the legacy empty-ModelId workflow), so test
+    // against null, not truthiness.
+    const hasWf = workflow !== null;
+    const wf = hasWf ? `<b>${escapeHtml(workflowName() || workflow)}</b>` : "";
+    if (unviewed && (search || hasWf)) empty.innerHTML = "Nothing unviewed matches those filters.";
     else if (unviewed) empty.innerHTML = "Nothing unviewed — you've opened everything.";
-    else if (search && workflow) empty.innerHTML = `Nothing from ${wf} has every word in <b>${escapeHtml(search)}</b>.`;
+    else if (search && hasWf) empty.innerHTML = `Nothing from ${wf} has every word in <b>${escapeHtml(search)}</b>.`;
     else if (search) empty.innerHTML = `No image's prompt has every word in <b>${escapeHtml(search)}</b>.`;
-    else if (workflow) empty.innerHTML = `No images from ${wf} yet.`;
+    else if (hasWf) empty.innerHTML = `No images from ${wf} yet.`;
     else empty.innerHTML = 'No images yet. <a href="/">Make one →</a>';
   }
 
@@ -76,7 +92,7 @@
     const mine = seq;
     loading = true; render();
     try {
-      const d = await queryHistory({ page: page + 1, pageSize, search: search || null, workflow: workflow || null, unviewedOnly: unviewed });
+      const d = await queryHistory({ page: page + 1, pageSize, search: search || null, workflow, unviewedOnly: unviewed });
       if (mine !== seq) return;                 // a newer filter replaced this query mid-flight
       page += 1;
       if (typeof d.total === "number") total = d.total;
@@ -117,7 +133,7 @@
     refreshing = true;
     const mine = seq;
     try {
-      const d = await queryHistory({ page: 1, pageSize, search: search || null, workflow: workflow || null, unviewedOnly: unviewed });
+      const d = await queryHistory({ page: 1, pageSize, search: search || null, workflow, unviewedOnly: unviewed });
       if (mine !== seq) return;                   // a filter changed while this was in the air
       if (typeof d.total === "number") total = d.total;
       if (!d.items || !d.items.length) return;
@@ -153,13 +169,16 @@
   // Start over on a new filter: empty the grid, rewind to "no pages loaded", and pull page 1 for the new query.
   function applyFilters() {
     const nextSearch = box ? box.value.trim() : search;
-    const nextWorkflow = wfSelect ? wfSelect.value : workflow;
+    const nextWorkflow = wfSelect ? selectedWorkflow() : workflow;
     const nextUnviewed = unviewedBox ? unviewedBox.checked : unviewed;
     if (nextSearch === search && nextWorkflow === workflow && nextUnviewed === unviewed) return;   // what's on screen already answers this
     search = nextSearch; workflow = nextWorkflow; unviewed = nextUnviewed;
     const url = new URL(location.href);
     if (search) url.searchParams.set("q", search); else url.searchParams.delete("q");
-    if (workflow) url.searchParams.set("workflow", workflow); else url.searchParams.delete("workflow");
+    // null = no filter → drop the parameter (a reload then omits it, which the server reads as "no filter"). A set
+    // filter is written as-is, INCLUDING "" (?workflow=), which the server reads as the legacy empty-ModelId workflow —
+    // distinct from an absent parameter. Collapsing "" to "delete" here would resurrect #188 on reload.
+    if (workflow !== null) url.searchParams.set("workflow", workflow); else url.searchParams.delete("workflow");
     if (unviewed) url.searchParams.set("unviewed", "true"); else url.searchParams.delete("unviewed");
     history.replaceState(null, "", url);        // reload/bookmark keeps the filters; no extra back-button steps
     restart();

@@ -337,6 +337,35 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
     }
 
     /// <summary>
+    /// #188: the legacy model-scoped rows carry an EMPTY-string <c>ModelId</c> (friendly "Anima"). That option appears
+    /// in the filter list with an accurate count, so selecting it must return exactly those rows — never fall through
+    /// to the whole unfiltered history. The old code collapsed <c>Model == ""</c> to "no filter" and returned
+    /// everything. An <c>Model == null</c> (genuinely absent filter) still returns all. The two are distinct here.
+    /// </summary>
+    [Fact]
+    public async Task Get_page_filters_to_the_empty_model_id_group_and_null_still_returns_all()
+    {
+        User user = await fixture.NewUserAsync("hist-empty-modelid");
+        _ = await fixture.History.AddAsync(Entry(user.Id, "legacy-1", modelId: "", modelFriendly: "Anima"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "legacy-2", modelId: "", modelFriendly: "Anima"), Ct);
+        _ = await fixture.History.AddAsync(Entry(user.Id, "real-1", modelId: "wf-a", modelFriendly: "Real"), Ct);
+
+        // Selecting the empty-ModelId option (Model: "") filters to exactly its two rows — not all three.
+        PagedResult<HistoryEntry> empty = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40, Model: ""), Ct);
+        Assert.Equal(2, empty.Total);
+        Assert.Equal(["legacy-1", "legacy-2"], empty.Items.Select(e => e.GatewayImageId).OrderBy(id => id));
+
+        // Its listed count matches what the filter returns (the fail-closed invariant), and it holds under search too.
+        IReadOnlyList<HistoryWorkflowUse> used = await fixture.History.GetUsedWorkflowsAsync(user.Id, Ct);
+        HistoryWorkflowUse legacy = used.Single(u => u.ModelId == "");
+        Assert.Equal(2, legacy.Count);
+
+        // A genuinely ABSENT filter (Model: null) is unchanged — the whole history comes back.
+        PagedResult<HistoryEntry> all = await fixture.History.GetPageAsync(new HistoryQuery(user.Id, 1, 40), Ct);
+        Assert.Equal(3, all.Total);
+    }
+
+    /// <summary>
     /// The filter's options: only workflows the user has actually used, most-used first, counted. The display name
     /// comes from their most recent generation with it, so a renamed workflow lists once under its current name.
     /// </summary>

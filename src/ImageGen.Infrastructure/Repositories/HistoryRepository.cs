@@ -61,8 +61,13 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
                 + "AND t.Kind = 0 AND t.Token = @tag)");
         }
 
-        string? modelFilter = string.IsNullOrWhiteSpace(model) ? null : model;   // ModelId is stored plain — direct equality
-        if (modelFilter is not null)
+        // A workflow filter is APPLIED whenever one was supplied — i.e. Model is non-null — never gated on the value
+        // being non-empty. The empty string is a real, distinct workflow id here: the legacy model-scoped rows carry
+        // ModelId = '' (friendly "Anima"), and selecting that option must match exactly those rows (h.ModelId = ''),
+        // not degrade to "no filter". Only an ABSENT filter (Model is null) returns the unfiltered history. Overloading
+        // "" as "no filter" was #188 — the option listed a count, then returned everything when selected. ModelId is
+        // stored plain (it names a shared configuration, not user content), so this is a direct equality.
+        if (model is not null)
         {
             _ = where.Append(" AND h.ModelId = @model");
         }
@@ -78,8 +83,8 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
 
         string[] terms = PromptSearch.Terms(search);
         (List<HistoryEntry>? rows, int total) = terms.Length == 0
-            ? await OffsetPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, page, pageSize, ct)
-            : await SearchPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, modelFilter, terms, page, pageSize, ct);
+            ? await OffsetPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, model, page, pageSize, ct)
+            : await SearchPageAsync(conn, where.ToString(), userId, artistEnc, tagEnc, model, terms, page, pageSize, ct);
 
         List<long> ids = [.. rows.Select(r => r.Id)];
         Dictionary<long, List<Mark>> marks = await MarkIo.LoadAsync(conn, Sql.MarkTable, Sql.MarkParent, ids, userId, _cipher, ct);
@@ -95,13 +100,13 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
 
     /// <summary>One page taken in SQL: the database counts and skips, and only the page's rows come back.</summary>
     private async Task<(List<HistoryEntry> Rows, int Total)> OffsetPageAsync(
-        DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? modelFilter,
+        DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? model,
         int page, int pageSize, CancellationToken ct)
     {
         int total;
         await using (DbCommand countCmd = conn.Command($"SELECT COUNT(*) FROM dbo.HistoryEntry h {where};"))
         {
-            AddFilterParams(countCmd, userId, artistEnc, tagEnc, modelFilter);
+            AddFilterParams(countCmd, userId, artistEnc, tagEnc, model);
             total = await countCmd.ScalarInt32Async(ct);
         }
 
@@ -111,7 +116,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
 {_dialect.Paginate("@skip", "@take")};";
         await using (DbCommand pageCmd = conn.Command(pageSql))
         {
-            AddFilterParams(pageCmd, userId, artistEnc, tagEnc, modelFilter);
+            AddFilterParams(pageCmd, userId, artistEnc, tagEnc, model);
             _ = pageCmd.AddParam("@skip", (page - 1) * pageSize);
             _ = pageCmd.AddParam("@take", pageSize);
             await using DbDataReader reader = await pageCmd.ExecuteReaderAsync(ct);
@@ -131,7 +136,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
     /// the query. Decryption is local AES with a cached per-user key, so the cost is the read, not the crypto.
     /// </summary>
     private async Task<(List<HistoryEntry> Rows, int Total)> SearchPageAsync(
-        DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? modelFilter,
+        DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? model,
         string[] terms, int page, int pageSize, CancellationToken ct)
     {
         List<HistoryEntry> candidates = [];
@@ -139,7 +144,7 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
 ORDER BY h.CreatedAtUtc DESC, h.Id DESC;";
         await using (DbCommand cmd = conn.Command(sql))
         {
-            AddFilterParams(cmd, userId, artistEnc, tagEnc, modelFilter);
+            AddFilterParams(cmd, userId, artistEnc, tagEnc, model);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
@@ -408,6 +413,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.HistoryEntry WHERE UserId = @userId AND Gate
             _ = cmd.AddParam("@tag", tagEnc);
         }
 
+        // Bound whenever a filter was supplied (Model non-null), the empty string included — @model = '' is what
+        // matches the legacy empty-ModelId workflow group. The WHERE clause is added under the same condition. (#188)
         if (model is not null)
         {
             _ = cmd.AddParam("@model", model);

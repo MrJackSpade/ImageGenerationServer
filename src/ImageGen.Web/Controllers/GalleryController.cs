@@ -27,8 +27,13 @@ public sealed class GalleryController(HistoryService history, ImageViewService v
     {
         long userId = User.GetRequiredUserId();
         bool unviewedOnly = unviewed ?? false;
+        // Map the UI's "no workflow filter" to the domain's null. A direct visit omits the parameter (already null),
+        // and the select's "All workflows" option submits the sentinel (a <select> option can only submit a value,
+        // never "absent"). Any OTHER value — the empty string included — is a real workflow id: "" is the legacy
+        // empty-ModelId "Anima" group, and it must filter to exactly those rows, not fall through to unfiltered (#188).
+        string? workflowFilter = workflow == GalleryFilter.AllWorkflows ? null : workflow;
         PagedResult<HistoryEntry> result = await _history.GetPageAsync(
-            new HistoryQuery(userId, 1, PageSize, Model: workflow, Search: q, UnviewedOnly: unviewedOnly), ct);
+            new HistoryQuery(userId, 1, PageSize, Model: workflowFilter, Search: q, UnviewedOnly: unviewedOnly), ct);
         // The options are the workflows the user has actually used — unfiltered, so the dropdown doesn't shrink to
         // whatever the current filter left standing.
         IReadOnlyList<HistoryWorkflowUse> workflows = await _history.GetUsedWorkflowsAsync(userId, ct);
@@ -41,7 +46,7 @@ public sealed class GalleryController(HistoryService history, ImageViewService v
             PageSize = result.PageSize,
             Total = result.Total,
             Search = q ?? string.Empty,
-            Workflow = workflow ?? string.Empty,
+            Workflow = workflowFilter,
             Workflows = workflows,
             UnviewedOnly = unviewedOnly,
         });
