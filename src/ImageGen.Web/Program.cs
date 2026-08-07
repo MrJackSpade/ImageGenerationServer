@@ -52,6 +52,12 @@ public partial class Program
         /// <summary>Available-memory floor, in MB, below which submissions are refused.</summary>
         public const string MinAvailableMemoryMB = "Uploads:MinAvailableMemoryMB";
 
+        /// <summary>Whether the tag model downloads/loads its artifacts from the machine-wide SHARED cache
+        /// (<c>%LOCALAPPDATA%\ImageGenerationServer\tagmodel\artifacts</c>). Unset/false → the pre-cache location beside
+        /// the executable. Read at startup, so it lives in appsettings (and honours the <c>TagModel__WriteToSharedCache</c>
+        /// environment variable) rather than <c>dbo.MachineSetting</c>.</summary>
+        public const string TagModelWriteToSharedCache = "TagModel:WriteToSharedCache";
+
         /// <summary>Whether the stale-<c>PendingJob</c> reconciler runs.</summary>
         public const string ReconcilerEnabled = "Reconciler:Enabled";
 
@@ -311,15 +317,21 @@ public partial class Program
         //
         // The app FETCHES the artifacts itself if they are not there, so there is no separate download step a user has to
         // know to run (or know not to run) before anything works: the app knows it needs the file, so the app gets it.
+        // Shared cache vs pre-cache: writing the machine-wide shared cache (%LOCALAPPDATA%) is OPT-IN (default off), so
+        // by default a build stages its artifacts in its own install folder (the pre-cache) and never touches the shared
+        // copy other installs read. Flip TagModel:WriteToSharedCache (appsettings) or TagModel__WriteToSharedCache (env,
+        // to turn it on machine-wide) to use the shared cache. The download and the load MUST target the same directory.
+        bool writeToSharedCache = builder.Configuration.GetValue(ConfigKeys.TagModelWriteToSharedCache, false);
+        string tagModelArtifacts = TagModelServiceCollectionExtensions.ArtifactsDirectory(writeToSharedCache);
         using ILoggerFactory startupLoggers = LoggerFactory.Create(b => b.AddConsole());
         using (HttpClient artifactsHttp = new()
         { Timeout = Timeout.InfiniteTimeSpan })   // ~900 MB on a first run
         {
             await TagModelArtifacts.EnsureAsync(
-                artifactsHttp, startupLoggers.CreateLogger(LogNames.TagModelCategory), CancellationToken.None);
+                artifactsHttp, startupLoggers.CreateLogger(LogNames.TagModelCategory), tagModelArtifacts, CancellationToken.None);
         }
 
-        _ = builder.Services.AddTagModel();
+        _ = builder.Services.AddTagModel(tagModelArtifacts);
         _ = builder.Services.AddMemoryCache();   // backs the /forge/image?w=N thumbnail + mp4 caches
 
         // The minimal-API endpoints that bind their body directly (e.g. /generate, /edit, /enqueue) deserialize through these

@@ -47,16 +47,16 @@ public static class TagModelArtifacts
     private sealed record ManifestEntry(long Bytes, string Sha256);
 
     /// <summary>
-    /// Make sure every published artifact is present and verified in <see cref="TagModelServiceCollectionExtensions.ArtifactsDirectory"/>.
+    /// Make sure every published artifact is present and verified in <paramref name="directory"/> — the shared cache or
+    /// the pre-cache, resolved by the caller via <see cref="TagModelServiceCollectionExtensions.ArtifactsDirectory(bool)"/>.
     ///
     /// <para>Nothing is caught here. A failure to fetch the model is a failure to start: the alternative is an app
     /// that runs with a tag box that silently does nothing, which is far harder to diagnose than a startup error
     /// naming the file and the reason.</para>
     /// </summary>
     [AllowMagicStrings("log message templates")]
-    public static async Task EnsureAsync(HttpClient http, ILogger logger, CancellationToken ct)
+    public static async Task EnsureAsync(HttpClient http, ILogger logger, string directory, CancellationToken ct)
     {
-        string directory = TagModelServiceCollectionExtensions.ArtifactsDirectory;
         _ = Directory.CreateDirectory(directory);
 
         // The manifest carries the size and hash every other file is checked against, so it comes first — and it is
