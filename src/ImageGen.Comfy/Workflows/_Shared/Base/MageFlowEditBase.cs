@@ -15,6 +15,13 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 {
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 512, MinH = 512, MaxW = 2048, MaxH = 2048, Step = 16 };
 
+    /// <summary>Mage's native ~1&#160;MP range (source + references scaled to it on a 16-px grid) — single source for
+    /// both the graph's scale nodes and the ETA render-size.</summary>
+    private const double BudgetMp = 1.0;
+    private const int BudgetSteps = 16;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MageFlowEditParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(MageFlowEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -23,7 +30,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         // Pre-scale the source into Mage's native ~1MP range, aligned to a /16 grid (matches the template's
         // ImageScaleToTotalPixels: lanczos, 1.0 MP, 16-px steps). Keeps a large upload inside the training
         // distribution instead of asking the model to render at, e.g., 3000px.
-        g[MageFlowEditNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
+        g[MageFlowEditNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = BudgetMp, ResolutionSteps = BudgetSteps };
 
         // Extra reference images -> image_2, image_3, ... (scaled the same way).
         Dictionary<string, object> refs = [];
@@ -41,7 +48,7 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
         {
             string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
-            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 16 };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = BudgetMp, ResolutionSteps = BudgetSteps };
             refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
         }
 

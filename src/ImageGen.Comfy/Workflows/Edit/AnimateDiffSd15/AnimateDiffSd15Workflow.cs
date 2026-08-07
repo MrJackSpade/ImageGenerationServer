@@ -8,6 +8,13 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
+    /// <summary>SD1.5 AnimateDiff's native i2v budget (source scaled to it on a 64-px grid) — single source for both
+    /// the graph's scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.26;
+    private const int BudgetSteps = 64;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffSd15Params p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(AnimateDiffSd15Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -15,10 +22,10 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = 0.26;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = BudgetMp;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
         g[Nodes.MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
         g[Nodes.MotionApply] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(Nodes.MotionLoad) };

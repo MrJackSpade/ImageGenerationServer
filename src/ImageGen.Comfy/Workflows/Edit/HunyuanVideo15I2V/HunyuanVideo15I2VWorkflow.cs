@@ -19,6 +19,13 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         .. HunyuanSr.Schema,
     ];
 
+    /// <summary>HunyuanVideo 1.5's native i2v budget (source scaled to it on a 16-px grid) — single source for both
+    /// the graph's scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.4;
+    private const int BudgetSteps = 16;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(HunyuanVideo15I2VParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(HunyuanVideo15I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -31,8 +38,8 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = 0.4;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
+        double budgetMp = BudgetMp;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
+        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.SourceScale) };
         g[Nodes.ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };
         g[Nodes.ClipVisionEncode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(Nodes.ClipVisionLoader), Image = ImageScaleToTotalPixels.Out(Nodes.SourceScale), Crop = ComfyWidgets.Crop.Center };

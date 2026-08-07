@@ -19,4 +19,7 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.Build(req, inputs, H3Mode.Ref2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null, refMax: p.ReferenceMax ?? 0);
+
+    /// <summary>H3 pins the primary reference to its ~1&#160;MP budget, so the ETA keys on the post-budget size.</summary>
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3Ref2VParams p) => (H3.BudgetMp, H3.BudgetSteps);
 }

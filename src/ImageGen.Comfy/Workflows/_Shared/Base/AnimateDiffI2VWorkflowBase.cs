@@ -22,6 +22,13 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
     /// <summary>AnimateDiff: prompt is a scene hint, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
+    /// <summary>AnimateDiff's native i2v megapixel budget (source scaled to it on a 64-px grid) — single source for
+    /// both the graph's scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.39;
+    private const int BudgetSteps = 64;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffI2VParams p) => (BudgetMp, BudgetSteps);
+
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema =
     [
@@ -39,7 +46,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = 0.39;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = BudgetMp;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string beta = p.BetaSchedule;
         // A requirements-bound motion module wins; otherwise the config's motion_model slot. Refuse (don't emit a null
         // model_name) when neither names one — mirrors the old p.Model contract for this key.
@@ -62,7 +69,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         }
 
         g[EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("AnimateDiff image→video needs a source image, but none was provided.") };
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
         g[Nodes.Latent] = new EmptyLatentImageSized { Width = GetImageSize.WidthOut(Nodes.SourceSize), Height = GetImageSize.HeightOut(Nodes.SourceSize), BatchSize = frames };
 

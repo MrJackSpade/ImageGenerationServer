@@ -5,6 +5,12 @@ namespace ImageGen.Comfy;
 
 internal static class H3
 {
+    /// <summary>H3's fixed render budget: the source is scaled to ~1&#160;MP on a 32-px grid (<see cref="BudgetScale"/>)
+    /// and the clip renders at that size regardless of upload size. Single source of truth for both the graph's
+    /// <c>ImageScaleToTotalPixels</c> nodes and each H3 workflow's <c>EtaBudget</c> (the ETA render-size).</summary>
+    public const double BudgetMp = 1.0;
+    public const int BudgetSteps = 32;
+
     /// <summary>The audio VAE — a SECOND vae slot beyond the video VAE (<c>req.Vae</c>). A model-ref param resolved to
     /// this machine's bound file (linked in the config's <c>extra</c>), mirroring how the MoE/SR workflows carry a
     /// second model file.</summary>
@@ -66,7 +72,7 @@ internal static class H3
                     // Source = first frame. Scale to H3's ~1 MP budget (multiple of 32) and use those dims as the clip size, so
                     // the clip keeps the source's aspect inside H3's canvas. An optional END frame pins the last frame.
                     g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 image→video needs a source image (the first frame), but none was provided.") };
-                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = H3.BudgetMp, ResolutionSteps = H3.BudgetSteps };
                     g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
                     Output<Slot.Image>? lastFrame = null;
                     if (!string.IsNullOrEmpty(inputs.EndImageName))
@@ -78,7 +84,7 @@ internal static class H3
                         // framing. A same-image loop (#110) then stretches instead of holding still. Pre-scaling the end
                         // frame identically makes the node's last-frame resize a no-op too → a clean static loop.
                         g[H3Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
-                        g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                        g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = H3.BudgetMp, ResolutionSteps = H3.BudgetSteps };
                         lastFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledEndFrame);
                     }
                     // First/last-frame loop vs plain i2v is a choice of NODE, not a nullable input: the end frame either pins
@@ -114,7 +120,7 @@ internal static class H3
                     // ref_image_1…N. They condition the subject/identity — NOT a first frame — so they enter the ref node's
                     // autogrow ref_images input, which resizes each internally (down only). The audio VAE is a direct input.
                     g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
-                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = 1.0, ResolutionSteps = 32 };
+                    g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = H3.BudgetMp, ResolutionSteps = H3.BudgetSteps };
                     g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
 
                     // Partition the typed references by media kind. Each family enters its own autogrow input on the

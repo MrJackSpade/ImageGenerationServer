@@ -15,4 +15,7 @@ public sealed class MiniMaxH3I2VWorkflow : EditWorkflow<MiniMaxH3I2VParams>
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.Build(req, inputs, H3Mode.I2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, t2vDims: null);
+
+    /// <summary>H3 pins the source to its ~1&#160;MP budget, so the ETA keys on the post-budget size, not the upload.</summary>
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3I2VParams p) => (H3.BudgetMp, H3.BudgetSteps);
 }

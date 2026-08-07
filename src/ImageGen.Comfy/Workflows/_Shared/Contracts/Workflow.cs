@@ -60,4 +60,17 @@ public abstract class Workflow<TParams> : IWorkflow
 
     /// <summary>Build the ComfyUI graph — typed params in, a typed graph of typed nodes out.</summary>
     protected abstract ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs);
+
+    /// <summary>The bag-based <see cref="IWorkflow.EtaRenderSize"/> seam: deserialize the merged bag into
+    /// <typeparamref name="TParams"/> (same <see cref="ParamsCodec"/> pass as <see cref="Build"/>) and hand off to the
+    /// typed overload, so a workflow never touches a string key here either.</summary>
+    (int Width, int Height) IWorkflow.EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => EtaRenderSize(ParamsCodec.Deserialize<TParams>(p), req, sourceWidth, sourceHeight);
+
+    /// <summary>The resolution this workflow actually renders at for a source of the given dims — typed params in.
+    /// Default: the source dims unchanged. A budget-scaling workflow overrides this to return
+    /// <see cref="BudgetScale.Snap"/> with its own megapixel budget and step grid. Mirrors
+    /// <see cref="IWorkflow.EtaRenderSize"/>.</summary>
+    protected virtual (int Width, int Height) EtaRenderSize(TParams p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => (sourceWidth, sourceHeight);
 }

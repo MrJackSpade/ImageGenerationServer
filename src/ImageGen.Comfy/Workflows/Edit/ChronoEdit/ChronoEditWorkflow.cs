@@ -11,6 +11,13 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 {
     public override string Name => "chronoedit";
 
+    /// <summary>ChronoEdit's native ~0.5&#160;MP budget (source scaled to it on a 32-px grid) — single source for both
+    /// the graph's scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.52;
+    private const int BudgetSteps = 32;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(ChronoEditParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(ChronoEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -18,7 +25,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);               // distilled LoRA (fast 20-step path)
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;                                                            // ChronoEdit's short trajectory
-        double budgetMp = 0.52;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
+        double budgetMp = BudgetMp;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
 
         // Sampling fix-ups the template applies to the Wan model for ChronoEdit.
         g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = 5.0 };
@@ -27,7 +34,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 
         // Source image, scaled to a ~0.5MP budget (preserves aspect; 720² ≈ 0.52MP), reused as both the i2v start
         // frame and the clip-vision input.
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
         g[Nodes.ClipVisionLoaderNode] = new CLIPVisionLoader { ClipName = p.ClipVision };
         g[Nodes.ClipVisionEncodeNode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(Nodes.ClipVisionLoaderNode), Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Crop = ComfyWidgets.Crop.None };

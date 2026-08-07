@@ -19,6 +19,21 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
     /// <c>EditWorkflowBase.SharedSchema.Concat(…)</c>.</summary>
     public override IReadOnlyList<ParamSpec> Schema => EditWorkflowBase.SharedSchema;
 
+    /// <summary>The fixed pixel BUDGET this editor rescales its source to before rendering (megapixels + step grid),
+    /// or null (default) for an editor that renders at the source resolution. A budget-scaling editor
+    /// (<c>ImageScaleToTotalPixels</c>) overrides this — reading its own params where the budget is param-driven — so
+    /// the ETA render-size below reports the post-budget snap. Because the ETA keys on total pixels (w×h), the exact
+    /// aspect is immaterial: any source aspect snapped to the same budget lands on ~the same pixel count.</summary>
+    protected virtual (double Megapixels, int ResolutionSteps)? EtaBudget(TParams p) => null;
+
+    /// <summary>ETA render-size for a plain budget-scaling editor: the post-<see cref="EtaBudget"/> snap when a budget
+    /// is declared, otherwise the source dims unchanged. NOT sealed — an editor whose render size isn't a pure source
+    /// budget (e.g. the pixel editors snap to a k×VRES grid keyed to <paramref name="req"/>) overrides this directly.</summary>
+    protected override (int Width, int Height) EtaRenderSize(TParams p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => EtaBudget(p) is (double mp, int steps)
+            ? BudgetScale.Snap(sourceWidth, sourceHeight, mp, steps)
+            : (sourceWidth, sourceHeight);
+
     /// <summary>Emit the common edit head — the model/CLIP/VAE loaders (from the loader wire value + resolved
     /// requirements) and the source <c>LoadImage</c> at node "10" — as typed nodes, returning the model/clip/vae edges.
     /// Byte-identical to <see cref="EditWorkflowBase.LoadModel"/>.</summary>

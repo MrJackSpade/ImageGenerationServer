@@ -9,6 +9,13 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
     /// <summary>LTX VAE: 8× temporal compression → valid clip lengths are 8n+1 (mirrors the node's length step=8).</summary>
     public override FrameRule? FrameRule => new(1, 8);
 
+    /// <summary>LTX's native i2v budget (source scaled to it on a 32-px grid) — single source for both the graph's
+    /// scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.39;
+    private const int BudgetSteps = 32;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(LtxvI2VParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(LtxvI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -20,8 +27,8 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
         // LTX loads its own external T5 (clip_type "ltxv").
         g[Nodes.T5Loader] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ltxv, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> ltxClip = CLIPLoader.ClipOut(Nodes.T5Loader);
-        double budgetMp = 0.39;   // LTX's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
+        double budgetMp = BudgetMp;   // LTX's native i2v megapixel budget — always applied (the source is scaled to it)
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = ltxClip };
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = ltxClip };

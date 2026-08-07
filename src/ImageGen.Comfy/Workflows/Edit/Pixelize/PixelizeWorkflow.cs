@@ -62,6 +62,17 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     ];
 
+    /// <summary>The 16-px grid for the megapixels fallback — single source for the scale node and the ETA size.</summary>
+    private const int BudgetSteps = 16;
+
+    /// <summary>Renders at the working scale the graph picks — the clean k×VRES snap when snap-resolution is on, else
+    /// the megapixels budget — NOT the raw upload dims. The ETA keys on that so pixel-art render time isn't credited by
+    /// upload size.</summary>
+    protected override (int Width, int Height) EtaRenderSize(PixelizeParams p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => PixelSnap.Target(req.Resolution, p.VirtualResolution, p.SnapResolution, p.Width, p.Height, sourceWidth, sourceHeight) is (int w, int h)
+            ? (w, h)
+            : BudgetScale.Snap(sourceWidth, sourceHeight, p.Megapixels, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(PixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -78,7 +89,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
         g[Nodes.WorkingScale] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 16 };
+            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = BudgetSteps };
         g[Nodes.InitEncode] = new VAEEncode { Pixels = ImageScale.Out(Nodes.WorkingScale), Vae = vae0 };
 
         // conditioning: the harness's fixed style prompt (or the caller's instruction if it's blanked),

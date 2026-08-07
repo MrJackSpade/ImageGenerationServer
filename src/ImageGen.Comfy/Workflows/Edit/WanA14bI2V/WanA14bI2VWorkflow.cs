@@ -58,6 +58,17 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         return (sw + addL + addR, sh + addT + addB, addL, addT);
     }
 
+    /// <summary>Wan I2V-A14B's 16-px snap grid for the budget scale — single source for both scale nodes and the ETA
+    /// render-size.</summary>
+    private const int BudgetSteps = 16;
+
+    /// <summary>The render budget is the config's <c>width×height</c> target (MP), not the source dims: the source —
+    /// padded or not — is scaled to that total-pixel budget, so the ETA keys on the target area. Snapping the raw
+    /// source aspect to this budget lands on ~the same pixel count as the padded frame (only the aspect differs, which
+    /// the ETA ignores).</summary>
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(WanA14bI2VParams p)
+        => (p.Width * (double)p.Height / 1_000_000.0, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(WanA14bI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -93,7 +104,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
             scaleSource = ImageCompositeMasked.Out(WanA14bI2VWorkflowNodes.PadComposite);
         }
 
-        g[WanA14bI2VWorkflowNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = scaleSource, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
+        g[WanA14bI2VWorkflowNodes.ScaledSource] = new ImageScaleToTotalPixels { Image = scaleSource, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[WanA14bI2VWorkflowNodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(WanA14bI2VWorkflowNodes.ScaledSource) };
         g[WanA14bI2VWorkflowNodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };
         g[WanA14bI2VWorkflowNodes.Negative] = new CLIPTextEncode { Text = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative), Clip = clip };
@@ -129,7 +140,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
                 // No padding: scale the end frame through the same ImageScaleToTotalPixels as the start frame (:205),
                 // to the same pixel budget/rounding, so both frames reach WanFirstLastFrameToVideo at identical dims —
                 // a loop (end == start) then produces a clean static loop instead of the node cropping a raw end frame.
-                g[WanA14bI2VWorkflowNodes.EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(WanA14bI2VWorkflowNodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 16 };
+                g[WanA14bI2VWorkflowNodes.EndScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(WanA14bI2VWorkflowNodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
                 endImage = ImageScaleToTotalPixels.Out(WanA14bI2VWorkflowNodes.EndScale);
             }
 

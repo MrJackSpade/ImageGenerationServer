@@ -113,6 +113,19 @@ public interface IWorkflow
 
 
 
+    /// <summary>The resolution the graph will ACTUALLY render at for a source image of the given dims — the seam the
+    /// ETA timing signature reads so samples key on real render work, not raw upload size. Default: the source dims
+    /// unchanged (most editors render at the source resolution). A workflow that first rescales the source to a fixed
+    /// pixel BUDGET (<c>ImageScaleToTotalPixels</c>) overrides this to report the post-budget size (see
+    /// <see cref="BudgetScale"/>), so two uploads that render identically record and predict the same ETA rather than
+    /// scaling with whatever resolution the user uploaded. <paramref name="p"/> is the merged parameter bag (a
+    /// param-driven budget reads its megapixels from it) and <paramref name="req"/> the resolved requirements (a
+    /// render-size snap keyed to the model's resolution reads it) — the same context <see cref="Build"/> gets, so the
+    /// reported size can't drift from the built graph. Only meaningful for edit workflows (they take a source image);
+    /// generate workflows use the resolved aspect dims directly and never call this.</summary>
+    (int Width, int Height) EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => (sourceWidth, sourceHeight);
+
     /// <summary>Build the ComfyUI graph as a typed <see cref="ComfyWorkflowGraph"/> (node-id → typed node). It stays
     /// typed until the renderer serializes it to <c>/prompt</c>. <paramref name="p"/> is the merged parameter bag —
     /// the implementation deserializes it into its own typed params DTO at the <see cref="ParamsCodec"/> boundary

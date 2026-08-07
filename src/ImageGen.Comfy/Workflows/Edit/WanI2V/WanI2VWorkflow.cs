@@ -18,6 +18,13 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
     ];
 
+    /// <summary>Wan's native i2v budget (source scaled to it on a 32-px grid) — single source for both the graph's
+    /// scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.9;
+    private const int BudgetSteps = 32;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(WanI2VParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(WanI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -28,8 +35,8 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;
         double fps = p.Fps;
-        double budgetMp = 0.9;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)
-        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 32 };
+        double budgetMp = BudgetMp;   // Wan's native i2v megapixel budget — always applied (the source is scaled to it)
+        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.ImageSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaleSource) };
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };

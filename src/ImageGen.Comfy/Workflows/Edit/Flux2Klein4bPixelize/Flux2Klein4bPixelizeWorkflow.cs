@@ -11,6 +11,17 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KleinLike();
 
+    /// <summary>The 64-px grid for the megapixels fallback — single source for the scale node and the ETA size.</summary>
+    private const int BudgetSteps = 64;
+
+    /// <summary>Renders at the working scale the graph picks — the clean k×VRES snap when snap-resolution is on, else
+    /// the megapixels budget — NOT the raw upload dims. The ETA keys on that so pixel-art render time isn't credited by
+    /// upload size.</summary>
+    protected override (int Width, int Height) EtaRenderSize(Flux2Klein4bPixelizeParams p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+        => PixelSnap.Target(req.Resolution, p.VirtualResolution, p.SnapResolution, p.Width, p.Height, sourceWidth, sourceHeight) is (int w, int h)
+            ? (w, h)
+            : BudgetScale.Snap(sourceWidth, sourceHeight, p.Megapixels, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(Flux2Klein4bPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -27,7 +38,7 @@ public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixe
         (int w, int h)? snap = PixelSnap.Target(req.Resolution, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);   // override the megapixels bucket with the clean k×VRES size when on
         g[Nodes.ScaledImage] = snap is { } s
             ? PixelHarnessGraph.FixedScale(src, s.w, s.h)
-            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = 64 };
+            : new ImageScaleToTotalPixels { Image = src, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = p.Megapixels, ResolutionSteps = BudgetSteps };
         g[Nodes.Encode] = new VAEEncode { Pixels = ImageScale.Out(Nodes.ScaledImage), Vae = vae0 };
         g[Nodes.ImageSize] = new GetImageSize { Image = ImageScale.Out(Nodes.ScaledImage) };
         g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = p.Guidance };

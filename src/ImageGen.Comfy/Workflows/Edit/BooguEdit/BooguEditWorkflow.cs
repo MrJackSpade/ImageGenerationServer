@@ -27,6 +27,12 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         new() { Key = WorkflowParamKeys.Megapixels, Type = ParamType.Double, Min = 0.5, Max = 4.0, Label = "Edit resolution (MP)" },
     ];
 
+    /// <summary>Boogu scales the source to the (param-driven) edit-resolution budget on a 16-px grid — single source
+    /// for both the scale node and the ETA render-size.</summary>
+    private const int BudgetSteps = 16;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(BooguParams p) => (p.Megapixels, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(BooguParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -36,7 +42,7 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
         double mp = p.Megapixels;
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = 16 };
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = BudgetSteps };
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries
         // 3.16) — sampling quality depends on it being on the model the scheduler/sampler see.

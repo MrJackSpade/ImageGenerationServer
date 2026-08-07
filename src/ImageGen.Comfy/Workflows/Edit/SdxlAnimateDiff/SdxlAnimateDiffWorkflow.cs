@@ -10,6 +10,13 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
+    /// <summary>SDXL AnimateDiff's native i2v budget (source scaled to it on a 64-px grid) — single source for both
+    /// the graph's scale node and the ETA render-size.</summary>
+    private const double BudgetMp = 0.6;
+    private const int BudgetSteps = 64;
+
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(SdxlAnimateDiffParams p) => (BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(SdxlAnimateDiffParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -18,10 +25,10 @@ public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams
         int frames = p.Length;
         double fps = p.Fps;
         double denoise = p.Denoise;
-        double budgetMp = 0.6;   // SDXL AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = BudgetMp;   // SDXL AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
-        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = 64 };
+        g[Nodes.ScaleSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.MotionLoad] = new ADE_LoadAnimateDiffModel { ModelName = mm };
         g[Nodes.ApplyMotion] = new ADE_ApplyAnimateDiffModelSimple { MotionModel = ADE_LoadAnimateDiffModel.Out(Nodes.MotionLoad) };
         g[Nodes.EvolvedSampling] = new ADE_UseEvolvedSampling { Model = model0, BetaSchedule = beta, MModels = ADE_ApplyAnimateDiffModelSimple.Out(Nodes.ApplyMotion) };

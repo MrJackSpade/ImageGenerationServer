@@ -725,9 +725,11 @@ public sealed class ComfyClient : IComfyClient
 
         WorkflowInputs inputs = new() { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
-        // ETA signature: the source dims are the render's resolution driver (the edit graph scales to a budget off
-        // them), plus the EtaVariable time drivers — Frames (length) dominates for i2v.
-        EtaSignature eta = new(srcW, srcH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
+        // ETA signature: the resolution the workflow ACTUALLY renders at (a budget-scaling editor pins the source to a
+        // fixed ~MP size, so recording raw srcW/srcH would credit a large upload work it never does), plus the
+        // EtaVariable time drivers — Frames (length) dominates for i2v.
+        (int etaW, int etaH) = wf.EtaRenderSize(dict, resolved, srcW, srcH);
+        EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta);
     }
 
