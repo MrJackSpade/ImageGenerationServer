@@ -801,6 +801,7 @@ body.auth .page{max-width:none;padding:0}
 .wf-head h2{margin:0;font-size:20px}
 .wf-toggle{margin-left:auto;appearance:none;background:var(--elev);border:1px solid var(--line);color:var(--ink-soft);
   font:inherit;font-size:13px;padding:6px 12px;border-radius:9px;cursor:pointer}
+.wf-toggle ~ .wf-toggle{margin-left:0}
 .wf-toggle:hover{border-color:var(--accent);color:#fff}
 .wf-toggle.on{border-color:var(--warn);color:var(--warn)}
 .wf-toggle.danger:hover{border-color:var(--danger);color:var(--danger)}
