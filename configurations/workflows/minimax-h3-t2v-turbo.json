@@ -1,0 +1,105 @@
+{
+  "id": "minimax-h3-t2v-turbo",
+  "workflow": "minimax-h3-t2v",
+  "friendly_name": "MiniMax-H3 Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-fl2va",
+    "text_encoders": [
+      "qwen3vl-32b-minimax-h3"
+    ],
+    "vae": "minimax-h3-video-vae",
+    "extra": [
+      "minimax-h3-audio-vae"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "minimax",
+    "audio_vae": "minimax-h3-audio-vae",
+    "steps": 8,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "lora": "minimax-h3-turbo-lora",
+    "lora_strength": 1.0,
+    "length": {
+      "value": 124,
+      "exposed": true,
+      "min": 5,
+      "max": 362,
+      "step": 17
+    },
+    "fps": 24,
+    "width": 1344,
+    "height": 768,
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        1024,
+        1024
+      ],
+      "landscape": [
+        1344,
+        768
+      ],
+      "portrait": [
+        768,
+        1344
+      ]
+    }
+  },
+  "card": {
+    "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — TEXT-TO-VIDEO with native audio, low-step",
+    "summary": "The fast MiniMax-H3 text→video: the Turbo distill LoRA cuts sampling from ~20 steps to 8 at a small quality cost (audio degrades further below ~8 steps). Same native stereo audio — voice, sound effects and music generated in the same pass as the picture.",
+    "use_cases": [
+      "quick text→video clips with synchronized sound",
+      "prompt-directed motion and audio",
+      "fast iteration before a final base-model render"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want the quickest MiniMax-H3 t2v turnaround and can accept a small quality cost; switch to the base configuration for the final render.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the scene AND the motion AND the audio; H3 renders sound from the prompt too.",
+      "example": "a neon night market in the rain, slow dolly forward, reflections on wet stone. Audio: gentle rain, distant chatter, a soft synth score.",
+      "overview": "Describe the whole scene from scratch — subject, motion, camera, lighting, style — and add an explicit Audio line: H3 models voice, sound effects and music jointly with the video, so the prompt directs the soundtrack as well as the picture.",
+      "instructions": "Write a shot the way you would for any text→video model (subject, motion, camera move, lighting, style, atmosphere), sequencing actions in temporal order. Then add an 'Audio:' section describing the sound you want — ambience, specific effects timed to the action, dialogue, and score. Wrap any spoken lines or on-screen text in quotation marks. Timeline cues in the form [0s-2s]/[2s-4s] help H3 place events and audio beats.",
+      "do": [
+        "Describe subject, motion, camera, lighting and style like a normal t2v prompt",
+        "Add an explicit 'Audio:' line: ambience, timed sound effects, dialogue, and score",
+        "Sequence actions temporally; timeline cues like [0s-2s] help place beats",
+        "Quote spoken lines and on-screen text",
+        "Use concrete camera-move terms (dolly, pan, tilt, orbit, push-in, static)"
+      ],
+      "dont": [
+        "Don't rely on negative prompts — this is a distilled model (no CFG/negative)",
+        "Don't omit the subject/scene (t2v invents everything from text)",
+        "Don't forget the audio: leaving it out wastes H3's main capability"
+      ],
+      "examples": [
+        "A lone figure sprints across rain-slicked rooftops at dusk, leaping a gap between towers as pursuers close in. Anamorphic lens, shallow depth of field, restrained color grade, powerful natural movement. Audio: wind and rapid footsteps, a low score underneath, an accent hit on each leap."
+      ],
+      "negative_guidance": "Negatives are not used — H3 samples distilled through a BasicGuider (no CFG).",
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled (BasicGuider, no CFG)"
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "the Turbo LoRA samples in 8 steps instead of ~20; the 32B text encoder is unchanged. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "The fast H3: a short video WITH sound from text, at a small quality cost. Describe the scene, the motion, and the audio.",
+      "good_for": "quick text→video clips with native audio"
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1344,
+    "max_h": 1344,
+    "step": 32
+  }
+}

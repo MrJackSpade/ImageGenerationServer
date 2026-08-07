@@ -1,0 +1,96 @@
+{
+  "id": "minimax-h3-i2v-turbo",
+  "workflow": "minimax-h3-i2v",
+  "friendly_name": "MiniMax-H3 Turbo",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-fl2va",
+    "text_encoders": [
+      "qwen3vl-32b-minimax-h3"
+    ],
+    "vae": "minimax-h3-video-vae",
+    "extra": [
+      "minimax-h3-audio-vae"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "minimax",
+    "audio_vae": "minimax-h3-audio-vae",
+    "steps": 8,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "lora": "minimax-h3-turbo-lora",
+    "lora_strength": 1.0,
+    "length": {
+      "value": 124,
+      "exposed": true,
+      "min": 5,
+      "max": 362,
+      "step": 17
+    },
+    "fps": 24
+  },
+  "card": {
+    "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — IMAGE-TO-VIDEO with native audio, low-step",
+    "summary": "The fast MiniMax-H3 image→video: the Turbo distill LoRA cuts sampling from ~20 steps to 8 at a small quality cost (audio degrades further below ~8 steps). The uploaded image is the first frame; an optional last frame pins the ending. Output is an mp4 with a baked-in audio track.",
+    "use_cases": [
+      "quick image→video with synchronized sound",
+      "camera moves / subject motion on a still",
+      "first-and-last-frame clips",
+      "fast iteration before a final base-model render"
+    ],
+    "nsfw_capable": "limited",
+    "pick_when": "You want the quickest H3 animation of the current picture and can accept a small quality cost; switch to the base configuration for the final render.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the motion AND the audio; the image defines appearance, the prompt directs motion and sound.",
+      "example": "the camera slowly pushes in as her hair drifts in the wind. Audio: a soft breeze, a low ambient hum, a gentle piano motif.",
+      "overview": "The uploaded image is the first frame, so describe only how the visible subject and camera MOVE, then add an 'Audio:' line — H3 generates the soundtrack (ambience, effects, dialogue, score) jointly with the motion.",
+      "instructions": "Lead with the primary motion using concrete verbs with explicit speed and direction, specify a distinct camera move, and add atmosphere. Then add an 'Audio:' section describing ambience, timed sound effects, any dialogue, and score. Animate only elements visible in the source frame; skip static appearance (the image defines it). Quote spoken lines. Timeline cues like [0s-2s] help place motion and audio beats.",
+      "do": [
+        "Lead with the primary motion (concrete verb + speed + direction)",
+        "Specify a camera move (slow push-in, dolly out, pan, orbit, static)",
+        "Add an explicit 'Audio:' line: ambience, timed effects, dialogue, score",
+        "Describe only motion of elements visible in the source image",
+        "Quote spoken lines; use [0s-2s] cues to time beats"
+      ],
+      "dont": [
+        "Don't re-describe the subject's static appearance (the image defines it)",
+        "Don't introduce objects or scenery not present in the source frame",
+        "Don't rely on negative prompts — this is a distilled model",
+        "Don't forget the audio: leaving it out wastes H3's main capability"
+      ],
+      "examples": [
+        "The woman slowly turns her head to the left, her hair drifting in a light breeze. Slow push-in, shallow depth of field, warm color grade, calm mood. Audio: a soft breeze, faint room tone, a gentle piano motif entering halfway."
+      ],
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/larryvrh/MiniMax-H3-Turbo-Lora"
+    },
+    "negative": {
+      "supported": false,
+      "note": "distilled (BasicGuider, no CFG)"
+    },
+    "speed": {
+      "class": "slow",
+      "measured_note": "the Turbo LoRA samples in 8 steps instead of ~20; the 32B text encoder is unchanged. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "The fast H3: animate the current picture into a clip WITH sound, at a small quality cost. Describe the motion and the audio.",
+      "good_for": "quick image→video with native audio"
+    },
+    "edit_use_cases": [
+      "image-to-video: quickly animate the current picture into a clip with native audio (optional last frame)"
+    ],
+    "reference": {
+      "max": 0,
+      "hint": "Animate the current picture: describe the motion and the audio you want."
+    }
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 1344,
+    "max_h": 1344,
+    "step": 32
+  }
+}

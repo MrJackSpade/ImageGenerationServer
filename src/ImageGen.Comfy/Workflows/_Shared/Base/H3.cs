@@ -48,15 +48,17 @@ internal static class H3
     /// passed in; <paramref name="seed"/> is already resolved (<c>ComfyGraph.Seed</c>) and
     /// <paramref name="sampler"/>/<paramref name="scheduler"/> are the RAW Forge names (mapped here).</summary>
     public static ComfyWorkflowGraph Build(ResolvedRequirements req, WorkflowInputs inputs, H3Mode mode,
-        string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler, (int w, int h)? t2vDims, int refMax = 0)
+        string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
+        string? lora, double loraStrength, (int w, int h)? t2vDims, int refMax = 0)
     {
         ComfyWorkflowGraph g = new();
 
         // Loaders. Diffusion via DiffusionLoaderNode → plain UNETLoader (int8 ConvRot loads natively, weight_dtype
         // default keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames)
-        // and audio (the native stereo track); the audio VAE is the audio_vae model-ref slot.
+        // and audio (the native stereo track); the audio VAE is the audio_vae model-ref slot. An optional model-only
+        // LoRA (the Turbo configs' distilled low-step LoRA) sits between the loader and everything downstream.
         g[H3Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
-        Output<Slot.Model> model = UNETLoader.ModelOut(H3Nodes.Model);
+        Output<Slot.Model> model = ComfyGraph.ApplyLora(g, UNETLoader.ModelOut(H3Nodes.Model), lora, loraStrength, H3Nodes.Lora);
         g[H3Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Minimax, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(H3Nodes.Clip);
         g[H3Nodes.VideoVae] = new VAELoader { VaeName = req.RequiredVae() };

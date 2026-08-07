@@ -379,6 +379,38 @@ public sealed class WorkflowGraphTests
         _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }
 
+    /// <summary>The Turbo configurations apply the MiniMax-H3 Turbo distill LoRA (node 50, between the loader and the
+    /// sampler chain) at the low-step euler/simple settings, across all three modes; the base configurations stay
+    /// LoRA-free.</summary>
+    [Fact]
+    public void MiniMaxH3_turbo_configs_apply_the_turbo_lora()
+    {
+        foreach ((string id, WorkflowInputs inputs) in new (string, WorkflowInputs)[]
+        {
+            ("minimax-h3-t2v-turbo", Gen),
+            ("minimax-h3-i2v-turbo", Edit),
+            ("minimax-h3-ref2v-turbo", new WorkflowInputs { Positive = "a scene. Audio: ambience.", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 }),
+        })
+        {
+            string json = BuildJson(id, inputs);
+            Assert.Contains("\"50\":{\"class_type\":\"LoraLoaderModelOnly\"", json);
+            Assert.Contains("minimax-h3-turbo-lora.safetensors", json);          // the resolved lora model-ref
+            Assert.Contains("\"steps\":8", json);
+            Assert.Contains("\"sampler_name\":\"euler\"", json);
+            // The scheduler and the guider consume the LoRA'd model (node 50), not the raw loader output.
+            using JsonDocument doc = JsonDocument.Parse(json);
+            Assert.Equal("50", doc.RootElement.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
+            Assert.Equal("50", doc.RootElement.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
+        }
+
+        foreach (string id in new[] { "minimax-h3-t2v", "minimax-h3-i2v", "minimax-h3-ref2v" })
+        {
+            WorkflowConfiguration? cfg = Build().catalog.FindConfig(id);
+            Assert.NotNull(cfg);
+            Assert.DoesNotContain(WorkflowParamKeys.Lora, cfg.Params.Keys);      // base configs stay LoRA-free
+        }
+    }
+
     /// <summary>
     /// Mage-Flow-Edit's Encode/Sampler must NOT reuse the inherited loader-head ids ("5" = CLIPLoader, "6" =
     /// VAELoader). If they do, the last write per id wins and the two loaders vanish, leaving the encode's clip/vae

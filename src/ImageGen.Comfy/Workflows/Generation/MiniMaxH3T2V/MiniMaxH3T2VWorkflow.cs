@@ -14,5 +14,5 @@ public sealed class MiniMaxH3T2VWorkflow : Txt2ImgWorkflow<MiniMaxH3Params>
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Params p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.Build(req, inputs, H3Mode.T2V, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,
-            p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)));
+            p.Lora, p.LoraStrength, p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)));
 }

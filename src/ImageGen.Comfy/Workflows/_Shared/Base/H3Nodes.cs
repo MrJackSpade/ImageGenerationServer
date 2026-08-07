@@ -6,6 +6,7 @@ namespace ImageGen.Comfy;
 internal static class H3Nodes
 {
     public const string Model = "4";
+    public const string Lora = "50";
     public const string Clip = "20";
     public const string VideoVae = "21";
     public const string AudioVae = "22";
