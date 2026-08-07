@@ -2274,4 +2274,40 @@ public sealed class WorkflowGraphTests
         Assert.Equal(JsonValueKind.Array, pixels.ValueKind);                        // a [id, idx] ref, not an inline node
         Assert.Equal("25", pixels[0].GetString());
     }
+
+    /// <summary>
+    /// #190: the /settings/workflows list renders each row's visible identity as friendly_name + the kind badge —
+    /// nothing else is on the row until you hover. So no two configurations may share that pair, or the list shows two
+    /// letter-for-letter identical rows the user can only tell apart by hovering (the pixel variants and the Wan
+    /// i2v/t2v pairs did exactly this). The identity resolved here is EXACTLY the settings row's:
+    /// <c>WorkflowStatus.FriendlyName</c> (<c>cfg.FriendlyName ?? cfg.Id</c>) + <c>KindToken(ResolveKind(cfg, wf))</c>.
+    /// On a collision the message lists each offending <c>(name, kind → [ids])</c> so the fix is obvious.
+    /// </summary>
+    [Fact]
+    public void No_two_configs_share_a_settings_row_identity_of_friendly_name_and_kind_badge()
+    {
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+
+        List<(string Name, string Kind, string Id)> rows = [];
+        foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
+        {
+            IWorkflow? wf = registry.Find(cfg.WorkflowName);
+            if (wf is null)
+            {
+                continue;
+            }
+
+            rows.Add((cfg.FriendlyName ?? cfg.Id, WorkflowCatalogService.KindToken(WorkflowCatalogService.ResolveKind(cfg, wf)), cfg.Id));
+        }
+
+        List<string> collisions = [.. rows
+            .GroupBy(r => (r.Name, r.Kind))
+            .Where(g => g.Count() > 1)
+            .OrderBy(g => g.Key.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => $"  \"{g.Key.Name}\" [{g.Key.Kind}] -> {string.Join(", ", g.Select(r => r.Id).OrderBy(id => id, StringComparer.OrdinalIgnoreCase))}")];
+
+        Assert.True(collisions.Count == 0,
+            $"{collisions.Count} settings row identity collision(s) — two configs render an identical (name, kind badge) row:\n"
+            + string.Join("\n", collisions));
+    }
 }

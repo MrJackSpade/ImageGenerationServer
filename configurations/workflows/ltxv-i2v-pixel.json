@@ -1,7 +1,7 @@
 {
   "id": "ltxv-i2v-pixel",
   "workflow": "ltxv-i2v-pixel",
-  "friendly_name": "LTX Video",
+  "friendly_name": "LTX Video Pixel",
   "effect_type": "Pixel art",
   "default": false,
   "requirements": {

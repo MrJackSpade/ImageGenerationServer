@@ -1,7 +1,7 @@
 {
   "id": "ltx2-i2v-pixel",
   "workflow": "ltx2-i2v-pixel",
-  "friendly_name": "LTX-2",
+  "friendly_name": "LTX-2 Pixel",
   "effect_type": "Pixel art",
   "default": false,
   "requirements": {

@@ -1,7 +1,7 @@
 {
   "id": "wan22-i2v-a14b-pixel",
   "workflow": "wan22-i2v-a14b-pixel",
-  "friendly_name": "Wan 2.2 14B",
+  "friendly_name": "Wan 2.2 14B Pixel",
   "effect_type": "Pixel art",
   "default": false,
   "requirements": {

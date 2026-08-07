@@ -1,7 +1,7 @@
 {
   "id": "wan22-ti2v-5b-hq-pixel",
   "workflow": "wan22-ti2v-5b-pixel",
-  "friendly_name": "Wan 2.2",
+  "friendly_name": "Wan 2.2 Pixel",
   "effect_type": "Pixel art",
   "default": false,
   "requirements": {

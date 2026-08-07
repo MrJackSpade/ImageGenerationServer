@@ -1,7 +1,7 @@
 {
   "id": "ltx23-i2v-pixel",
   "workflow": "ltx2-i2v-pixel",
-  "friendly_name": "LTX-2.3 22B",
+  "friendly_name": "LTX-2.3 22B Pixel",
   "effect_type": "Pixel art",
   "default": false,
   "requirements": {
