@@ -395,7 +395,7 @@ public sealed class WorkflowGraphTests
             string json = BuildJson(id, inputs);
             Assert.Contains("\"50\":{\"class_type\":\"LoraLoaderModelOnly\"", json);
             Assert.Contains("minimax-h3-turbo-lora.safetensors", json);          // the resolved lora model-ref
-            Assert.Contains("\"steps\":8", json);
+            Assert.Contains("\"steps\":6", json);
             Assert.Contains("\"sampler_name\":\"euler\"", json);
             // The scheduler and the guider consume the LoRA'd model (node 50), not the raw loader output.
             using JsonDocument doc = JsonDocument.Parse(json);

@@ -17,7 +17,7 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 8,
+    "steps": 6,
     "sampler": "euler",
     "scheduler": "simple",
     "lora": "minimax-h3-turbo-lora",
@@ -34,7 +34,7 @@
   },
   "card": {
     "architecture": "MiniMax-H3 ref2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — REFERENCE-TO-VIDEO with native audio, low-step",
-    "summary": "The fast MiniMax-H3 reference→video: the Turbo distill LoRA cuts sampling from ~20 steps to 8 at a small quality cost (audio degrades further below ~8 steps). The current image is the primary subject reference; add more via the ＋ ref picker. The references condition identity/appearance (they are NOT the first frame). Output is an mp4 with a baked-in audio track.",
+    "summary": "The fast MiniMax-H3 reference→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. The current image is the primary subject reference; add more via the ＋ ref picker. The references condition identity/appearance (they are NOT the first frame). Output is an mp4 with a baked-in audio track.",
     "use_cases": [
       "quick reference→video: place a referenced subject into a new clip with synchronized sound",
       "multi-reference identity (subject from several angles / a few characters)",
@@ -75,7 +75,7 @@
     },
     "speed": {
       "class": "slow",
-      "measured_note": "the Turbo LoRA samples in 8 steps instead of ~20; the 32B text encoder is unchanged and reference tokens ride every sampling step. Not yet benchmarked on this box."
+      "measured_note": "the Turbo LoRA samples in 6 steps instead of ~20; the 32B text encoder is unchanged and reference tokens ride every sampling step. Not yet benchmarked on this box."
     },
     "ui_help": {
       "note": "The fast H3: a clip WITH sound featuring the subject from your reference image(s), at a small quality cost. Describe the scene, motion and audio.",

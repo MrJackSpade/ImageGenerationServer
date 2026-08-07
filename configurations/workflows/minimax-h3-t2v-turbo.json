@@ -17,7 +17,7 @@
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",
-    "steps": 8,
+    "steps": 6,
     "sampler": "euler",
     "scheduler": "simple",
     "lora": "minimax-h3-turbo-lora",
@@ -50,7 +50,7 @@
   },
   "card": {
     "architecture": "MiniMax-H3 fl2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — TEXT-TO-VIDEO with native audio, low-step",
-    "summary": "The fast MiniMax-H3 text→video: the Turbo distill LoRA cuts sampling from ~20 steps to 8 at a small quality cost (audio degrades further below ~8 steps). Same native stereo audio — voice, sound effects and music generated in the same pass as the picture.",
+    "summary": "The fast MiniMax-H3 text→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. Same native stereo audio — voice, sound effects and music generated in the same pass as the picture.",
     "use_cases": [
       "quick text→video clips with synchronized sound",
       "prompt-directed motion and audio",
@@ -88,7 +88,7 @@
     },
     "speed": {
       "class": "slow",
-      "measured_note": "the Turbo LoRA samples in 8 steps instead of ~20; the 32B text encoder is unchanged. Not yet benchmarked on this box."
+      "measured_note": "the Turbo LoRA samples in 6 steps instead of ~20; the 32B text encoder is unchanged. Not yet benchmarked on this box."
     },
     "ui_help": {
       "note": "The fast H3: a short video WITH sound from text, at a small quality cost. Describe the scene, the motion, and the audio.",
