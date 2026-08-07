@@ -95,7 +95,13 @@ public sealed partial class WorkflowCatalogService
                 continue;
             }
 
-            List<string> required = [.. cfg.Requirements.All()];
+            // BOTH halves of the configuration's model list: the requirements block AND the model refs its params
+            // set (an optional LoRA, a second MoE expert) — a params ref is every bit as necessary, and gating on
+            // requirements alone shows a config as ready whose params slot is unbound, so the picker offers it and
+            // the render path then refuses it (the H3 Turbo LoRA regression).
+            List<string> required = [.. cfg.Requirements.All()
+                .Concat(_catalog.ModelRefSlots(wf, cfg))
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
             List<string> missing = [.. required.Where(id => !Satisfied(id))];
 
             workflows.Add(new WorkflowStatus(

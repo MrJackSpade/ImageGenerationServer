@@ -115,6 +115,14 @@ public sealed class ModelRefResolutionTests
         List<string> asked = [.. catalog.ModelRefSlots(wf, cfg)];
         Assert.Contains("wan2-2-i2v-low-noise-14b", asked);
         Assert.DoesNotContain(asked, s => s == "lora");   // unset optional params ask for nothing
+
+        // The H3 Turbo regression: its LoRA is set only in params, so gating that read requirements alone offered
+        // the configuration with the LoRA slot unbound and the render path then refused it.
+        WorkflowConfiguration? turbo = catalog.FindConfig("minimax-h3-t2v-turbo");
+        Assert.NotNull(turbo);
+        IWorkflow? turboWf = registry.Find(turbo.WorkflowName);
+        Assert.NotNull(turboWf);
+        Assert.Contains("minimax-h3-turbo-lora", catalog.ModelRefSlots(turboWf, turbo));
     }
 
     [Fact]
