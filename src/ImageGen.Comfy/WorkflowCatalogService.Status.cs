@@ -121,6 +121,47 @@ public sealed partial class WorkflowCatalogService
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<ConfigSlotStatus>?> GetConfigSlotsAsync(string configId, CancellationToken ct)
+    {
+        if (_catalog.FindConfig(configId) is null)
+        {
+            return null;
+        }
+
+        // The full picture is the authority on both halves of what this needs: every slot's binding status, and — via
+        // each workflow's RequiredSlots — which OTHER workflows share a slot. Reusing it keeps the required-slots union
+        // computed in exactly one place (GetStatusAsync) rather than re-derived here.
+        CatalogStatus status = await GetStatusAsync(ct);
+        WorkflowStatus? me = status.Workflows.FirstOrDefault(
+            w => string.Equals(w.Id, configId, StringComparison.OrdinalIgnoreCase));
+        if (me is null)
+        {
+            return null;
+        }
+
+        Dictionary<string, ModelSlotStatus> byId = status.Slots.ToDictionary(s => s.Id, StringComparer.OrdinalIgnoreCase);
+
+        List<ConfigSlotStatus> slots = [];
+        foreach (string slotId in me.RequiredSlots)
+        {
+            // Node-pack / patch-install slots aren't a file you point at — the library dialog installs them. Out of
+            // scope for the detail-page picker (issue #195), so they're left out rather than shown as an empty dropdown.
+            if (_catalog.FindRequirement(slotId) is { Node: { Length: > 0 } })
+            {
+                continue;
+            }
+
+            IReadOnlyList<string> sharedWith = SlotSharing.Others(status.Workflows, configId, slotId);
+
+            slots.Add(byId.TryGetValue(slotId, out ModelSlotStatus? s)
+                ? new ConfigSlotStatus(s.Id, s.Label, s.Kind, s.BoundFile, s.IsAuto, s.Candidates, s.Available, sharedWith)
+                : new ConfigSlotStatus(slotId, slotId, string.Empty, null, false, [], [], sharedWith));
+        }
+
+        return slots;
+    }
+
+    /// <inheritdoc/>
     public async Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct)
     {
         string machine = Environment.MachineName;

@@ -12,6 +12,19 @@ const gwWs = path => /^https?:/i.test(GATEWAY)
   ? GATEWAY.replace(/^http/i, "ws") + path
   : (location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + GATEWAY + path;
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// The <option> list for a model-slot picker, shared by every place one is drawn (the workflow library dialog, the
+// models page, and a workflow's detail page): a "— not set —" clear option, then the recognised candidates A–Z, then
+// every other file of the slot's kind A–Z. A slot may be bound to ANY file of its kind — the patterns pre-fill, they
+// do not restrict. The caller wraps this in its own <select> so each surface keeps its own chrome.
+function slotOptionsHtml(s) {
+  const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
+  const candidates = (s.candidates || []).slice().sort(byName);
+  const rest = (s.available || []).filter(f => !(s.candidates || []).includes(f)).sort(byName);
+  const opt = (f, tag) => `<option value="${escapeHtml(f)}"${f === s.boundFile ? " selected" : ""}>${escapeHtml(f)}${tag || ""}</option>`;
+  return `<option value="">— not set —</option>`
+    + candidates.map(f => opt(f, " (recognised)")).join("")
+    + rest.map(f => opt(f, "")).join("");
+}
 // Mirror of PromptMarkers.Key. '!' is the INERT TAG marker (a tag the tag predictor is not conditioned on) and '~'
 // the GUIDE TAG marker (seen only by the predictor, never rendered); both are ordinary tags to every client surface
 // that matches on a key, so they must strip here too or a "!pig" segment won't match its own chip, bookmark or ban.

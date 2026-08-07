@@ -51,6 +51,14 @@ public interface IWorkflowCatalog
     /// </summary>
     Task<IReadOnlyList<LoraCatalogEntry>> ListLorasAsync(string? workflowId, CancellationToken ct);
 
+    /// <summary>
+    /// The file-backed model slots ONE configuration uses (union of its requirements and its model-ref params), each
+    /// with its binding status and the other workflows that share it — for the model picker on the workflow's detail
+    /// page. Null if the id is unknown. Node-pack / patch-install slots are omitted (they aren't files you point at;
+    /// the library dialog keeps their install button). Throws when the renderer is unreachable (mapped to a 502).
+    /// </summary>
+    Task<IReadOnlyList<ConfigSlotStatus>?> GetConfigSlotsAsync(string configId, CancellationToken ct);
+
     /// <summary>Binds a file to a slot on this machine, or clears it when <paramref name="fileName"/> is blank.</summary>
     Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct);
 

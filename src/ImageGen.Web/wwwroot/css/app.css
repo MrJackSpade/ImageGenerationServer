@@ -919,6 +919,9 @@ body.auth .page{max-width:none;padding:0}
 .wf-setting .fld-input{width:100%;max-width:26rem}
 .wf-setting input[type=checkbox].fld-input{width:auto;justify-self:start}
 .wf-setting.is-overridden .fld-label{color:var(--accent-hi)}
+/* A model binding is global per (machine,slot): changing it from one workflow's page changes it for every workflow
+   that shares the slot. The detail-page picker names those workflows in red under the control so it's never silent. */
+.wf-slot-shared{grid-column:1/-1;margin:2px 0 0;color:var(--danger);font-size:12.5px;line-height:1.35}
 @media (max-width:640px){
   /* One column on a phone: 9rem of label plus a control is narrower than either wants. */
   .wf-setting{grid-template-columns:1fr;gap:2px;padding:8px 10px}

@@ -70,6 +70,9 @@ public static class ForgeApi
         public const string CatalogVariant = "/catalog/variant";
         /// <summary><c>GET /catalog/config/{id}/settings</c> — a configuration's effective and shipped settings.</summary>
         public const string CatalogConfigSettings = "/catalog/config/{id}/settings";
+        /// <summary><c>GET /catalog/config/{id}/slots</c> — the file-backed model slots one configuration uses, each with
+        /// its binding status and the other workflows that share it (for the detail-page model picker).</summary>
+        public const string CatalogConfigSlots = "/catalog/config/{id}/slots";
         /// <summary><c>GET /prompting/{model}</c> — one configuration's prompting guide.</summary>
         public const string PromptingForModel = "/prompting/{model}";
         /// <summary><c>GET /prompting</c> — all configurations' prompting guides.</summary>
@@ -607,6 +610,23 @@ public static class ForgeApi
             return settings is null
                 ? Results.NotFound(new { error = $"No workflow '{id}'." })
                 : Results.Ok(settings);
+        });
+
+        // The file-backed model slots one workflow uses, for the picker on its detail page — each with its binding
+        // status and the other workflows a change would fan out to. A slot binding is global per (machine, slot).
+        _ = app.MapGet(Routes.CatalogConfigSlots, async (string id, IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            try
+            {
+                IReadOnlyList<ConfigSlotStatus>? slots = await catalog.GetConfigSlotsAsync(id, ct);
+                return slots is null
+                    ? Results.NotFound(new { error = $"No workflow '{id}'." })
+                    : Results.Ok(slots);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Net.Sockets.SocketException)
+            {
+                return Results.Json(new { error = "The image renderer isn't reachable — is ComfyUI running?" }, statusCode: 502);
+            }
         });
 
         // One configuration's prompting guide (resolves {model} loosely, as generate accepts it).

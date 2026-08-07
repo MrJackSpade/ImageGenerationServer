@@ -33,6 +33,9 @@
     hiddenApi = prefs.hiddenApi;
     tags = prefs.tags;
     renderInfo();
+    // The model picker is offered whenever this id is a real config — including one that can't run yet because a
+    // slot is unset, which is exactly when it's most useful (renderInfo puts the #mdSlots mount in that case too).
+    if (document.getElementById("mdSlots")) { loadSlots(); }
     if (workflow) { loadSettings(); loadRecents(); }
   }
 
@@ -61,8 +64,9 @@
       $root.innerHTML = known
         ? `<div class="wf-head"><h2>${escapeHtml(known.friendlyName || id)}</h2></div>`
           + `<p class="muted">This workflow can't run yet — ${known.missingSlots.length} model slot`
-          + `${known.missingSlots.length === 1 ? " is" : "s are"} not set. `
-          + `<a href="/settings/workflows?configure=${encodeURIComponent(id)}">Set what it needs →</a></p>`
+          + `${known.missingSlots.length === 1 ? " is" : "s are"} not set. Point each at a file below.</p>`
+          + `<div class="hist-head" style="margin-top:22px"><h2>Models for this machine</h2></div>`
+          + `<div id="mdSlots"><p class="muted">Loading…</p></div>`
         : `<div class="wf-head"><h2>Workflow unavailable</h2></div>`
           + `<p class="muted">No workflow with that id is in the catalogue. <a href="/settings/workflows">Back to the library</a>.</p>`;
       return;
@@ -89,6 +93,8 @@
       + `<div class="wf-tags-edit"><label class="fld-label">Your tags</label>`
       + `<div id="mdTags" class="wftag-list"></div>`
       + `<form id="mdTagForm" class="wftag-add"><input id="mdTagInput" placeholder="add a tag…" maxlength="40" autocomplete="off"><button type="submit">Add</button></form></div>`
+      + `<div class="hist-head" style="margin-top:22px"><h2>Models for this machine</h2></div>`
+      + `<div id="mdSlots"><p class="muted">Loading…</p></div>`
       + `<div class="hist-head" style="margin-top:22px"><h2>Settings for this machine</h2></div>`
       + `<div id="mdSettings"><p class="muted">Loading…</p></div>`
       + `<div class="hist-head" style="margin-top:22px"><h2>Recent from this workflow</h2></div>`
@@ -303,6 +309,76 @@
     });
     box.appendChild(save);
     return box;
+  }
+
+  // The model-slot pickers for THIS workflow, set or unset — so a bound model can be CHANGED from the page you're
+  // already on, not only set from the library dialog when it's missing. A binding is global per (machine, slot):
+  // changing one here changes it for every workflow that references that slot, which is why a shared slot warns.
+  async function loadSlots() {
+    const box = document.getElementById("mdSlots"); if (!box) return;
+    let slots;
+    try {
+      const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(id)}/slots`);
+      if (!r.ok) throw new Error(`the server answered ${r.status}`);
+      slots = await r.json();
+    } catch (e) {
+      box.innerHTML = `<p class="muted">Models couldn’t be loaded — ${escapeHtml(e.message || String(e))}.</p>`;
+      return;
+    }
+    if (!slots.length) { box.innerHTML = '<p class="muted">This workflow uses no model files.</p>'; return; }
+    box.innerHTML = "";
+    const card = document.createElement("section");
+    card.className = "settings-card wf-settings";
+    for (const s of slots) card.appendChild(slotRow(s));
+    box.appendChild(card);
+  }
+
+  function slotRow(s) {
+    const row = document.createElement("div");
+    row.className = "wf-setting";
+
+    const label = document.createElement("label");
+    label.className = "fld-label";
+    label.textContent = s.label;
+    if (!s.boundFile) {
+      const em = document.createElement("span"); em.className = "wf-slot-empty"; em.textContent = " not set";
+      label.appendChild(em);
+    }
+    row.appendChild(label);
+
+    const sel = document.createElement("select");
+    sel.className = "fld-input slot-pick";
+    sel.dataset.slot = s.id;
+    sel.innerHTML = slotOptionsHtml(s);
+    sel.addEventListener("change", () => saveBinding(sel, s.id));
+    row.appendChild(sel);
+
+    // Bindings are global per (machine, slot), so a change here fans out. Name the other workflows it touches, in red.
+    if (s.sharedWith && s.sharedWith.length) {
+      const warn = document.createElement("p");
+      warn.className = "wf-slot-shared";
+      warn.textContent = `Changing this model will also affect: ${s.sharedWith.join(", ")}`;
+      row.appendChild(warn);
+    }
+    return row;
+  }
+
+  async function saveBinding(sel, slotId) {
+    sel.disabled = true;
+    try {
+      const res = await fetch(`${GATEWAY}/catalog/binding`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slotId, fileName: sel.value || null }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+      toast(sel.value ? "Set" : "Cleared");
+      // A binding can flip this workflow — and the others sharing the slot — between runnable and not, so reload the
+      // whole page to show that consequence (the models page reloads for the same reason).
+      load();
+    } catch (err) {
+      toast(`Couldn't save that: ${err.message || err}`);
+      sel.disabled = false;
+    }
   }
 
   async function loadSettings() {

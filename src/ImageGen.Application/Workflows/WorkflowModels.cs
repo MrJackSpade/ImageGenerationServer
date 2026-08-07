@@ -40,7 +40,9 @@ public sealed record WorkflowExposedParam(
     [property: AllowNullable("null = the numeric control has no minimum bound; 0 is a real minimum, distinct from unbounded")] double? Min,
     [property: AllowNullable("null = the numeric control has no maximum bound; 0 is a real maximum, distinct from unbounded")] double? Max,
     [property: AllowNullable("null = the control declares no increment (free-entry); distinct from a 0 step")] double? Step,
-    string Label, string? Help, string[]? Choices);
+    [AllowMagicStrings("human-readable UI parameter label")] string Label,
+    [AllowMagicStrings("human-readable UI parameter help text")] string? Help,
+    string[]? Choices);
 
 /// <summary>How many references of ONE media kind a workflow accepts.</summary>
 /// <param name="Kind">The media kind's wire token (see <see cref="ReferenceKinds.Wire"/>): image / audio / video.</param>
@@ -169,6 +171,17 @@ public sealed record PromptingGuide(
 public sealed record ModelSlotStatus(
     string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
     IReadOnlyList<string> Candidates, IReadOnlyList<string> Available);
+
+/// <summary>One model slot a single workflow uses, for the picker on that workflow's detail page: the slot's binding
+/// status (as <see cref="ModelSlotStatus"/>) plus the OTHER workflows that share it. Model bindings are global per
+/// <c>(machine, slot)</c>, so changing one from a workflow page changes it for every workflow referencing that slot —
+/// <see cref="SharedWith"/> names those so the change isn't silent.</summary>
+/// <param name="SharedWith">Display names of the OTHER workflows that also require this slot (this workflow excluded).
+/// Empty when the slot is used by this workflow alone — then no cross-workflow warning is shown.</param>
+public sealed record ConfigSlotStatus(
+    string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
+    IReadOnlyList<string> Candidates, IReadOnlyList<string> Available,
+    IReadOnlyList<string> SharedWith);
 
 /// <summary>One LoRA file present on this machine, for the composer's LoRA picker.</summary>
 /// <param name="Name">The subfolder-qualified <c>lora_name</c> exactly as ComfyUI reports it (e.g. <c>anime/foo.safetensors</c>).</param>
