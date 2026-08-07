@@ -40,6 +40,5 @@ exit /b 0
 rem --- what the task runs at boot ---
 :run
 cd /d "%~dp0bin"
-set "IMAGEGEN_OPEN_BROWSER=0"
 "%~dp0bin\ImageGen.Web.exe"
 exit /b %errorlevel%

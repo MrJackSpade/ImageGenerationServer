@@ -26,7 +26,6 @@ After=network.target
 Type=simple
 User=$RUN_USER
 WorkingDirectory=$ROOT/bin
-Environment=IMAGEGEN_OPEN_BROWSER=0
 ExecStart=$ROOT/bin/ImageGen.Web
 Restart=always
 

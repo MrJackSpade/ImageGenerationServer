@@ -82,8 +82,8 @@ jobs:
           - **Windows** — double-click `start.bat`
           - **Linux** — `./start.sh`
 
-          It opens your browser when it is ready. If it does not, the address is printed in the window
-          (`http://localhost:8080` unless that port was taken). Set `IMAGEGEN_OPEN_BROWSER=0` to stop it opening one.
+          When it is ready it prints its address in the window (`http://localhost:8080` unless that port was taken) —
+          open that in your browser.
 
           The first start downloads the tag model, about 900 MB, and verifies it against published checksums.
           Later starts skip it.
@@ -117,27 +117,17 @@ jobs:
           EOF
 
       - name: Write the launcher
-        # It pins the two bootstrap keys the app needs before it can read its own settings out of the database.
-        #
-        # It does NOT pin ComfyUI__BaseUrl any more. That address is a stored machine setting with deliberately no
-        # default anywhere, because an unset address is how the app knows nobody has configured this box and shows
-        # the setup page. Supplying localhost here made every fresh install look configured and the setup page
-        # unreachable. TagModel__DataDir is gone too: the artifacts directory is now a fixed path beside the
-        # executable, not a setting.
+        # The launchers set NO environment variables. They only cd into bin/ and run the exe. Every config default --
+        # the database provider and connection string, the log file path -- lives in appsettings.json (the working
+        # directory is bin/, so the ../ paths in it land the DATABASE and logs at the archive root, one level up, where
+        # an upgrade that replaces bin/ can't delete them). A launcher that exported these as env vars OVERRODE the
+        # user's own appsettings.<Environment>.json (env beats JSON), which once forced a fresh SQLite db over a
+        # configured SQL Server. The app reads its own config; the launcher only starts it.
         run: |
-          # The working directory is bin/ -- appsettings.json and the catalogue are read from it -- but the
-          # DATABASE and the logs stay at the archive root, one level up. They are the user's, they are what gets
-          # backed up, and burying them among the program files is how they get deleted by an upgrade.
           cat > staging/imagegen/start.sh <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
           cd "$(dirname "$0")/bin"
-          export Database__Provider="${Database__Provider:-Sqlite}"
-          export ConnectionStrings__ImageGen="${ConnectionStrings__ImageGen:-Data Source=../imagegen.db}"
-          export Logging__FilePath="${Logging__FilePath:-../logs/imagegen-.log}"
-          # This script IS the interactive way in, so it is what asks for a browser. Nothing else sets this, so a
-          # container or a service is unaffected. Set it to 0 to keep the browser shut.
-          export IMAGEGEN_OPEN_BROWSER="${IMAGEGEN_OPEN_BROWSER:-1}"
           exec ./ImageGen.Web "$@"
           EOF
           chmod +x staging/imagegen/start.sh
@@ -154,12 +144,6 @@ jobs:
           }
           try {
               Set-Location -Path (Join-Path $PSScriptRoot 'bin')
-              if (-not $env:Database__Provider)          { $env:Database__Provider = 'Sqlite' }
-              if (-not $env:ConnectionStrings__ImageGen) { $env:ConnectionStrings__ImageGen = 'Data Source=../imagegen.db' }
-              if (-not $env:Logging__FilePath)           { $env:Logging__FilePath = '../logs/imagegen-.log' }
-              # This script IS the interactive way in, so it is what asks for a browser. Nothing else sets this,
-              # so a container or a service is unaffected. Set it to 0 to keep the browser shut.
-              if (-not $env:IMAGEGEN_OPEN_BROWSER)       { $env:IMAGEGEN_OPEN_BROWSER = '1' }
               & .\ImageGen.Web.exe @args
               if ($LASTEXITCODE -ne 0) {
                   Write-Host ''
