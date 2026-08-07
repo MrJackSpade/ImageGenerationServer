@@ -305,9 +305,11 @@ public sealed class ComfyClient : IComfyClient
             throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
         }
 
+        // A HuggingFace-sharded model lists one file per shard, none loadable alone; collapse each set to the single
+        // folder/index entry a loader actually consumes before the picker ever sees the list (issue #184).
         return byKind.ToDictionary(
             kv => kv.Key,
-            kv => (IReadOnlyList<string>)[.. kv.Value.Distinct(StringComparer.OrdinalIgnoreCase)]);
+            kv => (IReadOnlyList<string>)[.. HuggingFaceShards.Collapse(kv.Value).Distinct(StringComparer.OrdinalIgnoreCase)]);
     }
 
     /// <summary>ComfyUI's on-disk model roots by category, from <c>/internal/folder_paths</c> — e.g. "loras",
@@ -387,7 +389,9 @@ public sealed class ComfyClient : IComfyClient
             throw new HttpRequestException("ComfyUI returned no models — is it running with the model paths configured?");
         }
 
-        return files;
+        // Presence-gate on the same collapsed names the picker offers, so a slot bound to a sharded model's folder
+        // stays satisfied while its individual shards — which no slot should be bound to — are absent (issue #184).
+        return new HashSet<string>(HuggingFaceShards.Collapse(files), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
