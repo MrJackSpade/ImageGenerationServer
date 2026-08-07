@@ -530,10 +530,12 @@ public sealed partial class WorkflowCatalogService(
                 Math.Round(frames / fps, 1),
                 Math.Round((minFrames ?? fr.Base) / fps, 1),
                 maxFrames is { } hi ? Math.Round(hi / fps, 1) : null,
-                // 0.1s reaches the one-decimal default; the exact frame count is settled by the cadence snap server-side.
-                0.1,
+                // Step by the model's real frame cadence (in tenths of a second), not a flat 0.1s — so the control
+                // shows the coarse increments this model actually renders instead of pretending to a resolution it
+                // hasn't got. The exact frame is settled by the nearest-cadence snap at generation.
+                Math.Max(0.1, Math.Round(fr.Step / fps, 1)),
                 "Length (seconds)",
-                "Video length in seconds, snapped to this model’s frame cadence.",
+                "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
                 null);
         }
 

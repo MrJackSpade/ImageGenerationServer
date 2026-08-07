@@ -38,7 +38,10 @@ public static class FrameNormalization
             if (seconds > 0 && fps > 0)
             {
                 int rawFrames = (int)Math.Round(seconds * fps);
-                int frames = fr.Snap(rawFrames);
+                // NEAREST, not up: the composer offers seconds in tenths but the model's lengths come in coarser
+                // steps, so a chosen second falls between two valid lengths. Rounding to the closest is the honest
+                // answer — and the notice states the length actually rendered so the value isn't silently swapped.
+                int frames = fr.SnapNearest(rawFrames);
                 p[WorkflowParamKeys.Length] = frames;
                 if (frames != rawFrames)
                 {

@@ -138,6 +138,26 @@ public sealed record FrameRule(int Base, int Step)
         int k = (int)Math.Ceiling((n - Base) / (double)Step);
         return Base + (k * Step);
     }
+
+    /// <summary>The NEAREST valid length to <paramref name="n"/> — round to the closest <see cref="Base"/> + k*<see
+    /// cref="Step"/> (ties → up). Unlike <see cref="Snap"/>, which only ever rounds up, this is for a value the user
+    /// chose in a friendlier unit (seconds) where the honest answer is the closest real length the model can render,
+    /// not the next one up. Values at or below <see cref="Base"/> return <see cref="Base"/>.</summary>
+    public int SnapNearest(int n)
+    {
+        if (Step <= 0)
+        {
+            return n;
+        }
+
+        if (n <= Base)
+        {
+            return Base;
+        }
+
+        int k = (int)Math.Round((n - Base) / (double)Step, MidpointRounding.AwayFromZero);
+        return Base + (k * Step);
+    }
 }
 
 /// <summary>

@@ -22,11 +22,12 @@ public sealed class FrameNormalizationTests
     }
 
     [Theory]
-    // seconds, fps, rule(base,step) -> frames.  Round to the nearest frame, then snap UP to Base + k*Step.
-    [InlineData(4.0, 24.0, 1, 8, 97)]   // LTX 8n+1 @ 24fps: round(96)=96 -> 97
-    [InlineData(5.0, 16.0, 1, 4, 81)]   // Wan  4n+1 @ 16fps: round(80)=80 -> 81
-    [InlineData(2.0, 24.0, 5, 17, 56)]  // MiniMax-H3 17n+5 @ 24fps: round(48)=48 -> 56 (5+3*17)
-    [InlineData(3.0, 16.0, 1, 4, 49)]   // Wan @16fps: round(48)=48 -> 49
+    // seconds, fps, rule(base,step) -> frames.  Round to the nearest frame, then snap to the NEAREST Base + k*Step.
+    [InlineData(4.0, 24.0, 1, 8, 97)]   // LTX 8n+1 @ 24fps: round(96)=96 -> nearest is 97
+    [InlineData(5.0, 16.0, 1, 4, 81)]   // Wan  4n+1 @ 16fps: round(80)=80 -> nearest is 81
+    [InlineData(2.0, 24.0, 5, 17, 56)]  // MiniMax-H3 17n+5 @ 24fps: round(48)=48 -> nearest is 56 (5+3*17)
+    [InlineData(3.0, 16.0, 1, 4, 49)]   // Wan @16fps: round(48)=48 -> nearest is 49
+    [InlineData(5.1, 16.0, 1, 4, 81)]   // Wan @16fps: round(81.6)=82 -> nearest is 81 (DOWN; snap-up would give 85)
     public void Seconds_convert_to_a_cadence_valid_frame_count(double seconds, double fps, int @base, int step, int expected)
     {
         Dictionary<string, object?> p = Bag(
@@ -41,15 +42,15 @@ public sealed class FrameNormalizationTests
     [Fact]
     public void A_seconds_value_that_lands_off_the_grid_produces_a_notice()
     {
-        // 4.7s @ 24fps on Wan's 4n+1 grid = round(112.8)=113 -> snapped to 113 (113 = 4*28+1, already valid) — so
-        // pick a value that genuinely snaps: 4.6s -> round(110.4)=110 -> 113. The user gets told their length moved.
+        // 4.6s @ 24fps on Wan's 4n+1 grid = round(110.4)=110 -> nearest valid is 109. The value moved, so the user is
+        // told the length actually rendered rather than it being swapped silently.
         Dictionary<string, object?> p = Bag(
             (WorkflowParamKeys.DurationSeconds, 4.6),
             (WorkflowParamKeys.Fps, 24.0));
 
         IReadOnlyList<string> notices = FrameNormalization.Apply(new FrameRule(1, 4), p);
 
-        Assert.Equal(113, p[WorkflowParamKeys.Length]);
+        Assert.Equal(109, p[WorkflowParamKeys.Length]);
         Assert.Equal(1, notices.Count);
     }
 
@@ -108,6 +109,20 @@ public sealed class FrameNormalizationTests
         Assert.Empty(notices);
         Assert.Equal(30, p[WorkflowParamKeys.Length]);   // untouched — a still / unconstrained model
     }
+
+    [Theory]
+    // n, base, step -> nearest valid length. Contrast Snap, which always rounds up.
+    [InlineData(82, 1, 4, 81)]    // 82 is nearer 81 than 85 — Snap would give 85
+    [InlineData(83, 1, 4, 85)]    // 83 is nearer 85
+    [InlineData(96, 1, 8, 97)]    // 96 -> 97 (nearer than 89)
+    [InlineData(0, 1, 4, 1)]      // at/below base clamps to base
+    public void SnapNearest_rounds_to_the_closest_valid_length(int n, int @base, int step, int expected)
+        => Assert.Equal(expected, new FrameRule(@base, step).SnapNearest(n));
+
+    [Fact]
+    public void SnapNearest_breaks_ties_upward()
+        // 3 is equidistant from 1 and 5 on a 4n+1 grid; the tie goes up so the snap never renders fewer than the midpoint.
+        => Assert.Equal(5, new FrameRule(1, 4).SnapNearest(3));
 
     [Fact]
     public void The_conversion_is_idempotent_across_the_two_normalize_passes()
