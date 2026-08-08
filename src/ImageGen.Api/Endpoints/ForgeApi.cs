@@ -824,16 +824,20 @@ public static class ForgeApi
                     return Results.BadRequest(new { error = itemMaskError });
                 }
 
-                // A composer Custom size (an explicit width+height override) is refused HERE, at submit, with the
-                // model's own numbers — not minutes later as a failed slot. Non-custom items carry no explicit size,
-                // so this no-ops for them. The render path re-checks the same envelope as a backstop.
-                if (!it.Edit && catalog.ValidateRequestedSize(it.Workflow, it.Overrides) is { } sizeError)
+                // Size is refused HERE, at submit, with the model's own numbers — not minutes later as a failed slot: a
+                // custom width+height outside the envelope, or an ambiguous aspect-AND-size request (#209). An aspect
+                // resolution (dims that match a map entry) and non-custom items pass. The render path re-checks as a backstop.
+                if (!it.Edit && catalog.ValidateRequestedSize(it.Workflow, it.Aspect, it.Overrides) is { } sizeError)
                 {
                     return Results.BadRequest(new { error = sizeError + "." });
                 }
             }
 
-            List<RenderItem> items = [.. (req.Jobs ?? []).Select(it => it.ToRenderItem()).OfType<RenderItem>()];
+            // A generate submits width/height, not an aspect name (#209); the record's shape label is resolved here from
+            // the dims (or the API's aspect name), so history and the detail card keep a non-null aspect as before.
+            List<RenderItem> items = [.. (req.Jobs ?? []).Select(it => it.Edit
+                ? it.ToRenderItem()
+                : it.ToRenderItem(catalog.ResolveEffectiveAspect(it.Workflow, it.Aspect, it.Overrides))).OfType<RenderItem>()];
             if (items.Count == 0)
             {
                 return Results.BadRequest(new { error = "No valid jobs in the batch." });

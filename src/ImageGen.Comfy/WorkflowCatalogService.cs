@@ -476,7 +476,50 @@ public sealed partial class WorkflowCatalogService(
             // this workflow. Read from the same per-machine override store as the settings toggle that sets it.
             CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize),
             // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
-            IsVariant: _catalog.IsVariant(cfg.Id));
+            IsVariant: _catalog.IsVariant(cfg.Id),
+            // Each config's aspect→[w,h] map travels to the composer, which writes a clicked shape's dims into its
+            // width/height controls and submits the dims (#209). Null for a config with no aspect map.
+            Aspects: BuildAspectMap(cfg, machine));
+    }
+
+    /// <summary>The configuration's aspect→[w,h] dims map for the composer (#209), machine override applied so the
+    /// client writes the same dims the render path would size from. Null when the config declares no aspect map.</summary>
+    private static Dictionary<string, int[]>? BuildAspectMap(
+        WorkflowConfiguration cfg, IReadOnlyDictionary<string, JsonElement> machine)
+    {
+        JsonElement el;
+        if (machine.TryGetValue(WorkflowParamKeys.Aspect, out JsonElement mEl))
+        {
+            el = mEl;   // this machine's override wins, exactly as MergeParamsDict overlays it
+        }
+        else if (cfg.Params.TryGetValue(WorkflowParamKeys.Aspect, out ConfigParam? cp) && cp.Value is JsonElement cEl)
+        {
+            el = cEl;
+        }
+        else
+        {
+            return null;
+        }
+
+        if (el.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        Dictionary<string, int[]> map = new(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty prop in el.EnumerateObject())
+        {
+            if (prop.Value.ValueKind == JsonValueKind.Array)
+            {
+                int[] wh = [.. prop.Value.EnumerateArray().Select(e => e.GetInt32())];
+                if (wh.Length >= 2)
+                {
+                    map[prop.Name] = [wh[0], wh[1]];
+                }
+            }
+        }
+
+        return map.Count > 0 ? map : null;
     }
 
     /// <summary>One exposed parameter as the composer sees it. Normally a straight projection of the schema/config, but

@@ -164,4 +164,9 @@ public static class ComfyGraph
             ? norm
             : throw new RenderValidationException($"Unrecognized aspect '{a}'. Expected one of: square, landscape, portrait.");
     }
+
+    /// <summary>The shape name a concrete pixel size IS — the label a submitted width/height resolves to now that the
+    /// composer sends dims rather than an aspect name (#209). The record and the detail-card badge follow the dims the
+    /// image was actually made at.</summary>
+    public static string AspectFromDims(int w, int h) => w > h ? Aspects.Landscape : w < h ? Aspects.Portrait : Aspects.Square;
 }

@@ -83,9 +83,16 @@ public interface IWorkflowCatalog
     /// <see cref="ArgumentException"/> when the id is not a variant — a shipped file config cannot be deleted.</summary>
     Task DeleteVariantAsync(string variantId, CancellationToken ct);
 
-    /// <summary>Validate a caller-supplied explicit render size (a width+height override — the composer's Custom size)
-    /// against the configuration's declared resolution envelope, at submit. Returns a human-readable refusal naming the
-    /// model's own min/max/step, or null when the size is within the envelope, the caller supplied no explicit
-    /// width+height, or the model declares no envelope. The render path re-checks the same envelope as a backstop.</summary>
-    string? ValidateRequestedSize(string? configId, IReadOnlyDictionary<string, JsonElement>? overrides);
+    /// <summary>Validate a caller-supplied render size at submit. A request may carry an <paramref name="aspect"/> name
+    /// OR an explicit width+height override, never both — both is ambiguous and refused (#209). A width+height that is
+    /// NOT one of the config's own aspect-map dims (a genuine custom size) is also checked against the declared envelope.
+    /// Returns a human-readable refusal, or null when the request is unambiguous and either an aspect resolution or
+    /// within the envelope. The render path re-checks the envelope as a backstop.</summary>
+    string? ValidateRequestedSize(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides);
+
+    /// <summary>The aspect label a generate submission is RECORDED under (#209): the shape an explicit width+height IS
+    /// (by ratio), else the caller's aspect name taken as given, else — when neither is supplied — a fixed-size config's
+    /// own declared dims, else square. Always returns a value, so the render path and history keep a non-null aspect
+    /// exactly as when the composer submitted one.</summary>
+    string ResolveEffectiveAspect(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides);
 }

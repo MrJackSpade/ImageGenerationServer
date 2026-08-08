@@ -172,7 +172,11 @@ public sealed record WorkflowDescriptor(
     string? LoraFolder = null,
     bool HasAudio = false,
     bool CustomSizeEnabled = false,
-    bool IsVariant = false);
+    bool IsVariant = false,
+    // The configuration's aspect→[w,h] dims map (this machine's override applied), or null for a config with none.
+    // The composer writes a clicked shape's dims into its (possibly hidden) width/height controls from THIS map and
+    // submits the dims, not an aspect name (#209); the server derives the ratio from the submitted width/height.
+    IReadOnlyDictionary<string, int[]>? Aspects = null);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(

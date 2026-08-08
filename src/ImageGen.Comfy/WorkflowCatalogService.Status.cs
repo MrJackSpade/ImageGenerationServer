@@ -194,13 +194,30 @@ public sealed partial class WorkflowCatalogService
     }
 
     /// <inheritdoc/>
-    public string? ValidateRequestedSize(string? configId, IReadOnlyDictionary<string, JsonElement>? overrides)
+    public string? ValidateRequestedSize(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
-        // Only a request carrying BOTH an explicit width and height is a custom-size request — anything else uses the
-        // configuration's aspect map (already envelope-checked on the write path), so there is nothing to validate.
-        if (overrides is null
-            || !overrides.TryGetValue(WorkflowParamKeys.Width, out JsonElement wEl) || !TryPixel(wEl, out int w)
-            || !overrides.TryGetValue(WorkflowParamKeys.Height, out JsonElement hEl) || !TryPixel(hEl, out int h))
+        bool hasSize = TryExplicitSize(overrides, out int w, out int h);
+
+        // A request carries an aspect OR a width/height, never both (#209): both is ambiguous, and silently letting one
+        // win would render a shape the caller did not ask for. Refuse it at the boundary rather than pick.
+        if (hasSize && !string.IsNullOrWhiteSpace(aspect))
+        {
+            return "Submit either an aspect or an explicit width and height, not both";
+        }
+
+        if (!hasSize)
+        {
+            return null;
+        }
+
+        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
+
+        // A submitted width/height that IS one of this config's own aspect-map dims is the composer having written a
+        // clicked shape's dims into its width/height controls (#209), NOT a custom size: it's a RATIO the coupled-
+        // megapixels snap scales and clamps into the envelope (RenderSizing). Many map entries sit deliberately OUTSIDE
+        // the envelope as pure ratio sources (flux1-dev's 1616×912), so envelope-checking them would falsely refuse
+        // every aspect submission. Only a genuine custom size — dims matching no map entry — is envelope-checked.
+        if (cfg is not null && MatchesAspectDims(cfg, w, h))
         {
             return null;
         }
@@ -208,7 +225,84 @@ public sealed partial class WorkflowCatalogService
         // The configuration's declared envelope — the same numbers the settings page shows and the write path guards —
         // checked through the ONE render-size guard, so submit and render refuse with identical wording. A configuration
         // that declares none is not second-guessed (the render path has no bound to enforce either).
-        return ResolutionGuard.RenderSizeViolation(_catalog.FindConfig(configId)?.Resolution, w, h);
+        return ResolutionGuard.RenderSizeViolation(cfg?.Resolution, w, h);
+    }
+
+    /// <inheritdoc/>
+    public string ResolveEffectiveAspect(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides)
+    {
+        // An explicit width/height IS the shape — the recorded label follows the dims the caller actually asked for.
+        if (TryExplicitSize(overrides, out int w, out int h))
+        {
+            return ComfyGraph.AspectFromDims(w, h);
+        }
+
+        // An aspect name is the API-convenience path: taken as given (raw), exactly as the composer submitted it before
+        // #209. The render path's NormalizeAspect still validates it — a garbage name fails the slot there, as it did.
+        if (!string.IsNullOrWhiteSpace(aspect))
+        {
+            return aspect;
+        }
+
+        // Neither supplied: a fixed-size config's shape is its own declared width/height; an aspect-map config defaults
+        // to square, the map's default shape.
+        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
+        return cfg is not null && TryConfigFlatDims(cfg, out int cw, out int ch)
+            ? ComfyGraph.AspectFromDims(cw, ch)
+            : Aspects.Square;
+    }
+
+    /// <summary>True when the overrides carry BOTH an explicit width and height (a custom size); the pair is returned.</summary>
+    private static bool TryExplicitSize(IReadOnlyDictionary<string, JsonElement>? overrides, out int w, out int h)
+    {
+        h = 0;
+        w = 0;
+        return overrides is not null
+            && overrides.TryGetValue(WorkflowParamKeys.Width, out JsonElement wEl) && TryPixel(wEl, out w)
+            && overrides.TryGetValue(WorkflowParamKeys.Height, out JsonElement hEl) && TryPixel(hEl, out h);
+    }
+
+    /// <summary>True when (<paramref name="w"/>,<paramref name="h"/>) exactly matches one of the config's aspect-map
+    /// entries (this machine's override applied) — the fingerprint of the composer having written a clicked shape's
+    /// dims, as opposed to an arbitrary custom size.</summary>
+    private bool MatchesAspectDims(WorkflowConfiguration cfg, int w, int h)
+    {
+        Dictionary<string, int[]>? map = BuildAspectMap(cfg, _catalog.ParamOverridesFor(cfg.Id));
+        if (map is null)
+        {
+            return false;
+        }
+
+        foreach (int[] wh in map.Values)
+        {
+            if (wh.Length >= 2 && wh[0] == w && wh[1] == h)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The configuration's shipped flat width/height (a fixed-size config with no aspect map), or false.</summary>
+    private static bool TryConfigFlatDims(WorkflowConfiguration cfg, out int w, out int h)
+    {
+        h = 0;
+        w = 0;
+        return cfg.Params.TryGetValue(WorkflowParamKeys.Width, out ConfigParam? wp) && TryInt(wp.Value, out w)
+            && cfg.Params.TryGetValue(WorkflowParamKeys.Height, out ConfigParam? hp) && TryInt(hp.Value, out h);
+    }
+
+    /// <summary>Read an int from a config param value (a JSON number lands as long or double via CloneValue).</summary>
+    private static bool TryInt(object? v, out int value)
+    {
+        switch (v)
+        {
+            case long l: value = (int)l; return true;
+            case int i: value = i; return true;
+            case double d: value = (int)d; return true;
+            default: value = 0; return false;
+        }
     }
 
     /// <summary>Read a pixel dimension from an override value — a JSON number, or a numeric string. Anything else is
