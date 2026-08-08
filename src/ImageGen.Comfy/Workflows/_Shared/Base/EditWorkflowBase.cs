@@ -51,6 +51,12 @@ internal static class EditWorkflowBase
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
+        // How the sampler stitches reference latents into the conditioning — a per-MODEL contract, not a preference:
+        // Qwen-Image handles index_timestep_zero, plain-Flux LongCat crashes on it and takes index (see
+        // ComfyWidgets.ReferenceLatents), so each config declares its model's method.
+        new() { Key = WorkflowParamKeys.ReferenceLatentsMethod, Type = ParamType.Enum,
+                Choices = [ ComfyWidgets.ReferenceLatents.Offset, ComfyWidgets.ReferenceLatents.Index,
+                                  ComfyWidgets.ReferenceLatents.UxoUno, ComfyWidgets.ReferenceLatents.IndexTimestepZero ] },
         // Optional style/quality LoRA applied on top of the base model — lets a config be a "base + anime LoRA"
         // variant (e.g. WAN i2v + Flat Color) with no new graph code.
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },

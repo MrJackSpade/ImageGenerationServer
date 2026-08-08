@@ -107,6 +107,7 @@ internal static class WorkflowParamKeys
     public const string RebalanceMultiplier = "rebalance_multiplier";
     public const string Reference = "reference";
     public const string ReferenceInputs = "reference_inputs";
+    public const string ReferenceLatentsMethod = "reference_latents_method";
     public const string ReferenceMax = "reference_max";
     public const string RefinerCfg = "refiner_cfg";
     public const string RefinerSampler = "refiner_sampler";

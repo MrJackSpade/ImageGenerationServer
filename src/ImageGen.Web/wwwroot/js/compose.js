@@ -405,7 +405,9 @@ const composePanel = {
   activeStatus: (recorded, total) => `Creating ${Math.min(recorded + 1, total)} of ${total}…`,   // 1-indexed: the one being made now
   // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
   // missing images weren't ones that "couldn't be made" — they weren't asked for any more.
-  finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+  finalStatus: (made, total, cancelled, errors) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+    // A failed slot carries the server's real error — show it rather than only "couldn't be made", which says nothing.
+    : (errors && errors.length) ? (made ? `Made ${made} of ${total}; ${errors.length} failed — ${errors[0]}` : `Couldn't make ${total > 1 ? `any of ${total}` : "the image"} — ${errors[0]}`)
     : (total - made) > 0 ? `Done — made ${made} of ${total} (${total - made} couldn't be made).`
     : `Done — made all ${made}.`,
 };

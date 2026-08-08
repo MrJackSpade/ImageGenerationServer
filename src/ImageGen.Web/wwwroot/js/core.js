@@ -485,7 +485,8 @@ function newBatchProgress() {
 //   onRunning(slot|null, job)           optional: called each poll with the running slot (e.g. show its model)
 //   eta                                 optional .eta element to drive on running-slot change
 //   activeStatus(recorded, total)       optional -> status string while running (null = leave)
-//   finalStatus(made, total, cancelled) -> status string on finish (null = leave)
+//   finalStatus(made, total, cancelled, errors) -> status string on finish (null = leave); `errors` is the array of
+//                                       real server error messages from slots that FAILED (empty when none failed)
 //   setStatus(text)                     write the page's status line
 //   onCancelHandle(handle)              receive { cancel } so the page's Cancel button can reach this job
 //   onSettle(made)                      optional page cleanup after finish (before resolve)
@@ -494,6 +495,10 @@ function trackJobBatch(jobId, o) {
   return new Promise(resolve => {
     let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
     const recorded = new Set();
+    // Failed slots, keyed by slot index → the server's real error text. A slot that ERRORS produces no image, so it
+    // never lands in `recorded`; without capturing it here the only signal a page gets is a zero made-count, which
+    // reads identically to a genuine no-change edit. Keyed so a straggler seen twice (poll + final fetch) counts once.
+    const failed = new Map();
     const prog = newBatchProgress();
     const draw = () => { if (o.onProgress) o.onProgress(prog.value(N)); };
     const recordSlot = s => {
@@ -501,13 +506,14 @@ function trackJobBatch(jobId, o) {
       recorded.add(s.id);
       if (o.onSlot) o.onSlot(s);
     };
+    const recordFailure = s => { if (s && s.status === "error") failed.set(s.index, s.error || "The render failed."); };
     const finish = cancelled => {
       if (settled) return; settled = true;
       if (timer) clearInterval(timer);
       try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); }
       document.removeEventListener("visibilitychange", onVis);
       if (o.eta) stopEta(o.eta);
-      const status = o.finalStatus ? o.finalStatus(recorded.size, N, cancelled) : null;
+      const status = o.finalStatus ? o.finalStatus(recorded.size, N, cancelled, [...failed.values()]) : null;
       if (status != null && o.setStatus) o.setStatus(status);
       if (o.onSettle) o.onSettle(recorded.size);
       resolve(recorded.size);
@@ -532,7 +538,7 @@ function trackJobBatch(jobId, o) {
       const job = (res.jobs || []).find(j => j.jobId === jobId);
       if (!job) {
         let final = null;
-        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(recordSlot); } } catch (e) { console.debug("final job fetch failed:", e); }
+        try { const r = await fetch(`${GATEWAY}/job/${encodeURIComponent(jobId)}`); if (r.ok) { final = await r.json(); (final.slots || []).forEach(s => { recordSlot(s); recordFailure(s); }); } } catch (e) { console.debug("final job fetch failed:", e); }
         finish(!!(final && final.status === "cancelled"));
         return;
       }
@@ -540,7 +546,7 @@ function trackJobBatch(jobId, o) {
       runningId = runSlot ? job.jobId : null;   // /ws frames carry the job id (every slot maps to it)
       if (o.onRunning) o.onRunning(runSlot || null, job);
       if (o.eta && runSlot && runSlot.index !== lastEtaIdx) { lastEtaIdx = runSlot.index; startEta(o.eta, job.expectedSeconds, job.startedAt); }
-      (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); });
+      (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); else if (s.status === "error") recordFailure(s); });
       prog.finished(recorded.size); draw();
       if (o.activeStatus && o.setStatus) { const t = o.activeStatus(recorded.size, N); if (t != null) o.setStatus(t); }
     }

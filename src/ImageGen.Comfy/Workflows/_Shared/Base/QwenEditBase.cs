@@ -135,9 +135,18 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         Output<Slot.Conditioning> cond;
         if (qn > 0)
         {
+            // The stitch method is the CONFIG's declaration of what its model supports: Qwen-Image handles
+            // index_timestep_zero, but LongCat (plain-Flux modulation) crashes on it and takes index — see
+            // ComfyWidgets.ReferenceLatents. An unknown value is refused here rather than surfacing as a Comfy error.
+            string refMethod = p.ReferenceLatentsMethod switch
+            {
+                ComfyWidgets.ReferenceLatents.Offset or ComfyWidgets.ReferenceLatents.Index or
+                ComfyWidgets.ReferenceLatents.UxoUno or ComfyWidgets.ReferenceLatents.IndexTimestepZero => p.ReferenceLatentsMethod,
+                _ => throw new ArgumentException($"unknown reference_latents_method '{p.ReferenceLatentsMethod}'."),
+            };
             encRefs[Inputs.Vae] = vae0;
             g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction, Extra = encRefs };
-            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = ComfyWidgets.ReferenceLatents.IndexTimestepZero };
+            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
             cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
         }
         else
@@ -244,7 +253,8 @@ file static class Nodes
 
 /// <summary>Qwen-Image-Edit parameters, shared by the standard and AIO subclasses — the shared loader head knobs
 /// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the sampler settings, the
-/// optional reference cap + encode-node slot names, and the four canvas-mask side percentages. The <c>*Req</c> reads
+/// optional reference cap + encode-node slot names, the required per-model reference-latent stitch method, and the
+/// four canvas-mask side percentages. The <c>*Req</c> reads
 /// are <c>required</c>; <c>weight_dtype</c>/<c>clip_type</c> are nullable strings, <c>reference_max</c> and each
 /// <c>mask_*_pct</c> are Has-guarded nullable ints, <c>reference_inputs</c> is a nullable string array (treated as
 /// empty when absent); <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
@@ -262,6 +272,7 @@ public sealed record QwenEditParams
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
     [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceInputs)] public string[]? ReferenceInputs { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceLatentsMethod)] public required string ReferenceLatentsMethod { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
     [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskLeftPct { get; init; }

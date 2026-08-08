@@ -34,6 +34,7 @@
       "value": 2,
       "visibility": "hidden"
     },
+    "reference_latents_method": "index_timestep_zero",
     "reference_inputs": [
       "image2",
       "image3"

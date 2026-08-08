@@ -111,6 +111,32 @@ public sealed class WorkflowGraphTests
         Assert.False(enc.TryGetProperty("image_2", out _));
     }
 
+    /// <summary>The reference-latent stitch method is a per-MODEL contract each config declares, not a topology
+    /// constant: Qwen-Image handles <c>index_timestep_zero</c>, but LongCat is a plain per-block-modulation Flux model
+    /// where that method doubles the timestep batch with no compensating vec reshape and crashes in the modulation
+    /// (issue #215) — its official ComfyUI blueprint uses <c>index</c>. Pin what each qwen-topology config emits.</summary>
+    [Theory]
+    [InlineData("longcat-image-edit", "index")]
+    [InlineData("longcat-image-edit-turbo", "index")]
+    [InlineData("qwen-image-edit", "index_timestep_zero")]
+    [InlineData("qwen-rapid-aio", "index_timestep_zero")]
+    [InlineData("firered-image-edit", "index_timestep_zero")]
+    public void QwenEdit_stitches_references_with_the_configs_declared_method(string configId, string method)
+    {
+        WorkflowInputs withRef = new()
+        {
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+        };
+        string json = BuildJson(configId, withRef);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement stitch = doc.RootElement.EnumerateObject().Single(p => p.Value.GetProperty("class_type").GetString() == "FluxKontextMultiReferenceLatentMethod").Value.GetProperty("inputs");
+        Assert.Equal(method, stitch.GetProperty("reference_latents_method").GetString());
+    }
+
     private static string BuildJson(string configId, WorkflowInputs inputs)
     {
         (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();

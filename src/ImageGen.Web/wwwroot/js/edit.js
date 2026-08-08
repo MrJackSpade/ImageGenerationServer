@@ -257,7 +257,10 @@ function editPanel(spec) {
     onProgress: f => { const pct = Math.round(Math.min(1, f) * 100); const b = spec.bar.querySelector("i"); if (b) b.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; },
     onSlot: s => { spec.onSlot(s); document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: { id: s.id } })); },   // Recent reconciles from history
     activeStatus: (recorded, total) => total > 1 ? `Making ${Math.min(recorded + 1, total)} of ${total}…` : null,
-    finalStatus: (made, total, cancelled) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+    // A FAILED slot (real ComfyUI/render error) makes no image, exactly like a genuine no-change edit — so surface the
+    // server's actual error rather than the "no visible change" nudge, which otherwise masks every edit failure.
+    finalStatus: (made, total, cancelled, errors) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
+      : (errors && errors.length) ? (total > 1 ? `Made ${made} of ${total}; ${errors.length} failed — ${errors[0]}` : errors[0])
       : total > 1 ? (made === total ? `Done — made all ${total}.` : `Done — made ${made} of ${total}.`)
       : made ? "" : "No visible change — try rephrasing, a bigger change, or a different workflow.",
     onSettle: made => { document.title = "Edit · Make a Picture"; editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },

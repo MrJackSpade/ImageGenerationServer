@@ -122,9 +122,16 @@ internal static class ComfyWidgets
         public const string Match = "match";
     }
 
-    /// <summary>The <c>reference_latents_method</c> combo on Qwen-Edit's reference-latent node.</summary>
+    /// <summary>The <c>reference_latents_method</c> combo on <c>FluxKontextMultiReferenceLatentMethod</c>. Which values a
+    /// model supports depends on its ComfyUI model class: <see cref="IndexTimestepZero"/> is handled by the Qwen-Image
+    /// path (and global-modulation Flux like Krea2), but on a plain per-block-modulation Flux model — LongCat — it
+    /// doubles the timestep batch without a compensating vec reshape and crashes in the modulation
+    /// (<c>flux/layers.py</c> batch mismatch). LongCat's official blueprint uses <see cref="Index"/>.</summary>
     internal static class ReferenceLatents
     {
+        public const string Offset = "offset";
+        public const string Index = "index";
+        public const string UxoUno = "uxo/uno";
         public const string IndexTimestepZero = "index_timestep_zero";
     }
 
