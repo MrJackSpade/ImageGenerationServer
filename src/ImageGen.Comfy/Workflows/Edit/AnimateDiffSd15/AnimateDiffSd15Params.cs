@@ -18,6 +18,8 @@ public sealed record AnimateDiffSd15Params
     [JsonPropertyName(WorkflowParamKeys.MotionModel)] public required string MotionModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.BetaSchedule)] public required string BetaSchedule { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SparsectrlName)] public required string SparsectrlName { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]

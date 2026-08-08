@@ -13,6 +13,10 @@
     "vae": "ltx-2-3-video-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.4,
+      "visibility": "hidden"
+    },
     "loader": "unet_gguf",
     "clip_type": "ltxv",
     "dual": true,

@@ -579,11 +579,14 @@ public sealed class ComfyClient : IComfyClient
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
         string normAspect = ComfyGraph.NormalizeAspect(aspect);
         WorkflowInputs inputs = new() { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
-        // The aspect-RESOLVED render size (exactly what Build sizes the latent to). Refuse one outside the model's
-        // documented envelope HERE, before the graph is built — the submit-path twin of the settings-write guard —
-        // so an out-of-range width/height sent past the UI fails fast with the model's own numbers.
-        (int ew, int eh) = common.Dims(normAspect);
-        ResolutionGuard.EnsureWithin(resolved.Resolution ?? wf.ResolutionEnvelope, ew, eh);
+        // The RESOLVED render size (exactly what Build sizes the latent to) via the coupled W/H/M snap (#186): when a
+        // megapixels control is exposed the size is the W/H ratio scaled to that budget and clamped to the envelope;
+        // otherwise it's the aspect-map/flat-W/H size. Refuse one outside the model's documented envelope HERE, before
+        // the graph is built — the submit-path twin of the settings-write guard — so an out-of-range width/height sent
+        // past the UI (on the non-megapixels path, which does NOT clamp) fails fast with the model's own numbers.
+        ModelResolution? env = resolved.Resolution ?? wf.ResolutionEnvelope;
+        (int ew, int eh) = RenderSizing.Resolve(common.Dims(normAspect), common.Megapixels, env);
+        ResolutionGuard.EnsureWithin(env, ew, eh);
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.

@@ -7,6 +7,10 @@
     "checkpoint": "v2-1-768-ema-pruned"
   },
   "params": {
+    "megapixels": {
+      "value": 0.56,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,

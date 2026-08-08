@@ -10,6 +10,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.39,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "clip_type": "ltxv",
     "steps": {

@@ -29,6 +29,8 @@ public record Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.Width)][AllowNullable("null = the config didn't set a flat width (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)][AllowNullable("null = the config didn't set a flat height (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)] public Dictionary<string, int[]>? Aspect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    [AllowNullable("null = no megapixels control (aspect-map/flat-W/H size used unchanged). No [Range]: an out-of-range budget CLAMPS to the model's own envelope in RenderSizing (#186 snaps/clamps, never throws); a ≤0 budget still fails fast via Ensure in BudgetScale.Snap")] public double? Megapixels { get; init; }
 
     /// <summary>The required render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height,
     /// else a refusal — no invented pixel size ever reaches the graph.</summary>
@@ -123,7 +125,7 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
     {
         string file = req.RequiredCheckpoint();
         LoaderKind loader = LoaderKindWire.Parse(p.RequiredLoader());
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
 
         ComfyWorkflowGraph g = new();
         Output<Slot.Model> modelSrc;
@@ -196,6 +198,14 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
         g[Nodes.Save] = new SaveImage { Images = PostDecodeImage(g, VAEDecode.Out(Nodes.Decode), p), FilenamePrefix = OutputPrefixes.Generate };
         return g;
     }
+
+    /// <summary>The render size for this build — the coupled Width/Height/Megapixels resolution (#186). Every txt2img /
+    /// txt2video Build (this base and the custom-graph video overrides) sizes its empty latent through here so the size
+    /// the graph renders at is identical to the size the submit path's ETA/guard computed. The envelope is the
+    /// configuration's own <see cref="ResolvedRequirements.Resolution"/>, else this workflow's declared
+    /// <see cref="IWorkflow.ResolutionEnvelope"/>.</summary>
+    protected (int w, int h) RenderSize(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs) =>
+        RenderSizing.Resolve(p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)), p.Megapixels, req.Resolution ?? ResolutionEnvelope);
 
     /// <summary>Transform the positive conditioning after text-encode/guidance (default identity). Node "13" is reserved.</summary>
     protected virtual Output<Slot.Conditioning> PostEncodePositive(ComfyWorkflowGraph g, Output<Slot.Conditioning> positive, TParams p) => positive;

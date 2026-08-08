@@ -21,6 +21,8 @@ public sealed record WanI2VParams
     [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Shift)]
     [Range(1.0, 12.0)] public required double Shift { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }

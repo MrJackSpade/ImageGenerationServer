@@ -346,6 +346,8 @@ public sealed record SubmissionCommon
     [JsonPropertyName(WorkflowParamKeys.Width)] public int Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)] public int Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)] public Dictionary<string, int[]>? Aspect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    [AllowNullable("null = the config exposes no megapixels control; the ETA/guard size is the aspect-map/flat-W/H size unchanged, distinct from a real 0 budget")] public double? Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]

@@ -165,6 +165,7 @@ function setCustomActive(on) {
   if (on) {
     for (const b of $aspect.children) if (b !== $aspectCustom) b.classList.remove("active");   // Custom is exclusive
     loadCustomEnv();
+    syncMpFromWH();   // reflect the revealed W/H into the M control (if M is also revealed)
   } else {
     setAspects(aspects);   // restore the normal shape's active markers
   }
@@ -189,6 +190,53 @@ async function loadCustomEnv() {
 
 if ($customW) $customW.addEventListener("change", savePrefs);
 if ($customH) $customH.addEventListener("change", savePrefs);
+
+// --- W/H ⇄ M coupling (#186) ---------------------------------------------------------------------
+// Megapixels is a first-class render-SIZE control: revealed via #191 it renders in the params panel (works for image
+// AND video models — its aspect ratio comes from the picked shape server-side). When Custom size ALSO reveals the W/H
+// boxes, the two stay coherent live: editing W/H recomputes M from the area; editing M rescales W/H to that budget,
+// preserving the current W:H ratio and snapping to the envelope step. Whichever the user last touched wins, and
+// currentOverrides submits the coherent pair. M-only (no Custom) needs no coupling — there are no visible W/H to track.
+const mpFromWH = (w, h) => Math.round((w * h) / (1024 * 1024) * 100) / 100;
+const $mpField = () => document.querySelector('#modelParams [data-key="megapixels"]');
+function syncMpFromWH() {
+  const f = $mpField(); if (!f) return;
+  const w = customDim($customW), h = customDim($customH);
+  if (w > 0 && h > 0) f.value = mpFromWH(w, h).toFixed(2);
+}
+function rescaleWHtoMp(mp) {
+  const w = customDim($customW), h = customDim($customH);
+  const step = customEnv && customEnv.step;
+  if (!(w > 0 && h > 0) || !(mp > 0) || !step) return;   // no envelope step yet → skip the cosmetic rescale (the server snap is authoritative)
+  const scale = Math.sqrt((mp * 1024 * 1024) / (w * h));
+  $customW.value = Math.max(step, Math.round(w * scale / step) * step);
+  $customH.value = Math.max(step, Math.round(h * scale / step) * step);
+}
+// The megapixels DEFAULT this model ships (its config value). Every aspect of a model now shares one budget (#186), so
+// that default IS each shape's size — used to reset the M readout when the shape changes.
+function modelMpDefault(m) {
+  const find = a => (a || []).find(p => p.key === "megapixels");
+  const p = m && (find(m.exposedParams) || find(m.hiddenParams));
+  return p ? p.value : null;
+}
+// #186: clicking an aspect picks that shape's DEFAULT size, so reset the (revealed) M control back to the model's
+// budget — a manual M isn't carried across a shape change, mirroring the ticket's "aspect button recomputes M".
+function resetMpFromAspect() {
+  const f = $mpField(); if (!f) return;
+  const d = modelMpDefault(selectedModels()[0]);
+  if (d != null) f.value = d;
+}
+if ($customW) $customW.addEventListener("input", syncMpFromWH);
+if ($customH) $customH.addEventListener("input", syncMpFromWH);
+// The M field is re-rendered per model, so couple to it by delegation: while Custom is active, an edit to M rescales
+// the W/H boxes (programmatic writes to W/H don't re-fire input, so there's no feedback loop) and persists the sizes.
+document.getElementById("modelParams").addEventListener("input", e => {
+  const t = e.target;
+  if (customActive && t && t.dataset && t.dataset.key === "megapixels") {
+    const mp = Number(t.value);
+    if (Number.isFinite(mp)) { rescaleWHtoMp(mp); savePrefs(); }
+  }
+});
 
 // Adapt a /workflows configuration row into the model shape the rest of this page expects. The server already
 // resolved presence + VRAM, so a returned row is runnable on this machine; `_gw` is the configuration id the
@@ -271,12 +319,18 @@ async function loadModels() {
 // exposed knob (steps/cfg/polish_denoise/...) survives a reload. renderParams re-applies it after each rebuild;
 // changing any field merges back into it and persists (debounced via savePrefs).
 let paramPrefs = {};
-const renderParams = () => { const box = document.getElementById("modelParams"); renderParamFields(box, selectedModels()); applyParamPrefs(box, paramPrefs); };
+const renderParams = () => { const box = document.getElementById("modelParams"); renderParamFields(box, selectedModels()); applyParamPrefs(box, paramPrefs); if (customActive) syncMpFromWH(); };
 function currentOverrides() {
   const ov = readOverrides(document.getElementById("modelParams")) || {};
   // Custom size rides as flat width/height overrides. The server supersedes the aspect map with them for this request
-  // (MergeParamsDict) and validates them against the model's resolution envelope at submit, refusing with its numbers.
-  if (customReady()) { ov.width = customDim($customW); ov.height = customDim($customH); }
+  // (MergeParamsDict), takes the W:H RATIO from them, and sizes to megapixels (#186) — so M rides alongside, recomputed
+  // from the explicit W×H area. Without it the server would rescale the typed size to the config's default M; with it,
+  // the ratio-from-W/H × this-M snap reproduces what the user typed. The pair is envelope-checked at submit.
+  if (customReady()) {
+    ov.width = customDim($customW);
+    ov.height = customDim($customH);
+    ov.megapixels = mpFromWH(ov.width, ov.height);
+  }
   return ov;
 }
 // Capture on BOTH input (fires live per keystroke/spinner tick) and change (commit) — a number input only fires
@@ -829,7 +883,7 @@ $aspect.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (aspHeld) { aspHeld = false; return; }
   if (b === $aspectCustom) { setCustomActive(!customActive); savePrefs(); return; }
-  setCustomActive(false); setAspects([b.dataset.aspect]); savePrefs();
+  setCustomActive(false); setAspects([b.dataset.aspect]); resetMpFromAspect(); savePrefs();
 });
 $prompt.addEventListener("change", savePrefs);
 if ($negPrompt) $negPrompt.addEventListener("change", savePrefs);

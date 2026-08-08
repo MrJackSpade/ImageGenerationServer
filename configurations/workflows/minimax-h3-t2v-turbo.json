@@ -14,6 +14,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.98,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "minimax",
     "audio_vae": "minimax-h3-audio-vae",

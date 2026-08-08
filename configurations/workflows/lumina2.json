@@ -7,6 +7,10 @@
     "checkpoint": "lumina-2"
   },
   "params": {
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,

@@ -11,6 +11,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.26,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,

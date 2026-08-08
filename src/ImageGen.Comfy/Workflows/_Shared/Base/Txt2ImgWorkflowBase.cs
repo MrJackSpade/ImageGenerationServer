@@ -27,6 +27,11 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.Width,     Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Height,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Aspect,    Type = ParamType.String },   // { square/landscape/portrait: [w,h] } dims map
+        // Megapixels: the first-class render-SIZE control (#186). W/H supply the aspect RATIO; M scales that ratio to a
+        // pixel budget (server-snapped to the resolution step + clamped to the envelope). Precise to two decimals, so a
+        // 0.1 step couldn't reach a default like 0.92 — the step is 0.01. Present on the shared schema so a config that
+        // exposes it renders a NUMERIC control; a config that omits it keeps today's aspect-map/flat-W/H sizing.
+        new() { Key = WorkflowParamKeys.Megapixels, Type = ParamType.Double, Step = 0.01, Label = "Megapixels" },
         // Video shapes for the text-to-VIDEO generators (wan/hunyuan/minimax-h3): clip length (frames) and playback
         // fps. Present on the shared schema so a config that exposes `length` renders it as a NUMERIC control — the
         // control's type is read from here, and without an entry an exposed length falls back to a text box. Image

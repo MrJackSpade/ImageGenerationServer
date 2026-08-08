@@ -12,12 +12,14 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
     /// <summary>LTX VAE: 8× temporal compression → valid clip lengths are 8n+1 (mirrors the node's length step=8).</summary>
     public override FrameRule? FrameRule => new(1, 8);
 
-    /// <summary>LTX-2's native i2v budget (source scaled to it on a 32-px grid) — single source for both the graph's
-    /// scale node and the ETA render-size.</summary>
-    private const double BudgetMp = 0.4;
+    /// <summary>The shared edit menu plus the per-config i2v <c>megapixels</c> budget control (#186).</summary>
+    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, VideoSizeSchema.Megapixels];
+
+    /// <summary>LTX-2's i2v snap grid (32-px). The megapixel BUDGET is the per-config <c>megapixels</c> control (#186),
+    /// read off the params record.</summary>
     private const int BudgetSteps = 32;
 
-    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(LtxV2I2VParams p) => (BudgetMp, BudgetSteps);
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(LtxV2I2VParams p) => (p.Megapixels, BudgetSteps);
 
     protected override ComfyWorkflowGraph Build(LtxV2I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -27,7 +29,7 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = BudgetMp;   // LTX-2's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = p.Megapixels;   // the per-config i2v megapixel budget (the source is scaled to it)
         g[Nodes.Scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.Size] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.Scale) };
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };

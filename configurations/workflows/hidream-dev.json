@@ -14,6 +14,10 @@
     "vae": "ae"
   },
   "params": {
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "loader": "unet_gguf",
     "dual": false,
     "latent": "sd3",

@@ -12,6 +12,10 @@
     "vae": "ae"
   },
   "params": {
+    "megapixels": {
+      "value": 1.41,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "flux",
     "dual": true,

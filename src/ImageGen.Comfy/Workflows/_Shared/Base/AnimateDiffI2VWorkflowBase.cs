@@ -22,12 +22,11 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
     /// <summary>AnimateDiff: prompt is a scene hint, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>AnimateDiff's native i2v megapixel budget (source scaled to it on a 64-px grid) — single source for
-    /// both the graph's scale node and the ETA render-size.</summary>
-    private const double BudgetMp = 0.39;
+    /// <summary>AnimateDiff's i2v snap grid for the budget scale (64-px). The megapixel BUDGET is now the per-config
+    /// <c>megapixels</c> control (#186), read off the params record — no longer a code const.</summary>
     private const int BudgetSteps = 64;
 
-    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffI2VParams p) => (BudgetMp, BudgetSteps);
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffI2VParams p) => (p.Megapixels, BudgetSteps);
 
     public override IReadOnlyList<ParamSpec> Schema => _schema;
     private static readonly IReadOnlyList<ParamSpec> _schema =
@@ -38,6 +37,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         new() { Key = WorkflowParamKeys.SparsectrlEnd, Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.IpadapterPreset, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.IpadapterWeight, Type = ParamType.Double, Min = 0.0, Max = 1.5, Step = 0.01, Label = "Identity strength" },
+        VideoSizeSchema.Megapixels,
     ];
 
     protected override ComfyWorkflowGraph Build(AnimateDiffI2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -46,7 +46,7 @@ public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VPa
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = BudgetMp;   // AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = p.Megapixels;   // the per-config i2v megapixel budget (the source is scaled to it)
         string beta = p.BetaSchedule;
         // A requirements-bound motion module wins; otherwise the config's motion_model slot. Refuse (don't emit a null
         // model_name) when neither names one — mirrors the old p.Model contract for this key.
@@ -163,6 +163,8 @@ public sealed record AnimateDiffI2VParams
     [JsonPropertyName(WorkflowParamKeys.IpadapterPreset)] public required string IpadapterPreset { get; init; }
     [JsonPropertyName(WorkflowParamKeys.IpadapterWeight)]
     [Range(0.0, 1.5)] public required double IpadapterWeight { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]

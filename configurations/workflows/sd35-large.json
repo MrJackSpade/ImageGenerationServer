@@ -12,6 +12,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 1.57,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "latent": "sd3",
     "clip_skip": {

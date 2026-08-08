@@ -11,6 +11,10 @@
     "vae": "mage-flow-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.98,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "mage",
     "steps": {
@@ -40,8 +44,8 @@
     "negative_supported": true,
     "aspect": {
       "square": [
-        1024,
-        1024
+        1008,
+        1008
       ],
       "landscape": [
         1344,

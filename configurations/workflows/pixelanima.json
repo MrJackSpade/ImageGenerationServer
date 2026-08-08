@@ -11,6 +11,10 @@
     "vae": "qwen-image-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.88,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "stable_diffusion",
     "dual": false,
@@ -46,8 +50,8 @@
     "negative_supported": true,
     "aspect": {
       "square": [
-        1024,
-        1024
+        960,
+        960
       ],
       "landscape": [
         1280,

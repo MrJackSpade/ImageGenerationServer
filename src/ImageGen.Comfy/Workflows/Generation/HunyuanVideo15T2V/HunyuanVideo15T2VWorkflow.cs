@@ -23,7 +23,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         g[EditNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(EditNodes.Vae);
 
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
         int len = p.Length;
         double fps = p.Fps;
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };

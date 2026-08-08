@@ -11,6 +11,10 @@
     "vae": "pixel-space-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "chroma",
     "dual": false,

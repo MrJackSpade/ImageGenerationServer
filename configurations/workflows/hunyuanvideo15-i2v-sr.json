@@ -17,6 +17,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.4,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "hunyuan_video_15",
     "dual": true,

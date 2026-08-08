@@ -22,7 +22,7 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
         g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
         Output<Slot.Model> modelSrc = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
 
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clipSrc };
         g[Nodes.Latent] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = w, Height = h, BatchSize = 1 };

@@ -11,6 +11,10 @@
     "vae": "pixel-space-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 1.09,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "pixeldit",
     "dual": false,
@@ -46,8 +50,8 @@
     "negative_supported": true,
     "aspect": {
       "square": [
-        1024,
-        1024
+        1072,
+        1072
       ],
       "landscape": [
         1280,

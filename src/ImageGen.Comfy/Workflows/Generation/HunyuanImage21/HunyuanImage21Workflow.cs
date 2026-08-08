@@ -22,7 +22,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
     protected override ComfyWorkflowGraph Build(HunyuanImage21Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[HunyuanImage21WorkflowNodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(Nodes.Model), Shift = p.Shift };

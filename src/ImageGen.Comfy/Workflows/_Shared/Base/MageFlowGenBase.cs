@@ -13,7 +13,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
 {
     protected override ComfyWorkflowGraph Build(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
         ComfyWorkflowGraph g = new();
 
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)

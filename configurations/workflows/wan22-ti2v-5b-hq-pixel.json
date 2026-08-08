@@ -12,6 +12,10 @@
     "vae": "wan2-2-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.9,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "wan",
     "dual": false,

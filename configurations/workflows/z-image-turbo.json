@@ -11,6 +11,10 @@
     "vae": "ae"
   },
   "params": {
+    "megapixels": {
+      "value": 1.99,
+      "visibility": "hidden"
+    },
     "loader": "unet_gguf",
     "clip_type": "lumina2",
     "dual": false,
@@ -47,8 +51,8 @@
     "auraflow": 3,
     "aspect": {
       "square": [
-        1536,
-        1536
+        1440,
+        1440
       ],
       "landscape": [
         1920,

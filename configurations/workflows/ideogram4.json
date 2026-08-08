@@ -12,6 +12,10 @@
     "vae": "flux2-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.94,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "ideogram4",
     "latent": "flux2",
@@ -54,8 +58,8 @@
     "negative_supported": false,
     "aspect": {
       "square": [
-        1024,
-        1024
+        992,
+        992
       ],
       "landscape": [
         1280,

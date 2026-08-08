@@ -8,12 +8,14 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;
 
-    /// <summary>SD1.5 AnimateDiff's native i2v budget (source scaled to it on a 64-px grid) — single source for both
-    /// the graph's scale node and the ETA render-size.</summary>
-    private const double BudgetMp = 0.26;
+    /// <summary>The shared edit menu plus the per-config i2v <c>megapixels</c> budget control (#186).</summary>
+    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, VideoSizeSchema.Megapixels];
+
+    /// <summary>SD1.5 AnimateDiff's i2v snap grid (64-px). The megapixel BUDGET is the per-config <c>megapixels</c>
+    /// control (#186), read off the params record.</summary>
     private const int BudgetSteps = 64;
 
-    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffSd15Params p) => (BudgetMp, BudgetSteps);
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(AnimateDiffSd15Params p) => (p.Megapixels, BudgetSteps);
 
     protected override ComfyWorkflowGraph Build(AnimateDiffSd15Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -22,7 +24,7 @@ public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = BudgetMp;   // SD1.5 AnimateDiff's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = p.Megapixels;   // the per-config i2v megapixel budget (the source is scaled to it)
         string mm = p.MotionModel;
         string beta = p.BetaSchedule;
         g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };

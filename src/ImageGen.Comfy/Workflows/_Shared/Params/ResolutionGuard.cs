@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
@@ -39,6 +40,19 @@ internal static class ResolutionGuard
     /// path (the catalog's request-size check), so both refuse an out-of-envelope size with identical wording.</summary>
     public static string? RenderSizeViolation(ModelResolution? env, int w, int h)
         => env is null ? null : Violation(env, w, h, "the render size");
+
+    /// <summary>Force (<paramref name="w"/>,<paramref name="h"/>) onto <paramref name="env"/>'s grid and inside its
+    /// side bounds — round each side to the nearest <see cref="ModelResolution.Step"/> multiple, then clamp to
+    /// [<see cref="ModelResolution.MinW"/>..<see cref="ModelResolution.MaxW"/>] / [MinH..MaxH]. The bounds are already
+    /// step multiples in practice, so the clamp keeps the value on the grid. Used by the megapixel size snap (#186) to
+    /// pull an out-of-range budget back to a size the model can render, rather than erroring on it.</summary>
+    public static (int w, int h) Clamp(ModelResolution env, int w, int h)
+    {
+        int step = Ensure.GreaterThanZero(env.Step);
+        int gw = (int)(Math.Round(w / (double)step) * step);
+        int gh = (int)(Math.Round(h / (double)step) * step);
+        return (Math.Clamp(gw, env.MinW, env.MaxW), Math.Clamp(gh, env.MinH, env.MaxH));
+    }
 
     /// <summary>Refuse a resolved render size the model does not document, at submit — before the graph is built. A
     /// null envelope (the configuration declares none) is left alone.</summary>

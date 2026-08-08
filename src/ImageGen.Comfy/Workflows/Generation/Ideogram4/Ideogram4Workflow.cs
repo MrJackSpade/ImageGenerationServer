@@ -30,7 +30,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 
     protected override ComfyWorkflowGraph Build(Ideogram4Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
         ComfyWorkflowGraph g = new();
 
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.

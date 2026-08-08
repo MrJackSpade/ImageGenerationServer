@@ -12,6 +12,10 @@
     "vae": "hunyuanvideo15-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.88,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "dual": true,
     "clip_type": "hunyuan_video_15",

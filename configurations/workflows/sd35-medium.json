@@ -7,6 +7,10 @@
     "checkpoint": "sd3-5-medium"
   },
   "params": {
+    "megapixels": {
+      "value": 1.0,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "clip_type": null,
     "dual": false,

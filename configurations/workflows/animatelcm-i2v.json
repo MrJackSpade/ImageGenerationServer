@@ -17,6 +17,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.39,
+      "visibility": "hidden"
+    },
     "motion_model": "animatelcm-sd15-t2v",
     "beta_schedule": {
       "value": "sqrt_linear (AnimateDiff)",

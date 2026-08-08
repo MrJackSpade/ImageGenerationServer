@@ -12,6 +12,8 @@ namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 public sealed record MiniMaxH3Ref2VParams
 {
     [JsonPropertyName(WorkflowParamKeys.AudioVae)] public required string AudioVae { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]

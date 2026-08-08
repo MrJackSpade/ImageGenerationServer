@@ -16,15 +16,15 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
     [
         .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
+        VideoSizeSchema.Megapixels,
         .. HunyuanSr.Schema,
     ];
 
-    /// <summary>HunyuanVideo 1.5's native i2v budget (source scaled to it on a 16-px grid) — single source for both
-    /// the graph's scale node and the ETA render-size.</summary>
-    private const double BudgetMp = 0.4;
+    /// <summary>HunyuanVideo 1.5's i2v snap grid (16-px). The megapixel BUDGET is the per-config <c>megapixels</c>
+    /// control (#186), read off the params record.</summary>
     private const int BudgetSteps = 16;
 
-    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(HunyuanVideo15I2VParams p) => (BudgetMp, BudgetSteps);
+    protected override (double Megapixels, int ResolutionSteps)? EtaBudget(HunyuanVideo15I2VParams p) => (p.Megapixels, BudgetSteps);
 
     protected override ComfyWorkflowGraph Build(HunyuanVideo15I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -38,7 +38,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;
-        double budgetMp = BudgetMp;   // HunyuanVideo 1.5's native i2v megapixel budget — always applied (the source is scaled to it)
+        double budgetMp = p.Megapixels;   // the per-config i2v megapixel budget (the source is scaled to it)
         g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.SourceScale) };
         g[Nodes.ClipVisionLoader] = new CLIPVisionLoader { ClipName = p.ClipVision };

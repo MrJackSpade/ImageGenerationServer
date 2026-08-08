@@ -14,6 +14,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.88,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-t2v-low-noise-14b",

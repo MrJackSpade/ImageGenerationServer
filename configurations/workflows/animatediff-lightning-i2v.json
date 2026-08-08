@@ -16,6 +16,10 @@
     ]
   },
   "params": {
+    "megapixels": {
+      "value": 0.39,
+      "visibility": "hidden"
+    },
     "motion_model": "animatediff-lightning-8step-comfyui",
     "beta_schedule": {
       "value": "sqrt_linear (AnimateDiff)",

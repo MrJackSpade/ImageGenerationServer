@@ -23,7 +23,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflow<Txt2ImgParams>
         };
         Output<Slot.Clip> clipSrc = TripleCLIPLoader.ClipOut(Nodes.Clip);
 
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clipSrc };
         g[Nodes.Latent] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage) { Width = w, Height = h, BatchSize = 1 };

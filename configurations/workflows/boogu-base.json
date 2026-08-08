@@ -11,6 +11,10 @@
     "vae": "flux1-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 0.94,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "boogu",
     "dual": false,
@@ -46,8 +50,8 @@
     "negative_supported": true,
     "aspect": {
       "square": [
-        1024,
-        1024
+        992,
+        992
       ],
       "landscape": [
         1280,

@@ -39,7 +39,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
 
     protected override ComfyWorkflowGraph Build(Krea2RefineParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        (int w, int h) = p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect));
+        (int w, int h) = RenderSize(p, req, inputs);
 
         ComfyWorkflowGraph g = new();
 

@@ -12,6 +12,10 @@
     "vae": "hunyuan-image-2-1-vae"
   },
   "params": {
+    "megapixels": {
+      "value": 3.75,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "hunyuan_image",
     "dual": true,
@@ -47,8 +51,8 @@
     "negative_supported": true,
     "aspect": {
       "square": [
-        2048,
-        2048
+        1984,
+        1984
       ],
       "landscape": [
         2560,

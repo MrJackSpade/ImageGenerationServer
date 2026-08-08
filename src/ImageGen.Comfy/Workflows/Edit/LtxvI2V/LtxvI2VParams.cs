@@ -19,6 +19,8 @@ public sealed record LtxvI2VParams
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Megapixels)]
+    public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
