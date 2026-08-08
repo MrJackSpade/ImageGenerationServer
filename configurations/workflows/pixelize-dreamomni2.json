@@ -2,7 +2,7 @@
   "id": "pixelize-dreamomni2",
   "effect_type": "Pixelize",
   "workflow": "pixelize-dreamomni2",
-  "friendly_name": "DreamOmni2",
+  "friendly_name": "DreamOmni2 (pixel)",
   "default": false,
   "params": {
     "snap_resolution": {
