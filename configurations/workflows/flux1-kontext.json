@@ -98,7 +98,7 @@
     ],
     "reference": {
       "max": 3,
-      "hint": "Your photo and the reference are placed side-by-side — your subject on the left, the reference on the right. Phrase it as 'dress the [subject] on the left in the [item] on the right'. Example: 'dress the woman on the left in the dress on the right; keep her face and hair.'"
+      "hint": "Your photo and your references are placed side-by-side, left to right — your subject first, then each reference after it. Phrase it as 'dress the [subject] on the left with the [item] on the right'. Example: 'dress the woman on the left in the dress on the right; keep her face and hair.'"
     }
   },
   "resolution": {

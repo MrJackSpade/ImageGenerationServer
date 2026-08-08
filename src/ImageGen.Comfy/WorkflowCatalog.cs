@@ -739,6 +739,8 @@ public sealed class WorkflowCatalog
             }
         }
 
+        ValidateReferenceConsistency(id, c.Card?.Reference, pars);
+
         return new WorkflowConfiguration
         {
             Id = id,
@@ -781,6 +783,32 @@ public sealed class WorkflowCatalog
         }
 
         return reference.Max is > 0 ? [new ReferenceAllowance(ReferenceKindNames.Image, reference.Max.Value)] : [];
+    }
+
+    /// <summary>An edit card's scalar <c>reference</c> block and its <c>reference_max</c> param are two independently
+    /// authored numbers with no runtime coupling: the card sizes the UI <c>＋ ref</c> affordance, <c>reference_max</c>
+    /// caps the graph. When the card uses the scalar (image-only) form they MUST agree — a higher card max lets the UI
+    /// attach references the graph then rejects at submit, a lower one hides references the graph would accept. Two
+    /// forms are deliberately out of scope: the multi-kind <c>types[]</c> card (ref2v) whose <c>reference_max</c> is a
+    /// cross-kind total, and a <c>reference_max</c> with no card block at all (a graph cap with no UI affordance, e.g.
+    /// an auto-applied pixelize). A mismatch is an authoring error, caught at boot rather than at the user's first
+    /// over-supplied submit.</summary>
+    private static void ValidateReferenceConsistency(string id, ReferenceDto? reference, Dictionary<string, ConfigParam> pars)
+    {
+        if (reference is null || reference.Types is { Length: > 0 })
+        {
+            return;
+        }
+
+        int cardMax = reference.Max ?? 0;
+        int paramMax = pars.TryGetValue(WorkflowParamKeys.ReferenceMax, out ConfigParam? p) ? ParamsCodec.AsInt(p.Value) : 0;
+        if (cardMax != paramMax)
+        {
+            throw new InvalidOperationException(
+                $"{id}: card.reference.max ({cardMax}) and params.reference_max ({paramMax}) disagree. The card sizes the "
+                + "＋ ref UI and reference_max caps the graph; when they diverge the UI offers reference slots the graph "
+                + "rejects, or hides ones it would accept. Set both to the number of reference images the workflow wires.");
+        }
     }
 
     private static ModelCard BuildCard(CardDto? m, string id, string? friendlyName)

@@ -182,7 +182,10 @@ public sealed class WorkflowGraphTests
         (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
 
         // Maximal inputs so NO input-related refusal (missing source/mask/end/refs) fires — every failure that remains
-        // is then a config that failed to supply a parameter its workflow requires.
+        // is then a config that failed to supply a parameter its workflow requires. A single reference is enough to
+        // satisfy every ref-consuming editor while staying within the smallest declared cap (DreamOmni2 wires exactly
+        // one); supplying more would trip a legitimate over-supply refusal, which is an input error, not the
+        // missing-param error this test hunts.
         WorkflowInputs inputs = new()
         {
             Positive = "a cat",
@@ -194,7 +197,7 @@ public sealed class WorkflowGraphTests
             SourceVideoName = "src.mp4",
             SourceWidth = 1216,
             SourceHeight = 832,
-            References = [new ReferenceInput("ref1.png", ReferenceKind.Image), new ReferenceInput("ref2.png", ReferenceKind.Image)],
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
         };
 
         List<string> failures = [];

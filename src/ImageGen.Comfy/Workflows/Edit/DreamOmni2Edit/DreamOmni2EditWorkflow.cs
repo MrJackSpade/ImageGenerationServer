@@ -23,9 +23,17 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") },
         };
-        // The Editor requires a reference image; use the first attached reference, else the source itself.
-        Output<Slot.Image> refImg;
+        // The Editor wires exactly one reference image (its single ref_image slot). Refuse an over-supply rather than
+        // silently dropping the extras, so a config that widens the ＋ ref affordance past what this graph consumes
+        // surfaces at submit instead of losing the user's uploads without a word.
         IReadOnlyList<string> refNames = inputs.ImageReferences;
+        if (refNames.Count > 1)
+        {
+            throw new RenderValidationException($"DreamOmni2 edit accepts at most 1 reference image; got {refNames.Count}.");
+        }
+
+        // The Editor requires a reference image; use the attached reference, else the source itself.
+        Output<Slot.Image> refImg;
         if (refNames.Count > 0)
         {
             g[Nodes.Reference] = new LoadImage { Image = refNames[0] };
