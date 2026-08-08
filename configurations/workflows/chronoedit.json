@@ -58,10 +58,6 @@
       "overview": "Plain natural-language edit instructions; ChronoEdit reasons over a short frame trajectory and returns the final edited frame.",
       "source": "https://github.com/nv-tlabs/ChronoEdit"
     },
-    "negative": {
-      "supported": true,
-      "note": "Uses the Wan quality/motion negative; CFG 4 with the distill LoRA."
-    },
     "speed": {
       "class": "slow",
       "note": "14B Wan-class fp8; ~20 steps with distill LoRA."

@@ -30,7 +30,6 @@
       "value": "simple",
       "visibility": "hidden"
     },
-    "negative": "",
     "megapixels": {
       "value": 1.0,
       "visibility": "hidden"
@@ -75,10 +74,6 @@
       ],
       "negative_guidance": "The model card recommends an empty negative prompt; the encode node maps an empty negative to its DROP path, leaving CFG clean.",
       "source": "https://huggingface.co/Boogu/Boogu-Image-0.1-Edit"
-    },
-    "negative": {
-      "supported": true,
-      "note": "Runs at real CFG ~5; empty negative recommended."
     },
     "speed": {
       "class": "slow",

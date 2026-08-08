@@ -57,10 +57,6 @@
       "overview": "Plain natural-language edit instructions. Supports semantic (high-level, identity-preserving) and appearance (precise local) edits; phrase to match intent. Multi-image references supported via image2/image3.",
       "source": "https://huggingface.co/meituan-longcat/LongCat-Image-Edit"
     },
-    "negative": {
-      "supported": true,
-      "note": "Runs true CFG ~4 with an empty negative (guidance_embeds false)."
-    },
     "speed": {
       "class": "medium",
       "note": "Q5_K_M GGUF transformer ~4.7GB; light on a 3090."

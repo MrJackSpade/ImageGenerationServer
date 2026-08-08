@@ -425,10 +425,11 @@ public sealed partial class WorkflowCatalogService(
             .Where(kv => kv.Value.Visibility == ParamVisibility.Hidden)
             .Select(kv => ExposedParam(kv, wf, cfg, machine))];
         bool canEdit = wf.Kind != WorkflowKind.Generate;
+        WorkflowKind kind = ResolveKind(cfg, wf);
         return new WorkflowDescriptor(
             Id: cfg.Id,
             Workflow: cfg.WorkflowName,
-            Kind: KindToken(ResolveKind(cfg, wf)),
+            Kind: KindToken(kind),
             Media: wf.Media == WorkflowMedia.Video ? "video" : "image",
             SourceMedia: wf.SourceMedia == WorkflowMedia.Video ? "video" : "image",
             EffectType: cfg.EffectType,
@@ -466,7 +467,10 @@ public sealed partial class WorkflowCatalogService(
                 CommercialUse: c.CommercialUse,
                 Speed: c.Speed,
                 ExpectedGenSeconds: c.ExpectedGenSeconds,
-                NegativeSupported: c.NegativeSupported,
+                // The Edit tab (the instruction editors) never offers a user negative — the box is category-wide
+                // suppressed here so no current or future edit config can re-expose it (#211). The model's own
+                // default negative still applies via ComfyGraph.ComposeNegative; only the user-typed field is gone.
+                NegativeSupported: kind == WorkflowKind.Edit ? false : c.NegativeSupported,
                 EditUseCases: c.EditUseCases is { Length: > 0 } ? c.EditUseCases : null,
                 Tagging: ToTagging(c.Tagging)),
             // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);

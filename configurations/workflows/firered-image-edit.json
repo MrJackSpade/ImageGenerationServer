@@ -57,10 +57,6 @@
       "overview": "Plain natural-language edit instructions. Semantic (high-level, identity-preserving) and appearance (precise local) edits; multi-image references via image2/image3. Recommended ~40 steps at CFG 4.",
       "source": "https://huggingface.co/FireRedTeam/FireRed-Image-Edit-1.1"
     },
-    "negative": {
-      "supported": true,
-      "note": "Runs CFG ~4 with an empty negative."
-    },
     "speed": {
       "class": "slow",
       "note": "~20B Q5_K_M GGUF at ~40 steps; quality-first."

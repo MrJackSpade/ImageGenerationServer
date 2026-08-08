@@ -36,10 +36,6 @@
       "overview": "Plain natural-language edit instructions; 11 supported operations.",
       "source": "https://github.com/stepfun-ai/Step1X-Edit"
     },
-    "negative": {
-      "supported": true,
-      "note": "Has a negative prompt input; default empty at CFG 6."
-    },
     "speed": {
       "class": "slow",
       "note": "fp8 DiT + Qwen2.5-VL via the node's int8/offload; 28 steps."
