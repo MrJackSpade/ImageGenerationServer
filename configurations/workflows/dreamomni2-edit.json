@@ -1,7 +1,7 @@
 {
   "id": "dreamomni2-edit",
   "workflow": "dreamomni2-edit",
-  "friendly_name": "DreamOmni2 (reference edit)",
+  "friendly_name": "DreamOmni2",
   "default": false,
   "params": {
     "steps": {
