@@ -1164,7 +1164,11 @@ function startEditRecover() {
       return {
         eta: p.eta, onProgress: p.onProgress,
         onSlot: mine ? p.onSlot : undefined,   // the one divergence: paint only THIS surface's own finished image
-        activeStatus: p.activeStatus, finalStatus: p.finalStatus, setStatus,
+        // The panel's activeStatus stays null for a lone image (a fresh submit's opening "Generating…" carries it); on
+        // ADOPTION the opening line is "Reconnecting…", so a single-job poll MUST emit its own live status or the
+        // "Reconnecting…" never clears until the job settles (#217). Multi-job text is identical to the panel's.
+        activeStatus: (recorded, total) => total > 1 ? `Making ${Math.min(recorded + 1, total)} of ${total}…` : "Generating…",
+        finalStatus: p.finalStatus, setStatus,
         onCancelHandle: h => { activeGen = h; },
         onSettle: made => { spec.show(false); setBusy(false); document.title = "Edit · Make a Picture"; editActiveJobId = null; if (mine && !made && spec.onNoneMade) spec.onNoneMade(); },
       };
