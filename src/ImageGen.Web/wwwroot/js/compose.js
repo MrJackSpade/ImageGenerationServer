@@ -939,17 +939,12 @@ $cancelGen.addEventListener("click", () => cancelGeneration());
 // The server is the source of truth for live state. /forge/jobs returns ONLY this user's ACTIVE jobs (a finalized
 // job has LEFT the feed). This tracker DIFFS successive reads, exactly as the job is a projection of ComfyUI's state:
 //   - a NEW id appearing in a job's positional imageIds[] means a new image exists -> announce it (highlight + a
-//     re-pull of history, which is the real source of truth for the strips); the top preview reflects the newest too;
+//     re-pull of history, which is the real source of truth for the strips);
 //   - a job we were tracking VANISHING from the feed means it finalized -> fetch /forge/job/{id} for its final array
 //     to catch any straggler, then signal a history reconcile.
 // It never renders a job payload AS history and never assumes completion: an image is shown because the job's array
 // grew, and the strip's truth is always /api/history (so deletes stick and nothing resurrects).
-let liveWs = null, liveRunning = null, liveRemote = false;
-// The observed run's bar. Both writers — the 2.5s /jobs tick and the ws progress frames — go through this one
-// tracker, so the bar always shows progress through the BATCH. A ws handler that called showBar itself with the
-// raw per-image fraction would, on a batch of 10, paint "70% through image 3" over the tick's "25% of the batch",
-// back and forth, for the whole run.
-let liveProgress = newBatchProgress(), liveTotal = 1, liveJobId = null;
+let liveWs = null;
 const watching = new Set();        // active job ids currently being tracked (to detect a vanish)
 const announcedIds = new Set();    // image ids already announced this session (dedupe the diff)
 
@@ -959,12 +954,8 @@ function announceImage(job, id) {
   const slot = (job.slots || []).find(s => String(s.id) === String(id)) || {};
   const model = (MODELS[job.model] && MODELS[job.model].friendly_name) || job.model || "";
   const rec = { ts: Date.now(), prompt: slot.effectivePrompt || job.prompt || "", marks: slot.marks || null, model, modelId: job.model || "", aspect: primaryAspect(), id };
-  // Reflect the newest image in the top preview too — but don't fight the local Generate flow, which owns it while
-  // THIS tab is generating (recordResult). Show when observing a remote gen or when idle. On an artist page the
-  // preview obeys the same belongs-here rule as the grid below it (belongsToArtistPage), so a gen made elsewhere
-  // without this artist doesn't get previewed on their page — the status/bar still reports it's happening.
-  const showable = !ARTIST_MODE || belongsToArtistPage(rec.marks, LOCKED_ARTIST);
-  if (showable && (liveRemote || !busy)) showResult(rec);
+  // Doorbell only: the top preview is painted by whoever OWNS the job's panel — recordResult for THIS tab's own
+  // Generate, showAdoptedResult for a recovered/remote one (attachLiveRecover) — never from this diff loop.
   document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: rec }));
 }
 
@@ -992,41 +983,11 @@ async function liveSync() {
   // make it live only in a tab that watched the batch happen, so a reload after it finished would silently crop the
   // last batch. announceImage's `imagegen:generated` remains the trigger to re-pull; what to show is not this file's
   // to decide.
-
-  // Gen-state reflection — skip while THIS tab runs its own gen (the local Generate/Batch flow owns the UI then).
-  if (activeGen && !liveRemote) return;
-  const active = jobs.filter(j => j.status === "queued" || j.status === "running");
-  const running = active.find(j => j.status === "running");
-  liveRunning = running ? running.jobId : null;
-  if (active.length) {
-    if (!liveRemote && !busy) {
-      liveRemote = true;
-      // Cancel works cross-device: /interrupt stops the rendering image, /cancel drops the rest of each active job.
-      activeGen = { cancel: async () => {
-        try { await fetch(`${GATEWAY}/interrupt`, { method: "POST" }); } catch (e) { console.debug("interrupt request failed:", e); }
-        for (const j of active) { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(j.jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } }
-      } };
-      setBusy(true);
-    }
-    if (liveRemote) {
-      // A job IS the batch now: its own total/progress drive the same "Creating X of N" on every device.
-      const j = running || active[0];
-      // The tracker holds one run's state, so hand it back when the run we're reflecting changes — a queue that
-      // rolls straight from one job into the next never empties `active`, and a carried-over count would leave
-      // the new job's bar starting where the old one left off.
-      if (j.jobId !== liveJobId) { liveJobId = j.jobId; liveProgress = newBatchProgress(); }
-      liveTotal = j.total || 1;
-      const done = j.progress || 0;
-      liveProgress.finished(done);
-      setStatus(liveTotal > 1 ? `Creating ${Math.min(done + 1, liveTotal)} of ${liveTotal}…` : "Generating…");
-      showBar(liveProgress.value(liveTotal));
-    }
-  } else if (liveRemote) {
-    liveRemote = false; liveRunning = null; liveProgress = newBatchProgress(); liveTotal = 1; liveJobId = null; activeGen = null;
-    setBusy(false); setStatus(""); hideBar();
-  }
 }
 
+// The bar / preview / cancel for an in-flight job (this tab's own OR one already running when we arrive) are driven by
+// the shared recovery path below (attachLiveRecover). This ws only makes the announce/finalize poll PROMPT — a finish
+// event triggers an immediate liveSync instead of waiting for the next tick; the bar has its own ws inside the tracker.
 function liveOpenWs() {
   if (liveWs) return;
   try {
@@ -1034,8 +995,6 @@ function liveOpenWs() {
     liveWs.onmessage = (ev) => {
       if (typeof ev.data !== "string") return;
       let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("live ws non-JSON message:", e); return; }
-      const id = m.data && m.data.prompt_id;
-      if (liveRemote && id && id === liveRunning) { const f = wsFraction(m); if (f != null) { liveProgress.fraction(f); showBar(liveProgress.value(liveTotal)); } }
       if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") liveSync();
     };
     liveWs.onclose = () => { liveWs = null; };
@@ -1043,10 +1002,37 @@ function liveOpenWs() {
   } catch (e) { console.debug("live ws open failed:", e); liveWs = null; }
 }
 
+// Paint an adopted job's finished image in the top preview. Mirrors recordResult, but sources its fields from the job
+// itself — a fresh Generate carries `meta` (prompt/model/shapes); a recovered or cross-device job does not. On an
+// artist page the preview obeys the same belongs-here rule as the grid (belongsToArtistPage), so a gen made elsewhere
+// without this artist reports progress on the bar but isn't previewed here.
+function showAdoptedResult(job, s) {
+  if (!s || !s.id) return;
+  const model = (MODELS[job.model] && MODELS[job.model].friendly_name) || job.model || "";
+  const rec = { ts: Date.now(), prompt: s.effectivePrompt || job.prompt || "", marks: s.marks || null, model, modelId: job.model || "", aspect: primaryAspect(), id: s.id };
+  if (!ARTIST_MODE || belongsToArtistPage(rec.marks, LOCKED_ARTIST)) showResult(rec);
+}
+
 function startLiveSync() {
   liveSync(); liveOpenWs();
   setInterval(() => { liveSync(); liveOpenWs(); }, 2500);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { liveSync(); liveOpenWs(); } });
+  // The composer previews EVERY adopted job (each gen is a composer result) — the only surface with no relevance filter.
+  attachLiveRecover({
+    isBusy: () => busy,
+    onAdopt: () => { setBusy(true); showBar(0.02); },
+    options: job => ({
+      eta: $("eta"),
+      onProgress: showBar,
+      onRunning: (runSlot, j) => { if (runSlot) setGenModel((MODELS[j.model] && MODELS[j.model].friendly_name) || j.model || ""); },
+      onSlot: s => showAdoptedResult(job, s),
+      activeStatus: (recorded, total) => total > 1 ? `Creating ${Math.min(recorded + 1, total)} of ${total}…` : "Generating…",
+      finalStatus: composePanel.finalStatus,
+      setStatus,
+      onCancelHandle: h => { activeGen = h; },
+      onSettle: () => { hideBar(); setBusy(false); },
+    }),
+  });
 }
 
 // --- boot ---------------------------------------------------------------------------------------

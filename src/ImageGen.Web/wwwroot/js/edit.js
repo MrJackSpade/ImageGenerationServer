@@ -263,14 +263,6 @@ function editPanel(spec) {
     onSettle: made => { document.title = "Edit · Make a Picture"; editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },
   };
 }
-// Reconnect the tracker to an already-running job (recover on return) — the SAME panel a fresh submit uses, no POST.
-function trackEditJob(jobId, N, spec) {
-  const p = editPanel(spec);
-  return trackJobBatch(jobId, {
-    total: N, eta: p.eta, onProgress: p.onProgress, onSlot: p.onSlot, activeStatus: p.activeStatus, finalStatus: p.finalStatus,
-    setStatus, onCancelHandle: h => { activeGen = h; }, onSettle: made => { p.show(false); p.onSettle(made); },
-  });
-}
 // The bits every edit mode's submit control shares: the page's busy flag, cancel handle, status, and pending-record.
 // buildItems + the mode's panel are the only per-mode parts, supplied where each control is attached.
 function editSubmitBase() {
@@ -901,7 +893,7 @@ function enterInpaint() {
   if ($inpaintNeg && !$inpaintNeg.value.trim() && seedNegative()) $inpaintNeg.value = seedNegative();
   populateInpaintMenu();
   if (stagedBase !== inpaintBase) { setupMaskStage(); stagedBase = inpaintBase; }   // re-stage only when the base changed
-  recoverMode("inpaint");   // entering the tab with a job already running (left the page and came back) → re-attach now
+  if (liveRecover) liveRecover.tick();   // entering the tab with a job already running (came back) → adopt it now
 }
 
 // --- outpaint mode ------------------------------------------------------------------------------
@@ -1071,7 +1063,7 @@ function enterOutpaint() {
   populateOutpaintMenu();
   if (outStagedBase !== outpaintBase) { setupOutpaintStage(); outStagedBase = outpaintBase; }   // re-stage only when the base changed
   else outLayout();   // the stage had no size while hidden, so re-fit on every entry
-  recoverMode("outpaint");   // switching INTO the tab reattaches to an outpaint still running for this base
+  if (liveRecover) liveRecover.tick();   // switching INTO the tab re-adopts a job still running for this base
 }
 
 // --- tabs ---------------------------------------------------------------------------------------
@@ -1144,35 +1136,38 @@ $editTabsSelect.addEventListener("change", () => {
 });
 
 // --- recover an in-flight job on reload / return --------------------------------------------------
-// Each edit mode's submission is now ONE job (kind==="edit", on the mode's source), so recovery finds that one job and
-// re-attaches the SAME tracker a fresh submit uses — Cancel, the live bar and each result come back. When it finishes,
-// the next poll picks up any job queued behind it (queue-more), draining the queue continuously.
-let recovering = false;
+// Recovery is the shared attachLiveRecover (core.js) — the SAME path the composer uses. It adopts ANY of this user's
+// active jobs and drives the VISIBLE mode's bar/ETA/Cancel through the same tracker a fresh Apply uses. The ONLY thing
+// the editor does differently from the composer is the preview: the finished image is painted here only when the job
+// is this mode's OWN source + workflow. A plain compose gen, or an edit on another image/mode, still lights the bar
+// (so work in flight is always visible) but isn't previewed. When the tracked job finishes, the next tick picks up any
+// job queued behind it (queue-more), draining the queue continuously.
 const inpaintWorkflowIds = () => new Set(inpaintModelList().map(gwModel));
 const outpaintWorkflowIds = () => new Set(outpaintModelList().map(gwModel));
-async function recoverMode(mode) {
-  if (busy || recovering) return;
-  recovering = true;
-  try {
-    const spec = editModeSpec(mode);
-    let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
-    // The job-level workflow id classifies which mode owns it (inpaint/outpaint sets vs everything else). Keyed on the
-    // CURRENT source, so an upload that replaced the seed still recovers correctly.
-    const job = (res.jobs || []).find(j => j.kind === "edit" && (j.status === "running" || j.status === "queued")
-      && j.sourceImageId === spec.sourceId() && spec.mine(j.model));
-    if (!job) return;
-    cancelRequested = false; setBusy(true);
-    spec.show(true);
-    editActiveJobId = job.jobId;
-    activeGen = { cancel: () => fetch(`${GATEWAY}/cancel/${encodeURIComponent(job.jobId)}`, { method: "POST" }).catch(e => console.debug("cancel request failed:", e)) };
-    setStatus(job.total > 1 ? `Making ${job.total}…` : "Reconnecting…");
-    try { await trackEditJob(job.jobId, job.total || 1, spec); } finally { setBusy(false); }
-  } finally { recovering = false; }
+// The spec for the mode currently on screen (inpaint / outpaint / everything-else-is-chat). Mode switching is blocked
+// while a job is adopted, so the visible mode is fixed for that job's lifetime.
+const recoverSpec = () => editModeSpec(activeMode === "inpaint" ? "inpaint" : activeMode === "outpaint" ? "outpaint" : "chat");
+let liveRecover = null;
+function startEditRecover() {
+  liveRecover = attachLiveRecover({
+    isBusy: () => busy,
+    onAdopt: job => { cancelRequested = false; setBusy(true); recoverSpec().show(true); editActiveJobId = job.jobId; setStatus(job.total > 1 ? `Making ${job.total}…` : "Reconnecting…"); },
+    options: job => {
+      const spec = recoverSpec();
+      const p = editPanel(spec);
+      // Relevance is per-JOB (its source + workflow), decided once: this mode's own job renders its slots; anything
+      // else is bar-only. A generate job has no sourceImageId, so it never matches an editor source — exactly right.
+      const mine = job.sourceImageId === spec.sourceId() && spec.mine(job.model);
+      return {
+        eta: p.eta, onProgress: p.onProgress,
+        onSlot: mine ? p.onSlot : undefined,   // the one divergence: paint only THIS surface's own finished image
+        activeStatus: p.activeStatus, finalStatus: p.finalStatus, setStatus,
+        onCancelHandle: h => { activeGen = h; },
+        onSettle: made => { spec.show(false); setBusy(false); document.title = "Edit · Make a Picture"; editActiveJobId = null; if (mine && !made && spec.onNoneMade) spec.onNoneMade(); },
+      };
+    },
+  });
 }
-// Recover whichever mode is active (mode switching is blocked while busy, so only the visible mode can have a job to
-// re-attach to). Chains via the poll interval below: after one job finishes, the next tick picks up any queue-more job.
-const modeKey = () => activeMode === "inpaint" ? "inpaint" : activeMode === "outpaint" ? "outpaint" : "chat";
-function recoverActive() { recoverMode(modeKey()); }
 
 // --- boot ---------------------------------------------------------------------------------------
 (async () => {
@@ -1199,10 +1194,8 @@ function recoverActive() { recoverMode(modeKey()); }
     setMode(saved);
   }
   setTimeout(() => { if (activeMode !== "inpaint" && activeMode !== "outpaint" && activeMode !== "video") $instruction.focus(); }, 50);
-  recoverActive();
+  startEditRecover();   // attachLiveRecover owns its own poll interval + visibility re-check + initial adoption tick
 })();
 function chatHasModels(bucket) {
   const prev = chatBucket; chatBucket = bucket; const n = chatModels().length; chatBucket = prev; return n > 0;
 }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") recoverActive(); });
-setInterval(recoverActive, 3000);

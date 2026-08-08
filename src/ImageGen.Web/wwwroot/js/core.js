@@ -551,6 +551,40 @@ function trackJobBatch(jobId, o) {
   });
 }
 
+// The ONE recovery path (#210). Every gen surface (composer + the edit page's modes) re-attaches to an
+// already-running job through THIS — the same trackJobBatch a fresh submit uses — instead of hand-writing its own
+// "pick up an existing generation" filter. Adoption is UNFILTERED: any of the user's active jobs (running preferred,
+// else the first queued) lights the bar on every page. The ONLY per-surface divergence lives inside the panel's
+// `onSlot` — whether THIS job's finished image is painted here — which the caller decides (the composer always paints;
+// the editor paints only its own mode's source + workflow). One adoption at a time; when the tracked job leaves the
+// feed the next tick picks up whatever is queued behind it (queue-more), draining the queue continuously.
+//   isBusy()          -> true while the page runs its OWN submit (that flow already owns the panel; don't also adopt)
+//   onAdopt(job)      -> the page marks itself busy + shows its bar (and can set an opening status)
+//   options(job)      -> the trackJobBatch options for the visible surface (its onSlot applies the relevance filter,
+//                        its onSettle tears the bar/busy state back down). `total` defaults to job.total.
+// Returns { tick } so a page can force an immediate adoption check (e.g. on entering a tab).
+function attachLiveRecover(o) {
+  let tracking = false;
+  async function tick() {
+    if (tracking || o.isBusy()) return;
+    let res;
+    try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); }
+    catch (e) { console.debug("live recover poll failed:", e); return; }
+    const jobs = res.jobs || [];
+    const job = jobs.find(j => j.status === "running") || jobs.find(j => j.status === "queued");
+    if (!job) return;
+    tracking = true;
+    o.onAdopt(job);
+    const opts = o.options(job);
+    try { await trackJobBatch(job.jobId, { total: job.total || 1, ...opts }); }
+    finally { tracking = false; }
+  }
+  tick();
+  setInterval(tick, 2500);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") tick(); });
+  return { tick };
+}
+
 // The ONE submit control (#147). EVERY button that enqueues work — the composer's Generate (and its Reload), and each
 // edit mode's Generate/Apply — is attached to THIS, so the entire submit lifecycle lives here once and can never drift:
 //   • click / the hold-to-count picker / the form's submit event,
