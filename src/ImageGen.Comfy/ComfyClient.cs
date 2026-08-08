@@ -259,6 +259,11 @@ public sealed class ComfyClient : IComfyClient
         // than two different sets — the DiT and the VAE genuinely live together.
         (RequirementKind.SeedVr2, "SeedVR2LoadDiTModel", "model"),
         (RequirementKind.SeedVr2, "SeedVR2LoadVAEModel", "model"),
+        // DreamOmni2's self-contained pipeline picks its diffusers base (the FLUX.1-Kontext family) through this
+        // combo input, which lists the diffusers directories on disk — so a diffusers slot draws exactly that set.
+        // The third element is the NODE's input NAME (its own contract), a literal exactly like "ckpt_name"/"model"
+        // above — deliberately not WorkflowParamKeys.BaseModel, the app param key it happens to share a spelling with.
+        (RequirementKind.Diffusers, ComfyNodeTypes.RunningHubDreamOmni2EditPipeline, "base_model"),
     ];
 
     /// <summary>

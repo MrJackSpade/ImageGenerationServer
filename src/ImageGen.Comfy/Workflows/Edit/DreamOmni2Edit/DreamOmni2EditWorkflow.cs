@@ -14,8 +14,19 @@ namespace ImageGen.Comfy.Edit.DreamOmni2Edit;
 public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
 {
     public override string Name => "dreamomni2-edit";
-    /// <summary>Self-contained pipeline node (int8 + cpu offload internally) — no ComfyUI model loaders to presence-gate.</summary>
+    /// <summary>Self-contained pipeline node (int8 + cpu offload internally) — no ComfyUI model loaders to presence-gate.
+    /// The one thing it DOES take is which diffusers base drives it (<see cref="WorkflowParamKeys.BaseModel"/>), a
+    /// model-ref slot the picker binds, so <see cref="RequiresModel"/> stays false while the base is still assignable.</summary>
     public override bool RequiresModel => false;
+
+    /// <summary>The shared edit menu plus the assignable diffusers base (FLUX.1-Kontext family). The base is a model-ref
+    /// slot — resolved to a filename in <c>Build</c> and gated/bound like every other edit/gen workflow's model.</summary>
+    public override IReadOnlyList<ParamSpec> Schema => _schema;
+    private static readonly IReadOnlyList<ParamSpec> _schema =
+    [
+        new() { Key = WorkflowParamKeys.BaseModel, Type = ParamType.String, IsModelRef = true },
+        .. EditWorkflowBase.SharedSchema,
+    ];
 
     protected override ComfyWorkflowGraph Build(DreamOmni2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -44,7 +55,7 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
             refImg = LoadImage.ImageOut(EditNodes.Source);
         }
 
-        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline();
+        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline { BaseModel = p.BaseModel };
         g[Nodes.Editor] = new RunningHubDreamOmni2Editor
         {
             Pipeline = RunningHubDreamOmni2EditPipeline.Out(Nodes.Pipeline),

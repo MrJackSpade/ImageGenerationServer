@@ -49,7 +49,7 @@ public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2Pixelize
         // render size is fed to the editor as render_width/height, overriding its internal aspect-bucket resize.
         (int w, int h)? snap = PixelSnap.Target(new ModelResolution { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 }, vres, p.SnapResolution, p.Width, p.Height, inputs.SourceWidth, inputs.SourceHeight);
 
-        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline();
+        g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline { BaseModel = p.BaseModel };
         g[Nodes.Editor] = new RunningHubDreamOmni2PixelizeEditor
         {
             Pipeline = RunningHubDreamOmni2EditPipeline.Out(Nodes.Pipeline),

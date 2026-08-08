@@ -11,6 +11,7 @@ internal static class WorkflowParamKeys
     public const string AttentionMode = "attention_mode";
     public const string AudioVae = "audio_vae";
     public const string Auraflow = "auraflow";
+    public const string BaseModel = "base_model";
     public const string BatchSize = "batch_size";
     public const string Beta = "beta";
     public const string BetaSchedule = "beta_schedule";

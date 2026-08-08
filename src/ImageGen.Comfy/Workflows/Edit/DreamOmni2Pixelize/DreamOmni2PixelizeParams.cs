@@ -11,6 +11,7 @@ namespace ImageGen.Comfy.Edit.DreamOmni2Pixelize;
 /// <c>seed</c> is the app's single-sourced seed (there is no <c>LoadModel</c> head — the editor loads its own weights).</summary>
 public sealed record DreamOmni2PixelizeParams
 {
+    [JsonPropertyName(WorkflowParamKeys.BaseModel)] public required string BaseModel { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]

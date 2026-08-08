@@ -61,6 +61,7 @@ internal static class PixelizeSchema
 
     public static IReadOnlyList<ParamSpec> DreamOmniLike() =>
     [
+        new() { Key = WorkflowParamKeys.BaseModel, Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.Steps, Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
         new() { Key = WorkflowParamKeys.Cfg,   Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "Guidance scale" },
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },

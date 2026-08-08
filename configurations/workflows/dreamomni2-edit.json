@@ -4,6 +4,10 @@
   "friendly_name": "DreamOmni2",
   "default": false,
   "params": {
+    "base_model": {
+      "value": "flux1-kontext-dev-diffusers",
+      "visibility": "locked"
+    },
     "steps": {
       "value": 30,
       "visibility": "hidden"

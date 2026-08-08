@@ -481,7 +481,7 @@ public sealed class ModelResolution
 public enum RequirementKind
 {
     Checkpoint, Unet, UnetGguf, Vae, TextEncoder, MotionModel, ControlNet, UpscaleModel,
-    Lora, ClipVision, IpAdapter, LatentUpscaleModel, SeedVr2,
+    Lora, ClipVision, IpAdapter, LatentUpscaleModel, SeedVr2, Diffusers,
 
     /// <summary>Met by ComfyUI having a node registered, not by a file, so it draws from no loader at all.</summary>
     CustomNode,

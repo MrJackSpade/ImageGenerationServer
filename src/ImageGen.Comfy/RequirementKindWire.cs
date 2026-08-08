@@ -18,5 +18,6 @@ internal static class RequirementKindWire
     public const string IpAdapter = "ipadapter";
     public const string LatentUpscaleModel = "latent_upscale_model";
     public const string SeedVr2 = "seedvr2";
+    public const string Diffusers = "diffusers";
     public const string CustomNode = "custom_node";
 }

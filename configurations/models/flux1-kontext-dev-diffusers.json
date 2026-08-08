@@ -1,0 +1,9 @@
+{
+  "id": "flux1-kontext-dev-diffusers",
+  "kind": "diffusers",
+  "label": "FLUX.1-Kontext-dev (diffusers)",
+  "match": [
+    "flux[-_. ]?1[-_. ]?kontext[-_. ]?dev"
+  ],
+  "page": "https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev"
+}

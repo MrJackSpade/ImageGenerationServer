@@ -890,6 +890,7 @@ public sealed class WorkflowCatalog
         RequirementKindWire.IpAdapter => RequirementKind.IpAdapter,
         RequirementKindWire.LatentUpscaleModel => RequirementKind.LatentUpscaleModel,
         RequirementKindWire.SeedVr2 => RequirementKind.SeedVr2,
+        RequirementKindWire.Diffusers => RequirementKind.Diffusers,
         RequirementKindWire.CustomNode => RequirementKind.CustomNode,
         _ => throw new ArgumentException(
             $"Unknown model kind '{k}'. Every kind must name a loader's file list; add it to RequirementKind "

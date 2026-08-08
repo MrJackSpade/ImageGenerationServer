@@ -2,13 +2,20 @@ using System.Text.Json.Serialization;
 
 namespace ImageGen.Comfy;
 
-/// <summary>The self-contained DreamOmni2 pipeline node (loads the int8 Kontext base + Qwen2.5-VL VLM internally). It
-/// takes no inputs; its single output is the opaque pipeline handle the editor consumes (typed as a model handle, the
-/// same way SeedVR2's DiT handle is). One typed record per ComfyUI class type; inputs are declared in the exact order
-/// the old anonymous-object inputs were written, so the emitted graph is byte-identical.</summary>
+/// <summary>The self-contained DreamOmni2 pipeline node (loads the int8 Kontext base + Qwen2.5-VL VLM internally). Its
+/// single output is the opaque pipeline handle the editor consumes (typed as a model handle, the same way SeedVR2's DiT
+/// handle is). <see cref="BaseModel"/> selects which diffusers base (the FLUX.1-Kontext family) it loads — a model-ref
+/// slot the picker binds, exactly like the other edit/gen workflows — while the VLM and edit LoRA stay fixed inside the
+/// pack.</summary>
 public sealed record RunningHubDreamOmni2EditPipeline : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.RunningHubDreamOmni2EditPipeline;
+
+    /// <summary>Which diffusers base (the FLUX.1-Kontext family) the pipeline loads. <c>"base_model"</c> is the NODE's
+    /// input name — its own contract, spelled as a literal here and in <c>ComfyClient.LoaderInputs</c> exactly as every
+    /// other loader input is, and deliberately NOT the app param key <see cref="WorkflowParamKeys.BaseModel"/> it
+    /// happens to share a spelling with.</summary>
+    [JsonPropertyName("base_model")] public required string BaseModel { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }
 

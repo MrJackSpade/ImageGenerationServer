@@ -5,6 +5,10 @@
   "friendly_name": "DreamOmni2 (pixel)",
   "default": false,
   "params": {
+    "base_model": {
+      "value": "flux1-kontext-dev-diffusers",
+      "visibility": "locked"
+    },
     "snap_resolution": {
       "value": true,
       "visibility": "exposed"
