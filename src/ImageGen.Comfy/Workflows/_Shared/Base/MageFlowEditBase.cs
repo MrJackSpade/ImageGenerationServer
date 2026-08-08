@@ -5,8 +5,9 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// Mage-Flow-Edit instruction-based image editing (Mage-VAE + Native-Resolution DiT + Qwen3-VL). One unified node —
 /// <c>TextEncodeMageFlowEdit</c> — takes the CLIP, the instruction (+ optional negative), the VAE and the reference
-/// image(s) and emits (positive, negative) conditioning plus a zero latent sized to the output. The primary edited
-/// image is <c>image_1</c>; extra references are <c>image_2..N</c>. Width/height are left 0 so the node follows the
+/// image(s) and emits (positive, negative) conditioning plus a zero latent sized to the output. The images ride one
+/// ComfyUI autogrow group named <c>images</c>, so each socket is keyed <c>images.image_N</c>: the primary edited image
+/// is <c>images.image_1</c>, extra references are <c>images.image_2..N</c>. Width/height are left 0 so the node follows the
 /// (pre-scaled) reference size — Mage's RoPE aligns reference and target by position, so all references are resized
 /// to the output resolution before encoding. The source is pre-scaled to the ~1MP native range (aligned to /16),
 /// mirroring the official <c>image_mage_flow_edit_int8</c> template. Flow shift (6.0) is baked in at load.
@@ -49,7 +50,9 @@ public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
             string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
             g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = BudgetMp, ResolutionSteps = BudgetSteps };
-            refs[$"image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
+            // Autogrow group key: images.image_2, images.image_3, … — the `images.` prefix is mandatory (a flat
+            // image_N key is silently dropped by ComfyUI, leaving the node with no images — issue #216).
+            refs[$"images.image_{i + 2}"] = ImageScaleToTotalPixels.Out(scale);
         }
 
         g[MageFlowEditNodes.Encode] = new TextEncodeMageFlowEdit

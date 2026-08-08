@@ -59,11 +59,14 @@ public sealed record Flux2Scheduler : ComfyNode
 
 /// <summary>Mage-Flow-Edit's unified text encoder (<c>TextEncodeMageFlowEdit</c>): CLIP + instruction (+ optional
 /// negative) + VAE + reference image(s), emitting positive (out 0), negative (out 1) and a zero latent sized to the
-/// output (out 2). The primary edited image is <c>image_1</c>; extra references are the DYNAMIC <c>image_2…N</c> slots,
+/// output (out 2). The images ride a single ComfyUI <b>autogrow</b> input group named <c>images</c>, so every image
+/// socket is keyed <c>images.image_N</c> — NOT flat <c>image_N</c>. A flat key is silently dropped by ComfyUI's prompt
+/// expansion (the node then sees zero images and produces a no-op edit — issue #216); the group prefix is mandatory.
+/// The primary edited image is <c>images.image_1</c>; extra references are the DYNAMIC <c>images.image_2…N</c> slots,
 /// so the fixed inputs are declared properties and the variable tail rides in an ordered overflow bag —
 /// System.Text.Json emits <see cref="JsonExtensionData"/> AFTER the declared members in insertion order, reproducing the
-/// exact <c>clip, prompt, negative_prompt, vae, width, height, batch_size, image_1, image_2…</c> order the hand-built
-/// dictionary emitted.</summary>
+/// exact <c>clip, prompt, negative_prompt, vae, width, height, batch_size, images.image_1, images.image_2…</c> order the
+/// hand-built dictionary emitted.</summary>
 public sealed record TextEncodeMageFlowEdit : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.TextEncodeMageFlowEdit;
@@ -74,10 +77,11 @@ public sealed record TextEncodeMageFlowEdit : ComfyNode
     [JsonPropertyName("width")] public required int Width { get; init; }
     [JsonPropertyName("height")] public required int Height { get; init; }
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
-    [JsonPropertyName("image_1")] public required Output<Slot.Image> Image1 { get; init; }
+    [JsonPropertyName("images.image_1")] public required Output<Slot.Image> Image1 { get; init; }
 
-    /// <summary>The dynamic reference tail, in emit order: each extra reference (<c>image_2</c>/<c>image_3</c>/…) wired
-    /// to its scaled <see cref="Output{Slot.Image}"/>. Null/empty when this edit takes no extra references.</summary>
+    /// <summary>The dynamic reference tail, in emit order: each extra reference (<c>images.image_2</c>/<c>images.image_3</c>/…)
+    /// wired to its scaled <see cref="Output{Slot.Image}"/>. Keys MUST carry the <c>images.</c> autogrow-group prefix.
+    /// Null/empty when this edit takes no extra references.</summary>
     [JsonExtensionData] public Dictionary<string, object>? Extra { get; init; }
 
     public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);

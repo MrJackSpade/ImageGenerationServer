@@ -82,6 +82,35 @@ public sealed class WorkflowGraphTests
         return v;
     }
 
+    /// <summary>Mage-Flow-Edit feeds its images through a ComfyUI autogrow group named <c>images</c>, so every image
+    /// socket MUST be keyed <c>images.image_N</c>. A flat <c>image_N</c> key is silently dropped by ComfyUI's dynamic-
+    /// input expansion, leaving the encoder with NO images at all — the source is dropped too, so the edit no-ops even
+    /// with no references attached (issue #216). Pin the group-prefixed keys and forbid the flat form.</summary>
+    [Fact]
+    public void MageFlowEdit_keys_images_under_the_autogrow_group_prefix()
+    {
+        WorkflowInputs withRefs = new()
+        {
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image), new ReferenceInput("ref2.png", ReferenceKind.Image)],
+        };
+        string json = BuildJson("mage-flow-edit", withRefs);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement enc = doc.RootElement.EnumerateObject().Single(p => p.Value.GetProperty("class_type").GetString() == "TextEncodeMageFlowEdit").Value.GetProperty("inputs");
+
+        // Group-prefixed sockets are present: the source (image_1) plus each reference (image_2, image_3).
+        Assert.True(enc.TryGetProperty("images.image_1", out _));
+        Assert.True(enc.TryGetProperty("images.image_2", out _));
+        Assert.True(enc.TryGetProperty("images.image_3", out _));
+
+        // The flat form ComfyUI silently drops must NOT appear.
+        Assert.False(enc.TryGetProperty("image_1", out _));
+        Assert.False(enc.TryGetProperty("image_2", out _));
+    }
+
     private static string BuildJson(string configId, WorkflowInputs inputs)
     {
         (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
