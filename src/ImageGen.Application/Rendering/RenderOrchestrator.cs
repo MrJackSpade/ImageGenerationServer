@@ -1262,9 +1262,9 @@ public sealed class RenderOrchestrator
                 double? expected = null;
                 try
                 {
-                    // Param-matched ETA ONLY: the recent signature samples scaled to this request's resolution/steps/
-                    // frames. No fallback — a config with no signature history yet shows NO ETA, rather than a flat
-                    // per-model average that would be a wrong number for these params.
+                    // EXACT-matched ETA ONLY: the plain average of recent samples whose signature equals this
+                    // request's resolution/steps/frames. No fallback and no scaling of near-miss samples — a
+                    // signature with no matching history shows NO ETA rather than a wrong number.
                     double? avgMs = slot.EtaSignature is { } sig
                         ? await _timings.EtaAverageMsAsync(_machine, slot.Model, sig, 10, ct)
                         : null;

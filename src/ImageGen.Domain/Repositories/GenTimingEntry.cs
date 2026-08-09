@@ -4,21 +4,17 @@ namespace ImageGen.Domain.Repositories;
 
 /// <summary>
 /// The parameters of a render that materially drive its time, captured with each timing sample so the ETA can be
-/// matched to THIS request rather than a flat per-model average. <see cref="Width"/>×<see cref="Height"/> is the
+/// computed from samples that rendered the EXACT same signature. <see cref="Width"/>×<see cref="Height"/> is the
 /// resolved render size (pixels); <see cref="Steps"/>/<see cref="Frames"/> are the <c>EtaVariable</c>-marked params
-/// (null when the workflow doesn't mark them). Absent fields fall back to a per-model average, so nothing regresses.
+/// (null when the workflow doesn't mark them). Render time is not a linear function of any of these (video attention
+/// cost is superlinear in frames, and every model carries fixed overhead), so samples are never scaled toward a
+/// different signature — a signature with no matching samples simply has no ETA.
 /// </summary>
 public readonly record struct EtaSignature(
     int Width,
     int Height,
-    [property: AllowNullable("null = the workflow doesn't mark steps EtaVariable; Work() treats absent as 1, distinct from a real 0")] int? Steps,
-    [property: AllowNullable("null = the workflow doesn't mark frames EtaVariable; Work() treats absent as 1, distinct from a real 0")] int? Frames)
-{
-    /// <summary>Relative render "work" — time is modelled as ~proportional to pixels × steps × frames. Missing/zero
-    /// factors are treated as 1 so they neither zero the product nor scale it. Used to unit-cost the recent samples.</summary>
-    public double Work() =>
-        Math.Max(1.0, (double)Width * Height) * Math.Max(1, Steps ?? 1) * Math.Max(1, Frames ?? 1);
-}
+    [property: AllowNullable("null = the workflow doesn't mark steps EtaVariable; matched null-to-null, distinct from a real 0")] int? Steps,
+    [property: AllowNullable("null = the workflow doesn't mark frames EtaVariable; matched null-to-null, distinct from a real 0")] int? Frames);
 
 /// <summary>
 /// One successful render's measured duration, recorded per machine + workflow configuration. Captures ComfyUI
@@ -34,7 +30,7 @@ public readonly record struct EtaSignature(
 /// <param name="Frames">Clip length in frames (0/absent for a still), or null.</param>
 public sealed record GenTimingEntry(
     string MachineName, string ConfigId, bool IsEdit, int DurationMs,
-    [property: AllowNullable("null = render width not captured (pre-signature rows); the ETA match falls back to a per-model average")] int? RenderWidth = null,
-    [property: AllowNullable("null = render height not captured (pre-signature rows); the ETA match falls back to a per-model average")] int? RenderHeight = null,
+    [property: AllowNullable("null = render width not captured (pre-signature rows); such rows never match any signature and price nothing")] int? RenderWidth = null,
+    [property: AllowNullable("null = render height not captured (pre-signature rows); such rows never match any signature and price nothing")] int? RenderHeight = null,
     [property: AllowNullable("null = the workflow doesn't mark steps EtaVariable; distinct from a real 0")] int? Steps = null,
     [property: AllowNullable("null = a still (no frame count) or not captured; distinct from a real 0")] int? Frames = null);

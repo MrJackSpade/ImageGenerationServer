@@ -1016,10 +1016,12 @@ public static class ForgeApi
 
     /// <summary>
     /// The queue header's "what's left": outstanding jobs, outstanding images, and how long the lot should take.
-    /// <para>The total is the in-flight slot's own countdown plus this machine's recent average for each image still
-    /// waiting. Waiting slots have no expected time of their own — it's assigned at submit — so the workflow average
-    /// is the only estimate available for them.</para>
-    /// <para><c>unpricedImages</c> is not decoration. A workflow that has never rendered here has no average and so
+    /// <para>The total is the in-flight slot's own countdown plus, for each image still waiting, this machine's
+    /// MATCHED average for that workflow — the average of recent renders whose parameter signature equals the
+    /// config's most recent render (waiting slots have no expected time of their own; it's assigned at submit).
+    /// Samples with other signatures are never scaled in: render time isn't linear in resolution/steps/frames, so a
+    /// scaled number would be confidently wrong.</para>
+    /// <para><c>unpricedImages</c> is not decoration. A workflow with no matched history has no average and so
     /// contributes NOTHING to the sum, which makes the total an under-report rather than an unknown. The client is
     /// told how many images are in that state so it can present the number as the lower bound it is.</para>
     /// <para>The estimate is wall-clock only if nothing else is submitted meanwhile. There is deliberately no "mine"

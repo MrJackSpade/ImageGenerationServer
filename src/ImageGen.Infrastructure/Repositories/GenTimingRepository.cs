@@ -37,49 +37,59 @@ VALUES (@m, @c, @edit, @ms, @rw, @rh, @steps, @frames);");
     public async Task<double?> EtaAverageMsAsync(string machineName, string configId, EtaSignature current, int take, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        // Only signature-bearing rows (RenderWidth captured) — a machine/config with none yields null, and the caller
-        // shows NO ETA (there is no fall-back to a param-blind average). Unit-cost: scale each sample's time by how the
-        // CURRENT request's pixels×steps×frames compares to that sample's, then average — so an unseen param combo still
-        // gets a scaled estimate, and a config whose params never vary returns ~the plain average (every ratio ≈ 1).
+        // EXACT-match samples only: a sample prices this request only when it rendered the identical signature —
+        // same resolution, same steps, same frames (null matched to null). Render time is not linear in any of these
+        // (video attention is superlinear in frames, and every model carries fixed overhead), so near-miss samples are
+        // never scaled toward the current request; a signature with no matching history yields null and the caller
+        // shows NO ETA.
         await using DbCommand cmd = conn.Command($@"
-SELECT {_dialect.TopPrefix("@take")}DurationMs, RenderWidth, RenderHeight, Steps, Frames
-FROM dbo.GenTiming
-WHERE MachineName = @m AND ConfigId = @c AND RenderWidth IS NOT NULL
-ORDER BY Id DESC{_dialect.TopSuffix("@take")};");
+SELECT AVG(CAST(DurationMs AS FLOAT))
+FROM (
+    SELECT {_dialect.TopPrefix("@take")}DurationMs
+    FROM dbo.GenTiming
+    WHERE MachineName = @m AND ConfigId = @c
+      AND RenderWidth = @w AND RenderHeight = @h
+      AND ((@steps IS NULL AND Steps IS NULL) OR Steps = @steps)
+      AND ((@frames IS NULL AND Frames IS NULL) OR Frames = @frames)
+    ORDER BY Id DESC{_dialect.TopSuffix("@take")}
+) t;");
         _ = cmd.AddParam("@take", take);
         _ = cmd.AddParam("@m", machineName);
         _ = cmd.AddParam("@c", configId);
-        double currentWork = current.Work();
-        double sum = 0;
-        int n = 0;
-        await using DbDataReader rd = await cmd.ExecuteReaderAsync(ct);
-        while (await rd.ReadAsync(ct))
-        {
-            double ms = rd.AsDouble(0);
-            double w = rd.IsDBNull(1) ? 0 : rd.AsDouble(1);
-            double h = rd.IsDBNull(2) ? 0 : rd.AsDouble(2);
-            double steps = rd.IsDBNull(3) ? 1 : Math.Max(1, rd.AsDouble(3));
-            double frames = rd.IsDBNull(4) ? 1 : Math.Max(1, rd.AsDouble(4));
-            double rowWork = Math.Max(1.0, w * h) * steps * frames;
-            sum += ms * currentWork / rowWork;
-            n++;
-        }
-
-        return n > 0 ? sum / n : null;
+        _ = cmd.AddParam("@w", current.Width);
+        _ = cmd.AddParam("@h", current.Height);
+        _ = cmd.AddParam("@steps", (object?)current.Steps ?? DBNull.Value);
+        _ = cmd.AddParam("@frames", (object?)current.Frames ?? DBNull.Value);
+        object? avg = await cmd.ExecuteScalarAsync(ct);
+        return avg is null or DBNull ? null : Convert.ToDouble(avg, System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public async Task<IReadOnlyDictionary<string, double>> RecentAveragesMsAsync(string machineName, int take, CancellationToken ct)
     {
-        // One round-trip for the whole catalog: average the last @take durations PER ConfigId on this machine.
+        // One round-trip for the whole catalog. Same matched-only rule as the per-request ETA: each config is priced
+        // from renders whose signature (resolution/steps/frames) is IDENTICAL to that config's most recent render —
+        // "how long does this take with the params you're actually using" — never a blend across signatures, because
+        // render time is not linear in any of them. A config with no signature-bearing rows is absent (no time shown).
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbCommand cmd = conn.Command(@"
-SELECT ConfigId, AVG(CAST(DurationMs AS FLOAT)) AS AvgMs
-FROM (
-    SELECT ConfigId, DurationMs,
+WITH latest AS (
+    SELECT ConfigId, RenderWidth, RenderHeight, Steps, Frames,
            ROW_NUMBER() OVER (PARTITION BY ConfigId ORDER BY Id DESC) AS rn
     FROM dbo.GenTiming
-    WHERE MachineName = @m
-) t
+    WHERE MachineName = @m AND RenderWidth IS NOT NULL
+),
+matched AS (
+    SELECT g.ConfigId, g.DurationMs,
+           ROW_NUMBER() OVER (PARTITION BY g.ConfigId ORDER BY g.Id DESC) AS rn
+    FROM dbo.GenTiming g
+    INNER JOIN latest l ON l.ConfigId = g.ConfigId AND l.rn = 1
+        AND g.RenderWidth = l.RenderWidth AND g.RenderHeight = l.RenderHeight
+        AND ((g.Steps IS NULL AND l.Steps IS NULL) OR g.Steps = l.Steps)
+        AND ((g.Frames IS NULL AND l.Frames IS NULL) OR g.Frames = l.Frames)
+    WHERE g.MachineName = @m
+)
+SELECT ConfigId, AVG(CAST(DurationMs AS FLOAT)) AS AvgMs
+FROM matched
 WHERE rn <= @take
 GROUP BY ConfigId;");
         _ = cmd.AddParam("@m", machineName);

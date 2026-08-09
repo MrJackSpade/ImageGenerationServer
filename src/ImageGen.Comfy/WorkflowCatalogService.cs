@@ -199,7 +199,8 @@ public sealed partial class WorkflowCatalogService(
             eligible.Add((cfg, wf));
         }
 
-        // Per-model average runtime (machine-specific, last 10 renders). Purely a decoration on rows that are already
+        // Per-model MATCHED average runtime (machine-specific: recent renders whose parameter signature equals the
+        // config's most recent render — never a blend across signatures). Purely a decoration on rows that are already
         // decided, so a timings hiccup must not take the model picker down with it — the degrade-with-log catch stays
         // AT THIS CONSUMER around the snapshot read (#200): a faulted GenTimingAverages lists workflows without ETAs,
         // it does not 502. Do not widen this catch's scope.
