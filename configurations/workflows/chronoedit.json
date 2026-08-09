@@ -1,7 +1,7 @@
 {
   "id": "chronoedit",
   "workflow": "chronoedit",
-  "friendly_name": "ChronoEdit-14B",
+  "friendly_name": "ChronoEdit",
   "default": false,
   "requirements": {
     "checkpoint": "chronoedit-14b",

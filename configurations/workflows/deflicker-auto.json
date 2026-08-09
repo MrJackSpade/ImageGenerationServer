@@ -1,7 +1,7 @@
 {
   "id": "deflicker-auto",
   "workflow": "deflicker-auto",
-  "friendly_name": "Deflicker Auto (video)",
+  "friendly_name": "Deflicker Auto",
   "effect_type": "Flicker correction",
   "params": {
     "mad_k": {

@@ -1,7 +1,7 @@
 {
   "id": "pixeldit",
   "workflow": "pixeldit",
-  "friendly_name": "PixelDiT 1300M (pixel-space)",
+  "friendly_name": "PixelDiT 1300M",
   "default": false,
   "requirements": {
     "checkpoint": "pixeldit-1300m-1024px",

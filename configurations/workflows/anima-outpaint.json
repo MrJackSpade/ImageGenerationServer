@@ -1,7 +1,7 @@
 {
   "id": "anima-outpaint",
   "workflow": "anima-outpaint",
-  "friendly_name": "Anima (outpaint)",
+  "friendly_name": "Anima",
   "default": false,
   "requirements": {
     "checkpoint": "anima-base-v1-0",

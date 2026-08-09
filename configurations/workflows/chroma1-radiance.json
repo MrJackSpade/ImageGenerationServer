@@ -1,7 +1,7 @@
 {
   "id": "chroma1-radiance",
   "workflow": "chroma",
-  "friendly_name": "Chroma1-Radiance (pixel-space)",
+  "friendly_name": "Chroma1-Radiance",
   "default": false,
   "requirements": {
     "checkpoint": "chroma1-radiance-x0",

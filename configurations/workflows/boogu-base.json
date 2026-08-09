@@ -1,7 +1,7 @@
 {
   "id": "boogu-base",
   "workflow": "boogu-base",
-  "friendly_name": "Boogu-Image Base",
+  "friendly_name": "Boogu-Image",
   "default": false,
   "requirements": {
     "checkpoint": "boogu-image-base",

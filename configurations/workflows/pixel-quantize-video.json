@@ -1,7 +1,7 @@
 {
   "id": "pixel-quantize-video",
   "workflow": "pixel-quantize-video",
-  "friendly_name": "Pixel Quantize (video)",
+  "friendly_name": "Pixel Quantize",
   "effect_type": "Pixelize",
   "default": true,
   "params": {

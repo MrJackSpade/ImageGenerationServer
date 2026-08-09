@@ -1,7 +1,7 @@
 {
   "id": "flux1-fill-inpaint",
   "workflow": "flux1-fill-inpaint",
-  "friendly_name": "FLUX.1 Fill (inpaint)",
+  "friendly_name": "FLUX.1 Fill",
   "default": false,
   "requirements": {
     "checkpoint": "flux1-fill-dev",

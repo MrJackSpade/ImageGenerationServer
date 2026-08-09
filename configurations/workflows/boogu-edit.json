@@ -1,7 +1,7 @@
 {
   "id": "boogu-edit",
   "workflow": "boogu-edit",
-  "friendly_name": "Boogu-Image Edit",
+  "friendly_name": "Boogu-Image",
   "default": false,
   "requirements": {
     "checkpoint": "boogu-image-edit",

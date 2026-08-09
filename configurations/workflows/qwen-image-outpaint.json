@@ -1,7 +1,7 @@
 {
   "id": "qwen-image-outpaint",
   "workflow": "qwen-image-outpaint",
-  "friendly_name": "Qwen-Image (outpaint)",
+  "friendly_name": "Qwen-Image",
   "default": false,
   "requirements": {
     "checkpoint": "qwen-image-2512",

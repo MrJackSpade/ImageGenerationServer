@@ -1,7 +1,7 @@
 {
   "id": "chroma1-radiance-redraw",
   "workflow": "img2img-redraw",
-  "friendly_name": "Chroma1-Radiance (pixel-space)",
+  "friendly_name": "Chroma1-Radiance",
   "edit_group": "Redraw",
   "default": false,
   "requirements": {

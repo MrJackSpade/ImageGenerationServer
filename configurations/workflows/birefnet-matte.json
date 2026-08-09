@@ -1,7 +1,7 @@
 {
   "id": "birefnet-matte",
   "workflow": "birefnet-matte",
-  "friendly_name": "BiRefNet Matte (image)",
+  "friendly_name": "BiRefNet Matte",
   "effect_type": "Background removal",
   "params": {
     "threshold": {
