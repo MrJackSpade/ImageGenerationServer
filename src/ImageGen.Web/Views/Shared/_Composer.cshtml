@@ -56,7 +56,9 @@
             </div>
             <div class="field">
                 <label class="fld-label">Shape</label>
-                @* Picking a shape writes its dims into the (hidden) width/height that get submitted (#209). *@
+                @* A tap picks one shape and writes its dims into the (hidden) width/height that get submitted (#209);
+                   a long-press ADDS one (multi-select, #213) and each picture then rolls its own, resolved to dims
+                   client-side before submit. *@
                 <div class="shape-options" id="aspect">
                     <button type="button" data-aspect="square" class="active">◻ Square</button>
                     <button type="button" data-aspect="landscape">▭ Landscape</button>

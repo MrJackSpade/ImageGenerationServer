@@ -20,12 +20,17 @@ const MODELS = {};
 // Claim the role synchronously here so the shared tracker.js (loaded after this file by _Layout) stands down.
 window.__liveTrackerOwned = true;
 let busy = false, activeGen = null, cancelRequested = false;
-// A single picked shape. Clicking one writes its dims into the (hidden) width/height that get submitted (#209) — the
-// composer sends WIDTH/HEIGHT, never an aspect name, and the server derives the ratio from them. `aspects` stays an
-// array of one for backward-compatible prefs (older drafts persisted a set).
+// Shape is a SET, not one value (#213): a tap picks exactly one, a long-press ADDS one (the style picker's gesture).
+// The composer still sends WIDTH/HEIGHT, never an aspect name (#209) — with two or more picked, each slot of a batch
+// ROLLS its own shape at build time, resolved through the model's aspect map to that shape's dims before submit, so
+// the wire is unchanged. Custom never participates: it is one arbitrary size, mutually exclusive with a multi-pick.
 const ASPECTS = ["square", "landscape", "portrait"];
 let aspects = ["square"];
 const primaryAspect = () => aspects[0] || "square";
+// True while several shapes are picked (Custom excludes itself by collapsing the roll to the primary).
+const multiShape = () => !customActive && aspects.length > 1;
+// The shape one slot renders at: rolled from the picked set when several are picked, otherwise the single pick.
+const pickAspect = () => multiShape() ? aspects[Math.floor(Math.random() * aspects.length)] : primaryAspect();
 let hasEditors = false;
 // Artist mode: when the composer is on an artist page it carries a locked artist (data-artist). Every gen is
 // locked to that artist, and the Random-artist option and '@' artist autocomplete are suppressed.
@@ -171,6 +176,27 @@ function setCustomActive(on) {
   } else {
     setAspects(aspects);   // restore the normal shape's active markers
   }
+  updateSizeControlsVisibility();
+}
+
+// #213: with several shapes picked there is no single size to show or edit — each slot rolls its own — so the size
+// fields, the megapixels control, and the envelope note come off screen while the multi-pick is active. They are the
+// same DOM the single-shape flow uses (readout/editor of the one submitted pair), just hidden, so collapsing back to
+// one shape restores them as-is.
+function updateSizeControlsVisibility() {
+  const hide = multiShape();
+  const box = document.getElementById("modelParams");
+  if (!box) return;
+  const row = box.querySelector(".mp-size-row");
+  if (row) row.classList.toggle("hidden", hide);
+  for (const k of ["width", "height"]) {   // a #191-revealed field outside the inline row hides too
+    const el = sizeField(k), f = el && el.closest(".mp-field");
+    if (f && !(row && row.contains(f))) f.classList.toggle("hidden", hide);
+  }
+  const mp = $mpField(), mpWrap = mp && mp.closest(".mp-field");
+  if (mpWrap) mpWrap.classList.toggle("hidden", hide);
+  const note = box.querySelector("#customSizeNote");
+  if (note) note.classList.toggle("hidden", hide);
 }
 
 // The width/height specs to force into the params panel for a custom-capable workflow: the model's own shipped specs
@@ -226,6 +252,7 @@ async function applyEnvelope(m) {
       `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
   }
   decorateMpSlider();
+  updateSizeControlsVisibility();   // the note lands async — re-hide it if a multi-pick is active
 }
 
 // A slider beside the megapixels number input — the same value with a draggable handle. Its range is the model's own
@@ -418,6 +445,7 @@ const renderParams = () => {
   applyParamPrefs(box, paramPrefs);
   if (customActive) { writeSize(customDim($genW) || "", customDim($genH) || ""); syncMpFromWH(); }
   else writeAspectSize(primaryAspect());
+  updateSizeControlsVisibility();   // a multi-pick keeps the freshly-rendered size/M controls off screen
   // The envelope loads for ANY single generate workflow, not just a custom-capable one: its step also drives the
   // M → W/H rescale, which runs wherever an M field is on screen. Bounds + note only land on rendered size fields.
   const pm = primaryModel();
@@ -545,23 +573,31 @@ function buildComposerItems(n) {
 // now (one job slot per `{a|b}` combo, `[a|b]` picked per combo), so a `{a|b}` copy fans out server-side. `exact`
 // (Reload) reproduces a picture verbatim — its own (already-resolved) prompt/negative/loras/shape, no re-roll.
 function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
-  // Every slot of a batch shares the one submitted width/height (#209 — one W/H pair, from currentOverrides). Reload
-  // reproduces the image's OWN size instead: resolve its recorded shape against its model and override the composer's.
-  const shape = aspect || primaryAspect();
+  // One submitted width/height pair by default (#209, from currentOverrides). With a multi-shape pick (#213) each
+  // slot rolls its own shape and carries THAT shape's dims instead — resolved client-side, so the wire still sees
+  // width/height only. Reload reproduces the image's OWN size: its recorded shape overrides the composer's.
+  const rollAspect = () => aspect || pickAspect();
+  const slotAspects = Array.from({ length: n }, rollAspect);   // slotAspects[i] = the shape slot i is submitted with
   let ov = currentOverrides();
   if (exact && !customReady()) {
-    const wh = aspectDims(model, shape);
+    const wh = aspectDims(model, aspect || primaryAspect());
     if (wh) { ov = { ...ov, width: wh[0], height: wh[1] }; }
   }
-  const slotAspects = Array.from({ length: n }, () => shape);   // recorded shape (server re-derives the truth from W/H)
+  // The rolled shape's dims ride as that slot's overrides; a map-less model keeps the shared pair (the server then
+  // sizes it from its own config, exactly as the single-shape flow does).
+  const ovFor = shape => {
+    if (!multiShape() || exact) return ov;
+    const wh = aspectDims(model, shape);
+    return wh ? { ...ov, width: wh[0], height: wh[1] } : ov;
+  };
   let items;
   if (exact) {
     // `negative ?? null` keeps "no negative was submitted" distinct from an empty one; the image's OWN LoRA stack.
     const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: loras || [] };
     items = Array.from({ length: n }, () => ({ ...one }));
   } else {
-    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), overrides: ov, loras: lorasPayload() };
-    items = Array.from({ length: n }, () => ({ ...base, prompt: lockArtist(model, prompt), originalPrompt: prompt }));
+    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), loras: lorasPayload() };
+    items = Array.from({ length: n }, (_, i) => ({ ...base, overrides: ovFor(slotAspects[i]), prompt: lockArtist(model, prompt), originalPrompt: prompt }));
   }
   return { items, slotAspects };
 }
@@ -570,12 +606,15 @@ function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
 // artist/prompt stay single-model affordances (off here). Artist-mode locks per model.
 function buildMultiItems(prompt, models, n) {
   const ov = currentOverrides();
-  const shape = primaryAspect();
   const items = [], slotModels = [], slotAspects = [];
   for (const model of models) {
-    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: lorasPayload() };
+    const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, loras: lorasPayload() };
     for (let i = 0; i < n; i++) {
-      items.push({ ...base, prompt: lockArtist(model, prompt), originalPrompt: prompt });
+      // Each slot rolls its own shape from the picked set (#213), resolved against ITS model's aspect map — the
+      // same shape can be different dims per model. A single pick keeps the one shared pair (#209).
+      const shape = pickAspect();
+      const wh = multiShape() ? aspectDims(model, shape) : null;
+      items.push({ ...base, overrides: wh ? { ...ov, width: wh[0], height: wh[1] } : ov, prompt: lockArtist(model, prompt), originalPrompt: prompt });
       slotModels.push(model.friendly_name); slotAspects.push(shape);
     }
   }
@@ -977,7 +1016,9 @@ function setAspects(list) {
   for (const a of (list || [])) if (ASPECTS.includes(a) && !next.includes(a)) next.push(a);
   aspects = next.length ? next : ["square"];
   for (const b of $aspect.children) b.classList.toggle("active", aspects.includes(b.dataset.aspect));
+  updateSizeControlsVisibility();
 }
+function addAspect(a) { setAspects(aspects.concat([a])); }
 function restorePrefs(p) {
   if (!p) return;
   // Seed the flat override map BEFORE the model selection below triggers renderParams, so the restored knob values
@@ -986,8 +1027,8 @@ function restorePrefs(p) {
   // A pre-#209 blob may carry stale width/height (they were collectable prefs then); the size is model-derived now.
   delete paramPrefs.width;
   delete paramPrefs.height;
-  // Shape is single-select now (#209); an older draft may hold a set — take its first.
-  if (Array.isArray(p.aspects) && p.aspects.length) setAspects(p.aspects.slice(0, 1));
+  // The full picked set restores (#213); `aspect` is the legacy single-shape fallback.
+  if (Array.isArray(p.aspects) && p.aspects.length) setAspects(p.aspects);
   else if (p.aspect) setAspects([p.aspect]);
   // modelIds (multi) is current; fall back to the legacy single modelId. setSelectedIds refreshes the panel.
   const ids = (Array.isArray(p.modelIds) ? p.modelIds : (p.modelId ? [p.modelId] : [])).filter(id => MODELS[id] && !modelHidden.has(id));
@@ -1010,12 +1051,31 @@ function restorePrefs(p) {
   if (Array.isArray(p.loras)) { loras = p.loras.filter(l => l && l.name).map(l => ({ name: l.name, weight: normWeight(l.weight), triggers: l.triggers || "", autoAttach: l.autoAttach !== false, displayName: l.displayName })); renderLoras(); refreshLoraMeta(); }
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
-// Shape is single-select (#209): a tap picks one shape and writes its dims into the (hidden) width/height that get
-// submitted, then resets megapixels to the model budget. The Custom chip is a state indicator (#225): clicking it
-// selects Custom (keeping whatever the size fields show); an aspect click deselects it. The size fields themselves
-// are always on screen for a custom-capable workflow, so neither direction re-renders the panel.
+// Shape gestures, mirroring the style picker (#213): a tap picks exactly ONE shape (collapsing any multi-pick back
+// down) and writes its dims into the (hidden) width/height that get submitted (#209), then resets megapixels to the
+// model budget; a ~450ms hold ADDS the held shape to the set — each slot then rolls its own at build time. A press
+// that turns into a hold must not also run the tap handler, so the completed hold swallows the click it releases
+// into. The Custom chip is a state indicator (#225), exclusive with a multi-pick: clicking it selects Custom
+// (keeping whatever the size fields show); an aspect click deselects it. No gesture re-renders the params panel.
+const ASPECT_HOLD_MS = 450;   // same dwell as the style picker / count picker
+let aspHoldTimer = null, aspHeld = false, aspX = 0, aspY = 0;
+$aspect.addEventListener("pointerdown", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  aspHeld = false; aspX = e.clientX; aspY = e.clientY; clearTimeout(aspHoldTimer);
+  if (b === $aspectCustom) return;   // Custom is a single exclusive size — no hold-to-add-a-set gesture
+  aspHoldTimer = setTimeout(() => {
+    aspHeld = true;
+    setCustomActive(false);   // a multi-pick and Custom are mutually exclusive; the add wins
+    addAspect(b.dataset.aspect);
+    savePrefs();
+  }, ASPECT_HOLD_MS);
+});
+$aspect.addEventListener("pointermove", e => { if (aspHoldTimer && (Math.abs(e.clientX - aspX) > 10 || Math.abs(e.clientY - aspY) > 10)) { clearTimeout(aspHoldTimer); aspHoldTimer = null; } });
+["pointerup", "pointerleave", "pointercancel"].forEach(ev => $aspect.addEventListener(ev, () => { clearTimeout(aspHoldTimer); aspHoldTimer = null; }));
+$aspect.addEventListener("contextmenu", e => e.preventDefault());   // no callout on a mobile long-press
 $aspect.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (aspHeld) { aspHeld = false; return; }
   if (b === $aspectCustom) { setCustomActive(true); syncMpFromWH(); savePrefs(); return; }
   setCustomActive(false); setAspects([b.dataset.aspect]); writeAspectSize(b.dataset.aspect); resetMpFromAspect(); savePrefs();
 });
