@@ -49,7 +49,7 @@
       "visibility": "hidden"
     },
     "ref_image_size": {
-      "value": "match",
+      "value": "max",
       "visibility": "exposed"
     }
   },
