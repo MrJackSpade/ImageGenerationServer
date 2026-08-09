@@ -422,7 +422,7 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("ref_images.ref_image_3", json);   // exactly 1 source + 2 picker refs
         Assert.Contains("audio_vae", json);                      // the ref node takes the audio VAE directly
         Assert.Contains("ref_image_size", json);
-        Assert.Contains("\"match\"", json);
+        Assert.Contains("\"max\"", json);
         Assert.Contains("VAEDecodeAudio", json);                 // native audio path intact
         Assert.Contains("CreateVideo", json);
         Assert.Contains("SaveVideo", json);
