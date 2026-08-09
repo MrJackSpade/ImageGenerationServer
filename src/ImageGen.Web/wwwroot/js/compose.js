@@ -971,9 +971,13 @@ function showResult(r) {
   $result.innerHTML = "";
   const card = document.createElement("div"); card.className = "result-card";
   // A video model's result is a clip (animated webp) — show it as a looping <video> from the mp4 endpoint, the same
-  // way the library does. Everything else is a still <img>.
+  // way the library does. Everything else is a still <img>. The record's own media/hasAudio (stated by the server on
+  // the job/slot payload) win over the MODELS lookup: an ADOPTED job's model may not be in this page's map at all
+  // (compose adopting an edit/animate job), and guessing "still" there rendered clips as <img> — which media.js then
+  // swapped for a hover-play <video> with no click handler.
   const m = MODELS[r.modelId];
-  const isVid = !!(m && m.media === "video");
+  const isVid = r.media ? r.media === "video" : !!(m && m.media === "video");
+  const hasAudio = r.hasAudio != null ? !!r.hasAudio : !!(m && m.hasAudio);
   let img;
   if (isVid) {
     img = document.createElement("video");
@@ -982,7 +986,7 @@ function showResult(r) {
     img.setAttribute("muted", ""); img.setAttribute("playsinline", ""); img.preload = "metadata";
     // Clips with a native audio track (H3) autoplay muted like the rest (browsers require it), but get controls so the
     // user can unmute and hear the generated audio. Silent clips stay chrome-free.
-    if (m.hasAudio) img.controls = true;
+    if (hasAudio) img.controls = true;
   } else {
     img = document.createElement("img"); img.src = viewUrl(r); img.alt = r.prompt || "";
   }
@@ -1189,7 +1193,9 @@ function liveOpenWs() {
 function showAdoptedResult(job, s) {
   if (!s || !s.id) return;
   const model = (MODELS[job.model] && MODELS[job.model].friendly_name) || job.model || "";
-  const rec = { ts: Date.now(), prompt: s.effectivePrompt || job.prompt || "", marks: s.marks || null, model, modelId: job.model || "", aspect: primaryAspect(), id: s.id, notice: s.notice || null };
+  // media/hasAudio come from the SLOT (the server states them per slot): an adopted job's model — e.g. an edit/animate
+  // job picked up by this page — has no MODELS entry here, and a lookup miss must not demote a clip to a still.
+  const rec = { ts: Date.now(), prompt: s.effectivePrompt || job.prompt || "", marks: s.marks || null, model, modelId: job.model || "", media: s.media || job.media, hasAudio: s.hasAudio != null ? s.hasAudio : job.hasAudio, aspect: primaryAspect(), id: s.id, notice: s.notice || null };
   if (!ARTIST_MODE || belongsToArtistPage(rec.marks, LOCKED_ARTIST)) showResult(rec);
 }
 

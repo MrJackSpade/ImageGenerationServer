@@ -252,7 +252,9 @@ function editModeSpec(mode) {
       sourceId: () => outpaintBase, mine: id => outpaintWorkflowIds().has(id) };
   }
   return { bar: $bar, eta: $eta, show: showProgressBar,   // chat = edit + animate
-    onSlot: s => showEditResult(s.id, "", EDIT_MODELS[s.model] || null, s.notice), onNoneMade: () => { $result.innerHTML = ""; },
+    // The slot's own media/hasAudio (server-stated) back up the EDIT_MODELS lookup: an adopted job's model can be
+    // absent from this page's map, and a miss must not render a clip as a still <img>.
+    onSlot: s => showEditResult(s.id, "", EDIT_MODELS[s.model] || { media: s.media, hasAudio: s.hasAudio }, s.notice), onNoneMade: () => { $result.innerHTML = ""; },
     sourceId: () => editCurrent, mine: id => { const inp = inpaintWorkflowIds(), out = outpaintWorkflowIds(); return !inp.has(id) && !out.has(id); } };
 }
 

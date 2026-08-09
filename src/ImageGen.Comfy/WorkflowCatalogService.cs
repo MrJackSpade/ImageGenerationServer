@@ -42,7 +42,7 @@ public sealed partial class WorkflowCatalogService(
         string friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
         bool preserves = wf?.PreservesComposition ?? false;
-        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card));
+        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card), wf?.HasAudio ?? false);
     }
 
     /// <summary>The workflow's reference capability, or null when it accepts no references — the single projection of a

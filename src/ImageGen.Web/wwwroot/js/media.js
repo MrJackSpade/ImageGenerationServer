@@ -117,6 +117,10 @@
 
   function consider(img) {
     if (img.tagName !== "IMG" || img.dataset.mediaChecked) return;
+    // A result card's media is rendered by the page that owns it (compose/edit decide <img> vs <video> from the
+    // job's declared media and wire the click-to-open handler). replaceWith() here would silently drop that handler,
+    // leaving a preview that can't be clicked — so result cards are never upgraded from outside.
+    if (img.closest(".result-card")) return;
     const id = idOf(img);
     if (!id) return;
     img.dataset.mediaChecked = "1";

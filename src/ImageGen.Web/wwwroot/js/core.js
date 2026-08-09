@@ -576,17 +576,21 @@ function attachLiveRecover(o) {
   let tracking = false;
   async function tick() {
     if (tracking || o.isBusy()) return;
-    let res;
-    try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); }
-    catch (e) { console.debug("live recover poll failed:", e); return; }
-    const jobs = res.jobs || [];
-    const job = jobs.find(j => j.status === "running") || jobs.find(j => j.status === "queued");
-    if (!job) return;
+    // Claimed BEFORE the await: the interval tick, the initial tick and the visibilitychange tick all fire together
+    // when a tab wakes up, and checking the flag on entry alone let two of them pass it while the first's /jobs fetch
+    // was still in flight — both then adopted the same job and ran two trackers over one panel.
     tracking = true;
-    o.onAdopt(job);
-    const opts = o.options(job);
-    try { await trackJobBatch(job.jobId, { total: job.total || 1, ...opts }); }
-    finally { tracking = false; }
+    try {
+      let res;
+      try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); }
+      catch (e) { console.debug("live recover poll failed:", e); return; }
+      const jobs = res.jobs || [];
+      const job = jobs.find(j => j.status === "running") || jobs.find(j => j.status === "queued");
+      if (!job) return;
+      o.onAdopt(job);
+      const opts = o.options(job);
+      await trackJobBatch(job.jobId, { total: job.total || 1, ...opts });
+    } finally { tracking = false; }
   }
   tick();
   setInterval(tick, 2500);

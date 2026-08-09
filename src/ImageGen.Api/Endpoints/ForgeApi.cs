@@ -877,10 +877,10 @@ public static class ForgeApi
         });
 
         // SYNC: this user's ACTIVE jobs only. A finalized job is not here — its absence is the client's reconcile cue.
-        _ = app.MapGet(Routes.Jobs, (HttpRequest http, RenderOrchestrator queue) =>
+        _ = app.MapGet(Routes.Jobs, (HttpRequest http, RenderOrchestrator queue, IWorkflowCatalog catalog) =>
         {
             long owner = OwnerOf(http);
-            return Results.Ok(new { jobs = queue.ActiveForOwner(owner).Select(j => JobViewOf(j, queue)) });
+            return Results.Ok(new { jobs = queue.ActiveForOwner(owner).Select(j => JobViewOf(j, queue, catalog)) });
         });
 
         // Cross-user QUEUE + history: a page of every gen on this box, live rows overlaid with in-memory state.
@@ -939,13 +939,13 @@ public static class ForgeApi
         });
 
         // LOOKUP a job by id (active or finalized) — the durable read for a job that vanished from /jobs. Owner-checked.
-        _ = app.MapGet(Routes.Job, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.Job, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             long owner = OwnerOf(http);
             RenderJob? live = queue.Get(id);
             if (live is not null)
             {
-                return live.Owner == owner ? Results.Ok(JobViewOf(live, queue)) : Results.Unauthorized();
+                return live.Owner == owner ? Results.Ok(JobViewOf(live, queue, catalog)) : Results.Unauthorized();
             }
 
             JobRecord? rec = await jobs.GetAsync(id, ct);
@@ -954,7 +954,7 @@ public static class ForgeApi
                 return Results.NotFound(new { error = "unknown job id" });
             }
 
-            return rec.UserId == owner ? Results.Ok(JobRecordView(rec)) : Results.Unauthorized();
+            return rec.UserId == owner ? Results.Ok(JobRecordView(rec, catalog)) : Results.Unauthorized();
         });
 
         // A live job is cancelled in memory. A job this instance owns whose row is still Active but which no worker
@@ -1074,16 +1074,28 @@ public static class ForgeApi
         };
     }
 
+    /// <summary>The declared output kind of a configuration, for job/slot wire views: is the result a clip, and does
+    /// that clip carry audio. Stated by the SERVER so a page rendering a result it did not submit (the live-recover
+    /// adoption path) never has to look the model up in its own catalog map — a compose page adopting an edit job has
+    /// no entry for it, and guessing "still" there painted clips as &lt;img&gt;.</summary>
+    private static (string Media, bool HasAudio) MediaOf(IWorkflowCatalog catalog, string? model)
+    {
+        WorkflowInfo? info = catalog.ResolveInfo(model);
+        return (info?.ProducesVideo == true ? "video" : "image", info?.HasAudio ?? false);
+    }
+
     /// <summary>One slot's view for the client.</summary>
-    private static object SlotView(int index, string status, string? imageId, string model, string? effectivePrompt,
-        Dictionary<string, string>? marks, int width, int height, bool? changed, double? changeScore, string? error,
-        string? notice = null) => new
+    private static object SlotView(int index, string status, string? imageId, string model, string media, bool hasAudio,
+        string? effectivePrompt, Dictionary<string, string>? marks, int width, int height, bool? changed,
+        double? changeScore, string? error, string? notice = null) => new
         {
             index,
             status,
             id = imageId,
             url = UrlFor(imageId),
             model,
+            media,
+            hasAudio,
             effectivePrompt,
             marks,
             width,
@@ -1094,20 +1106,27 @@ public static class ForgeApi
             notice
         };
 
-    private static object SlotViewOf(RenderSlot s) => SlotView(
-        s.Index, RenderPhases.Of(s.State).Wire(),
-        s.ImageId, s.Model, s.EffectivePrompt, s.Marks, s.Width, s.Height,
-        s.EditResult?.Changed, s.EditResult?.ChangeScore, s.Error, s.Notice);
+    private static object SlotViewOf(RenderSlot s, IWorkflowCatalog catalog)
+    {
+        (string media, bool hasAudio) = MediaOf(catalog, s.Model);
+        return SlotView(
+            s.Index, RenderPhases.Of(s.State).Wire(),
+            s.ImageId, s.Model, media, hasAudio, s.EffectivePrompt, s.Marks, s.Width, s.Height,
+            s.EditResult?.Changed, s.EditResult?.ChangeScore, s.Error, s.Notice);
+    }
 
-    private static object JobViewOf(RenderJob j, RenderOrchestrator q)
+    private static object JobViewOf(RenderJob j, RenderOrchestrator q, IWorkflowCatalog catalog)
     {
         RenderSlot? running = j.Slots.FirstOrDefault(s => s.State == SlotState.Running);
         string status = RenderPhases.Of(j).Wire();
+        (string media, bool hasAudio) = MediaOf(catalog, j.Model);
         return new
         {
             jobId = j.JobId,
             kind = j.IsEdit ? "edit" : "generate",
             model = j.Model,
+            media,
+            hasAudio,
             prompt = j.Prompt,
             sourceImageId = j.IsEdit && j.Slots.Count > 0 ? j.Slots[0].Edit?.ImageId : null,
             referenceIds = j.IsEdit && j.Slots.Count > 0 ? j.Slots[0].Edit?.ReferenceIds : null,
@@ -1120,7 +1139,7 @@ public static class ForgeApi
             expectedSeconds = running?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
             imageIds = j.ImageIds(),
-            slots = j.Slots.OrderBy(s => s.Index).Select(SlotViewOf),
+            slots = j.Slots.OrderBy(s => s.Index).Select(s => SlotViewOf(s, catalog)),
             createdAt = j.CreatedAt
         };
     }
@@ -1212,15 +1231,18 @@ public static class ForgeApi
     private static DateTimeOffset? AsUtc(DateTime? dt) =>
         dt is null ? null : new DateTimeOffset(DateTime.SpecifyKind(dt.Value, DateTimeKind.Utc));
 
-    private static object JobRecordView(JobRecord r)
+    private static object JobRecordView(JobRecord r, IWorkflowCatalog catalog)
     {
         // A durable record, read only when the job is not live here — so never "running", whatever its slot rows say.
         string status = RenderPhases.Of(r.Status).Wire();
+        (string media, bool hasAudio) = MediaOf(catalog, r.Model);
         return new
         {
             jobId = r.JobId,
             kind = r.Slots.Count > 0 && r.Slots[0].IsEdit ? "edit" : "generate",
             model = r.Model,
+            media,
+            hasAudio,
             prompt = r.Prompt,
             total = r.Total,
             progress = r.Slots.Count(s => s.State is JobSlotState.Done or JobSlotState.Error or JobSlotState.Cancelled),
@@ -1229,7 +1251,7 @@ public static class ForgeApi
             imageIds = r.Slots.OrderBy(s => s.SlotIndex).Select(s => s.ImageId),
             slots = r.Slots.OrderBy(s => s.SlotIndex).Select(s => SlotView(
                 s.SlotIndex, RenderPhases.Of(s.State).Wire(),
-                s.ImageId, r.Model, s.EffectivePrompt, MarksMap(s.Marks), s.Width ?? 0, s.Height ?? 0,
+                s.ImageId, r.Model, media, hasAudio, s.EffectivePrompt, MarksMap(s.Marks), s.Width ?? 0, s.Height ?? 0,
                 s.Edit?.Changed, s.Edit?.ChangeScore, s.Error)),
             createdAt = AsUtc(r.CreatedAtUtc),
             finishedAt = AsUtc(r.FinishedAtUtc)

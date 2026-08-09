@@ -21,9 +21,11 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// transforms) so the whole-image no-change gate must be skipped for it.</param>
 /// <param name="ProducesVideo">The workflow's DECLARED output: true for a video workflow. Not a guess from the
 /// output's file extension — a single-frame render comes back as .webp exactly like a clip does.</param>
+/// <param name="HasAudio">Video only: the clip carries a native audio track (MiniMax-H3). Rides the job/slot wire
+/// views so a client rendering a result it did not submit still knows to offer an unmute control.</param>
 public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
-    WorkflowReference? Reference = null);
+    WorkflowReference? Reference = null, bool HasAudio = false);
 
 /// <summary>How one workflow parameter may be surfaced, per its configuration file. Three explicit states — there is
 /// no fourth "absent" meaning, and no flag pair welding visibility to lockability (issue #191).</summary>
