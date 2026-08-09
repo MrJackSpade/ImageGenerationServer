@@ -196,6 +196,10 @@ a{color:var(--accent-hi)}
 .mp-size-row .mp-field{flex:1 1 0;min-width:0}
 .mp-size-row .fld-input{width:100%;min-width:0}
 .mp-size-row .wf-aspect-x{flex:none;padding-bottom:9px}
+/* Megapixels: slider + number input share one row; the slider takes the slack, the number stays readable. */
+.mp-num-row{display:flex;align-items:center;gap:8px}
+.mp-num-row .mp-slider{flex:1;min-width:0;accent-color:var(--accent);height:4px;cursor:pointer}
+.mp-num-row .fld-input{width:5.5rem;flex:none}
 /* The app's field chrome, worn by the INPUT itself. This was three container classes enumerated across two long
    selectors, so an input was styled only if someone remembered to add its container to the list — which is why the
    outpaint pads rendered with browser default chrome, and why the custom-count box had a fourth copy of the same

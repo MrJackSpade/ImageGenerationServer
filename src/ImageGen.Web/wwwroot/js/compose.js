@@ -225,6 +225,35 @@ async function applyEnvelope(m) {
     note.textContent =
       `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
   }
+  decorateMpSlider();
+}
+
+// A slider beside the megapixels number input — the same value with a draggable handle. Its range is the model's own
+// envelope, as an area: smallest supported W×H to largest, so every slider position is a size the model can render.
+// Built only once the envelope is known; a config that declares none keeps the plain number input.
+function decorateMpSlider() {
+  const f = $mpField(); if (!f || !customEnv) return;
+  const wrap = f.closest(".mp-field"); if (!wrap) return;
+  const lo = Math.ceil((customEnv.minW * customEnv.minH) / (1024 * 1024) * 100) / 100;
+  const hi = Math.floor((customEnv.maxW * customEnv.maxH) / (1024 * 1024) * 100) / 100;
+  let slider = wrap.querySelector(".mp-slider");
+  if (!slider) {
+    const row = document.createElement("div"); row.className = "mp-num-row";
+    slider = document.createElement("input"); slider.type = "range"; slider.className = "mp-slider";
+    f.replaceWith(row); row.append(slider, f);
+    // Dragging routes through the number input's own input event, so the M edit behaves exactly like a typed one
+    // (W/H rescale, Custom selection, prefs save); typing keeps the handle in step the other way.
+    slider.addEventListener("input", () => { f.value = slider.value; f.dispatchEvent(new Event("input", { bubbles: true })); });
+    f.addEventListener("input", () => { slider.value = f.value; });
+  }
+  slider.min = lo; slider.max = hi; slider.step = 0.01;
+  slider.value = f.value;
+}
+// Programmatic M writes (aspect reset, W/H edits) don't fire input events — re-seat the handle by hand.
+function syncMpSlider() {
+  const f = $mpField(); if (!f) return;
+  const slider = f.closest(".mp-field")?.querySelector(".mp-slider");
+  if (slider) slider.value = f.value;
 }
 
 // --- W/H ⇄ M coupling (#186) ---------------------------------------------------------------------
@@ -240,7 +269,7 @@ const $mpField = () => document.querySelector('#modelParams [data-key="megapixel
 function syncMpFromWH() {
   const f = $mpField(); if (!f) return;
   const w = customDim($genW), h = customDim($genH);
-  if (w > 0 && h > 0) f.value = mpFromWH(w, h).toFixed(2);
+  if (w > 0 && h > 0) { f.value = mpFromWH(w, h).toFixed(2); syncMpSlider(); }
 }
 function rescaleWHtoMp(mp) {
   const w = customDim($genW), h = customDim($genH);
@@ -262,7 +291,7 @@ function modelMpDefault(m) {
 function resetMpFromAspect() {
   const f = $mpField(); if (!f) return;
   const d = modelMpDefault(selectedModels()[0]);
-  if (d != null) f.value = d;
+  if (d != null) { f.value = d; syncMpSlider(); }
 }
 // The M field is re-rendered per model, so couple to it by delegation: on a custom-capable workflow an edit to M
 // rescales the W/H fields (programmatic writes to W/H don't re-fire input, so there's no feedback loop), persists the
@@ -287,7 +316,7 @@ document.getElementById("modelParams").addEventListener("input", e => {
     const el = t.dataset.key === "width" ? $genW : $genH;
     if (el) el.value = customDim(t) || "";
     const f = $mpField(), w = customDim($genW), h = customDim($genH);
-    if (f && w > 0 && h > 0) f.value = mpFromWH(w, h).toFixed(2);
+    if (f && w > 0 && h > 0) { f.value = mpFromWH(w, h).toFixed(2); syncMpSlider(); }
     // #225: editing the size IS choosing a custom size — typing in either field moves the shape selection to Custom
     // (the prefs save riding on this same event then records it).
     if (!customActive && customCapable()) setCustomActive(true);
