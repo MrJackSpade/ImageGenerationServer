@@ -229,10 +229,11 @@ async function applyEnvelope(m) {
 
 // --- W/H ⇄ M coupling (#186) ---------------------------------------------------------------------
 // Megapixels is a first-class render-SIZE control: revealed via #191 it renders in the params panel (works for image
-// AND video models — its aspect ratio comes from the picked shape server-side). When Custom size ALSO shows the W/H
-// fields, the two stay coherent live: editing W/H recomputes M from the area; editing M rescales W/H to that budget,
-// preserving the current W:H ratio and snapping to the envelope step. Whichever the user last touched wins, and
-// currentOverrides submits the coherent pair. M-only (no Custom) needs no coupling — there are no visible W/H to track.
+// AND video models — its aspect ratio comes from the picked shape server-side). On a custom-capable workflow the W/H
+// fields are always on screen, and the two stay coherent live: editing W/H recomputes M from the area; editing M
+// rescales W/H to that budget, preserving the current W:H ratio and snapping to the envelope step — either edit moves
+// the shape selection to Custom. Whichever the user last touched wins, and currentOverrides submits the coherent pair.
+// M-only (workflow without custom size) needs no coupling — there are no visible W/H to track.
 const mpFromWH = (w, h) => Math.round((w * h) / (1024 * 1024) * 100) / 100;
 const $mpField = () => document.querySelector('#modelParams [data-key="megapixels"]');
 function syncMpFromWH() {
@@ -243,9 +244,10 @@ function syncMpFromWH() {
 function rescaleWHtoMp(mp) {
   const w = customDim($genW), h = customDim($genH);
   const step = customEnv && customEnv.step;
-  if (!(w > 0 && h > 0) || !(mp > 0) || !step) return;   // no envelope step yet → skip the cosmetic rescale (the server snap is authoritative)
+  if (!(w > 0 && h > 0) || !(mp > 0) || !step) return false;   // no envelope step yet → skip the cosmetic rescale (the server snap is authoritative)
   const scale = Math.sqrt((mp * 1024 * 1024) / (w * h));
   writeSize(Math.max(step, Math.round(w * scale / step) * step), Math.max(step, Math.round(h * scale / step) * step));
+  return true;
 }
 // The megapixels DEFAULT this model ships (its config value). Every aspect of a model now shares one budget (#186), so
 // that default IS each shape's size — used to reset the M readout when the shape changes.
@@ -261,14 +263,19 @@ function resetMpFromAspect() {
   const d = modelMpDefault(selectedModels()[0]);
   if (d != null) f.value = d;
 }
-// The M field is re-rendered per model, so couple to it by delegation: while Custom is active, an edit to M rescales
-// the W/H fields (programmatic writes to W/H don't re-fire input, so there's no feedback loop) and persists the sizes.
+// The M field is re-rendered per model, so couple to it by delegation: on a custom-capable workflow an edit to M
+// rescales the W/H fields (programmatic writes to W/H don't re-fire input, so there's no feedback loop), persists the
+// sizes, and — like typing in a size field — moves the shape selection to Custom: the resulting size is no longer the
+// selected aspect's dims.
 document.getElementById("modelParams").addEventListener("input", e => {
   const t = e.target;
   if (!(t && t.dataset)) return;
-  if (customActive && t.dataset.key === "megapixels") {
+  if (t.dataset.key === "megapixels" && customCapable()) {
     const mp = Number(t.value);
-    if (Number.isFinite(mp)) { rescaleWHtoMp(mp); savePrefs(); }
+    if (Number.isFinite(mp) && rescaleWHtoMp(mp)) {
+      if (!customActive) setCustomActive(true);
+      savePrefs();
+    }
     return;
   }
   // A revealed width/height field IS the submitted size box (#209): an edit writes straight through to genW/H, and the
