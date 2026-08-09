@@ -16,13 +16,18 @@ namespace ImageGen.Comfy;
 /// and a failed hot-reload keeps the last-good catalog but says so at Error and does not retry the same broken
 /// version.</para>
 /// </summary>
-public sealed class WorkflowCatalog
+public sealed class WorkflowCatalog : IDisposable
 {
     private readonly string _workflowsDir;
     private readonly string _modelsDir;
     private readonly ILogger<WorkflowCatalog> _log;
     private readonly Lock _lock = new();
     private readonly Lock _reloadGate = new();
+    private readonly List<FileSystemWatcher> _watchers = [];
+    /// <summary>Set by the directory watchers when a catalog file may have changed; cleared under
+    /// <see cref="_reloadGate"/> once the stamps have been re-checked. Starts true so the first read verifies the
+    /// stamps once, covering any edit raced between the constructor's load and the watchers arming.</summary>
+    private volatile bool _dirty = true;
     /// <summary>The EFFECTIVE catalogue every reader sees: the file configs with this machine's DB variants folded in.
     /// Rebuilt from <see cref="_fileById"/>/<see cref="_fileAll"/> plus <see cref="_variants"/> on every load and edit.</summary>
     private Dictionary<string, WorkflowConfiguration> _byId = new(StringComparer.OrdinalIgnoreCase);
@@ -78,6 +83,51 @@ public sealed class WorkflowCatalog
         _modelsDir = root.Length == 0 ? "" : Path.Combine(root, CatalogText.ModelsSection);
         _log = log;
         Load();   // startup: a catalog that will not parse fails the boot, naming the file and the parse error
+        // Watch both catalog directories so ReloadIfChanged is a flag check instead of a stat sweep. Load() has
+        // already proven a configured directory exists (a configured-but-missing one throws there), so a watcher
+        // creation failure here is a real fault and fails the boot with it.
+        Watch(_workflowsDir);
+        Watch(_modelsDir);
+    }
+
+    /// <summary>Arm a watcher on one catalog directory (skipped when the section is unconfigured). Every event —
+    /// including Changed, since these are small hand-edited JSON files — just marks the catalog dirty; the stamp
+    /// comparison in <see cref="ReloadIfChanged"/> stays the authority on whether anything actually moved, so event
+    /// storms and spurious wakeups cost one directory scan, not a reload.</summary>
+    private void Watch(string dir)
+    {
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+        {
+            return;
+        }
+
+        FileSystemWatcher watcher = new(dir, CatalogText.JsonGlob)
+        {
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
+        };
+        watcher.Changed += (_, _) => _dirty = true;
+        watcher.Created += (_, _) => _dirty = true;
+        watcher.Deleted += (_, _) => _dirty = true;
+        watcher.Renamed += (_, _) => _dirty = true;
+        watcher.Error += (_, e) =>
+        {
+            // Events were lost (buffer overflow) — the stamps will tell the truth on the next read.
+            _log.LogWarning(e.GetException(), "A catalog directory watcher errored; re-checking the stamps on the next read.");
+            _dirty = true;
+        };
+        watcher.EnableRaisingEvents = true;
+        _watchers.Add(watcher);
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        foreach (FileSystemWatcher watcher in _watchers)
+        {
+            watcher.Dispose();
+        }
+
+        _watchers.Clear();
     }
 
     /// <summary>
@@ -361,13 +411,28 @@ public sealed class WorkflowCatalog
 
     /// <summary>Reload when either file's timestamp has moved. A file that is momentarily ABSENT is not a change —
     /// editors that save by rename leave that gap, and reading it as "the catalog is now empty" would wipe a good
-    /// catalog mid-save — so only a present file with a moved stamp counts.</summary>
+    /// catalog mid-save — so only a present file with a moved stamp counts.
+    /// <para>The stamps are consulted only after a watcher has marked the catalog dirty. This method sits on every
+    /// public read — /workflows alone calls <see cref="FindRequirement"/> once per slot per configuration — and
+    /// stat-sweeping both directories on each of those calls is what made the endpoint take seconds. The dirty flag
+    /// is cleared BEFORE the stamps are read, so an edit landing mid-check re-marks it for the next read.</para></summary>
     private void ReloadIfChanged()
     {
-        (DateTime, int)? wfNow = PresentStamp(_workflowsDir);
-        (DateTime, int)? reqNow = PresentStamp(_modelsDir);
+        if (!_dirty)
+        {
+            return;
+        }
+
         lock (_reloadGate)
         {
+            if (!_dirty)
+            {
+                return;   // another reader already handled this wakeup
+            }
+
+            _dirty = false;
+            (DateTime, int)? wfNow = PresentStamp(_workflowsDir);
+            (DateTime, int)? reqNow = PresentStamp(_modelsDir);
             bool changed = (wfNow is { } w && w != _wfStamp) || (reqNow is { } r && r != _modelStamp);
             if (!changed)
             {
