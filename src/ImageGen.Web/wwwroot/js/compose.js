@@ -184,6 +184,20 @@ function sizeSpecs(m) {
 // The rendered width/height fields (null when not currently in the panel).
 const sizeField = k => document.querySelector(`#modelParams [data-key="${k}"]`);
 
+// Lay the size fields out as one inline "W × H" row, directly above the megapixels budget they feed (the fields
+// render at the panel's end by default; this moves them where the size belongs).
+function layoutSizeFields() {
+  const box = document.getElementById("modelParams");
+  const wEl = sizeField("width"), hEl = sizeField("height");
+  if (!(box && wEl && hEl)) return;
+  const row = document.createElement("div");
+  row.className = "mp-size-row";
+  const x = document.createElement("span"); x.className = "wf-aspect-x"; x.textContent = "×";
+  row.append(wEl.closest(".mp-field"), x, hEl.closest(".mp-field"));
+  const mp = $mpField();
+  if (mp) box.insertBefore(row, mp.closest(".mp-field")); else box.appendChild(row);
+}
+
 // Bound the size fields by the model's declared envelope and attach the same note the settings size editor shows.
 // The envelope is fetched once per config and re-applied on every re-render for that config.
 async function applyEnvelope(m) {
@@ -207,7 +221,7 @@ async function applyEnvelope(m) {
   const box = document.getElementById("modelParams");
   if (hEl && box) {
     let note = box.querySelector("#customSizeNote");
-    if (!note) { note = document.createElement("p"); note.id = "customSizeNote"; note.className = "wf-aspect-note"; hEl.closest(".mp-field").after(note); }
+    if (!note) { note = document.createElement("p"); note.id = "customSizeNote"; note.className = "wf-aspect-note"; (hEl.closest(".mp-size-row") || hEl.closest(".mp-field")).after(note); }
     note.textContent =
       `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
   }
@@ -361,6 +375,7 @@ const renderParams = () => {
   // the editor of a Custom size in one — not only while Custom is the active shape.
   const cm = customCapable();
   renderParamFields(box, selectedModels(), cm ? sizeSpecs(cm) : null);
+  layoutSizeFields();
   applyParamPrefs(box, paramPrefs);
   if (customActive) { writeSize(customDim($genW) || "", customDim($genH) || ""); syncMpFromWH(); }
   else writeAspectSize(primaryAspect());

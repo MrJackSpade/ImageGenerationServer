@@ -191,6 +191,11 @@ a{color:var(--accent-hi)}
 .edit-params.hidden{display:none}
 .mp-field{display:flex;flex-direction:column}
 .mp-field .fld-label{margin-bottom:6px}
+/* Width × Height share one row above the megapixels budget they feed; the cells shrink rather than wrapping apart. */
+.mp-size-row{display:flex;align-items:flex-end;gap:8px}
+.mp-size-row .mp-field{flex:1 1 0;min-width:0}
+.mp-size-row .fld-input{width:100%;min-width:0}
+.mp-size-row .wf-aspect-x{flex:none;padding-bottom:9px}
 /* The app's field chrome, worn by the INPUT itself. This was three container classes enumerated across two long
    selectors, so an input was styled only if someone remembered to add its container to the list — which is why the
    outpaint pads rendered with browser default chrome, and why the custom-count box had a fourth copy of the same
