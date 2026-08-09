@@ -135,12 +135,14 @@ function updatePlaceholder() {
 
 // --- custom size (per-workflow toggle, #150) -----------------------------------------------------
 // A workflow whose settings page enabled "Custom size" (r.customSizeEnabled) gets a "Custom" aspect on the shape
-// row. Picking it reveals the REAL width/height inputs — the same #modelParams fields #191 can reveal, which write
-// straight through to the submitted #genW/#genH (#224: there is no separate Custom W/H pair any more) — bounded by
-// the model's resolution envelope. Every shape submits width/height now (#209) — Custom differs only in being an
-// ARBITRARY size (plus megapixels = its area, so the exact pixels are reproduced) rather than one of the model's
-// aspect-map dims, so the server envelope-checks it. Offered only for a SINGLE picked generate workflow — "the
-// current workflow" is meaningless with a multi-pick, each of which carries its own sizes.
+// row and shows the REAL width/height inputs ALL the time (#225) — the same #modelParams fields #191 can reveal,
+// which write straight through to the submitted #genW/#genH (#224: there is no separate Custom W/H pair) — bounded
+// by the model's resolution envelope. The fields are the readout of the selected shape's dims AND the editor of a
+// Custom size: typing in one selects Custom; clicking an aspect deselects it. Every shape submits width/height now
+// (#209) — Custom differs only in being an ARBITRARY size (plus megapixels = its area, so the exact pixels are
+// reproduced) rather than one of the model's aspect-map dims, so the server envelope-checks it. Offered only for a
+// SINGLE picked generate workflow — "the current workflow" is meaningless with a multi-pick, each of which carries
+// its own sizes.
 const $aspectCustom = $("aspectCustom");
 // The width/height actually submitted (#209): always in the DOM, written by an aspect click, read at submit. The single
 // source of the render size — a revealed width/height field is this same value, shown.
@@ -160,7 +162,7 @@ function updateCustomShape() {
   if (!on && customActive) setCustomActive(false);   // selection moved to a workflow that doesn't offer custom sizing
 }
 
-// Selection state only — the size fields themselves are added/removed by renderParams (callers re-render as needed).
+// Selection state only — the size fields stay on screen either way (#225); this just moves the chip highlight.
 function setCustomActive(on) {
   customActive = on;
   if ($aspectCustom) $aspectCustom.classList.toggle("active", on);
@@ -171,7 +173,7 @@ function setCustomActive(on) {
   }
 }
 
-// The width/height specs to force into the params panel while Custom is active: the model's own shipped specs
+// The width/height specs to force into the params panel for a custom-capable workflow: the model's own shipped specs
 // (exposed or revealable), so the forced field matches what #191's reveal would render.
 function sizeSpecs(m) {
   const find = k => ((m.exposedParams || []).find(p => p.key === k))
@@ -262,6 +264,9 @@ document.getElementById("modelParams").addEventListener("input", e => {
     if (el) el.value = customDim(t) || "";
     const f = $mpField(), w = customDim($genW), h = customDim($genH);
     if (f && w > 0 && h > 0) f.value = mpFromWH(w, h).toFixed(2);
+    // #225: editing the size IS choosing a custom size — typing in either field moves the shape selection to Custom
+    // (the prefs save riding on this same event then records it).
+    if (!customActive && customCapable()) setCustomActive(true);
   }
 });
 
@@ -352,12 +357,14 @@ let paramPrefs = {};
 // is active must not leave the previous model's envelope bounds or note behind (the envelope re-applies per config).
 const renderParams = () => {
   const box = document.getElementById("modelParams");
+  // #225: a custom-capable workflow shows the size fields ALL the time — readout of the selected shape's dims and
+  // the editor of a Custom size in one — not only while Custom is the active shape.
   const cm = customCapable();
-  renderParamFields(box, selectedModels(), cm && customActive ? sizeSpecs(cm) : null);
+  renderParamFields(box, selectedModels(), cm ? sizeSpecs(cm) : null);
   applyParamPrefs(box, paramPrefs);
   if (customActive) { writeSize(customDim($genW) || "", customDim($genH) || ""); syncMpFromWH(); }
   else writeAspectSize(primaryAspect());
-  if (cm && customActive) applyEnvelope(cm);
+  if (cm) applyEnvelope(cm);
 };
 function currentOverrides() {
   const ov = readOverrides(document.getElementById("modelParams")) || {};
@@ -947,15 +954,13 @@ function restorePrefs(p) {
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
 // Shape is single-select (#209): a tap picks one shape and writes its dims into the (hidden) width/height that get
-// submitted, then resets megapixels to the model budget. Custom toggles the forced width/height fields in the params
-// panel instead — a toggle either way re-renders the panel to add or drop them.
+// submitted, then resets megapixels to the model budget. The Custom chip is a state indicator (#225): clicking it
+// selects Custom (keeping whatever the size fields show); an aspect click deselects it. The size fields themselves
+// are always on screen for a custom-capable workflow, so neither direction re-renders the panel.
 $aspect.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b === $aspectCustom) { setCustomActive(!customActive); renderParams(); savePrefs(); return; }
-  const wasCustom = customActive;
-  setCustomActive(false); setAspects([b.dataset.aspect]);
-  if (wasCustom) renderParams(); else writeAspectSize(b.dataset.aspect);
-  resetMpFromAspect(); savePrefs();
+  if (b === $aspectCustom) { setCustomActive(true); syncMpFromWH(); savePrefs(); return; }
+  setCustomActive(false); setAspects([b.dataset.aspect]); writeAspectSize(b.dataset.aspect); resetMpFromAspect(); savePrefs();
 });
 $prompt.addEventListener("change", savePrefs);
 if ($negPrompt) $negPrompt.addEventListener("change", savePrefs);

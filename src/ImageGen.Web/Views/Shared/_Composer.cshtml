@@ -62,8 +62,8 @@
                     <button type="button" data-aspect="landscape">▭ Landscape</button>
                     <button type="button" data-aspect="portrait">▯ Portrait</button>
                     @* Shown only when this workflow enables custom sizing (per-machine toggle on its settings page).
-                       Picking it reveals the real width/height fields in the params panel below (#224) — the same
-                       fields #191 can reveal — validated server-side against the model's envelope. *@
+                       A state indicator, not a gate (#225): the real width/height fields (#224) are always in the
+                       params panel below for such a workflow, and typing in one selects Custom by itself. *@
                     <button type="button" data-aspect="custom" id="aspectCustom" class="hidden">⊞ Custom</button>
                 </div>
                 @* #209: the width/height actually submitted. Always in the DOM so an aspect click can write them whether
