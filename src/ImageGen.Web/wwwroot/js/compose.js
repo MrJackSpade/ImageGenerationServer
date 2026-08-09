@@ -83,6 +83,16 @@ function showBar(p) { const w = Math.round(p * 100) + "%"; $bar.classList.add("s
 function hideBar() { $bar.classList.remove("show"); $barFill.style.width = "0"; clearTabProgress(); stopEta($("eta")); setGenModel(""); }
 // The model line under the bar — only used by multi-model gens, to show which model is rendering right now.
 function setGenModel(name) { if (!$genModel) return; if (name) { $genModel.textContent = name; $genModel.hidden = false; } else { $genModel.hidden = true; $genModel.textContent = ""; } }
+// The ONE rule for that line, shared by every gen surface (fresh Generate, recovery, live-sync) so the readout can
+// never drift between them again. Its only source is the wire job: each slot carries its own workflow id, so a run
+// spans more than one workflow iff its slots hold more than one distinct id — and only THEN is "which one is
+// rendering now" a question worth answering. Single-workflow runs (the common case) show nothing.
+function showRunningModel(runSlot, job) {
+  if (!runSlot) return;
+  const ids = new Set((job.slots || []).map(s => s.model));
+  if (ids.size < 2) { setGenModel(""); return; }
+  setGenModel((MODELS[runSlot.model] && MODELS[runSlot.model].friendly_name) || runSlot.model || "");
+}
 
 // --- model catalog ------------------------------------------------------------------------------
 const gwModel = m => (m && m._gw) || "";
@@ -518,7 +528,7 @@ const composePanel = {
   // `meta` is THIS submission's context (prompt/model/shapes), threaded by the control — so a queue-more job (its own
   // meta) can never make the running job record its slots against the wrong prompt/model.
   onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks, notice: s.notice }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
-  onRunning: (runSlot, _job, meta) => { if (runSlot && meta.slotModels) setGenModel(meta.slotModels[runSlot.index] || ""); },   // multi-model: show the current model
+  onRunning: showRunningModel,   // multi-model runs show which workflow is rendering now (see showRunningModel)
   activeStatus: (recorded, total) => `Creating ${Math.min(recorded + 1, total)} of ${total}…`,   // 1-indexed: the one being made now
   // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
   // missing images weren't ones that "couldn't be made" — they weren't asked for any more.
@@ -562,10 +572,10 @@ function buildComposerItems(n) {
   if (models.length === 1) {
     const model = models[0];
     const { items, slotAspects } = buildBatchItems(prompt, model, n);
-    return { items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotModels: null, slotAspects } };
+    return { items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotAspects } };
   }
-  const { items, slotModels, slotAspects } = buildMultiItems(prompt, models, n);
-  return { items, meta: { prompt, model: `${models.length} workflows`, modelId: "", slotModels, slotAspects } };
+  const { items, slotAspects } = buildMultiItems(prompt, models, n);
+  return { items, meta: { prompt, model: `${models.length} workflows`, modelId: "", slotAspects } };
 }
 
 // The slots for one model: n copies of the prompt, each rolling its own aspect from the picked set (so a batch comes
@@ -606,7 +616,7 @@ function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
 // here). Artist-mode locks per model.
 function buildMultiItems(prompt, models, n) {
   const ov = currentOverrides();
-  const items = [], slotModels = [], slotAspects = [];
+  const items = [], slotAspects = [];
   for (const model of models) {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, loras: lorasPayload() };
     for (let i = 0; i < n; i++) {
@@ -625,10 +635,10 @@ function buildMultiItems(prompt, models, n) {
         if (wh) { slotOv.width = wh[0]; slotOv.height = wh[1]; }
       }
       items.push({ ...base, overrides: slotOv, prompt: lockArtist(model, prompt), originalPrompt: prompt });
-      slotModels.push(model.friendly_name); slotAspects.push(shape);
+      slotAspects.push(shape);
     }
   }
-  return { items, slotModels, slotAspects };
+  return { items, slotAspects };
 }
 
 // Reload/Regenerate from a detail card: kick off a fresh generation with an image's EXACT prompt/model/aspect
@@ -653,7 +663,7 @@ function regenerate(rec, n) {
   // Reload reproduces a picture, so it never re-rolls: the image's own shape, or the primary pick if it has none. It
   // goes through the SAME shared submit control a fresh Generate uses — one /enqueue job, tracked identically.
   const { items, slotAspects } = buildBatchItems(prompt, model, n, true, rec.aspect || primaryAspect(), negative, recLoras);
-  composeSubmit.enqueue({ items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotModels: null, slotAspects } });
+  composeSubmit.enqueue({ items, meta: { prompt, model: model.friendly_name, modelId: model.id, slotAspects } });
   return true;
 }
 window.composerRegenerate = regenerate;   // kept for compatibility / presence checks
@@ -1194,7 +1204,7 @@ function startLiveSync() {
     options: job => ({
       eta: $("eta"),
       onProgress: showBar,
-      onRunning: (runSlot, j) => { if (runSlot) setGenModel((MODELS[j.model] && MODELS[j.model].friendly_name) || j.model || ""); },
+      onRunning: showRunningModel,
       onSlot: s => showAdoptedResult(job, s),
       activeStatus: (recorded, total) => total > 1 ? `Creating ${Math.min(recorded + 1, total)} of ${total}…` : "Generating…",
       finalStatus: composePanel.finalStatus,
