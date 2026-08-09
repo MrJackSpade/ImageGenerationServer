@@ -247,6 +247,10 @@ public sealed partial class WorkflowCatalogService(
         // a different question and the one this page answers.
         List<ConfigSetting> settings = [.. cfg.Params
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            // A model-ref param is a foreign key into the requirements/slot table — a VAE, a LoRA, an extra expert. It
+            // is not a free value this page may edit; the model it points at is chosen with the slot picker in "Models
+            // for this machine", not by typing a filename. Surface none of them here (issue: editable VAE/LoRA fields).
+            .Where(kv => wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase)) is not { IsModelRef: true })
             .Select(kv =>
             {
                 ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
