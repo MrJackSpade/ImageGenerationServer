@@ -34,28 +34,24 @@ public static class AppVersion
         string? informational = Informational();
         // Parse decides whether this build HAS a version (absent / unstamped-sentinel → null, malformed → throw);
         // only the display FORM differs from it.
-        if (Parse(informational) is null)
+        if (informational is null || Parse(informational) is null)
         {
             return null;
         }
 
-        string value = informational!.Trim();
+        string value = informational.Trim();
         int plus = value.IndexOf('+');
         return plus >= 0 ? value[..plus] : value;
     }
 
-    private static Version? Read()
-    {
-        // THIS assembly, not the entry assembly. Whatever is hosting the process — the test runner, a profiler,
-        // anything that runs the app as a library — has a version of its own, and reading it would report a
-        // number that has nothing to do with this application. ImageGen.Web is the thing that gets released, so
-        // its own stamp is the one that means anything.
-        //
-        return Parse(Informational());
-    }
+    /// <summary>Reads the stamp of THIS assembly, not the entry assembly. Whatever is hosting the process — the test
+    /// runner, a profiler, anything that runs the app as a library — has a version of its own, and reading it would
+    /// report a number that has nothing to do with this application. ImageGen.Web is the thing that gets released, so
+    /// its own stamp is the one that means anything.</summary>
+    private static Version? Read() => Parse(Informational());
 
-    // InformationalVersion rather than AssemblyVersion: it carries <Version> verbatim (plus a "+<commit>"
-    // the SDK appends) instead of being truncated to four numeric parts.
+    /// <summary>InformationalVersion rather than AssemblyVersion: it carries <c>&lt;Version&gt;</c> verbatim (plus a
+    /// <c>+&lt;commit&gt;</c> the SDK appends) instead of being truncated to four numeric parts.</summary>
     private static string? Informational() => typeof(AppVersion).Assembly
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
