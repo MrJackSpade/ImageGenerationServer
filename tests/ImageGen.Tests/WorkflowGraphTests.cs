@@ -112,12 +112,10 @@ public sealed class WorkflowGraphTests
     }
 
     /// <summary>The reference-latent stitch method is a per-MODEL contract each config declares, not a topology
-    /// constant: Qwen-Image handles <c>index_timestep_zero</c>, but LongCat is a plain per-block-modulation Flux model
-    /// where that method doubles the timestep batch with no compensating vec reshape and crashes in the modulation
-    /// (issue #215) — its official ComfyUI blueprint uses <c>index</c>. Pin what each qwen-topology config emits.</summary>
+    /// constant: Qwen-Image handles <c>index_timestep_zero</c> (issue #215). Both conditioning branches carry it —
+    /// the negative is a second full encode of the same images with an empty instruction (the official 2511
+    /// blueprint's CFG contrast), not a zeroed-out positive (issue #218). Pin what each qwen-topology config emits.</summary>
     [Theory]
-    [InlineData("longcat-image-edit", "index")]
-    [InlineData("longcat-image-edit-turbo", "index")]
     [InlineData("qwen-image-edit", "index_timestep_zero")]
     [InlineData("qwen-rapid-aio", "index_timestep_zero")]
     [InlineData("firered-image-edit", "index_timestep_zero")]
@@ -133,8 +131,35 @@ public sealed class WorkflowGraphTests
         };
         string json = BuildJson(configId, withRef);
         using JsonDocument doc = JsonDocument.Parse(json);
-        JsonElement stitch = doc.RootElement.EnumerateObject().Single(p => p.Value.GetProperty("class_type").GetString() == "FluxKontextMultiReferenceLatentMethod").Value.GetProperty("inputs");
-        Assert.Equal(method, stitch.GetProperty("reference_latents_method").GetString());
+        List<JsonElement> stitches = [.. doc.RootElement.EnumerateObject().Where(p => p.Value.GetProperty("class_type").GetString() == "FluxKontextMultiReferenceLatentMethod").Select(p => p.Value.GetProperty("inputs"))];
+        Assert.Equal(2, stitches.Count);
+        Assert.All(stitches, s => Assert.Equal(method, s.GetProperty("reference_latents_method").GetString()));
+
+        // The two encodes split positive/negative by instruction: one carries the user's prompt, one is empty.
+        List<string?> prompts = [.. doc.RootElement.EnumerateObject().Where(p => p.Value.GetProperty("class_type").GetString() == "TextEncodeQwenImageEditPlus").Select(p => p.Value.GetProperty("inputs").GetProperty("prompt").GetString())];
+        Assert.Equal(2, prompts.Count);
+        Assert.Contains("make it red", prompts);
+        Assert.Contains(string.Empty, prompts);
+    }
+
+    /// <summary>LongCat-Image-Edit takes no separate reference images: the official ComfyUI blueprint is
+    /// single-image (<c>TextEncodeQwenImageEdit</c>, not Plus) and the model's edit template has a single image
+    /// slot, so extra references positionally collide and render as a double exposure (issue #218). The configs
+    /// therefore declare no reference capacity, and supplying one is refused.</summary>
+    [Theory]
+    [InlineData("longcat-image-edit")]
+    [InlineData("longcat-image-edit-turbo")]
+    public void LongCat_edit_refuses_reference_images(string configId)
+    {
+        WorkflowInputs withRef = new()
+        {
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+        };
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson(configId, withRef));
     }
 
     private static string BuildJson(string configId, WorkflowInputs inputs)
@@ -241,7 +266,7 @@ public sealed class WorkflowGraphTests
         // satisfy every ref-consuming editor while staying within the smallest declared cap (DreamOmni2 wires exactly
         // one); supplying more would trip a legitimate over-supply refusal, which is an input error, not the
         // missing-param error this test hunts.
-        WorkflowInputs inputs = new()
+        static WorkflowInputs Inputs(IReadOnlyList<ReferenceInput> references) => new()
         {
             Positive = "a cat",
             Negative = "blurry",
@@ -252,8 +277,9 @@ public sealed class WorkflowGraphTests
             SourceVideoName = "src.mp4",
             SourceWidth = 1216,
             SourceHeight = 832,
-            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+            References = references,
         };
+        WorkflowInputs inputs = Inputs([new ReferenceInput("ref1.png", ReferenceKind.Image)]);
 
         List<string> failures = [];
         foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
@@ -268,6 +294,20 @@ public sealed class WorkflowGraphTests
             try
             {
                 _ = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), inputs);
+            }
+            catch (RenderValidationException)
+            {
+                // A validation refusal here is the reference over-supply an editor with no reference capacity
+                // (e.g. LongCat, capacity 0) correctly raises — an input error, not the missing-param error this
+                // test hunts. Rebuild without references; a missing declared param still fails below.
+                try
+                {
+                    _ = wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Inputs([]));
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{cfg.Id} ({cfg.WorkflowName}): {ex.Message}");
+                }
             }
             catch (Exception ex)
             {

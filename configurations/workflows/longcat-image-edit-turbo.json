@@ -30,15 +30,7 @@
       "value": "simple",
       "visibility": "hidden"
     },
-    "reference_max": {
-      "value": 2,
-      "visibility": "hidden"
-    },
-    "reference_latents_method": "index",
-    "reference_inputs": [
-      "image2",
-      "image3"
-    ]
+    "reference_latents_method": "index"
   },
   "card": {
     "architecture": "LongCat-Image-Edit Turbo (Meituan) — distilled 8-step variant of LongCat-Image-Edit. Flux-family MMDiT; Qwen2.5-VL encoder + Flux VAE; clip_type longcat_image. Q5_K_M GGUF.",
@@ -71,11 +63,7 @@
     },
     "edit_use_cases": [
       "fast instruction editing (8-step) for drafts/iteration"
-    ],
-    "reference": {
-      "max": 2,
-      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number."
-    }
+    ]
   },
   "resolution": {
     "min_w": 512,

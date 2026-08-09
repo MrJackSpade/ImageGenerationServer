@@ -123,16 +123,19 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 
         int qn = refNames.Count;
         Dictionary<string, object> encRefs = [];
-        for (int i = 0; i < qn; i++)                          // each reference: load + scale into image2/image3
+        for (int i = 0; i < qn; i++)                          // each reference: load RAW into image2/image3
         {
-            string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
+            // The official 2511 blueprint feeds references into the encode node unscaled — the node does its own
+            // ~1MP area snap for the ref latent and 384² resample for the vision tokens. Pre-bucketing here resampled
+            // every reference twice for no benefit (#218).
+            string load = $"{40 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
-            g[scale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(load) };
-            encRefs[qInputs[i]] = FluxKontextImageScale.Out(scale);
+            encRefs[qInputs[i]] = LoadImage.ImageOut(load);
         }
 
         g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.KontextScale), Vae = vae0 };
         Output<Slot.Conditioning> cond;
+        Output<Slot.Conditioning> negCond;
         if (qn > 0)
         {
             // The stitch method is the CONFIG's declaration of what its model supports: Qwen-Image handles
@@ -148,15 +151,23 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction, Extra = encRefs };
             g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
             cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
+            // The official 2511 blueprint's negative is a second full encode — the SAME images and reference latents
+            // with an EMPTY instruction — not a zeroed-out positive. With real CFG the contrast is then "with vs
+            // without the instruction" over identical image conditioning; zeroing everything made CFG push away from
+            // the references themselves, which read as the source and reference ghosting into each other (#218).
+            g[Nodes.NegativeEncode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = string.Empty, Extra = encRefs };
+            g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
+            negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
         }
         else
         {
             g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction };
             g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
             cond = ReferenceLatent.Out(Nodes.RefLatent);
+            g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
+            negCond = ConditioningZeroOut.Out(Nodes.ZeroNegative);
         }
 
-        g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
         Output<Slot.Model> ksModel = model0;
         if (!Aio)                                             // standard 2511 needs ModelSamplingAuraFlow + CFGNorm
         {
@@ -201,7 +212,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             Denoise = 1.0,
             Model = ksModel,
             Positive = cond,
-            Negative = ConditioningZeroOut.Out(Nodes.ZeroNegative),
+            Negative = negCond,
             LatentImage = sampleLatent,
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
@@ -227,8 +238,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 }
 
 /// <summary>QwenEditBase's own node ids (role-named), on top of the inherited edit head
-/// (EditNodes.Model/Clip/Vae/Source). The per-reference load/scale nodes stay computed ($"{40+i*2}"). Values
-/// preserved exactly so the emitted graph stays byte-identical.</summary>
+/// (EditNodes.Model/Clip/Vae/Source). The per-reference load nodes stay computed ($"{40+i*2}").</summary>
 file static class Nodes
 {
     public const string KontextScale = "11";
@@ -236,6 +246,8 @@ file static class Nodes
     public const string SourceEncode = "14";
     public const string RefLatent = "30";
     public const string MultiRefLatent = "70";
+    public const string NegativeEncode = "71";
+    public const string NegMultiRefLatent = "72";
     public const string ZeroNegative = "26";
     public const string ModelSampling = "2";
     public const string CfgNorm = "7";
