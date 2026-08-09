@@ -158,15 +158,6 @@ a{color:var(--accent-hi)}
 .model-bar label{white-space:nowrap}
 .shape-bar{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--ink-soft);font-size:13px}
 .shape-bar label{white-space:nowrap}
-/* The Custom aspect (shown only for workflows that enable it) reveals width/height boxes under the shape chips. */
-.custom-size{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}
-/* Keep Width / × / Height together on one row: the two cells share the width and shrink rather than wrapping apart.
-   Only the note (flex-basis:100%) drops onto its own line below them. */
-.custom-size-cell{display:flex;align-items:center;gap:6px;flex:1 1 0;min-width:0}
-.custom-size .wf-aspect-x{flex:none}
-.custom-size-cell .fld-label{margin-bottom:0}
-.custom-size .fld-input{width:6rem;min-width:0}
-.custom-size .wf-aspect-note{flex-basis:100%}
 .shape-options{display:flex;flex:1;gap:6px;flex-wrap:wrap}
 /* Settings' generation mask picks the same way (a tap toggles one), so it wears the same chips — it just wraps. */
 .type-options{display:flex;flex-wrap:wrap;gap:6px}

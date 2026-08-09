@@ -202,11 +202,14 @@ function sharedExposedParams(models) {
   if (!lists.length) return [];
   return lists[0].filter(p => lists.every(l => l.some(q => q.key === p.key && q.type === p.type)));
 }
-function renderParamFields(box, modelOrModels) {
+function renderParamFields(box, modelOrModels, extraParams) {
   if (!box) return;
   box.innerHTML = "";
   const models = Array.isArray(modelOrModels) ? modelOrModels.filter(Boolean) : (modelOrModels ? [modelOrModels] : []);
   const ps = sharedExposedParams(models).filter(p => ["int", "double", "enum", "string", "bool"].includes(p.type));
+  // Caller-forced params (the compose page's custom-size width/height): appended when the visibility overlay didn't
+  // already produce them, so they render through the same control path as any exposed param.
+  for (const p of (extraParams || [])) if (!ps.some(q => q.key === p.key)) ps.push(p);
   if (!ps.length) { box.hidden = true; box.classList.add("hidden"); return; }
   box.hidden = false; box.classList.remove("hidden");
   for (const p of ps) {

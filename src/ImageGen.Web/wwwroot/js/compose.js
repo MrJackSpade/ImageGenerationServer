@@ -135,22 +135,24 @@ function updatePlaceholder() {
 
 // --- custom size (per-workflow toggle, #150) -----------------------------------------------------
 // A workflow whose settings page enabled "Custom size" (r.customSizeEnabled) gets a "Custom" aspect on the shape
-// row. Picking it reveals width/height boxes. Every shape submits width/height now (#209) — Custom differs only in
-// being an ARBITRARY size (plus megapixels = its area, so the exact pixels are reproduced) rather than one of the
-// model's aspect-map dims, so the server envelope-checks it. Offered only for a SINGLE picked generate workflow — "the current workflow" is
-// meaningless with a multi-pick, each of which carries its own sizes.
-const $aspectCustom = $("aspectCustom"), $customSize = $("customSize"),
-      $customW = $("customW"), $customH = $("customH"), $customSizeNote = $("customSizeNote");
+// row. Picking it reveals the REAL width/height inputs — the same #modelParams fields #191 can reveal, which write
+// straight through to the submitted #genW/#genH (#224: there is no separate Custom W/H pair any more) — bounded by
+// the model's resolution envelope. Every shape submits width/height now (#209) — Custom differs only in being an
+// ARBITRARY size (plus megapixels = its area, so the exact pixels are reproduced) rather than one of the model's
+// aspect-map dims, so the server envelope-checks it. Offered only for a SINGLE picked generate workflow — "the
+// current workflow" is meaningless with a multi-pick, each of which carries its own sizes.
+const $aspectCustom = $("aspectCustom");
 // The width/height actually submitted (#209): always in the DOM, written by an aspect click, read at submit. The single
-// source of the render size for a non-Custom generation — there is no parallel resolver.
+// source of the render size — a revealed width/height field is this same value, shown.
 const $genW = $("genW"), $genH = $("genH");
 let customActive = false, customEnv = null;
+const ENV_CACHE = new Map();   // config id -> resolution envelope (null = the config declares none)
 
 // The single generate workflow whose custom sizing we'd offer, or null (0 or 2+ picked, or it hasn't enabled it).
 function customCapable() { const m = primaryModel(); return (m && m.kind === "generate" && m.customSizeEnabled) ? m : null; }
 const customDim = el => { const n = parseInt(el && el.value, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
-// True only when Custom is active with both boxes filled — the gate the submit path checks before enqueueing.
-function customReady() { return customActive && customDim($customW) > 0 && customDim($customH) > 0; }
+// True only when Custom is active with both dims filled — the gate the submit path checks before enqueueing.
+function customReady() { return customActive && customDim($genW) > 0 && customDim($genH) > 0; }
 
 function updateCustomShape() {
   const on = !!customCapable();
@@ -158,59 +160,76 @@ function updateCustomShape() {
   if (!on && customActive) setCustomActive(false);   // selection moved to a workflow that doesn't offer custom sizing
 }
 
+// Selection state only — the size fields themselves are added/removed by renderParams (callers re-render as needed).
 function setCustomActive(on) {
   customActive = on;
-  if ($customSize) $customSize.hidden = !on;
   if ($aspectCustom) $aspectCustom.classList.toggle("active", on);
   if (on) {
     for (const b of $aspect.children) if (b !== $aspectCustom) b.classList.remove("active");   // Custom is exclusive
-    loadCustomEnv();
-    syncMpFromWH();   // reflect the revealed W/H into the M control (if M is also revealed)
   } else {
     setAspects(aspects);   // restore the normal shape's active markers
   }
 }
 
-// Bound the width/height boxes by the model's declared envelope and show the same note the settings size editor does.
-async function loadCustomEnv() {
-  const m = customCapable(); if (!m) return;
-  try {
-    const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/settings`);
-    if (!r.ok) return;
-    customEnv = (await r.json()).resolution || null;
-  } catch (e) { console.debug("custom size envelope load failed:", e); return; }
-  if (!customEnv) { if ($customSizeNote) $customSizeNote.textContent = ""; return; }
-  for (const [el, lo, hi] of [[$customW, customEnv.minW, customEnv.maxW], [$customH, customEnv.minH, customEnv.maxH]]) {
+// The width/height specs to force into the params panel while Custom is active: the model's own shipped specs
+// (exposed or revealable), so the forced field matches what #191's reveal would render.
+function sizeSpecs(m) {
+  const find = k => ((m.exposedParams || []).find(p => p.key === k))
+    || ((m.hiddenParams || []).find(p => p.key === k))
+    || { key: k, type: "int", label: k === "width" ? "Width" : "Height", value: null };
+  return [find("width"), find("height")];
+}
+// The rendered width/height fields (null when not currently in the panel).
+const sizeField = k => document.querySelector(`#modelParams [data-key="${k}"]`);
+
+// Bound the size fields by the model's declared envelope and attach the same note the settings size editor shows.
+// The envelope is fetched once per config and re-applied on every re-render for that config.
+async function applyEnvelope(m) {
+  if (!ENV_CACHE.has(m.id)) {
+    try {
+      const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/settings`);
+      if (!r.ok) return;
+      ENV_CACHE.set(m.id, (await r.json()).resolution || null);
+    } catch (e) { console.debug("custom size envelope load failed:", e); return; }
+  }
+  const cm = customCapable();
+  if (!cm || cm.id !== m.id) return;   // the selection moved while the fetch was in flight
+  customEnv = ENV_CACHE.get(m.id);
+  if (!customEnv) return;
+  const wEl = sizeField("width"), hEl = sizeField("height");
+  for (const [el, lo, hi] of [[wEl, customEnv.minW, customEnv.maxW], [hEl, customEnv.minH, customEnv.maxH]]) {
     if (!el) continue;
     el.min = lo; el.max = hi; el.step = customEnv.step;
   }
-  if ($customSizeNote) $customSizeNote.textContent =
-    `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
+  // The note rides under the height field so the bounds sit next to the boxes they bound.
+  const box = document.getElementById("modelParams");
+  if (hEl && box) {
+    let note = box.querySelector("#customSizeNote");
+    if (!note) { note = document.createElement("p"); note.id = "customSizeNote"; note.className = "wf-aspect-note"; hEl.closest(".mp-field").after(note); }
+    note.textContent =
+      `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
+  }
 }
-
-if ($customW) $customW.addEventListener("change", savePrefs);
-if ($customH) $customH.addEventListener("change", savePrefs);
 
 // --- W/H ⇄ M coupling (#186) ---------------------------------------------------------------------
 // Megapixels is a first-class render-SIZE control: revealed via #191 it renders in the params panel (works for image
-// AND video models — its aspect ratio comes from the picked shape server-side). When Custom size ALSO reveals the W/H
-// boxes, the two stay coherent live: editing W/H recomputes M from the area; editing M rescales W/H to that budget,
+// AND video models — its aspect ratio comes from the picked shape server-side). When Custom size ALSO shows the W/H
+// fields, the two stay coherent live: editing W/H recomputes M from the area; editing M rescales W/H to that budget,
 // preserving the current W:H ratio and snapping to the envelope step. Whichever the user last touched wins, and
 // currentOverrides submits the coherent pair. M-only (no Custom) needs no coupling — there are no visible W/H to track.
 const mpFromWH = (w, h) => Math.round((w * h) / (1024 * 1024) * 100) / 100;
 const $mpField = () => document.querySelector('#modelParams [data-key="megapixels"]');
 function syncMpFromWH() {
   const f = $mpField(); if (!f) return;
-  const w = customDim($customW), h = customDim($customH);
+  const w = customDim($genW), h = customDim($genH);
   if (w > 0 && h > 0) f.value = mpFromWH(w, h).toFixed(2);
 }
 function rescaleWHtoMp(mp) {
-  const w = customDim($customW), h = customDim($customH);
+  const w = customDim($genW), h = customDim($genH);
   const step = customEnv && customEnv.step;
   if (!(w > 0 && h > 0) || !(mp > 0) || !step) return;   // no envelope step yet → skip the cosmetic rescale (the server snap is authoritative)
   const scale = Math.sqrt((mp * 1024 * 1024) / (w * h));
-  $customW.value = Math.max(step, Math.round(w * scale / step) * step);
-  $customH.value = Math.max(step, Math.round(h * scale / step) * step);
+  writeSize(Math.max(step, Math.round(w * scale / step) * step), Math.max(step, Math.round(h * scale / step) * step));
 }
 // The megapixels DEFAULT this model ships (its config value). Every aspect of a model now shares one budget (#186), so
 // that default IS each shape's size — used to reset the M readout when the shape changes.
@@ -226,10 +245,8 @@ function resetMpFromAspect() {
   const d = modelMpDefault(selectedModels()[0]);
   if (d != null) f.value = d;
 }
-if ($customW) $customW.addEventListener("input", syncMpFromWH);
-if ($customH) $customH.addEventListener("input", syncMpFromWH);
 // The M field is re-rendered per model, so couple to it by delegation: while Custom is active, an edit to M rescales
-// the W/H boxes (programmatic writes to W/H don't re-fire input, so there's no feedback loop) and persists the sizes.
+// the W/H fields (programmatic writes to W/H don't re-fire input, so there's no feedback loop) and persists the sizes.
 document.getElementById("modelParams").addEventListener("input", e => {
   const t = e.target;
   if (!(t && t.dataset)) return;
@@ -330,23 +347,28 @@ async function loadModels() {
 // exposed knob (steps/cfg/polish_denoise/...) survives a reload. renderParams re-applies it after each rebuild;
 // changing any field merges back into it and persists (debounced via savePrefs).
 let paramPrefs = {};
-// writeAspectSize runs on EVERY rebuild (custom or not) so genW/H always hold the current model's shape dims — a model
-// switch while Custom is active must not leave the previous model's size behind for when Custom is turned off.
-const renderParams = () => { const box = document.getElementById("modelParams"); renderParamFields(box, selectedModels()); applyParamPrefs(box, paramPrefs); writeAspectSize(primaryAspect()); if (customActive) syncMpFromWH(); };
+// While Custom is active the panel carries the forced size fields, preserving the current (typed) genW/H; otherwise
+// every rebuild writes the shape's dims so genW/H always hold the current model's size — a model switch while Custom
+// is active must not leave the previous model's envelope bounds or note behind (the envelope re-applies per config).
+const renderParams = () => {
+  const box = document.getElementById("modelParams");
+  const cm = customCapable();
+  renderParamFields(box, selectedModels(), cm && customActive ? sizeSpecs(cm) : null);
+  applyParamPrefs(box, paramPrefs);
+  if (customActive) { writeSize(customDim($genW) || "", customDim($genH) || ""); syncMpFromWH(); }
+  else writeAspectSize(primaryAspect());
+  if (cm && customActive) applyEnvelope(cm);
+};
 function currentOverrides() {
   const ov = readOverrides(document.getElementById("modelParams")) || {};
-  // Custom size rides as flat width/height overrides. The server supersedes the aspect map with them for this request
-  // (MergeParamsDict), takes the W:H RATIO from them, and sizes to megapixels (#186) — so M rides alongside, recomputed
-  // from the explicit W×H area. Without it the server would rescale the typed size to the config's default M; with it,
-  // the ratio-from-W/H × this-M snap reproduces what the user typed. The pair is envelope-checked at submit.
-  if (customReady()) {
-    ov.width = customDim($customW);
-    ov.height = customDim($customH);
-    ov.megapixels = mpFromWH(ov.width, ov.height);
-  } else {
-    // #209: the render size IS the (hidden) width/height the aspect button wrote — the single source, read here.
-    const w = customDim($genW), h = customDim($genH);
-    if (w > 0 && h > 0) { ov.width = w; ov.height = h; }
+  // #209: the render size IS the width/height pair the aspect button (or a size-field edit) wrote — the single source,
+  // read here. A Custom size additionally rides with megapixels = its exact area: the server takes the W:H RATIO from
+  // the pair and sizes to megapixels (#186), so without M it would rescale the typed size to the config's default
+  // budget; with it, the ratio × this-M snap reproduces what the user typed. Envelope-checked at submit.
+  const w = customDim($genW), h = customDim($genH);
+  if (w > 0 && h > 0) {
+    ov.width = w; ov.height = h;
+    if (customActive) ov.megapixels = mpFromWH(w, h);
   }
   return ov;
 }
@@ -361,16 +383,19 @@ function aspectDims(model, shape) {
 // by a user edit to a revealed width/height field (the input listener above) — there is no parallel submit-time resolver.
 function writeAspectSize(shape) {
   const wh = aspectDims(selectedModels()[0], shape);
-  if ($genW) $genW.value = wh ? wh[0] : "";
-  if ($genH) $genH.value = wh ? wh[1] : "";
-  // A revealed width/height field (#191) is the SAME input box, shown: keep it displaying what will be submitted.
-  // A map-less model writes nothing — its revealed fields keep showing the config's own dims.
-  if (wh) {
-    const box = document.getElementById("modelParams");
-    const wEl = box && box.querySelector('[data-key="width"]'), hEl = box && box.querySelector('[data-key="height"]');
-    if (wEl) wEl.value = wh[0];
-    if (hEl) hEl.value = wh[1];
-  }
+  // A map-less model clears the submitted pair but writes nothing to the fields — its revealed fields keep showing
+  // the config's own dims.
+  if (wh) writeSize(wh[0], wh[1]);
+  else { if ($genW) $genW.value = ""; if ($genH) $genH.value = ""; }
+}
+// Write a size into the submitted pair AND any rendered width/height fields — a visible field (#191 reveal or the
+// Custom force) is the SAME value, shown, so the two are written together everywhere.
+function writeSize(w, h) {
+  if ($genW) $genW.value = w || "";
+  if ($genH) $genH.value = h || "";
+  const wEl = sizeField("width"), hEl = sizeField("height");
+  if (wEl) wEl.value = w || "";
+  if (hEl) hEl.value = h || "";
 }
 // Capture on BOTH input (fires live per keystroke/spinner tick) and change (commit) — a number input only fires
 // "change" on blur, which can be missed, so "input" is what makes edits reliably persist.
@@ -871,7 +896,7 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), custom: customActive, customW: customDim($customW) || null, customH: customDim($customH) || null, randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
+  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), custom: customActive, customW: customActive ? customDim($genW) || null : null, customH: customActive ? customDim($genH) || null : null, randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
   clearTimeout(prefsTimer);
   // This blob holds the user's draft PROMPT, so a silent failure means they keep typing into a composer that is no
   // longer being kept, and find an older draft on the next load.
@@ -900,13 +925,16 @@ function restorePrefs(p) {
   // Shape is single-select now (#209); an older draft may hold a set — take its first.
   if (Array.isArray(p.aspects) && p.aspects.length) setAspects(p.aspects.slice(0, 1));
   else if (p.aspect) setAspects([p.aspect]);
-  if ($customW && p.customW) $customW.value = p.customW;
-  if ($customH && p.customH) $customH.value = p.customH;
   // modelIds (multi) is current; fall back to the legacy single modelId. setSelectedIds refreshes the panel.
   const ids = (Array.isArray(p.modelIds) ? p.modelIds : (p.modelId ? [p.modelId] : [])).filter(id => MODELS[id] && !modelHidden.has(id));
   if (ids.length) modelPicker.setSelectedIds(ids);
-  // Re-activate Custom only after the selection resolved (updateCustomShape ran) and only if the workflow still offers it.
-  if (p.custom && customCapable()) setCustomActive(true);
+  // Re-activate Custom only after the selection resolved (updateCustomShape ran) and only if the workflow still offers
+  // it. The stored custom size goes straight into the single submitted pair; the renderParams below re-renders the
+  // forced size fields carrying it.
+  if (p.custom && customCapable()) {
+    setCustomActive(true);
+    if (p.customW || p.customH) writeSize(p.customW || "", p.customH || "");
+  }
   if (p.prompt && !$prompt.value) $prompt.value = p.prompt;
   if ($negPrompt && p.negativePrompt != null && !$negPrompt.value) $negPrompt.value = p.negativePrompt;
   if ($negPrompt && $negPrompt.value.trim()) setAccordion($negToggle, $negBody, true);   // don't bury an existing negative
@@ -919,11 +947,15 @@ function restorePrefs(p) {
   renderParams();   // re-apply the restored param map even if the model selection didn't change
 }
 // Shape is single-select (#209): a tap picks one shape and writes its dims into the (hidden) width/height that get
-// submitted, then resets megapixels to the model budget. Custom toggles the width/height boxes instead.
+// submitted, then resets megapixels to the model budget. Custom toggles the forced width/height fields in the params
+// panel instead — a toggle either way re-renders the panel to add or drop them.
 $aspect.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b === $aspectCustom) { setCustomActive(!customActive); savePrefs(); return; }
-  setCustomActive(false); setAspects([b.dataset.aspect]); writeAspectSize(b.dataset.aspect); resetMpFromAspect(); savePrefs();
+  if (b === $aspectCustom) { setCustomActive(!customActive); renderParams(); savePrefs(); return; }
+  const wasCustom = customActive;
+  setCustomActive(false); setAspects([b.dataset.aspect]);
+  if (wasCustom) renderParams(); else writeAspectSize(b.dataset.aspect);
+  resetMpFromAspect(); savePrefs();
 });
 $prompt.addEventListener("change", savePrefs);
 if ($negPrompt) $negPrompt.addEventListener("change", savePrefs);

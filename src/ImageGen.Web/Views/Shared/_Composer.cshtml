@@ -62,17 +62,13 @@
                     <button type="button" data-aspect="landscape">▭ Landscape</button>
                     <button type="button" data-aspect="portrait">▯ Portrait</button>
                     @* Shown only when this workflow enables custom sizing (per-machine toggle on its settings page).
-                       Picking it reveals the width/height boxes below, validated server-side against the model's envelope. *@
+                       Picking it reveals the real width/height fields in the params panel below (#224) — the same
+                       fields #191 can reveal — validated server-side against the model's envelope. *@
                     <button type="button" data-aspect="custom" id="aspectCustom" class="hidden">⊞ Custom</button>
                 </div>
-                <div class="custom-size" id="customSize" hidden>
-                    <label class="custom-size-cell"><span class="fld-label">Width</span><input type="number" id="customW" class="fld-input" min="64" step="8"></label>
-                    <span class="wf-aspect-x">×</span>
-                    <label class="custom-size-cell"><span class="fld-label">Height</span><input type="number" id="customH" class="fld-input" min="64" step="8"></label>
-                    <p class="wf-aspect-note" id="customSizeNote"></p>
-                </div>
                 @* #209: the width/height actually submitted. Always in the DOM so an aspect click can write them whether
-                   or not any size control is revealed; the server derives the ratio from these. Custom uses its boxes above. *@
+                   or not any size field is revealed; the server derives the ratio from these. A revealed or Custom
+                   width/height field in the params panel is this same value, shown (#224). *@
                 <input type="hidden" id="genW">
                 <input type="hidden" id="genH">
             </div>
