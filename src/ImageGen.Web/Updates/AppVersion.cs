@@ -20,6 +20,30 @@ public static class AppVersion
     /// <summary>The running version as text, for display. Null when this build carries none.</summary>
     public static string? CurrentText => Current?.ToString();
 
+    private static readonly Lazy<string?> _display = new(ReadDisplay);
+
+    /// <summary>
+    /// The stamped version as it was tagged, for display: the pre-release suffix is KEPT (a box running
+    /// <c>0.13.5-test</c> should say so — <see cref="CurrentText"/> strips it because version COMPARISON must), the
+    /// SDK's <c>+&lt;commit&gt;</c> build metadata is dropped. Null when this build carries none.
+    /// </summary>
+    public static string? DisplayText => _display.Value;
+
+    private static string? ReadDisplay()
+    {
+        string? informational = Informational();
+        // Parse decides whether this build HAS a version (absent / unstamped-sentinel → null, malformed → throw);
+        // only the display FORM differs from it.
+        if (Parse(informational) is null)
+        {
+            return null;
+        }
+
+        string value = informational!.Trim();
+        int plus = value.IndexOf('+');
+        return plus >= 0 ? value[..plus] : value;
+    }
+
     private static Version? Read()
     {
         // THIS assembly, not the entry assembly. Whatever is hosting the process — the test runner, a profiler,
@@ -27,13 +51,13 @@ public static class AppVersion
         // number that has nothing to do with this application. ImageGen.Web is the thing that gets released, so
         // its own stamp is the one that means anything.
         //
-        // InformationalVersion rather than AssemblyVersion: it carries <Version> verbatim (plus a "+<commit>"
-        // the SDK appends) instead of being truncated to four numeric parts.
-        string? informational = typeof(AppVersion).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-
-        return Parse(informational);
+        return Parse(Informational());
     }
+
+    // InformationalVersion rather than AssemblyVersion: it carries <Version> verbatim (plus a "+<commit>"
+    // the SDK appends) instead of being truncated to four numeric parts.
+    private static string? Informational() => typeof(AppVersion).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
     /// <summary>
     /// Read a version out of a tag or an informational version: a leading <c>v</c>, build metadata after

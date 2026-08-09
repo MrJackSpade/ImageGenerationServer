@@ -41,6 +41,9 @@
         <span class="sl-name">Renderer patches</span>
         <span class="sl-desc">The changes this app makes to ComfyUI's own code, and whether they are in place.</span>
     </a>
+
+    @* The running build's release tag, pre-release suffix kept. A working-copy build has no version to claim. *@
+    <p class="settings-version">@(ImageGen.Web.Updates.AppVersion.DisplayText is string v ? $"Version {v}" : "Unreleased build")</p>
 </div>
 
 @* Two random-prompt controls used to live here and have moved onto the composer, next to what they qualify, and both
