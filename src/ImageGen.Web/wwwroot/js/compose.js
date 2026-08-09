@@ -208,8 +208,8 @@ async function applyEnvelope(m) {
       ENV_CACHE.set(m.id, (await r.json()).resolution || null);
     } catch (e) { console.debug("custom size envelope load failed:", e); return; }
   }
-  const cm = customCapable();
-  if (!cm || cm.id !== m.id) return;   // the selection moved while the fetch was in flight
+  const pm = primaryModel();
+  if (!pm || pm.id !== m.id) return;   // the selection moved while the fetch was in flight
   customEnv = ENV_CACHE.get(m.id);
   if (!customEnv) return;
   const wEl = sizeField("width"), hEl = sizeField("height");
@@ -233,7 +233,8 @@ async function applyEnvelope(m) {
 // fields are always on screen, and the two stay coherent live: editing W/H recomputes M from the area; editing M
 // rescales W/H to that budget, preserving the current W:H ratio and snapping to the envelope step — either edit moves
 // the shape selection to Custom. Whichever the user last touched wins, and currentOverrides submits the coherent pair.
-// M-only (workflow without custom size) needs no coupling — there are no visible W/H to track.
+// M-only (workflow without custom size): an M edit still rescales the hidden genW/H, so the submitted pair tracks the
+// budget — it just can't select a Custom shape that isn't on offer.
 const mpFromWH = (w, h) => Math.round((w * h) / (1024 * 1024) * 100) / 100;
 const $mpField = () => document.querySelector('#modelParams [data-key="megapixels"]');
 function syncMpFromWH() {
@@ -270,10 +271,12 @@ function resetMpFromAspect() {
 document.getElementById("modelParams").addEventListener("input", e => {
   const t = e.target;
   if (!(t && t.dataset)) return;
-  if (t.dataset.key === "megapixels" && customCapable()) {
+  if (t.dataset.key === "megapixels" && primaryModel()) {
     const mp = Number(t.value);
     if (Number.isFinite(mp) && rescaleWHtoMp(mp)) {
-      if (!customActive) setCustomActive(true);
+      // The rescaled size is submitted either way (it lands in genW/H); Custom is a shape on offer only for a
+      // custom-capable workflow, so only there does the edit also move the selection.
+      if (!customActive && customCapable()) setCustomActive(true);
       savePrefs();
     }
     return;
@@ -386,7 +389,10 @@ const renderParams = () => {
   applyParamPrefs(box, paramPrefs);
   if (customActive) { writeSize(customDim($genW) || "", customDim($genH) || ""); syncMpFromWH(); }
   else writeAspectSize(primaryAspect());
-  if (cm) applyEnvelope(cm);
+  // The envelope loads for ANY single generate workflow, not just a custom-capable one: its step also drives the
+  // M → W/H rescale, which runs wherever an M field is on screen. Bounds + note only land on rendered size fields.
+  const pm = primaryModel();
+  if (pm && pm.kind === "generate") applyEnvelope(pm);
 };
 function currentOverrides() {
   const ov = readOverrides(document.getElementById("modelParams")) || {};
