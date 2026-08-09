@@ -204,7 +204,6 @@ function setStatus(t, { error = false } = {}) { $status.classList.toggle("error"
 // shown only while busy. Mode switching stays free while busy, so the visible mode is NOT the job's mode: the Cancel
 // follows the JOB (runningSpecMode, captured at submit/adopt), so it stays on the mode that owns the running job even
 // after the user switches tabs to set up another edit. The other two are always cleared so no stale Cancel lingers.
-const specModeOf = mode => mode === "inpaint" ? "inpaint" : mode === "outpaint" ? "outpaint" : "chat";
 let runningSpecMode = null;   // "chat" | "inpaint" | "outpaint" of the in-flight job; null when idle
 function setBusy(b) {
   busy = b;
@@ -278,12 +277,12 @@ function editPanel(spec) {
 }
 // The bits every edit mode's submit control shares: the page's busy flag, cancel handle, status, and pending-record.
 // buildItems + the mode's panel are the only per-mode parts, supplied where each control is attached.
-function editSubmitBase() {
+function editSubmitBase(specMode) {
   return {
     isBusy: () => busy,
-    // A fresh submit can only come from the visible mode's composer, so its mode is the active one at this instant —
-    // captured now so the Cancel stays with the job even after the user switches tabs mid-render.
-    onBusy: b => { if (b) { cancelRequested = false; runningSpecMode = specModeOf(activeMode); } setBusy(b); },
+    // Each submit control belongs to exactly ONE mode, fixed at attach time — NOT read off activeMode when busy flips
+    // on, because buildItems can be async (the inpaint mask upload) and the user may switch tabs during that await.
+    onBusy: b => { if (b) { cancelRequested = false; runningSpecMode = specMode; } setBusy(b); },
     onActiveGen: h => { activeGen = h; },
     onJob: (jobId, items) => postPending({ jobId, prompt: items[0].instruction || "", model: items[0].workflow, modelId: items[0].workflow, aspect: "" }).catch(e => console.debug("record pending job failed:", e)),
     setStatus,
@@ -762,7 +761,7 @@ function buildChatItems(n) {
 // Chat/animate Apply uses the ONE shared submit control (core.js attachEnqueueSubmit): a click (or held count) builds
 // the items and POSTs one /enqueue job; a press while busy queues another. buildItems does the mode's own validation.
 attachEnqueueSubmit({
-  button: $editSend, form: $editComposer, panel: editPanel(editModeSpec("chat")), ...editSubmitBase(),
+  button: $editSend, form: $editComposer, panel: editPanel(editModeSpec("chat")), ...editSubmitBase("chat"),
   buildItems: n => {
     const models = editModels();
     if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return []; }
@@ -888,7 +887,7 @@ function showInpaintBar(show) { $inpaintBar.classList.toggle("show", show); if (
 // Inpaint uses the ONE shared submit control: n images from the same base + mask + prompt as one /enqueue job. The
 // mask is built once (in buildInpaintItems) and shared by every slot; a press while busy queues another take.
 attachEnqueueSubmit({
-  button: $inpaintGo, form: $inpaintComposer, panel: editPanel(editModeSpec("inpaint")), ...editSubmitBase(),
+  button: $inpaintGo, form: $inpaintComposer, panel: editPanel(editModeSpec("inpaint")), ...editSubmitBase("inpaint"),
   buildItems: async n => {
     if (!inpaintModel()) { setStatus("Pick a workflow.", { error: true }); return []; }
     if (!inpaintBase) { setStatus("Select a file to inpaint first.", { error: true }); return []; }
@@ -1060,7 +1059,7 @@ function buildOutpaintItems(n) {
 // Outpaint uses the ONE shared submit control: n takes of the same base + pads + prompt as one /enqueue job. A finished
 // slot becomes the new base (editModeSpec.onSlot) so you can keep pushing the frame out; a press while busy queues more.
 attachEnqueueSubmit({
-  button: $outpaintGo, form: $outpaintComposer, panel: editPanel(editModeSpec("outpaint")), ...editSubmitBase(),
+  button: $outpaintGo, form: $outpaintComposer, panel: editPanel(editModeSpec("outpaint")), ...editSubmitBase("outpaint"),
   buildItems: n => {
     if (!outpaintModel()) { setStatus("Pick a workflow.", { error: true }); return []; }
     if (!outpaintBase) { setStatus("Select a file to outpaint first.", { error: true }); return []; }
