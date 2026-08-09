@@ -201,13 +201,23 @@ let maskCanvas = null, maskCtx = null, eraseMode = false, inpaintTag = null;
 function setStatus(t, { error = false } = {}) { $status.classList.toggle("error", error); $status.textContent = t; }
 // The Apply/Generate button STAYS itself while a render runs — clicking it again queues another job (the shared submit
 // control's queue-more), so there is no cancel-adjacent gesture to misfire. The only Cancel is the per-mode button,
-// shown only while busy. Mode switching is blocked while busy, so only the active mode's button ever shows; clear the
-// other two anyway so a leftover Cancel can't linger in a mode we're not in.
+// shown only while busy. Mode switching stays free while busy, so the visible mode is NOT the job's mode: the Cancel
+// follows the JOB (runningSpecMode, captured at submit/adopt), so it stays on the mode that owns the running job even
+// after the user switches tabs to set up another edit. The other two are always cleared so no stale Cancel lingers.
+const specModeOf = mode => mode === "inpaint" ? "inpaint" : mode === "outpaint" ? "outpaint" : "chat";
+let runningSpecMode = null;   // "chat" | "inpaint" | "outpaint" of the in-flight job; null when idle
 function setBusy(b) {
   busy = b;
-  $cancelEdit.classList.toggle("show", b && activeMode !== "inpaint" && activeMode !== "outpaint");
-  $cancelInpaint.classList.toggle("show", b && activeMode === "inpaint");
-  $cancelOutpaint.classList.toggle("show", b && activeMode === "outpaint");
+  if (!b) runningSpecMode = null;
+  $cancelEdit.classList.toggle("show", b && runningSpecMode === "chat");
+  $cancelInpaint.classList.toggle("show", b && runningSpecMode === "inpaint");
+  $cancelOutpaint.classList.toggle("show", b && runningSpecMode === "outpaint");
+  // The running job's own panel keeps a slim progress-bar+Cancel surface even after the user switches tabs away from it
+  // (CSS: a `.running.hidden` mode div reveals only its .bar-row/.eta). Without this the Cancel would sit inside the
+  // now-hidden mode div and be unreachable the moment mode switching is used mid-render.
+  $chatMode.classList.toggle("running", b && runningSpecMode === "chat");
+  $inpaintMode.classList.toggle("running", b && runningSpecMode === "inpaint");
+  $outpaintMode.classList.toggle("running", b && runningSpecMode === "outpaint");
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
 
@@ -271,7 +281,9 @@ function editPanel(spec) {
 function editSubmitBase() {
   return {
     isBusy: () => busy,
-    onBusy: b => { if (b) cancelRequested = false; setBusy(b); },
+    // A fresh submit can only come from the visible mode's composer, so its mode is the active one at this instant —
+    // captured now so the Cancel stays with the job even after the user switches tabs mid-render.
+    onBusy: b => { if (b) { cancelRequested = false; runningSpecMode = specModeOf(activeMode); } setBusy(b); },
     onActiveGen: h => { activeGen = h; },
     onJob: (jobId, items) => postPending({ jobId, prompt: items[0].instruction || "", model: items[0].workflow, modelId: items[0].workflow, aspect: "" }).catch(e => console.debug("record pending job failed:", e)),
     setStatus,
@@ -1130,13 +1142,11 @@ function refreshTabSelect() {
   $editTabsSelect.value = activeMode;
 }
 // User tab switch persists the active tab (the account blob); boot's setMode is a pure restore, so it doesn't save.
-$editTabs.addEventListener("click", e => { const t = e.target.closest(".edit-tab"); if (t && !busy) { setMode(t.dataset.mode); savePrefs(); } });
-// The mobile select drives the same setMode. While a run is in flight the tab bar ignores clicks, so the select does
-// too — snap it back to the active mode rather than leave an unapplied choice showing.
-$editTabsSelect.addEventListener("change", () => {
-  if (busy) { $editTabsSelect.value = activeMode; return; }
-  setMode($editTabsSelect.value); savePrefs();
-});
+// Switching is free while a job runs — the running job keeps its own bar/ETA/Cancel (runningSpecMode), so the user can
+// set up another mode (e.g. an inpaint while a chat edit renders) without waiting for the job to finish.
+$editTabs.addEventListener("click", e => { const t = e.target.closest(".edit-tab"); if (t) { setMode(t.dataset.mode); savePrefs(); } });
+// The mobile select drives the same setMode — also free while busy.
+$editTabsSelect.addEventListener("change", () => { setMode($editTabsSelect.value); savePrefs(); });
 
 // --- recover an in-flight job on reload / return --------------------------------------------------
 // Recovery is the shared attachLiveRecover (core.js) — the SAME path the composer uses. It adopts ANY of this user's
@@ -1147,14 +1157,21 @@ $editTabsSelect.addEventListener("change", () => {
 // job queued behind it (queue-more), draining the queue continuously.
 const inpaintWorkflowIds = () => new Set(inpaintModelList().map(gwModel));
 const outpaintWorkflowIds = () => new Set(outpaintModelList().map(gwModel));
-// The spec for the mode currently on screen (inpaint / outpaint / everything-else-is-chat). Mode switching is blocked
-// while a job is adopted, so the visible mode is fixed for that job's lifetime.
-const recoverSpec = () => editModeSpec(activeMode === "inpaint" ? "inpaint" : activeMode === "outpaint" ? "outpaint" : "chat");
+// The adopted job's spec mode, derived from its OWN workflow (not the visible tab): inpaint/outpaint workflows route to
+// their tab, everything else — including a plain compose gen with no editor workflow — is chat. Mode switching is free
+// while a job runs, so the spec must be captured from the job at adopt time (runningSpecMode) and NOT re-read off the
+// currently-visible mode, which the user may have since switched away from.
+function specModeForJob(job) {
+  if (inpaintWorkflowIds().has(job.model)) return "inpaint";
+  if (outpaintWorkflowIds().has(job.model)) return "outpaint";
+  return "chat";
+}
+const recoverSpec = () => editModeSpec(runningSpecMode || "chat");
 let liveRecover = null;
 function startEditRecover() {
   liveRecover = attachLiveRecover({
     isBusy: () => busy,
-    onAdopt: job => { cancelRequested = false; setBusy(true); recoverSpec().show(true); editActiveJobId = job.jobId; setStatus(job.total > 1 ? `Making ${job.total}…` : "Reconnecting…"); },
+    onAdopt: job => { cancelRequested = false; runningSpecMode = specModeForJob(job); setBusy(true); recoverSpec().show(true); editActiveJobId = job.jobId; setStatus(job.total > 1 ? `Making ${job.total}…` : "Reconnecting…"); },
     options: job => {
       const spec = recoverSpec();
       const p = editPanel(spec);

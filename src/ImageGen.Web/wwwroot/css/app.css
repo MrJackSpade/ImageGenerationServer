@@ -647,6 +647,13 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 }
 .edit-subhead{display:flex;align-items:center;gap:10px;margin:0 0 12px}
 #chatMode.hidden,#inpaintMode.hidden,#outpaintMode.hidden{display:none}
+/* Mode switching stays free while a job runs, so the job's mode may no longer be the visible one. A `.running` mode
+   div that has been switched away from (`.hidden`) is revealed just enough to keep its progress bar, Cancel and ETA
+   reachable — its composer/tools stay hidden — so the in-flight job can always be watched and cancelled. */
+#chatMode.running.hidden,#inpaintMode.running.hidden,#outpaintMode.running.hidden{display:block}
+#chatMode.running.hidden>*,#inpaintMode.running.hidden>*,#outpaintMode.running.hidden>*{display:none}
+#chatMode.running.hidden>.bar-row,#inpaintMode.running.hidden>.bar-row,#outpaintMode.running.hidden>.bar-row{display:flex}
+#chatMode.running.hidden>.eta:not([hidden]),#inpaintMode.running.hidden>.eta:not([hidden]),#outpaintMode.running.hidden>.eta:not([hidden]){display:block}
 /* inpaint */
 .inpaint-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:13px;color:var(--ink-soft);margin:0 0 10px}
 .inpaint-tools .mask-hint{flex:1 1 auto;min-width:160px}
