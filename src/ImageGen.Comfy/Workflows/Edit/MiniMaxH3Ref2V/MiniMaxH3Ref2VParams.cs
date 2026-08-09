@@ -23,6 +23,7 @@ public sealed record MiniMaxH3Ref2VParams
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RefImageSize)] public required string RefImageSize { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)][AllowNullable("null = the config didn't set reference_max; absent means no picker references beyond the source (treated as 0), distinct from a config that explicitly caps at a real 0")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

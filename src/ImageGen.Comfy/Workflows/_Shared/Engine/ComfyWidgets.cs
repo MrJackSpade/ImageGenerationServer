@@ -120,6 +120,7 @@ internal static class ComfyWidgets
     internal static class RefImageSize
     {
         public const string Match = "match";
+        public const string Max = "max";
     }
 
     /// <summary>The <c>reference_latents_method</c> combo on <c>FluxKontextMultiReferenceLatentMethod</c>. Which values a

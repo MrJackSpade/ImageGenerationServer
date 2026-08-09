@@ -15,10 +15,20 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     public override bool HasAudio => true;
     /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
     public override FrameRule? FrameRule => new(5, 17);
-    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema, VideoSizeSchema.Megapixels];
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema, VideoSizeSchema.Megapixels,
+        new()
+        {
+            Key = WorkflowParamKeys.RefImageSize, Type = ParamType.Enum,
+            Choices = [ComfyWidgets.RefImageSize.Match, ComfyWidgets.RefImageSize.Max],
+            Label = "Ref fidelity",
+            Help = "match = references scaled to the clip's pixel area; max = full 2048px reference pipeline (best identity fidelity, several times slower)",
+        },
+    ];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
-        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.Megapixels, refMax: p.ReferenceMax ?? 0);
+        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
 
     /// <summary>H3 pins the primary reference to the per-config <c>megapixels</c> budget, so the ETA keys on it.</summary>
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3Ref2VParams p) => (p.Megapixels, H3.BudgetSteps);

@@ -47,6 +47,10 @@
     "reference_max": {
       "value": 3,
       "visibility": "hidden"
+    },
+    "ref_image_size": {
+      "value": "match",
+      "visibility": "exposed"
     }
   },
   "card": {

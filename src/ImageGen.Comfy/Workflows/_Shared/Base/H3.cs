@@ -140,7 +140,7 @@ internal static class H3
     /// ref_image_1…N. They condition the subject/identity — NOT a first frame.</summary>
     public static ComfyWorkflowGraph BuildRef2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, double budgetMp, int refMax)
+        string? lora, double loraStrength, double budgetMp, int refMax, string refImageSize)
     {
         Rig rig = Loaders(req, audioVae, lora, loraStrength);
         ComfyWorkflowGraph g = rig.Graph;
@@ -215,7 +215,7 @@ internal static class H3
             Length = length,
             Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
             Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
-            RefImageSize = ComfyWidgets.RefImageSize.Match,
+            RefImageSize = refImageSize,
             RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, videoAudioEdges, audioEdges),
         };
         return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
