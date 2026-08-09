@@ -196,43 +196,25 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public string? ValidateRequestedSize(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
-        bool hasSize = TryExplicitSize(overrides, out int w, out int h);
-
         // A request carries an aspect OR a width/height, never both (#209): both is ambiguous, and silently letting one
         // win would render a shape the caller did not ask for. Refuse it at the boundary rather than pick.
-        if (hasSize && !string.IsNullOrWhiteSpace(aspect))
+        if (RequestSize.TryExplicit(overrides, out _, out _) && !string.IsNullOrWhiteSpace(aspect))
         {
             return "Submit either an aspect or an explicit width and height, not both";
         }
 
-        if (!hasSize)
-        {
-            return null;
-        }
-
-        WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
-
-        // A submitted width/height that IS one of this config's own aspect-map dims is the composer having written a
-        // clicked shape's dims into its width/height controls (#209), NOT a custom size: it's a RATIO the coupled-
-        // megapixels snap scales and clamps into the envelope (RenderSizing). Many map entries sit deliberately OUTSIDE
-        // the envelope as pure ratio sources (flux1-dev's 1616×912), so envelope-checking them would falsely refuse
-        // every aspect submission. Only a genuine custom size — dims matching no map entry — is envelope-checked.
-        if (cfg is not null && MatchesAspectDims(cfg, w, h))
-        {
-            return null;
-        }
-
-        // The configuration's declared envelope — the same numbers the settings page shows and the write path guards —
-        // checked through the ONE render-size guard, so submit and render refuse with identical wording. A configuration
-        // that declares none is not second-guessed (the render path has no bound to enforce either).
-        return ResolutionGuard.RenderSizeViolation(cfg?.Resolution, w, h);
+        // A custom size outside the model's envelope is NOT refused here any more (#212): a multi-model fan-out shares
+        // one typed size, and refusing the whole batch over the model it doesn't fit sank every other model with it.
+        // The enqueue normalization pass (ComfyClient.NormalizeForQueue) snaps such a size to the nearest one the model
+        // supports and rides a notice on that slot instead.
+        return null;
     }
 
     /// <inheritdoc/>
     public string ResolveEffectiveAspect(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides)
     {
         // An explicit width/height IS the shape — the recorded label follows the dims the caller actually asked for.
-        if (TryExplicitSize(overrides, out int w, out int h))
+        if (RequestSize.TryExplicit(overrides, out int w, out int h))
         {
             return ComfyGraph.AspectFromDims(w, h);
         }
@@ -250,38 +232,6 @@ public sealed partial class WorkflowCatalogService
         return cfg is not null && TryConfigFlatDims(cfg, out int cw, out int ch)
             ? ComfyGraph.AspectFromDims(cw, ch)
             : Aspects.Square;
-    }
-
-    /// <summary>True when the overrides carry BOTH an explicit width and height (a custom size); the pair is returned.</summary>
-    private static bool TryExplicitSize(IReadOnlyDictionary<string, JsonElement>? overrides, out int w, out int h)
-    {
-        h = 0;
-        w = 0;
-        return overrides is not null
-            && overrides.TryGetValue(WorkflowParamKeys.Width, out JsonElement wEl) && TryPixel(wEl, out w)
-            && overrides.TryGetValue(WorkflowParamKeys.Height, out JsonElement hEl) && TryPixel(hEl, out h);
-    }
-
-    /// <summary>True when (<paramref name="w"/>,<paramref name="h"/>) exactly matches one of the config's aspect-map
-    /// entries (this machine's override applied) — the fingerprint of the composer having written a clicked shape's
-    /// dims, as opposed to an arbitrary custom size.</summary>
-    private bool MatchesAspectDims(WorkflowConfiguration cfg, int w, int h)
-    {
-        Dictionary<string, int[]>? map = BuildAspectMap(cfg, _catalog.ParamOverridesFor(cfg.Id));
-        if (map is null)
-        {
-            return false;
-        }
-
-        foreach (int[] wh in map.Values)
-        {
-            if (wh.Length >= 2 && wh[0] == w && wh[1] == h)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>The configuration's shipped flat width/height (a fixed-size config with no aspect map), or false.</summary>
@@ -303,24 +253,6 @@ public sealed partial class WorkflowCatalogService
             case double d: value = (int)d; return true;
             default: value = 0; return false;
         }
-    }
-
-    /// <summary>Read a pixel dimension from an override value — a JSON number, or a numeric string. Anything else is
-    /// "not an explicit size" (returns false), left to normal binding rather than mistaken for a custom size.</summary>
-    private static bool TryPixel(JsonElement el, out int value)
-    {
-        if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out value))
-        {
-            return true;
-        }
-
-        if (el.ValueKind == JsonValueKind.String && int.TryParse(el.GetString(), out value))
-        {
-            return true;
-        }
-
-        value = 0;
-        return false;
     }
 
     /// <inheritdoc/>

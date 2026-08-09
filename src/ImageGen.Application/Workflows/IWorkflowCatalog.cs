@@ -84,10 +84,9 @@ public interface IWorkflowCatalog
     Task DeleteVariantAsync(string variantId, CancellationToken ct);
 
     /// <summary>Validate a caller-supplied render size at submit. A request may carry an <paramref name="aspect"/> name
-    /// OR an explicit width+height override, never both — both is ambiguous and refused (#209). A width+height that is
-    /// NOT one of the config's own aspect-map dims (a genuine custom size) is also checked against the declared envelope.
-    /// Returns a human-readable refusal, or null when the request is unambiguous and either an aspect resolution or
-    /// within the envelope. The render path re-checks the envelope as a backstop.</summary>
+    /// OR an explicit width+height override, never both — both is ambiguous and refused (#209). Returns a human-readable
+    /// refusal, or null when the request is unambiguous. A custom size the model can't render is NOT refused here (#212):
+    /// the enqueue normalization pass snaps it to the nearest supported size and rides a notice on that slot.</summary>
     string? ValidateRequestedSize(string? configId, string? aspect, IReadOnlyDictionary<string, JsonElement>? overrides);
 
     /// <summary>The aspect label a generate submission is RECORDED under (#209): the shape an explicit width+height IS

@@ -517,7 +517,7 @@ const composePanel = {
   onProgress: showBar,   // also drives the tab-title/favicon ring
   // `meta` is THIS submission's context (prompt/model/shapes), threaded by the control — so a queue-more job (its own
   // meta) can never make the running job record its slots against the wrong prompt/model.
-  onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
+  onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks, notice: s.notice }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
   onRunning: (runSlot, _job, meta) => { if (runSlot && meta.slotModels) setGenModel(meta.slotModels[runSlot.index] || ""); },   // multi-model: show the current model
   activeStatus: (recorded, total) => `Creating ${Math.min(recorded + 1, total)} of ${total}…`,   // 1-indexed: the one being made now
   // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
@@ -602,19 +602,29 @@ function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   return { items, slotAspects };
 }
 // Fan ONE prompt across several models — n copies per model, sent RAW (the server resolves the groups). The shared-param
-// panel (params common to every selected model) applies to all, including the one submitted width/height (#209); random
-// artist/prompt stay single-model affordances (off here). Artist-mode locks per model.
+// panel (params common to every selected model) applies to all; random artist/prompt stay single-model affordances (off
+// here). Artist-mode locks per model.
 function buildMultiItems(prompt, models, n) {
   const ov = currentOverrides();
   const items = [], slotModels = [], slotAspects = [];
   for (const model of models) {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: false, randomPrompt: false, temperature: null, loras: lorasPayload() };
     for (let i = 0; i < n; i++) {
-      // Each slot rolls its own shape from the picked set (#213), resolved against ITS model's aspect map — the
-      // same shape can be different dims per model. A single pick keeps the one shared pair (#209).
+      // Each slot's shape (the single pick, or its roll from a multi-pick set, #213) resolves against ITS model's
+      // aspect map (#212) — the same shape can be different dims per model, and the primary's pair must never ride
+      // onto a model whose map doesn't hold it (the server would treat it as a custom size). A map-less model
+      // carries no width/height at all, so the server sizes it from its own config — exactly the single-model flow.
+      // A Custom size is the exception: the one typed pair goes to every model, and the server snaps it onto any
+      // model it doesn't fit, with a notice on that slot.
       const shape = pickAspect();
-      const wh = multiShape() ? aspectDims(model, shape) : null;
-      items.push({ ...base, overrides: wh ? { ...ov, width: wh[0], height: wh[1] } : ov, prompt: lockArtist(model, prompt), originalPrompt: prompt });
+      let slotOv = ov;
+      if (!customActive) {
+        const wh = aspectDims(model, shape);
+        slotOv = { ...ov };
+        delete slotOv.width; delete slotOv.height;
+        if (wh) { slotOv.width = wh[0]; slotOv.height = wh[1]; }
+      }
+      items.push({ ...base, overrides: slotOv, prompt: lockArtist(model, prompt), originalPrompt: prompt });
       slotModels.push(model.friendly_name); slotAspects.push(shape);
     }
   }
@@ -974,12 +984,16 @@ function showResult(r) {
   }
   const dl = document.createElement("a"); dl.className = "download"; dl.href = "#"; dl.textContent = "↓ Save image";
   dl.onclick = e => { e.preventDefault(); saveMedia(r, isVid); };
-  actions.appendChild(dl); card.appendChild(img); card.appendChild(actions); $result.appendChild(card);
+  actions.appendChild(dl); card.appendChild(img); card.appendChild(actions);
+  // A non-fatal server notice on the slot (e.g. a custom size snapped to what this model supports, #212): the same
+  // amber line the edit page's result card shows, under the preview it belongs to.
+  if (r.notice) { const nt = document.createElement("div"); nt.className = "result-notice"; nt.textContent = "⚠ " + r.notice; card.appendChild(nt); }
+  $result.appendChild(card);
 }
 // `aspect` is the shape this image was actually SUBMITTED with (rolled per slot when several shapes are picked) —
 // it's what Reload re-uses, so it must be the slot's own, not whatever the composer happens to show now.
 function recordResult(result, prompt, modelFriendly, modelId, aspect) {
-  const r = { ts: Date.now(), prompt: (result && result.effectivePrompt) || prompt || "", marks: (result && result.marks) || null, model: modelFriendly || "", modelId: modelId || "", aspect: aspect || primaryAspect(), id: result.id };
+  const r = { ts: Date.now(), prompt: (result && result.effectivePrompt) || prompt || "", marks: (result && result.marks) || null, model: modelFriendly || "", modelId: modelId || "", aspect: aspect || primaryAspect(), id: result.id, notice: (result && result.notice) || null };
   showResult(r); emitGenerated(r);
 }
 // uploadToInput (device photo → upload → /edit/{id}) is shared from core.js.
@@ -1165,7 +1179,7 @@ function liveOpenWs() {
 function showAdoptedResult(job, s) {
   if (!s || !s.id) return;
   const model = (MODELS[job.model] && MODELS[job.model].friendly_name) || job.model || "";
-  const rec = { ts: Date.now(), prompt: s.effectivePrompt || job.prompt || "", marks: s.marks || null, model, modelId: job.model || "", aspect: primaryAspect(), id: s.id };
+  const rec = { ts: Date.now(), prompt: s.effectivePrompt || job.prompt || "", marks: s.marks || null, model, modelId: job.model || "", aspect: primaryAspect(), id: s.id, notice: s.notice || null };
   if (!ARTIST_MODE || belongsToArtistPage(rec.marks, LOCKED_ARTIST)) showResult(rec);
 }
 

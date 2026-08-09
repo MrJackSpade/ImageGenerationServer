@@ -54,6 +54,21 @@ internal static class ResolutionGuard
         return (Math.Clamp(gw, env.MinW, env.MaxW), Math.Clamp(gh, env.MinH, env.MaxH));
     }
 
+    /// <summary>The nearest supported size plus a user-facing notice when (<paramref name="w"/>,<paramref name="h"/>)
+    /// violates <paramref name="env"/>, or null when it fits (or no envelope is declared — nothing to snap onto). The
+    /// #212 custom-size snap: a multi-model fan-out shares ONE typed custom size, so the model it doesn't fit gets the
+    /// nearest size it supports and says so on its slot, instead of its envelope refusing the whole batch.</summary>
+    public static (int W, int H, string Notice)? SnapToSupported(ModelResolution? env, int w, int h)
+    {
+        if (env is null || RenderSizeViolation(env, w, h) is null)
+        {
+            return null;
+        }
+
+        (int sw, int sh) = Clamp(env, w, h);
+        return (sw, sh, $"{w}×{h} isn’t a size this model supports — rendering {sw}×{sh}, the nearest it can.");
+    }
+
     /// <summary>Refuse a resolved render size the model does not document, at submit — before the graph is built. A
     /// null envelope (the configuration declares none) is left alone.</summary>
     public static void EnsureWithin(ModelResolution? env, int w, int h)

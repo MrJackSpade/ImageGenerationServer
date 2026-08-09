@@ -796,8 +796,9 @@ public sealed class ComfyClient : IComfyClient
             // An explicit width+height (the composer's Custom size) supersedes the configuration's aspect map for THIS
             // request: drop the aspect entry so Dims() resolves to the flat width/height just supplied instead of the
             // aspect the request nominally names. Scoped to a request that sent BOTH sides — a normal aspect submission,
-            // which carries no width/height, is untouched. The size was envelope-checked at submit (/enqueue) and is
-            // re-checked here on the render path (ResolutionGuard), so this can't smuggle an unsupported size through.
+            // which carries no width/height, is untouched. An unsupported custom size was snapped at enqueue
+            // (NormalizeForQueue, #212) and is re-checked here on the render path (ResolutionGuard), so this can't
+            // smuggle an unsupported size through.
             if (overrides.ContainsKey(WorkflowParamKeys.Width) && overrides.ContainsKey(WorkflowParamKeys.Height))
             {
                 _ = v.Remove(WorkflowParamKeys.Aspect);
@@ -813,8 +814,9 @@ public sealed class ComfyClient : IComfyClient
     }
 
     /// <summary>Pre-queue parameter normalization (synchronous; NO ComfyUI call). Resolves the config + workflow,
-    /// overlays params, and lets the workflow's <see cref="IWorkflow.Normalize"/> snap any out-of-range input (today:
-    /// a stepped frame count) onto a model-valid value. Returns the corrected override set (the changed keys folded
+    /// overlays params, lets the workflow's <see cref="IWorkflow.Normalize"/> snap any out-of-range input (today:
+    /// a stepped frame count) onto a model-valid value, and snaps an unsupported custom render size onto the model's
+    /// envelope (#212). Returns the corrected override set (the changed keys folded
     /// back in, so the worker's <see cref="MergeParams"/> picks them up) plus a single user-facing notice (newline-
     /// joined if several). The <see cref="JobQueue"/> calls this as it creates each slot — so the corrected value is
     /// what gets built and the notice is on the slot before its placeholder card renders. Returns the overrides
@@ -836,7 +838,29 @@ public sealed class ComfyClient : IComfyClient
 
         Dictionary<string, object?> merged = MergeParamsDict(wf, cfg, overrides);
         Dictionary<string, object?> before = new(merged, StringComparer.OrdinalIgnoreCase);
-        IReadOnlyList<string> notices = wf.Normalize(merged, NormalizeContext.Empty);   // enqueue pass: params only (frame snap), no source/requirements
+        List<string> notices = [.. wf.Normalize(merged, NormalizeContext.Empty)];   // enqueue pass: params only (frame snap), no source/requirements
+
+        // #212: a genuine CUSTOM size (explicit width/height matching none of this config's aspect-map dims) that the
+        // model cannot render is snapped to the nearest size it supports HERE, with a notice on the slot — a multi-model
+        // fan-out shares one typed size, and the model it doesn't fit must not sink the whole batch at submit. Dims that
+        // DO match a map entry are an aspect resolution (a ratio source, deliberately allowed outside the envelope).
+        if (kind == RenderKind.Generate
+            && RequestSize.TryExplicit(overrides, out int reqW, out int reqH)
+            && !RequestSize.MatchesAspectDims(cfg, _catalog.ParamOverridesFor(cfg.Id), reqW, reqH)
+            && ResolutionGuard.SnapToSupported(_catalog.Resolve(cfg).Resolution ?? wf.ResolutionEnvelope, reqW, reqH) is { } snap)
+        {
+            merged[WorkflowParamKeys.Width] = snap.W;
+            merged[WorkflowParamKeys.Height] = snap.H;
+            // A custom size rides with megapixels = its exact area (#186); left at the ORIGINAL area, the render-path
+            // budget snap would rescale the corrected pair right back toward the unsupported size.
+            if (overrides is not null && overrides.ContainsKey(WorkflowParamKeys.Megapixels))
+            {
+                merged[WorkflowParamKeys.Megapixels] = Math.Round(snap.W * (double)snap.H / (1024 * 1024), 2);
+            }
+
+            notices.Add(snap.Notice);
+        }
+
         if (notices.Count == 0)
         {
             return new QueueNormalizationResult(null, null);   // nothing changed → caller keeps the original overrides

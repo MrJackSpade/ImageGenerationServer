@@ -12,8 +12,10 @@ namespace ImageGen.Tests;
 /// Exercises the submit-boundary size rules (#209) over the REAL shipped catalog: a request carries an aspect OR an
 /// explicit width/height, never both; dims equal to a config's own aspect-map entry are an aspect resolution and are
 /// exempt from the envelope check (several shipped maps sit deliberately OUTSIDE their envelope as pure ratio sources
-/// for the megapixels snap — flux1-dev's 1616×912); a genuine custom size is envelope-checked; and the recorded shape
-/// label resolves from whatever the caller supplied (dims, an aspect name, or the config's own fixed size).
+/// for the megapixels snap — flux1-dev's 1616×912); a genuine custom size outside the envelope is NOT refused (#212:
+/// the enqueue pass snaps it to the nearest supported size with a notice instead, so a multi-model fan-out isn't
+/// rejected wholesale over the one model the typed size doesn't fit); and the recorded shape label resolves from
+/// whatever the caller supplied (dims, an aspect name, or the config's own fixed size).
 /// </summary>
 public sealed class RequestSizeValidationTests
 {
@@ -103,9 +105,27 @@ public sealed class RequestSizeValidationTests
     public void A_size_matching_an_aspect_map_entry_passes_even_outside_the_envelope() =>
         Assert.Null(Service().ValidateRequestedSize("flux1-dev", null, Size(1616, 912)));
 
+    /// <summary>#212: an out-of-envelope custom size no longer 400s the batch at submit — the enqueue normalization
+    /// pass snaps it onto the model's envelope and rides a notice on the slot instead.</summary>
     [Fact]
-    public void A_custom_size_outside_the_envelope_is_refused() =>
-        Assert.NotNull(Service().ValidateRequestedSize("flux1-dev", null, Size(2000, 2000)));
+    public void A_custom_size_outside_the_envelope_passes_validation() =>
+        Assert.Null(Service().ValidateRequestedSize("flux1-dev", null, Size(2000, 2000)));
+
+    /// <summary>The enqueue-pass snap itself (#212): an unsupported size lands on the envelope's grid inside its
+    /// bounds, with a notice naming both sizes; a supported one is left alone (null — nothing to report).</summary>
+    [Fact]
+    public void The_snap_corrects_an_unsupported_size_and_says_so()
+    {
+        ModelResolution env = new() { MinW = 256, MinH = 256, MaxW = 1440, MaxH = 1440, Step = 16 };
+
+        (int w, int h, string notice) = Assert.NotNull(ResolutionGuard.SnapToSupported(env, 2000, 2000));
+        Assert.Equal((1440, 1440), (w, h));
+        Assert.Contains("2000×2000", notice);
+        Assert.Contains("1440×1440", notice);
+
+        Assert.Null(ResolutionGuard.SnapToSupported(env, 1024, 768));
+        Assert.Null(ResolutionGuard.SnapToSupported(null, 2000, 2000));
+    }
 
     [Fact]
     public void A_custom_size_inside_the_envelope_passes() =>

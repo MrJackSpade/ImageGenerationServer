@@ -824,9 +824,10 @@ public static class ForgeApi
                     return Results.BadRequest(new { error = itemMaskError });
                 }
 
-                // Size is refused HERE, at submit, with the model's own numbers — not minutes later as a failed slot: a
-                // custom width+height outside the envelope, or an ambiguous aspect-AND-size request (#209). An aspect
-                // resolution (dims that match a map entry) and non-custom items pass. The render path re-checks as a backstop.
+                // An ambiguous aspect-AND-size request (#209) is refused HERE, at submit. A custom size outside a
+                // model's envelope is no longer a refusal (#212): the enqueue normalization pass snaps it to the
+                // nearest size that model supports and rides a notice on the slot — so a multi-model fan-out isn't
+                // rejected wholesale over the one model the typed size doesn't fit.
                 if (!it.Edit && catalog.ValidateRequestedSize(it.Workflow, it.Aspect, it.Overrides) is { } sizeError)
                 {
                     return Results.BadRequest(new { error = sizeError + "." });
