@@ -1,0 +1,7 @@
+{
+  "id": "krea2-anypaint-lora",
+  "kind": "lora",
+  "label": "Krea 2 AnyPaint",
+  "match": [ "krea2[-_]?anypaint" ],
+  "page": "https://huggingface.co/yijunwang2/krea2-anypaint"
+}

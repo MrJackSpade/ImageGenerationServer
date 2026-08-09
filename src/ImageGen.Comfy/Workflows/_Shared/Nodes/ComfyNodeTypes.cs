@@ -73,6 +73,9 @@ internal static class ComfyNodeTypes
     public const string ImageUpscaleWithModel = "ImageUpscaleWithModel";
     public const string InpaintModelConditioning = "InpaintModelConditioning";
     public const string InvertMask = "InvertMask";
+    public const string Krea2AnyPaintEncode = "Krea2AnyPaintEncode";
+    public const string Krea2AnyPaintModelPatch = "Krea2AnyPaintModelPatch";
+    public const string Krea2AnyPaintPrepare = "Krea2AnyPaintPrepare";
     public const string KSampler = "KSampler";
     public const string KSamplerAdvanced = "KSamplerAdvanced";
     public const string KSamplerSelect = "KSamplerSelect";

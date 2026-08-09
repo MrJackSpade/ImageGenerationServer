@@ -1,0 +1,6 @@
+{
+  "id": "krea2-anypaint-nodes",
+  "kind": "custom_node",
+  "label": "Krea 2 AnyPaint nodes",
+  "node": "Krea2AnyPaintModelPatch"
+}

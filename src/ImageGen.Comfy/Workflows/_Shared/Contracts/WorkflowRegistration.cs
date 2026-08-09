@@ -19,6 +19,7 @@ using ImageGen.Comfy.Edit.FluxKontextEdit;
 using ImageGen.Comfy.Edit.FluxKontextPixelize;
 using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 using ImageGen.Comfy.Edit.Img2ImgRedraw;
+using ImageGen.Comfy.Edit.Krea2AnyPaint;
 using ImageGen.Comfy.Edit.Krea2Redraw;
 using ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
 using ImageGen.Comfy.Edit.LineThickenControlNet;
@@ -140,6 +141,8 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, QwenImageOutpaintWorkflow>();  // same ControlNet, canvas extended by ImagePadForOutpaint
         _ = services.AddSingleton<IWorkflow, FluxFillInpaintWorkflow>();    // FLUX.1 Fill [dev] — mask is a NATIVE model input, not a ControlNet
         _ = services.AddSingleton<IWorkflow, FluxFillOutpaintWorkflow>();   // same model, canvas extended by ImagePadForOutpaint
+        _ = services.AddSingleton<IWorkflow, Krea2AnyPaintInpaintWorkflow>();   // Krea 2 Turbo + AnyPaint LoRA — arbitrary-mask inpaint (reference attention + per-step token pinning, no composite)
+        _ = services.AddSingleton<IWorkflow, Krea2AnyPaintOutpaintWorkflow>();  // same LoRA/nodes, canvas grown by per-side pads
         _ = services.AddSingleton<IWorkflow, Img2ImgRedrawWorkflow>();  // whole-image img2img redraw on any gen checkpoint (anima / photanima)
         _ = services.AddSingleton<IWorkflow, Krea2RedrawWorkflow>();    // whole-image partial-denoise polish on Krea 2 Turbo
         _ = services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)

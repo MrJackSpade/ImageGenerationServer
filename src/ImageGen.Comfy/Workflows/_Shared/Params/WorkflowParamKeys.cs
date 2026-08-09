@@ -17,6 +17,7 @@ internal static class WorkflowParamKeys
     public const string BetaSchedule = "beta_schedule";
     public const string BlocksToSwap = "blocks_to_swap";
     public const string Boundary = "boundary";
+    public const string BoundaryRedrawPx = "boundary_redraw_px";
     public const string CacheModel = "cache_model";
     public const string Cfg = "cfg";
     public const string CfgHigh = "cfg_high";
@@ -60,6 +61,7 @@ internal static class WorkflowParamKeys
     public const string IpadapterWeight = "ipadapter_weight";
     public const string K = "k";
     public const string KeyBackground = "key_background";
+    public const string KvCache = "kv_cache";
     public const string Lam = "lam";
     public const string Latent = "latent";
     public const string LcmLora = "lcm_lora";
@@ -111,6 +113,7 @@ internal static class WorkflowParamKeys
     public const string ReferenceLatentsMethod = "reference_latents_method";
     public const string RefImageSize = "ref_image_size";
     public const string ReferenceMax = "reference_max";
+    public const string ReferenceMaxEdge = "reference_max_edge";
     public const string RefinerCfg = "refiner_cfg";
     public const string RefinerSampler = "refiner_sampler";
     public const string RefinerScheduler = "refiner_scheduler";
@@ -157,6 +160,7 @@ internal static class WorkflowParamKeys
     public const string VaeTileSize = "vae_tile_size";
     public const string VaeTiled = "vae_tiled";
     public const string VirtualResolution = "virtual_resolution";
+    public const string VlmReference = "vlm_reference";
     public const string WEnd = "w_end";
     public const string WStart = "w_start";
     public const string WeightDtype = "weight_dtype";

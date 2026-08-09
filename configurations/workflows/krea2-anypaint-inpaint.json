@@ -1,0 +1,101 @@
+{
+  "id": "krea2-anypaint-inpaint",
+  "workflow": "krea2-anypaint-inpaint",
+  "friendly_name": "Krea 2 AnyPaint",
+  "default": false,
+  "requirements": {
+    "checkpoint": "krea2-turbo",
+    "text_encoders": [
+      "qwen3vl-4b"
+    ],
+    "vae": "qwen-image-vae",
+    "extra": [
+      "krea2-anypaint-nodes",
+      "krea2-anypaint-lora"
+    ]
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "krea2",
+    "dual": false,
+    "steps": {
+      "value": 8,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 1,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "negative_supported": false,
+    "lora": "krea2-anypaint-lora",
+    "lora_strength": {
+      "value": 1.0,
+      "visibility": "locked"
+    },
+    "reference_max_edge": {
+      "value": 384,
+      "visibility": "exposed",
+      "min": 128,
+      "max": 768
+    },
+    "boundary_redraw_px": {
+      "value": 32,
+      "visibility": "exposed",
+      "min": 0,
+      "max": 256
+    },
+    "vlm_reference": {
+      "value": true,
+      "visibility": "hidden"
+    },
+    "kv_cache": {
+      "value": true,
+      "visibility": "hidden"
+    }
+  },
+  "card": {
+    "architecture": "Krea 2 Turbo (8-step distilled; Qwen3-VL 4B encoder, Qwen-Image/Wan2.1 VAE) + yijunwang2 AnyPaint LoRA on the ComfyUI-Krea2-AnyPaint nodes. The mask is not a conditioning channel: a full-canvas 384px semantic reference drives Krea 2's reference attention (with an isolated K/V cache), and known tokens are pinned every denoise step via a token-aligned noise mask, so unpainted pixels are preserved without any paste-back composite.",
+    "summary": "Arbitrary-mask inpainting on Krea 2 Turbo. Paint any shape — or several disconnected regions — and one LoRA regenerates them to match the surrounding scene while every unpainted pixel is kept exact. Distilled Turbo: 8 steps, no CFG, no negatives.",
+    "nsfw_capable": "unknown (new release; not yet characterized)",
+    "commercial_use": "open weights — verify the Krea 2 Community License for your use",
+    "pick_when": "You want Krea 2's aesthetic for a masked fill/replace/repair, arbitrary or multi-region masks, and preservation without seam-composite artifacts.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the WHOLE intended picture (the finished composition), not just the patch and not an instruction — AnyPaint conditions on the full canvas.",
+      "example": "a complete coherent photograph of a sunlit kitchen with a ceramic bowl of lemons on the island, consistent lighting and perspective",
+      "instructions": "Natural language describing the complete result. 8 steps, euler/simple, cfg 1. No negative prompts.",
+      "negative_guidance": "Not supported (distilled, cfg 1).",
+      "source": "https://huggingface.co/yijunwang2/krea2-anypaint"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Distilled few-step (cfg 1 / guidance 0); negatives don't work."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "12B-class Krea 2 Turbo, 8 steps, plus the reference K/V precompute. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Paint the area(s) to change and describe the whole picture you want. Unpainted pixels are preserved automatically.",
+      "good_for": "arbitrary-shape or multi-region inpaint, object replacement, and repair in Krea 2's look"
+    },
+    "edit_use_cases": [
+      "arbitrary-mask inpaint: regenerate any painted shape (or several) so it matches the surrounding scene, keeping every pixel outside it"
+    ]
+  },
+  "resolution": {
+    "min_w": 512,
+    "min_h": 512,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

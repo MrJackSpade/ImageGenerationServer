@@ -1,0 +1,16 @@
+Id: node-krea2-anypaint
+Title: Krea 2 AnyPaint
+Does: Adds arbitrary-mask inpainting and outpainting on Krea 2 Turbo in a single graph -- paint any shape (or
+ several disconnected regions) to change, or extend the canvas on any side, and one LoRA fills it while every
+ unpainted pixel is preserved. The krea2-anypaint inpaint and outpaint workflows do not appear without it.
+Target: custom_nodes/krea2-anypaint
+Source: https://github.com/alexw5702-afk/krea2-anypaint
+Rev: 675be5a91eadbf8b8997b21c0e8e1848310b9571
+Why: Registers Krea2AnyPaintPrepare / Krea2AnyPaintEncode / Krea2AnyPaintModelPatch (MIT, alexw5702-afk), which
+ drive the yijunwang2 AnyPaint LoRA: Prepare builds the padded known canvas plus the generate/keep masks and a
+ 384px semantic reference; Encode attaches the reference latents and a token-aligned noise_mask; ModelPatch
+ registers the reference over the target grid and caches its isolated K/V. Preservation is per-step (the sampler
+ pins known tokens each denoise step), so there is no paste-back composite. A hard requirement of the
+ krea2-anypaint inpaint/outpaint workflows -- without this pack they stay unavailable.
+Provides: krea2-anypaint-nodes
+---
