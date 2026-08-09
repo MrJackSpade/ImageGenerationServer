@@ -416,9 +416,14 @@ editPicker = createModelPicker({
   tagsOf: m => editTags[m.id] || [],
   // Effects bucket → grouped by effect type. Redraw and Upscale are each ONE edit_group promoted to its own top-level
   // tab, so inside those tabs the group renders flat — a lone "Redraw"/"Upscale" header would just repeat the tab name.
-  // Edit and Animate items have neither an effectType nor a remaining edit_group, so they render flat too. The buckets
-  // never collide: a config with an effectType only ever appears in the Effects bucket.
-  groupBy: m => m.effectType || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup) || null,
+  // Edit → split into "Reference" (accepts a reference image) and "Non-Reference" section headers. Animate keeps its
+  // own edit_group section (e.g. Pixel Art) and splits everything else the same Reference / Non-Reference way. The
+  // buckets never collide: a config with an effectType only ever appears in the Effects bucket.
+  groupBy: m => m.effectType
+    || (chatBucket === "edit" ? (modelTakesRef(m) ? "Reference" : "Non-Reference") : null)
+    || (chatBucket === "animate" ? (m.editGroup || (modelTakesRef(m) ? "Reference" : "Non-Reference")) : null)
+    || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup)
+    || null,
   hint: "Long-press a workflow to pick several and compare",
   onChange: ids => { selectedEditIds = ids; updateEditRefBtn(); updateEditRefHint(); renderEditLastFrame(); updateEditParams(); updateInstructionPlaceholder(); updateEditNeg(); updateSubmitEnabled(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
@@ -637,6 +642,8 @@ function showEditResult(id, instruction, model, notice) {
 // --- references (image / audio / video, per the workflow's declared types) ----------------------
 // The workflow's accepted reference types: [{ kind, max }]. Most editors declare only image; ref2va takes all three.
 function editRefTypes() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.types) || []; }
+// Does a given model accept any reference input? Drives the Edit dropdown's Reference / Non-Reference split.
+function modelTakesRef(m) { const r = m && m.edit && m.edit.reference; return !!(r && (r.types || []).some(t => (t.max || 0) > 0)); }
 function editRefMaxOf(kind) { const t = editRefTypes().find(x => x.kind === kind); return (t && t.max) || 0; }
 function editRefTotalMax() { return editRefTypes().reduce((n, t) => n + (t.max || 0), 0); }
 function editRefCountOf(kind) { return editRefs.filter(r => r.kind === kind).length; }
