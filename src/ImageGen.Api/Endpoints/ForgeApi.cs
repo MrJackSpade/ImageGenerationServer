@@ -145,6 +145,8 @@ public static class ForgeApi
         public const string ApplicationZip = "application/zip";
         /// <summary>The content-type family prefix shared by every video clip.</summary>
         public const string VideoPrefix = "video/";
+        /// <summary>The content-type family prefix shared by every audio clip.</summary>
+        public const string AudioPrefix = "audio/";
     }
 
     /// <summary>JSON property names read off the backend's progress frames.</summary>
@@ -1339,16 +1341,29 @@ public static class ForgeApi
                 string key = $"thumb:{id}:{width}:{(wantStill ? "s" : "a")}";
                 if (!cache.TryGetValue(key, out MediaPayload? thumb) || thumb is null)
                 {
-                    byte[]? source = (await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted))?.Bytes;
+                    (byte[] Bytes, string ContentType)? stored = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
+                    byte[]? source = stored?.Bytes;
                     source ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
                     if (source is null)
                     {
                         return Results.NotFound(new { error = "image not found" });
                     }
+
+                    // The store holds every upload family, not just images: routing on the stored MIME (sniffed from
+                    // the bytes at upload, so authoritative) is what keeps a video id from being fed to the image
+                    // decoder. Audio has no picture to thumbnail — that is the caller's mistake to hear about, not a
+                    // placeholder to invent. The legacy /view fallback serves only PNGs, so no-stored-MIME means image.
+                    if (stored?.ContentType.StartsWith(ContentTypes.AudioPrefix, StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        return Results.Json(new { error = "audio has no thumbnail" }, statusCode: StatusCodes.Status415UnsupportedMediaType);
+                    }
+
                     // Thumbnailing is NOT wrapped. The image was found — that is what `source` is — so a failure here
                     // is ours to answer for; reporting it as "image not found" would send the client away looking for a
                     // missing image while the real fault (a codec, a truncated blob) goes unlogged and unfixed.
-                    thumb = wantStill ? media.StillThumbnail(source, width) : media.Thumbnail(source, width);
+                    thumb = stored?.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase) == true
+                        ? media.VideoThumbnail(source, width)
+                        : wantStill ? media.StillThumbnail(source, width) : media.Thumbnail(source, width);
                     _ = cache.Set(key, thumb, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
                 }
 
@@ -1404,8 +1419,10 @@ public static class ForgeApi
             }
             // Not wrapped, for the same reason as the thumbnail above: these bytes were found. Bytes we are storing
             // and cannot identify are a fault on this side, and answering "404 not an identifiable image" would both
-            // deny that and discard the only description of what was actually wrong with them.
-            ImageDimensions d = media.Identify(bytes);
+            // deny that and discard the only description of what was actually wrong with them. IdentifyUpload, not
+            // Identify: the store holds audio and video too, and only the former classifier reads all three families
+            // (nulls for media with no readable pixel size).
+            MediaIdentity d = media.IdentifyUpload(bytes);
             return Results.Ok(new { width = d.Width, height = d.Height });
         });
 

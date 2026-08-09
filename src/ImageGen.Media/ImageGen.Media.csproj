@@ -37,6 +37,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- VideoFrameDecoder talks to the ffmpeg native bindings (AVFormat/AVCodec/SWScale pointers) directly:
+         the package exposes no managed frame decoder, only the encoder. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 </Project>

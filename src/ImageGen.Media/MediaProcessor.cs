@@ -2,6 +2,7 @@ using ImageGen.Application.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace ImageGen.Media;
@@ -180,6 +181,20 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
             return new MediaPayload(ms.ToArray(), MimeTypes.WebpMimeType);
         }
 
+        image.Save(ms, new JpegEncoder { Quality = 80 });
+        return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
+    }
+
+    /// <inheritdoc/>
+    public MediaPayload VideoThumbnail(byte[] source, int maxEdge)
+    {
+        using Image<Rgba32> image = VideoFrameDecoder.DecodeFirstFrame(source);
+        if (Math.Max(image.Width, image.Height) > maxEdge)
+        {
+            image.Mutate(x => x.Resize(new ResizeOptions { Mode = ResizeMode.Max, Size = new Size(maxEdge, maxEdge) }));
+        }
+
+        using MemoryStream ms = new();
         image.Save(ms, new JpegEncoder { Quality = 80 });
         return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }

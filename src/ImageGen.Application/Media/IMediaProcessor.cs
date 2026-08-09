@@ -47,4 +47,9 @@ public interface IMediaProcessor
     /// <summary>A still (first-frame) downscaled JPEG poster of a possibly-animated source, used for video cards that
     /// only play on hover.</summary>
     MediaPayload StillThumbnail(byte[] source, int maxEdge);
+
+    /// <summary>A still (first decoded frame) downscaled JPEG poster of a video container (mp4/webm/avi — formats
+    /// ImageSharp cannot read, so the frame comes from an ffmpeg decode). Throws on bytes that don't demux, carry no
+    /// video stream, or yield no frame.</summary>
+    MediaPayload VideoThumbnail(byte[] source, int maxEdge);
 }
