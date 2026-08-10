@@ -58,13 +58,13 @@
     },
     "mask_grow": {
       "value": 16,
-      "visibility": "exposed",
+      "visibility": "hidden",
       "min": 0,
       "max": 64
     },
     "mask_blur": {
       "value": 31,
-      "visibility": "exposed",
+      "visibility": "hidden",
       "min": 0,
       "max": 31
     }

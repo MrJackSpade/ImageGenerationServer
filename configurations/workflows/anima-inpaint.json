@@ -40,7 +40,7 @@
     },
     "mask_grow": {
       "value": 6,
-      "visibility": "exposed",
+      "visibility": "hidden",
       "min": 0,
       "max": 64
     }
