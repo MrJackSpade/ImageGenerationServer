@@ -593,6 +593,17 @@ $editSrcFile.addEventListener("change", e => { const files = Array.from(e.target
 attachDropUpload($editSrc, handleEditSrcFiles);
 attachDropUpload($maskStage, handleEditSrcFiles);
 attachDropUpload($outpaintStage, handleEditSrcFiles);
+// Pasting an image from the clipboard (Ctrl+V) seeds the source, the same as picking or dropping one.
+document.addEventListener("paste", e => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.kind === "file" && /^image\//.test(it.type)) {
+      const f = it.getAsFile();
+      if (f) { e.preventDefault(); handleEditSrcFiles([f]); return; }
+    }
+  }
+});
 preventStrayFileDrops();   // a file dropped anywhere else must not navigate the page away
 // Open in the lightbox (which carries the detail fragment + its Edit button) if available, else the detail page.
 function openImage(id) {
