@@ -73,7 +73,7 @@
     if ($cancelMine) $cancelMine.hidden = !(o && o.mineJobs > 0);
     if (!$outstanding) return;
     if (!o || !o.images) { $outstanding.textContent = ""; $outstanding.title = ""; return; }
-    const parts = [plural(o.jobs, "job"), plural(o.images, "image")];
+    const parts = [plural(o.jobs, "job"), plural(o.images, "item")];
     // A workflow with no timing history here has no average, so it adds nothing to the sum — the total is then a
     // lower bound, and says so with ≥ rather than quietly reading as an estimate of the whole thing.
     if (o.etaSeconds) parts.push((o.unpricedImages ? "≥" : "~") + fmtDuration(o.etaSeconds) + " left");
@@ -81,7 +81,7 @@
     $outstanding.textContent = parts.join(" · ");
     $outstanding.title = "Still to render on this box, every user. Wall-clock only if nothing else is submitted."
       + (o.unpricedImages
-        ? ` ${plural(o.unpricedImages, "image")} on a workflow that hasn't rendered here yet, so it has no average and the total is a lower bound.`
+        ? ` ${plural(o.unpricedImages, "item")} on a workflow that hasn't rendered here yet, so it has no average and the total is a lower bound.`
         : "");
   }
 
@@ -115,7 +115,10 @@
     // A background (idle-time) job isn't "queued behind N" — it's waiting for the queue to fall idle. Say so, with the
     // configured delay when known. (A preempted background slot is requeued as queued, so it lands here too.)
     if (j.status === "queued" && j.background) return bgIdleMinutes ? `waiting for idle (${bgIdleMinutes}m)` : "waiting for idle";
-    if (j.status === "queued") return j.jobsAhead ? `queued · ${j.jobsAhead} ahead` : "queued";
+    if (j.status === "queued") {
+      const batch = j.total > 1 ? `queued · ${j.total} items` : "queued";
+      return j.jobsAhead ? `${batch} · ${j.jobsAhead} ahead` : batch;
+    }
     if (j.status === "done") return j.total > 1 ? `done · ${j.produced}/${j.total}` : "done";
     // You stopped it — say so, and keep the count: a batch of 10 cancelled after 3 landed made 3 of the 10 asked for.
     if (j.status === "cancelled") return j.total > 1 ? `cancelled · ${j.produced}/${j.total}` : "cancelled";
@@ -223,15 +226,15 @@
       again.className = "queue-cancel queue-requeue";
       again.textContent = "Requeue";
       again.title = j.status === "cancelled"
-        ? `Queue the ${j.requeueable} image${j.requeueable === 1 ? "" : "s"} you cancelled again`
-        : `Try the ${j.requeueable} image${j.requeueable === 1 ? "" : "s"} that didn't get made again`;
+        ? `Queue the ${j.requeueable} item${j.requeueable === 1 ? "" : "s"} you cancelled again`
+        : `Try the ${j.requeueable} item${j.requeueable === 1 ? "" : "s"} that didn't get made again`;
       again.addEventListener("click", async () => {
         again.disabled = true; again.textContent = "Queueing…";
         try {
           const r = await fetch(`${GATEWAY}/requeue/${encodeURIComponent(j.jobId)}`, { method: "POST" });
           const body = await r.json().catch(() => null);
           if (!r.ok) { toast((body && body.error) || "Couldn't requeue"); }
-          else { const n = (body && body.total) || 0; toast(`Queued ${n} image${n === 1 ? "" : "s"}`); }
+          else { const n = (body && body.total) || 0; toast(`Queued ${n} item${n === 1 ? "" : "s"}`); }
         } catch (e) { console.error("requeue failed:", e); toast("Couldn't requeue"); }
         finally { again.disabled = false; again.textContent = "Requeue"; fetchPage(1, false); }
       });
