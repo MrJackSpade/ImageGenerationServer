@@ -196,7 +196,7 @@ const EDIT_NAME = {
   "WAN anime — Flat Color": "Wan 2.2 (Flat Color)"
 };
 const cleanName = m => EDIT_NAME[m.friendly_name] || m.friendly_name;
-let editFavs = new Set(), editHidden = new Set(), editTags = {};
+let editFavs = new Set(), editHidden = new Set(), editTags = {}, editRemoved = {};
 
 // editCurrent is the FIXED source image (the seed). It never advances on its own — every Apply edits this
 // same image, so the source on the left stays put. Building on an output is an explicit click-to-edit reload.
@@ -305,7 +305,7 @@ async function loadEditModels() {
     // Favorites/hidden/tags are read-only here, as on the composer: an unreadable set just means an un-personalized
     // editor picker. `s` is the same settings response, reused below for this page's own editPrefs blob.
     const prefs = await loadWorkflowPrefs();
-    editFavs = prefs.favs; editHidden = prefs.hidden; editTags = prefs.tags;
+    editFavs = prefs.favs; editHidden = prefs.hidden; editTags = prefs.tags; editRemoved = prefs.removed;
     const s = prefs.settings;
     rows.filter(r => r.canEdit).forEach(r => {
       EDIT_MODELS[r.id] = {
@@ -318,6 +318,7 @@ async function loadEditModels() {
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to
         hasAudio: !!r.hasAudio,   // clip carries a native audio track (H3) — offer an unmute control on the result
 
+        baseTags: (r.card && r.card.tags) || [],   // definition tags (incl. the derived "Ref"); merged with the user delta for the picker chips
         effectType: r.effectType || null,   // sub-section header within a tab (grouping only — the TAB comes from kind)
         editGroup: r.editGroup || null,      // sub-section header within the Edit tab (grouping only, not tab routing)
         promptSemantics: r.promptSemantics || "instruction",   // instruction | whole_image | masked_region
@@ -384,6 +385,16 @@ const sortModels = ms => ms.slice().sort((a, b) => {
 // Styled single-select popover (mirrors the gen page): ★ favorites first, render time, tag chips. `groupBy(m)->label`
 // is optional: when given AND it yields more than one distinct label, the options render under `model-group` section
 // headers (like the shared multi-select picker); otherwise the list is flat.
+// The chips shown for a picker row: the workflow's base tags (including the derived Ref/Inpaint) MERGED with those of
+// its masked inpaint sibling — the sibling is hidden from the picker, so a mask-capable Edit config (e.g. Qwen Image
+// Edit) reads as inpaint-capable here — then overlaid with the user's per-workflow tag delta. computeWorkflowTags
+// dedupes, so an overlap between the two definitions collapses to one chip.
+function pickerTags(m) {
+  const sib = m.maskWorkflow && EDIT_MODELS[m.maskWorkflow];
+  const base = sib ? m.baseTags.concat(sib.baseTags) : m.baseTags;
+  return computeWorkflowTags(base, editTags[m.id], editRemoved[m.id]);
+}
+
 function buildMenu(menuEl, models, selectedId, groupBy) {
   menuEl.innerHTML = "";
   const sorted = sortModels(models);
@@ -394,17 +405,15 @@ function buildMenu(menuEl, models, selectedId, groupBy) {
     const nm = document.createElement("span"); nm.className = "model-opt-nm"; nm.textContent = (editFavs.has(m.id) ? "★ " : "") + cleanName(m); nameRow.appendChild(nm);
     if (m.avgSeconds) { const tm = document.createElement("span"); tm.className = "model-opt-time"; tm.textContent = fmtDuration(m.avgSeconds); nameRow.appendChild(tm); }
     text.appendChild(nameRow);
-    const tg = editTags[m.id] || [];
+    const tg = pickerTags(m);
     if (tg.length) { const sub = document.createElement("div"); sub.className = "model-opt-tags"; for (const t of tg) { const chip = document.createElement("span"); chip.className = "model-opt-tag"; chip.textContent = t; sub.appendChild(chip); } text.appendChild(sub); }
     opt.appendChild(text); return opt;
   };
-  // Group by label when asked and there's more than one section — a lone header is just noise. "Reference" sorts
-  // before "Non-Reference"; any other label falls back to alphabetical after those two.
+  // Group by label when asked and there's more than one section — a lone header is just noise. Labels sort
+  // alphabetically (the Reference/Non-Reference split is gone — that distinction is the "Ref" tag now).
   const labels = groupBy ? [...new Set(sorted.map(m => groupBy(m) || ""))] : [];
   if (groupBy && labels.length > 1) {
-    const order = ["Reference", "Non-Reference"];
-    const rank = l => { const i = order.indexOf(l); return i < 0 ? order.length : i; };
-    for (const label of labels.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))) {
+    for (const label of labels.sort((a, b) => a.localeCompare(b))) {
       const head = document.createElement("div"); head.className = "model-group"; head.textContent = label; menuEl.appendChild(head);
       for (const m of sorted.filter(m => (groupBy(m) || "") === label)) menuEl.appendChild(optEl(m));
     }
@@ -436,17 +445,18 @@ editPicker = createModelPicker({
   nameOf: cleanName,
   favOf: m => editFavs.has(m.id),
   timeOf: m => m.avgSeconds,
-  tagsOf: m => editTags[m.id] || [],
+  tagsOf: m => pickerTags(m),
   // Effects bucket → grouped by effect type. Redraw and Upscale are each ONE edit_group promoted to its own top-level
   // tab, so inside those tabs the group renders flat — a lone "Redraw"/"Upscale" header would just repeat the tab name.
-  // Edit → split into "Reference" (accepts a reference image) and "Non-Reference" section headers. Animate keeps its
-  // own edit_group section (e.g. Pixel Art) and splits everything else the same Reference / Non-Reference way. The
-  // buckets never collide: a config with an effectType only ever appears in the Effects bucket.
-  groupBy: m => m.effectType
-    || (chatBucket === "edit" ? (modelTakesRef(m) ? "Reference" : "Non-Reference") : null)
-    || (chatBucket === "animate" ? (m.editGroup || (modelTakesRef(m) ? "Reference" : "Non-Reference")) : null)
-    || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup)
-    || null,
+  // Edit → ONE flat list: the Reference / Non-Reference split is gone, replaced by the "Ref" tag chip on the workflows
+  // that take a reference. Animate keeps its own edit_group section (e.g. Pixel Art). The buckets never collide: a
+  // config with an effectType only ever appears in the Effects bucket.
+  groupBy: m => {
+    if (m.effectType) return m.effectType;                         // Effects → group by effect type
+    if (chatBucket === "animate") return m.editGroup || null;      // Animate → its edit_group sections
+    if (chatBucket === "edit" || chatBucket === "redraw" || chatBucket === "upscale") return null;   // flat
+    return m.editGroup || null;                                    // video (v2v) etc. keep their edit_group sections
+  },
   hint: "Long-press a workflow to pick several and compare",
   onChange: ids => { selectedEditIds = ids; refreshMaskRouting(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
@@ -722,8 +732,6 @@ function showEditResult(id, instruction, model, notice) {
 // model-getter + a refs array + its DOM strip into one controller, so each tab owns its own refs without duplicating
 // the upload/chip/cap logic.
 function refTypesOf(m) { const r = m && m.edit && m.edit.reference; return (r && r.types) || []; }
-// Does a given model accept any reference input? Drives both dropdowns' Reference / Non-Reference split.
-function modelTakesRef(m) { return refTypesOf(m).some(t => (t.max || 0) > 0); }
 function refMaxOf(m, kind) { const t = refTypesOf(m).find(x => x.kind === kind); return (t && t.max) || 0; }
 function refTotalMax(m) { return refTypesOf(m).reduce((n, t) => n + (t.max || 0), 0); }
 function refCountOf(refs, kind) { return refs.filter(r => r.kind === kind).length; }

@@ -9,7 +9,7 @@
   const $list = document.getElementById("workflowsList");
   if (!$list) return;
 
-  let WORKFLOWS = [], STATUS = null, favs = new Set(), hidden = new Set(), tags = {};
+  let WORKFLOWS = [], STATUS = null, favs = new Set(), hidden = new Set(), tags = {}, removed = {};
   // False until the user's real preferences are in hand. Every write below sends the WHOLE set, so acting on
   // preferences we failed to load would overwrite them with whatever this page happened to start with.
   let prefsOk = false;
@@ -54,6 +54,7 @@
     favs = prefs.favs;
     hidden = prefs.hidden;
     tags = prefs.tags;
+    removed = prefs.removed;
     render();
     openRequestedDialog();
   }
@@ -104,7 +105,7 @@
   function row(m) {
     const el = document.createElement("div");
     el.className = "listrow" + (hidden.has(m.id) ? " is-hidden" : "") + (m.ready === false ? " is-unavailable" : "");
-    const t = tags[m.id] || [];
+    const t = computeWorkflowTags(m.card && m.card.tags, tags[m.id], removed[m.id]);
     const missing = (m.missingSlots || []).length;
     el.innerHTML =
       `<button class="listrow-star${favs.has(m.id) ? " on" : ""}" title="Favorite" aria-label="Favorite">★</button>`

@@ -226,11 +226,15 @@ public sealed record FavoriteWorkflowsRequest
     public IReadOnlyList<string>? FavoriteWorkflowIds { get; init; }
 }
 
-/// <summary>The user's own labels per workflow ({ "workflowId": ["tag", …] }). A real map: user × workflow × tag is a
-/// relation, and the labels (the user's words) are encrypted per row. An empty map clears them.</summary>
+/// <summary>The user's per-workflow tag DELTA over the definition's base tags ({ "workflowId": ["tag", …] }).
+/// <see cref="CustomWorkflowTags"/> are labels the user added on top of the base tags; <see cref="RemovedWorkflowTags"/>
+/// are base tags the user took off. Both are relations (user × workflow × tag), encrypted per row. An empty map on
+/// either half clears that half. The effective displayed set is (base + added) minus removed, computed client-side.</summary>
 public sealed record WorkflowTagsRequest
 {
     public IReadOnlyDictionary<string, IReadOnlyList<string>>? CustomWorkflowTags { get; init; }
+
+    public IReadOnlyDictionary<string, IReadOnlyList<string>>? RemovedWorkflowTags { get; init; }
 }
 
 /// <summary>The workflows the user has hidden from the UI picker. A real list, for the same reason as

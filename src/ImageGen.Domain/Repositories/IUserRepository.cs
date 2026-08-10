@@ -39,8 +39,13 @@ public interface IUserRepository
     /// <summary>Replace the set of workflows this user has starred.</summary>
     Task SetFavoriteWorkflowsAsync(long userId, IReadOnlyList<string> workflowIds, CancellationToken ct);
 
-    /// <summary>Replace the user's per-workflow labels. The labels are the user's own words and are encrypted.</summary>
-    Task SetWorkflowTagsAsync(long userId, IReadOnlyDictionary<string, IReadOnlyList<string>> tags, CancellationToken ct);
+    /// <summary>Replace the user's per-workflow tag delta: <paramref name="added"/> are labels put on top of the base
+    /// tags, <paramref name="removed"/> are base tags taken off. Both halves are the user's own words and are encrypted.</summary>
+    Task SetWorkflowTagsAsync(
+        long userId,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> added,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> removed,
+        CancellationToken ct);
 
     /// <summary>Replace the set of workflows this user has hidden from the UI picker.</summary>
     Task SetHiddenWorkflowsAsync(long userId, IReadOnlyList<string> workflowIds, CancellationToken ct);

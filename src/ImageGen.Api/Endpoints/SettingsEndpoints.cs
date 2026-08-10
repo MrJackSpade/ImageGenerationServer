@@ -35,6 +35,7 @@ public static class SettingsEndpoints
                 pinBookmarks = user.PinBookmarkSuggestions,
                 favoriteWorkflowIds = workflows.Favorites,
                 customWorkflowTags = workflows.Tags,
+                removedWorkflowTags = workflows.RemovedTags,
                 hiddenWorkflowIds = workflows.Hidden,
                 hiddenApiWorkflowIds = workflows.HiddenApi,
                 // The generation mask, RESOLVED (an unset column reads as the default) plus the switchable types, so the
@@ -101,7 +102,7 @@ public static class SettingsEndpoints
             return Results.NoContent();
         });
 
-        // Custom per-workflow tags (opaque JSON map, encrypted at rest) — one PUT, one column.
+        // The per-workflow tag delta over the definition's base tags (added + removed), encrypted at rest — one PUT.
         _ = api.MapPut(Routes.WorkflowTags, async (HttpContext context, UserService users) =>
         {
             WorkflowTagsRequest? request = await Json.ReadAsync<WorkflowTagsRequest>(context);
@@ -111,7 +112,8 @@ public static class SettingsEndpoints
             }
 
             long userId = context.User.GetRequiredUserId();
-            await users.SetWorkflowTagsAsync(userId, request.CustomWorkflowTags, context.RequestAborted);
+            await users.SetWorkflowTagsAsync(
+                userId, request.CustomWorkflowTags, request.RemovedWorkflowTags, context.RequestAborted);
             return Results.NoContent();
         });
 

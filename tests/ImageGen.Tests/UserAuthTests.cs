@@ -121,7 +121,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>
         {
             ["anima"] = ["favourite", "fast"],
-        }, Ct);
+        }, NoRemovals, Ct);
 
         UserWorkflowPrefs prefs = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
         Assert.Equal(["anima", "flux2"], prefs.Favorites.Order());
@@ -130,13 +130,50 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
 
         // A replace, not a merge: what is sent IS the set now.
         await svc.SetFavoriteWorkflowsAsync(user.Id, ["flux2"], Ct);
-        await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>(), Ct);
+        await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>(), NoRemovals, Ct);
 
         UserWorkflowPrefs after = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
         Assert.Equal(["flux2"], after.Favorites);
         Assert.Empty(after.Tags);
         Assert.Equal(["slow-one"], after.Hidden);   // untouched: each set has its own write
     }
+
+    /// <summary>The tag delta has two halves that round-trip independently: added labels and removed BASE tags. They
+    /// live in one relation, split by a flag, and a wholesale write replaces both — so an added tag and a removed base
+    /// tag on the same workflow come back on their own sides, and clearing one half does not disturb the other.</summary>
+    [Fact]
+    public async Task Workflow_tag_delta_splits_added_and_removed()
+    {
+        UserService svc = Service();
+        User? user = await svc.RegisterAsync("wfdelta_auth", "password1", "", Ct);
+        Assert.NotNull(user);
+
+        await svc.SetWorkflowTagsAsync(
+            user.Id,
+            new Dictionary<string, IReadOnlyList<string>> { ["anima"] = ["mine"] },
+            new Dictionary<string, IReadOnlyList<string>> { ["anima"] = ["anime"], ["flux2"] = ["fast"] },
+            Ct);
+
+        UserWorkflowPrefs prefs = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
+        Assert.Equal(["mine"], prefs.Tags["anima"]);
+        Assert.Equal(["anime"], prefs.RemovedTags["anima"]);
+        Assert.Equal(["fast"], prefs.RemovedTags["flux2"]);
+        Assert.False(prefs.Tags.ContainsKey("flux2"));   // flux2 has only a removal, no addition
+
+        // Wholesale replace of the delta: clear the removals, keep an addition.
+        await svc.SetWorkflowTagsAsync(
+            user.Id,
+            new Dictionary<string, IReadOnlyList<string>> { ["anima"] = ["mine"] },
+            new Dictionary<string, IReadOnlyList<string>>(),
+            Ct);
+
+        UserWorkflowPrefs after = await svc.GetWorkflowPrefsAsync(user.Id, Ct);
+        Assert.Equal(["mine"], after.Tags["anima"]);
+        Assert.Empty(after.RemovedTags);
+    }
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> NoRemovals =
+        new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>A workflow id is not sensitive and is stored PLAIN so it can be joined and counted; the user's own
     /// LABEL for it is their words, and is not.</summary>
@@ -150,7 +187,7 @@ public sealed class UserServiceTests(TestDatabaseFixture fixture)
         await svc.SetWorkflowTagsAsync(user.Id, new Dictionary<string, IReadOnlyList<string>>
         {
             ["anima"] = ["my private label"],
-        }, Ct);
+        }, NoRemovals, Ct);
 
         await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
 

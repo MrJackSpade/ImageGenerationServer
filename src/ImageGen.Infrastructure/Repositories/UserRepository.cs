@@ -129,25 +129,29 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         List<string> hidden = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenWorkflow", userId, ct);
         List<string> hiddenApi = await ReadWorkflowIdsAsync(conn, "dbo.UserHiddenApiWorkflow", userId, ct);
 
-        // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection.
-        List<(string Workflow, string Tag)> rawTags = [];
+        // Buffered before decrypting: the reader has to be closed before the cipher touches its own connection. Each
+        // row is one half of the per-workflow tag delta -- Removed = 0 is a label the user added, Removed = 1 is a
+        // base tag they took off -- so the flag rides along and splits them below.
+        List<(string Workflow, string Tag, bool Removed)> rawTags = [];
         await using (DbCommand cmd = conn.Command(
-            "SELECT WorkflowId, Tag FROM dbo.UserWorkflowTag WHERE UserId = @id ORDER BY WorkflowId;"))
+            "SELECT WorkflowId, Tag, Removed FROM dbo.UserWorkflowTag WHERE UserId = @id ORDER BY WorkflowId;"))
         {
             _ = cmd.AddParam("@id", userId);
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                rawTags.Add((reader.GetString(0), reader.GetString(1)));
+                rawTags.Add((reader.GetString(0), reader.GetString(1), reader.AsBool(2)));
             }
         }
 
-        Dictionary<string, List<string>> tags = new(StringComparer.Ordinal);
-        foreach ((string? workflow, string? tag) in rawTags)
+        Dictionary<string, List<string>> added = new(StringComparer.Ordinal);
+        Dictionary<string, List<string>> removed = new(StringComparer.Ordinal);
+        foreach ((string? workflow, string? tag, bool isRemoved) in rawTags)
         {
-            if (!tags.TryGetValue(workflow, out List<string>? list))
+            Dictionary<string, List<string>> target = isRemoved ? removed : added;
+            if (!target.TryGetValue(workflow, out List<string>? list))
             {
-                tags[workflow] = list = [];
+                target[workflow] = list = [];
             }
 
             list.Add(await _cipher.DecryptDeterministicAsync(userId, tag, ct));
@@ -155,7 +159,8 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
 
         return new UserWorkflowPrefs(
             favorites, hidden, hiddenApi,
-            tags.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value, StringComparer.Ordinal));
+            added.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value, StringComparer.Ordinal),
+            removed.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value, StringComparer.Ordinal));
     }
 
     public Task SetFavoriteWorkflowsAsync(long userId, IReadOnlyList<string> workflowIds, CancellationToken ct) =>
@@ -168,7 +173,10 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         ReplaceWorkflowIdsAsync("dbo.UserHiddenApiWorkflow", userId, workflowIds, ct);
 
     public async Task SetWorkflowTagsAsync(
-        long userId, IReadOnlyDictionary<string, IReadOnlyList<string>> tags, CancellationToken ct)
+        long userId,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> added,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> removed,
+        CancellationToken ct)
     {
         // Provision the key BEFORE the transaction: the cipher writes on its own connection the first time a
         // user encrypts anything, and SQLite allows one writer -- doing it inside would deadlock against us.
@@ -176,23 +184,41 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
         await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
-        // Replace the whole set in one transaction: this is a "here is my labelling now" write, and a partial apply
-        // would leave the user looking at labels they had just removed.
+        // Replace the whole delta in one transaction: this is a "here is my tag delta now" write, and a partial apply
+        // would leave the user looking at labels they had just removed. Both halves -- the tags they added and the
+        // base tags they took off -- are re-written together, so neither can outlive an edit that dropped it.
         await using (DbCommand del = conn.Command("DELETE FROM dbo.UserWorkflowTag WHERE UserId = @id;", tx))
         {
             _ = del.AddParam("@id", userId);
             _ = await del.ExecuteNonQueryAsync(ct);
         }
 
-        foreach ((string? workflowId, IReadOnlyList<string>? labels) in tags)
+        // The (workflow, tag) pair is unique per user across BOTH halves -- a tag is either an addition or a removal,
+        // never both -- so one seen-set per workflow guards the whole delta from a duplicate row.
+        Dictionary<string, HashSet<string>> seenByWorkflow = new(StringComparer.Ordinal);
+        await InsertTagDeltaAsync(conn, tx, userId, added, removed: false, seenByWorkflow, ct);
+        await InsertTagDeltaAsync(conn, tx, userId, removed, removed: true, seenByWorkflow, ct);
+
+        await tx.CommitAsync(ct);
+    }
+
+    private async Task InsertTagDeltaAsync(
+        DbConnection conn, DbTransaction tx, long userId,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> delta, bool removed,
+        Dictionary<string, HashSet<string>> seenByWorkflow, CancellationToken ct)
+    {
+        foreach ((string? workflowId, IReadOnlyList<string>? labels) in delta)
         {
             if (string.IsNullOrWhiteSpace(workflowId))
             {
                 continue;
             }
-            // Deterministic, because a label is a set member: the primary key is what keeps it unique per workflow,
-            // and that only works if equal text encrypts equally.
-            HashSet<string> seen = new(StringComparer.Ordinal);
+
+            if (!seenByWorkflow.TryGetValue(workflowId, out HashSet<string>? seen))
+            {
+                seenByWorkflow[workflowId] = seen = new HashSet<string>(StringComparer.Ordinal);
+            }
+
             foreach (string label in labels)
             {
                 if (string.IsNullOrWhiteSpace(label))
@@ -200,22 +226,23 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
                     continue;
                 }
 
+                // Deterministic, because a label is a set member: equal text has to encrypt equally for the seen-set
+                // (and for reconciling an added tag against a base tag of the same words) to dedupe it.
                 string cipherText = await _cipher.DeterministicAsync(userId, label, ct);
                 if (!seen.Add(cipherText))
                 {
-                    continue;   // the same label twice is one row, not a key violation
+                    continue;   // the same label twice, or once per half, is one row
                 }
 
                 await using DbCommand cmd = conn.Command(
-                    "INSERT INTO dbo.UserWorkflowTag (UserId, WorkflowId, Tag) VALUES (@id, @wf, @tag);", tx);
+                    "INSERT INTO dbo.UserWorkflowTag (UserId, WorkflowId, Tag, Removed) VALUES (@id, @wf, @tag, @removed);", tx);
                 _ = cmd.AddParam("@id", userId);
                 _ = cmd.AddParam("@wf", workflowId);
                 _ = cmd.AddParam("@tag", cipherText);
+                _ = cmd.AddParam("@removed", removed ? 1 : 0);
                 _ = await cmd.ExecuteNonQueryAsync(ct);
             }
         }
-
-        await tx.CommitAsync(ct);
     }
 
     private static async Task<List<string>> ReadWorkflowIdsAsync(

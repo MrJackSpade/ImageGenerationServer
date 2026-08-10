@@ -36,10 +36,18 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     public Task SetFavoriteWorkflowsAsync(long userId, IReadOnlyList<string>? workflowIds, CancellationToken ct) =>
         _users.SetFavoriteWorkflowsAsync(userId, workflowIds ?? [], ct);
 
-    /// <summary>Replace the user's per-workflow labels (the labels are encrypted at rest).</summary>
+    /// <summary>Replace the user's per-workflow tag delta: the labels they added on top of the base tags, and the base
+    /// tags they removed. Both halves are encrypted at rest. An empty map on either half is a real choice.</summary>
     public Task SetWorkflowTagsAsync(
-        long userId, IReadOnlyDictionary<string, IReadOnlyList<string>>? tags, CancellationToken ct) =>
-        _users.SetWorkflowTagsAsync(userId, tags ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal), ct);
+        long userId,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? added,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? removed,
+        CancellationToken ct) =>
+        _users.SetWorkflowTagsAsync(
+            userId,
+            added ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
+            removed ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal),
+            ct);
 
     /// <summary>Replace the set of workflows the user has hidden from the UI picker.</summary>
     public Task SetHiddenWorkflowsAsync(long userId, IReadOnlyList<string>? workflowIds, CancellationToken ct) =>

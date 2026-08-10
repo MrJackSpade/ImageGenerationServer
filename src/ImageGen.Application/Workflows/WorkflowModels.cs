@@ -43,6 +43,22 @@ public static class WorkflowKindTokens
     public const string VideoEdit = "videoedit";
 }
 
+/// <summary>Base tag vocabulary the catalog itself contributes (as opposed to the free-text tags an author writes in a
+/// card's <c>tags</c> or a user adds). Const-extracted so the tag the picker keys its Reference distinction off of is
+/// spelled once.</summary>
+public static class WorkflowTagTokens
+{
+    /// <summary>Carried by every workflow that accepts a reference (image/audio/video). Derived from the reference
+    /// block, not authored per card — so the Reference/Non-Reference picker sections collapse into one list whose sole
+    /// differentiator is whether this tag is present.</summary>
+    public const string Reference = "Ref";
+
+    /// <summary>Carried by every inpaint workflow. Derived from the resolved kind, not authored. An Edit config with a
+    /// masked inpaint sibling surfaces it by MERGING the sibling's tags into its own display (the sibling is hidden from
+    /// the picker), so a masked-capable editor reads as inpaint-capable without a second picker row.</summary>
+    public const string Inpaint = "Inpaint";
+}
+
 /// <summary>How one workflow parameter may be surfaced, per its configuration file. Three explicit states — there is
 /// no fourth "absent" meaning, and no flag pair welding visibility to lockability (issue #191).</summary>
 public enum ParamVisibility

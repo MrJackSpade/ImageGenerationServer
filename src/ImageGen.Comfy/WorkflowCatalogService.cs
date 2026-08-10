@@ -51,6 +51,34 @@ public sealed partial class WorkflowCatalogService(
     private static WorkflowReference? BuildReference(ModelCard card) =>
         card.EditReferenceTypes.Count > 0 ? new WorkflowReference(card.EditReferenceTypes, card.EditReferenceHint) : null;
 
+    /// <summary>The workflow's BASE tags: the card's own <c>tags</c> with the derived capability tags
+    /// (<see cref="WorkflowTagTokens.Reference"/> when it accepts a reference, <see cref="WorkflowTagTokens.Inpaint"/>
+    /// when it is an inpaint config) prepended so they read first in the picker. A card that already spells one stays
+    /// deduped. Null when there are none, matching the other empty-array-as-null card fields.</summary>
+    internal static string[]? ComposeBaseTags(ModelCard card, bool takesReference, bool isInpaint)
+    {
+        List<string> tags = [];
+        if (takesReference)
+        {
+            tags.Add(WorkflowTagTokens.Reference);
+        }
+
+        if (isInpaint)
+        {
+            tags.Add(WorkflowTagTokens.Inpaint);
+        }
+
+        foreach (string tag in card.Tags)
+        {
+            if (!string.IsNullOrWhiteSpace(tag) && !tags.Contains(tag, StringComparer.Ordinal))
+            {
+                tags.Add(tag);
+            }
+        }
+
+        return tags.Count > 0 ? [.. tags] : null;
+    }
+
     /// <inheritdoc/>
     public async Task<string> DuplicateWorkflowAsync(string baseConfigId, string friendlyName, CancellationToken ct)
     {
@@ -473,6 +501,14 @@ public sealed partial class WorkflowCatalogService(
             .Select(kv => ExposedParam(kv, wf, cfg, machine))];
         bool canEdit = wf.Kind != WorkflowKind.Generate;
         WorkflowKind kind = ResolveKind(cfg, wf);
+        // Base tags = what the card authored, plus tags DERIVED from capability: "Ref" for a workflow that accepts a
+        // reference, "Inpaint" for an inpaint config. Deriving them (not hand-authoring per card) is what lets the
+        // picker drop its Reference/Non-Reference section split and lets a masked Edit config read as inpaint-capable —
+        // the tag IS the differentiator, and it can never drift from the actual capability.
+        string[]? baseTags = ComposeBaseTags(
+            c,
+            takesReference: canEdit && c.EditReferenceTypes.Count > 0,
+            isInpaint: kind == WorkflowKind.Inpaint);
         return new WorkflowDescriptor(
             Id: cfg.Id,
             Workflow: cfg.WorkflowName,
@@ -520,7 +556,7 @@ public sealed partial class WorkflowCatalogService(
                 NegativeSupported: kind == WorkflowKind.Edit ? false : c.NegativeSupported,
                 EditUseCases: c.EditUseCases is { Length: > 0 } ? c.EditUseCases : null,
                 Tagging: ToTagging(c.Tagging),
-                Tags: c.Tags is { Length: > 0 } ? c.Tags : null),
+                Tags: baseTags),
             // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);
             // null falls back client-side to a folder matching the workflow, else the root.
             LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder),

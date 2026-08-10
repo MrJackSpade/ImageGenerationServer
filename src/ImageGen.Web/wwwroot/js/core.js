@@ -901,7 +901,23 @@ const savePinBookmarks = on => Api.send("/api/settings/pin-bookmarks", "PUT", { 
 // Favourites, hidden workflows and per-workflow labels are RELATIONS server-side (rows, not blobs), so these send
 // and receive real arrays/maps.
 const saveFavoriteWorkflows = ids => Api.send("/api/settings/favorites", "PUT", { favoriteWorkflowIds: ids });
-const saveWorkflowTags = map => Api.send("/api/settings/workflow-tags", "PUT", { customWorkflowTags: map });
+// Tags are a DEFINITION property now; what the client stores is the DELTA over them — the labels the user added and
+// the base tags they removed. Both maps go in one PUT (both halves are replaced wholesale, so a removal can't outlive
+// the edit that dropped it).
+const saveWorkflowTags = (added, removed) =>
+  Api.send("/api/settings/workflow-tags", "PUT", { customWorkflowTags: added, removedWorkflowTags: removed });
+
+// The effective tag set for a workflow: its base (definition) tags plus the user's added labels, minus the ones they
+// removed. Base order first, then additions; a removed base tag drops out, and a base tag added to the definition
+// LATER still shows because it was never in the removed set. Dedupes, so a user "adding" a base tag is a no-op.
+function computeWorkflowTags(baseTags, added, removed) {
+  const rm = new Set(removed || []);
+  const out = [], seen = new Set();
+  for (const t of (baseTags || []).concat(added || [])) {
+    if (!rm.has(t) && !seen.has(t)) { seen.add(t); out.push(t); }
+  }
+  return out;
+}
 const saveHiddenWorkflows = ids => Api.send("/api/settings/hidden", "PUT", { hiddenWorkflowIds: ids });
 // Workflows hidden from the API workflow list — a separate per-user set from the UI-picker one above.
 const saveHiddenApiWorkflows = ids => Api.send("/api/settings/hidden-api", "PUT", { hiddenApiWorkflowIds: ids });
@@ -935,6 +951,11 @@ function parseWorkflowTags(s) {
   if (!m || typeof m !== "object" || Array.isArray(m)) throw new Error("customWorkflowTags is not an object");
   return m;
 }
+function parseRemovedTags(s) {
+  const m = s.removedWorkflowTags ?? {};
+  if (!m || typeof m !== "object" || Array.isArray(m)) throw new Error("removedWorkflowTags is not an object");
+  return m;
+}
 function parseParamVis(s) {
   const raw = s.paramVisibilityPrefs;
   if (raw == null || raw === "") return {};
@@ -955,7 +976,7 @@ function parseParamVis(s) {
 // blob out of it (the edit page's editPrefs) read it from here rather than issuing a second GET, and can tell a
 // failed fetch from blobs that arrived but would not parse.
 async function loadWorkflowPrefs() {
-  const empty = { favs: new Set(), hidden: new Set(), hiddenApi: new Set(), tags: {}, paramVis: {} };
+  const empty = { favs: new Set(), hidden: new Set(), hiddenApi: new Set(), tags: {}, removed: {}, paramVis: {} };
   let s;
   try {
     s = await fetchSettings();
@@ -965,7 +986,7 @@ async function loadWorkflowPrefs() {
     return { ok: false, settings: null, ...empty };
   }
   try {
-    const prefs = { ok: true, settings: s, favs: new Set(parseFavs(s)), hidden: new Set(parseHidden(s)), hiddenApi: new Set(parseHiddenApi(s)), tags: parseWorkflowTags(s), paramVis: parseParamVis(s) };
+    const prefs = { ok: true, settings: s, favs: new Set(parseFavs(s)), hidden: new Set(parseHidden(s)), hiddenApi: new Set(parseHiddenApi(s)), tags: parseWorkflowTags(s), removed: parseRemovedTags(s), paramVis: parseParamVis(s) };
     // The param renderers below overlay this without every caller having to thread it through — reads fall back to
     // the shipped visibility when it never loaded, exactly like the un-personalized workflow list.
     PARAM_VIS = prefs.paramVis;

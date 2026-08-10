@@ -73,6 +73,45 @@ public sealed class WorkflowKindResolutionTests
             new StubWorkflow(WorkflowKind.Edit, media: WorkflowMedia.Video, source: WorkflowMedia.Video)));
     }
 
+    [Fact]
+    public void A_reference_taking_workflow_gets_the_ref_tag_first()
+    {
+        // "Ref" is DERIVED from the reference capability, not authored — and it leads, so it reads first in the picker.
+        string[]? tags = WorkflowCatalogService.ComposeBaseTags(
+            new ModelCard { Tags = ["portrait"] }, takesReference: true, isInpaint: false);
+        Assert.NotNull(tags);
+        Assert.Equal(["Ref", "portrait"], tags);
+    }
+
+    [Fact]
+    public void An_inpaint_workflow_gets_the_inpaint_tag()
+    {
+        string[]? tags = WorkflowCatalogService.ComposeBaseTags(
+            new ModelCard(), takesReference: false, isInpaint: true);
+        Assert.NotNull(tags);
+        Assert.Equal(["Inpaint"], tags);
+    }
+
+    [Fact]
+    public void A_non_reference_workflow_carries_only_its_authored_tags()
+    {
+        string[]? authored = WorkflowCatalogService.ComposeBaseTags(
+            new ModelCard { Tags = ["portrait"] }, takesReference: false, isInpaint: false);
+        Assert.NotNull(authored);
+        Assert.Equal(["portrait"], authored);
+        // Nothing authored and no capability → no base tags at all (null, like the other empty card fields).
+        Assert.Null(WorkflowCatalogService.ComposeBaseTags(new ModelCard(), takesReference: false, isInpaint: false));
+    }
+
+    [Fact]
+    public void A_card_that_already_spells_ref_is_not_duplicated()
+    {
+        string[]? tags = WorkflowCatalogService.ComposeBaseTags(
+            new ModelCard { Tags = ["Ref"] }, takesReference: true, isInpaint: false);
+        Assert.NotNull(tags);
+        Assert.Equal(["Ref"], tags);
+    }
+
     [Theory]
     [InlineData(WorkflowKind.Generate, "generate")]
     [InlineData(WorkflowKind.Edit, "edit")]

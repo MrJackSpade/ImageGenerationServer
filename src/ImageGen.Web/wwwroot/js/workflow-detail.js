@@ -1,12 +1,13 @@
 // A single workflow's page: its info (architecture/summary), kind, average render time, file size, a ★ favorite
-// toggle, a hide-from-picker toggle, an editable list of your custom tags, and a recents grid of images this
+// toggle, a hide-from-picker toggle, an editable tag list (the workflow's base tags plus your own, add/remove as a
+// per-user delta), and a recents grid of images this
 // workflow produced (history filtered by its config id, reusing the imgcard markup + lightbox). Uses core.js.
 (function () {
   const $root = document.getElementById("workflowDetail");
   if (!$root) return;
   const id = $root.dataset.id;
 
-  let workflow = null, STATUS = null, favs = new Set(), hidden = new Set(), hiddenApi = new Set(), tags = {}, paramVis = {};
+  let workflow = null, STATUS = null, favs = new Set(), hidden = new Set(), hiddenApi = new Set(), tags = {}, removed = {}, paramVis = {};
   // As on the library page: the star/hide/tag writes each send the WHOLE set, so none of them may run against
   // preferences that were never loaded.
   let prefsOk = false;
@@ -32,6 +33,7 @@
     hidden = prefs.hidden;
     hiddenApi = prefs.hiddenApi;
     tags = prefs.tags;
+    removed = prefs.removed;
     paramVis = prefs.paramVis;
     renderInfo();
     // The model picker is offered whenever this id is a real config — including one that can't run yet because a
@@ -91,7 +93,7 @@
       + (c.architecture ? `<span>${escapeHtml(c.architecture)}</span>` : "")
       + `</div>`
       + (c.summary ? `<p class="wf-summary">${escapeHtml(c.summary)}</p>` : "")
-      + `<div class="wf-tags-edit"><label class="fld-label">Your tags</label>`
+      + `<div class="wf-tags-edit"><label class="fld-label">Tags</label>`
       + `<div id="mdTags" class="wftag-list"></div>`
       + `<form id="mdTagForm" class="wftag-add"><input id="mdTagInput" placeholder="add a tag…" maxlength="40" autocomplete="off"><button type="submit">Add</button></form></div>`
       + `<div class="hist-head" style="margin-top:22px"><h2>Models for this machine</h2></div>`
@@ -138,11 +140,18 @@
     location.href = "/settings/workflows";
   }
 
+  // The workflow's BASE (definition) tags — what the delta below is computed against.
+  const baseTags = () => (workflow.card && workflow.card.tags) || [];
+  // The effective set shown: base + the user's added labels, minus the ones they removed.
+  const displayTags = () => computeWorkflowTags(baseTags(), tags[workflow.id], removed[workflow.id]);
+
   function renderTags() {
     const box = document.getElementById("mdTags"); if (!box) return;
-    const list = tags[workflow.id] || [];
+    const base = new Set(baseTags());
+    const list = displayTags();
+    // A base tag reads differently from one the user added — same remove control, a class the CSS can style apart.
     box.innerHTML = list.length
-      ? list.map((t, i) => `<span class="wftag editable">${escapeHtml(t)}<button data-i="${i}" class="wftag-x" aria-label="Remove">✕</button></span>`).join("")
+      ? list.map((t, i) => `<span class="wftag editable${base.has(t) ? " is-base" : ""}">${escapeHtml(t)}<button data-i="${i}" class="wftag-x" aria-label="Remove">✕</button></span>`).join("")
       : '<span class="muted">No tags yet — add labels to organize this workflow in the picker.</span>';
     box.querySelectorAll(".wftag-x").forEach(b => b.addEventListener("click", () => removeTag(+b.dataset.i)));
   }
@@ -151,20 +160,41 @@
   // preferences having actually loaded — writing over an unknown value is how the stored one gets lost.
   const canWritePrefs = () => prefsOk || (toast("Your saved preferences didn’t load — reload before changing them"), false);
 
-  const persistTags = () => saveWorkflowTags(tags).catch(e => { console.error("save tags failed:", e); toast("Couldn't save tags"); });
+  const persistTags = () => saveWorkflowTags(tags, removed).catch(e => { console.error("save tags failed:", e); toast("Couldn't save tags"); });
+
+  // Both halves of the delta drop their workflow key once empty, so the stored maps never accumulate empty entries.
+  const dropIfEmpty = (map, wf) => { if (map[wf] && !map[wf].length) delete map[wf]; };
+
   async function addTag(e) {
     e.preventDefault();
     if (!canWritePrefs()) return;
     const inp = document.getElementById("mdTagInput"), v = (inp.value || "").trim();
     if (!v) return;
-    const list = tags[workflow.id] || (tags[workflow.id] = []);
-    if (!list.includes(v)) list.push(v);
+    const wf = workflow.id;
+    // Re-adding a base tag the user had removed just clears the removal — it does NOT create a duplicate addition.
+    const rm = removed[wf] || [];
+    const k = rm.indexOf(v);
+    if (k >= 0) { rm.splice(k, 1); dropIfEmpty(removed, wf); }
+    else if (!displayTags().includes(v)) {
+      (tags[wf] || (tags[wf] = [])).push(v);
+    }
     inp.value = ""; renderTags(); await persistTags();
   }
+
   async function removeTag(i) {
     if (!canWritePrefs()) return;
-    const list = tags[workflow.id] || []; list.splice(i, 1);
-    if (!list.length) delete tags[workflow.id];
+    const v = displayTags()[i]; if (v == null) return;
+    const wf = workflow.id;
+    if (baseTags().includes(v)) {
+      // A base tag: record a removal (never delete the definition's tag, just mask it for this user).
+      const rm = removed[wf] || (removed[wf] = []);
+      if (!rm.includes(v)) rm.push(v);
+    } else {
+      // A tag the user added: drop it from the additions.
+      const add = tags[wf] || [];
+      const j = add.indexOf(v); if (j >= 0) add.splice(j, 1);
+      dropIfEmpty(tags, wf);
+    }
     renderTags(); await persistTags();
   }
 

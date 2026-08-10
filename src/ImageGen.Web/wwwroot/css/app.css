@@ -821,6 +821,7 @@ body.auth .page{max-width:none;padding:0}
 .wf-tags-edit{margin:0 0 8px}
 .wftag-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
 .wftag.editable{display:inline-flex;align-items:center;gap:6px;padding-right:4px}
+.wftag.is-base{border-style:dashed;color:var(--ink)}
 .wftag-x{appearance:none;background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:11px;line-height:1;padding:0 2px}
 .wftag-x:hover{color:var(--danger)}
 .wftag-add{display:flex;gap:8px;margin-top:6px}

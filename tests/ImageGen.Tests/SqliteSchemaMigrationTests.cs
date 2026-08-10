@@ -117,6 +117,13 @@ public sealed class SqliteSchemaMigrationTests
                 "CONSTRAINT UQ_AppUser_Username UNIQUE (Username));");
             Assert.DoesNotContain("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));
 
+            // UserWorkflowTag as a pre-0.15.0 database has it: present, WITHOUT the 0.15.0 Removed column. Its CREATE
+            // TABLE IF NOT EXISTS skips this table, so the 0.15.0 ADD COLUMN is the only path that column can arrive by.
+            await ExecAsync(factory,
+                "CREATE TABLE dbo.UserWorkflowTag (Id INTEGER PRIMARY KEY AUTOINCREMENT, UserId INTEGER NOT NULL, " +
+                "WorkflowId TEXT NOT NULL, Tag TEXT NOT NULL);");
+            Assert.DoesNotContain("Removed", await ColumnsAsync(factory, "UserWorkflowTag"));
+
             await InitAsync(factory);
 
             Assert.Contains("LorasJson", await ColumnsAsync(factory, "JobSlot"));   // the 0.9.1 ADD COLUMN reached it
@@ -127,6 +134,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("RenderWidth", await ColumnsAsync(factory, "GenTiming"));   // 0.11.0 ADD COLUMN reached the pre-existing GenTiming
             Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
             Assert.Contains("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));   // 0.12.0 ADD COLUMN reached the pre-existing AppUser
+            Assert.Contains("Removed", await ColumnsAsync(factory, "UserWorkflowTag"));   // 0.15.0 ADD COLUMN reached the pre-existing UserWorkflowTag
         }
         finally
         {
