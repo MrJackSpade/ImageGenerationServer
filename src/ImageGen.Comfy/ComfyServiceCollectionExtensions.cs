@@ -46,6 +46,11 @@ public static class ComfyServiceCollectionExtensions
         _ = services.AddSingleton<ImageGen.Application.Civitai.ILoraMetaPopulator>(sp => sp.GetRequiredService<LoraMetaPopulator>());
         _ = services.AddHostedService(sp => sp.GetRequiredService<LoraMetaPopulator>());
 
+        // Server-side observer of ComfyUI's live-progress socket: pins the running slot's step fraction on the
+        // orchestrator so /jobs and /queue serve real sampler progress (the per-user /ws proxy can't feed a
+        // cross-user surface like the queue page).
+        _ = services.AddHostedService<ComfyProgressListener>();
+
         // ITagCatalog and ITagModelClient are NOT registered here. Both are served in-process by
         // ImageGen.TagModel over the model's own vocabulary (AddTagModel).
         return services;

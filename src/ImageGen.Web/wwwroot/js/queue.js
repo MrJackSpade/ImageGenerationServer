@@ -1,6 +1,6 @@
 // Queue page: a paginated, cross-user feed of every generation on this box (all users). Unfinished work comes FIRST,
-// in the order the queue will serve it (the row on the GPU is the top row), with a progress bar + time-remaining
-// countdown; finished jobs follow, newest first. 25 per page, polled every 2s whichever page is shown. The prompt is
+// in the order the queue will serve it (the row on the GPU is the top row), with a progress bar (live sampler-step
+// fraction served by /queue) + time-remaining countdown; finished jobs follow, newest first. 25 per page, polled every 2s whichever page is shown. The prompt is
 // shown only for the current user's own jobs (others' prompts are private). Uses core.js (GATEWAY, escapeHtml,
 // fmtDuration).
 (function () {
@@ -129,27 +129,14 @@
   const statusClass = j => j.status === "running" ? "on" : j.status === "done" ? "ok"
     : j.status === "error" ? "err" : j.status === "cancelled" ? "off" : "";
 
-  // Fraction 0..1 of the CURRENT image's expected time that has elapsed. Time-based (no cross-user step counts
-  // here), capped just under full so a longer-than-average render doesn't read as "done"; null without an estimate.
-  function elapsedFraction(expected, startedAtIso) {
-    if (!expected || expected <= 0 || !startedAtIso) return null;
-    const started = Date.parse(startedAtIso);
-    if (Number.isNaN(started)) return null;
-    return Math.min(0.99, Math.max(0, (Date.now() - started) / 1000 / expected));
-  }
-
-  // The bar tracks the JOB, not the picture on the GPU. `expectedSeconds`/`startedAt` describe the running slot only
-  // (ForgeApi.QueueRowOf), so feeding them straight to the bar would make a batch of ten fill and snap back to zero
-  // ten times — while the label beside it already read "running 4/10". `progress` is the count of finished slots, so
-  // whole images done plus the fraction of the one in flight is the honest number.
-  //
-  // Without an estimate the in-flight fraction is unknown, but progress/total still isn't: the bar then steps once
-  // per finished image instead of going nowhere for the whole job. Null only while nothing at all is known.
-  function batchFraction(expected, startedAtIso, progress, total) {
+  // Fraction 0..1 across the whole JOB: finished slots plus the live sampler-step fraction of the image on the GPU.
+  // `stepFraction` is the server's own read of ComfyUI's progress socket — the same quantity the composer's bar draws —
+  // so the two pages can no longer disagree the way the old wall-clock-vs-estimate bar did. Before a render's first
+  // step frame it is null, and the bar honestly shows only the finished-slot count. Capped just under full so a job
+  // never reads as "done" before it is.
+  function batchFraction(step, progress, total) {
     const n = total > 0 ? total : 1;
-    const current = elapsedFraction(expected, startedAtIso);
-    if (current == null && progress <= 0) return null;
-    return Math.min(0.99, (progress + (current || 0)) / n);
+    return Math.min(0.99, (progress + (step || 0)) / n);
   }
 
   // Time left on the whole job: what's left of the image being rendered, plus a full estimate for each image after
@@ -165,14 +152,15 @@
     return remaining >= 1 ? `~${fmtDuration(Math.ceil(remaining))} left` : "finishing…";
   }
 
-  // Update a running row's bar + countdown in place, once a second, so the countdown stays live between polls. Reads
-  // only the dataset, so every value the fraction needs has to be on it (see row()).
+  // Update a running row's bar + countdown in place, once a second, so the countdown stays live between polls. The
+  // bar is step-driven so it only actually moves when a poll lands a fresh stepFraction; the ETA text is the part
+  // that needs the per-second tick. Reads only the dataset, so every value needed has to be on it (see row()).
   function tickRow(el) {
     const expected = Number(el.dataset.expected) || 0, started = el.dataset.started || "";
     const progress = Number(el.dataset.progress) || 0, total = Number(el.dataset.total) || 1;
-    const frac = batchFraction(expected, started, progress, total);
+    const step = el.dataset.step === "" ? null : Number(el.dataset.step);
     const fill = el.querySelector(".queue-bar-fill");
-    if (fill && frac != null) fill.style.width = Math.round(frac * 100) + "%";
+    if (fill) fill.style.width = Math.round(batchFraction(step, progress, total) * 100) + "%";
     const eta = el.querySelector(".queue-eta");
     if (eta) eta.textContent = remainingText(expected, started, progress, total);
   }
@@ -184,8 +172,10 @@
     el.className = "listrow queue-row" + (running ? " running" : "") + (j.active ? "" : " done");
     const exp = j.expectedSeconds || (catalog[j.model] && catalog[j.model].avgSeconds);
     if (running) {
+      el.dataset.jobId = j.jobId;
       el.dataset.expected = exp || 0; el.dataset.started = j.startedAt || "";
       el.dataset.progress = j.progress || 0; el.dataset.total = j.total || 1;
+      el.dataset.step = j.stepFraction == null ? "" : j.stepFraction;
     }
 
     const main = document.createElement("div"); main.className = "queue-main";
@@ -257,9 +247,20 @@
   }
   let lastSig = null;
 
+  // The signature deliberately excludes stepFraction — it changes on every poll, and rebuilding the rows for it
+  // would reset the countdown the signature exists to protect. So a signature-stable poll still has to land the
+  // fresh fraction: refresh the running rows' datasets in place, then let the tick repaint from them.
+  function refreshLive(jobs) {
+    for (const j of jobs) {
+      if (j.status !== "running" || !j.active) continue;
+      const el = $list.querySelector(`.queue-row.running[data-job-id="${j.jobId}"]`);
+      if (el) el.dataset.step = j.stepFraction == null ? "" : j.stepFraction;
+    }
+  }
+
   function render(jobs) {
     const s = page + "#" + sig(jobs);
-    if (s === lastSig) { tickAll(); return; }
+    if (s === lastSig) { refreshLive(jobs); tickAll(); return; }
     lastSig = s;
     if (!jobs.length) { $list.innerHTML = '<p class="muted">No generations yet.</p>'; return; }
     $list.innerHTML = "";

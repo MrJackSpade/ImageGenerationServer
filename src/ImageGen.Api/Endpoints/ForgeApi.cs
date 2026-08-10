@@ -1138,6 +1138,7 @@ public static class ForgeApi
             jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
+            stepFraction = running?.StepFraction,
             imageIds = j.ImageIds(),
             slots = j.Slots.OrderBy(s => s.Index).Select(s => SlotViewOf(s, catalog)),
             createdAt = j.CreatedAt
@@ -1166,6 +1167,9 @@ public static class ForgeApi
             jobsAhead = status == Discriminators.Queued ? q.JobsAhead(j) : 0,
             expectedSeconds = running?.ExpectedGenSeconds ?? j.Slots.FirstOrDefault()?.ExpectedGenSeconds,
             startedAt = running?.GenStartedAt,
+            // Live sampler-step fraction (0..1) of the render on the GPU — what the queue page's bar draws from,
+            // so it shows the same quantity as the composer's ws-driven bar instead of a wall-clock guess.
+            stepFraction = running?.StepFraction,
             mine,
             prompt = mine ? j.Prompt : null,
             requeueable = 0,   // still live: Cancel is what this row offers, not a re-run of work still to come
@@ -1214,6 +1218,7 @@ public static class ForgeApi
             jobsAhead = 0,
             expectedSeconds = (double?)null,
             startedAt = (DateTimeOffset?)null,
+            stepFraction = (double?)null,
             mine,
             prompt = mine ? r.Prompt : null,
             // How many images this job never made and could be re-run. Counted from the slots rather than inferred

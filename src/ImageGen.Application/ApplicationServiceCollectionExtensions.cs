@@ -46,6 +46,9 @@ public static class ApplicationServiceCollectionExtensions
 
         _ = services.AddSingleton(renderOptions);
         _ = services.AddSingleton<RenderOrchestrator>();
+        // The orchestrator is where live step-progress frames land (it owns the promptId → slot map), so the sink is
+        // the same instance under its port.
+        _ = services.AddSingleton<IStepProgressSink>(sp => sp.GetRequiredService<RenderOrchestrator>());
 
         // Per-model recent-average render timings (#200): a machine-scoped SQL read that used to run live inside both
         // /forge/workflows and the ~2s-polled /forge/queue. Flushed on job finalization (RenderOrchestrator), backstop

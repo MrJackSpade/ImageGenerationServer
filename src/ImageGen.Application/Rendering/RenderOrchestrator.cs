@@ -31,7 +31,7 @@ namespace ImageGen.Application.Rendering;
 /// <see cref="IServiceScopeFactory"/>.
 /// </summary>
 [AllowMagicStrings("log and exception message templates and human-readable failure-reason strings")]
-public sealed class RenderOrchestrator
+public sealed class RenderOrchestrator : IStepProgressSink
 {
     /// <summary>How many consecutive polls the backend must fail to list a submitted prompt (while no result has
     /// landed) before it is declared LOST. Debounces the history-flush race; NOT a render deadline.</summary>
@@ -415,6 +415,20 @@ public sealed class RenderOrchestrator
         lock (_lock)
         {
             return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? s) ? s.Job.Owner : null;
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReportStepFraction(string comfyPromptId, double fraction)
+    {
+        _ = Ensure.NotNullOrEmpty(comfyPromptId);
+        _ = Ensure.Between(fraction, 0, 1);
+        lock (_lock)
+        {
+            if (_comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? slot) && !slot.Terminal)
+            {
+                slot.StepFraction = fraction;
+            }
         }
     }
 
@@ -1702,6 +1716,7 @@ public sealed class RenderOrchestrator
             slot.GenStartedAt = null;
             slot.ExpectedGenSeconds = null;
             slot.EtaSignature = null;
+            slot.StepFraction = null;
             slot.MissedLivenessChecks = 0;
             slot.PreemptRequested = false;
             slot.State = SlotState.Queued;

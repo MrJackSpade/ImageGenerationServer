@@ -104,6 +104,12 @@ public sealed class RenderSlot
     [AllowNullable("null = no ETA yet (first render of this model on this machine); 0.0 would be a real (instant) estimate")]
     public double? ExpectedGenSeconds;
 
+    /// <summary>Latest step progress (0..1) of THIS render, from the backend's live progress socket — the fraction the
+    /// sampler is through the image/video on the GPU. Written by <see cref="RenderOrchestrator.ReportStepFraction"/>,
+    /// served on the job/queue views so every page's bar draws the same quantity. Never persisted.</summary>
+    [AllowNullable("null = no step frame observed yet for this render; 0.0 is a real just-started fraction")]
+    public double? StepFraction;
+
     /// <summary>The ETA parameter signature (resolved resolution / steps / frames) captured at submit — stored with the
     /// timing sample and used to param-match this render's ETA. Null until the prompt is submitted.</summary>
     [AllowNullable("null = prompt not yet submitted, so no signature captured; distinct from any default signature")]
