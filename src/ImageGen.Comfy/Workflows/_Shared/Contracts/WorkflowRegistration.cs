@@ -38,6 +38,7 @@ using ImageGen.Comfy.Edit.PixelQuantizeBatch;
 using ImageGen.Comfy.Edit.PixelQuantizeVideo;
 using ImageGen.Comfy.Edit.PixelVideo;
 using ImageGen.Comfy.Edit.QwenImageEdit;
+using ImageGen.Comfy.Edit.QwenImageEditInpaint;
 using ImageGen.Comfy.Edit.QwenImageInpaint;
 using ImageGen.Comfy.Edit.QwenImageOutpaint;
 using ImageGen.Comfy.Edit.QwenPixelize;
@@ -138,6 +139,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, AnimaInpaintWorkflow>();   // masked img2img inpaint on the Anima checkpoint
         _ = services.AddSingleton<IWorkflow, AnimaOutpaintWorkflow>();  // ImagePadForOutpaint + masked img2img on the Anima checkpoint
         _ = services.AddSingleton<IWorkflow, QwenImageInpaintWorkflow>();   // base Qwen-Image + InstantX inpainting ControlNet (NOT the Edit fine-tune)
+        _ = services.AddSingleton<IWorkflow, QwenImageEditInpaintWorkflow>();   // Qwen-Image-EDIT + painted mask + references via InpaintModelConditioning (no ControlNet)
         _ = services.AddSingleton<IWorkflow, QwenImageOutpaintWorkflow>();  // same ControlNet, canvas extended by ImagePadForOutpaint
         _ = services.AddSingleton<IWorkflow, FluxFillInpaintWorkflow>();    // FLUX.1 Fill [dev] — mask is a NATIVE model input, not a ControlNet
         _ = services.AddSingleton<IWorkflow, FluxFillOutpaintWorkflow>();   // same model, canvas extended by ImagePadForOutpaint

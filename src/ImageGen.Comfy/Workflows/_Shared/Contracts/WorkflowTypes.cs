@@ -627,6 +627,12 @@ public sealed class WorkflowConfiguration
     /// segregates it under a header within the Edit tab. Null = an ungrouped plain editor, listed above every header.</summary>
     public string? EditGroup { get; init; }
     public bool Default { get; init; }
+
+    /// <summary>The id of this Edit config's masked sibling — the Inpaint workflow submit routes to when a mask is
+    /// drawn — or "" when it has none. A cross-config link is inherently optional; the empty string is the explicit
+    /// "no sibling" value (not a nullable branch field). Validated at catalog projection: the target must exist, be
+    /// Kind=Inpaint, and preserve composition, and only a plain Edit config may declare one.</summary>
+    public string MaskWorkflow { get; init; } = "";
     public ModelCard Card { get; init; } = new();
 
     /// <summary>

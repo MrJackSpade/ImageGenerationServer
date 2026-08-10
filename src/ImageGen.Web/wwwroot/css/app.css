@@ -646,36 +646,38 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
   .edit-tab-select:focus{outline:none;border-color:var(--accent)}
 }
 .edit-subhead{display:flex;align-items:center;gap:10px;margin:0 0 12px}
-#chatMode.hidden,#inpaintMode.hidden,#outpaintMode.hidden{display:none}
+#chatMode.hidden,#outpaintMode.hidden{display:none}
 /* Mode switching stays free while a job runs, so the job's mode may no longer be the visible one. A `.running` mode
    div that has been switched away from (`.hidden`) is revealed just enough to keep its progress bar, Cancel and ETA
    reachable — its composer/tools stay hidden — so the in-flight job can always be watched and cancelled. */
-#chatMode.running.hidden,#inpaintMode.running.hidden,#outpaintMode.running.hidden{display:block}
-#chatMode.running.hidden>*,#inpaintMode.running.hidden>*,#outpaintMode.running.hidden>*{display:none}
-#chatMode.running.hidden>.bar-row,#inpaintMode.running.hidden>.bar-row,#outpaintMode.running.hidden>.bar-row{display:flex}
-#chatMode.running.hidden>.eta:not([hidden]),#inpaintMode.running.hidden>.eta:not([hidden]),#outpaintMode.running.hidden>.eta:not([hidden]){display:block}
-/* inpaint */
-.inpaint-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:13px;color:var(--ink-soft);margin:0 0 10px}
-.inpaint-tools .mask-hint{flex:1 1 auto;min-width:160px}
-.inpaint-tools .mask-brush{display:flex;align-items:center;gap:8px;white-space:nowrap}
-.inpaint-tools .mask-brush input[type=range]{width:130px}
+#chatMode.running.hidden,#outpaintMode.running.hidden{display:block}
+#chatMode.running.hidden>*,#outpaintMode.running.hidden>*{display:none}
+#chatMode.running.hidden>.bar-row,#outpaintMode.running.hidden>.bar-row{display:flex}
+#chatMode.running.hidden>.eta:not([hidden]),#outpaintMode.running.hidden>.eta:not([hidden]){display:block}
+/* mask painting (a modal off the source preview) */
 .mask-btn{appearance:none;background:var(--elev);border:1px solid var(--line);border-radius:999px;color:var(--ink-soft);font:inherit;font-size:13px;padding:7px 13px;cursor:pointer}
 .mask-btn:hover{border-color:var(--accent);color:var(--ink)}
 .mask-btn.active{border-color:var(--accent);color:var(--ink);background:color-mix(in srgb,var(--accent) 18%,var(--elev))}
-.mask-stage{position:relative;display:block;max-width:560px;margin:0 auto 14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--elev);line-height:0}
-.mask-stage .mask-img{display:block;width:100%;height:auto}
+/* Tinted preview of the painted mask, over the source thumbnail. Solid strokes on a transparent canvas + this opacity
+   read as a translucent red overlay (same recipe as the paint canvas); pointer-events off so the source stays clickable. */
+.mask-preview{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.5;z-index:2}
+/* Pencil (open the paint modal) + clear-mask, pinned top-LEFT (the clear-source × sits top-right). */
+.src-overlay{position:absolute;top:6px;left:6px;z-index:3;display:flex;gap:6px}
+.src-overlay-btn{appearance:none;width:24px;height:24px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:24px;text-align:center;cursor:pointer;padding:0}
+.src-overlay-btn:hover{background:rgba(0,0,0,.82)}
+/* A pure-inpaint editor is selected but no mask is drawn — draw attention to the pencil (submit is blocked until then). */
+.src-overlay-btn.needs-mask{background:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 55%,transparent)}
+.mask-modal-inner{display:flex;flex-direction:column;gap:12px;max-width:96vw;max-height:92vh;padding:16px}
+.mask-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:center}
+.mask-toolbar .mask-brush{display:flex;align-items:center;gap:8px;white-space:nowrap;color:var(--ink-soft);font-size:13px}
+.mask-toolbar .mask-brush input[type=range]{width:150px}
+/* The stage shrink-wraps the image and the image sizes itself under BOTH viewport caps, so the element box always
+   matches the displayed picture exactly — no object-fit letterbox. The paint canvas (inset:0) maps pointer→pixel with
+   one uniform scale, which is only correct when the box and the image share an aspect ratio. */
+.mask-stage{position:relative;display:block;width:fit-content;max-width:min(84vw,900px);margin:0 auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--elev);line-height:0}
+.mask-stage .mask-img{display:block;width:auto;height:auto;max-width:100%;max-height:78vh}
 /* mask is painted SOLID (binary); the see-through is purely this CSS opacity, so the extracted mask is never 50% */
 .mask-stage .mask-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none;opacity:.5}
-#inpaintComposer{display:flex;flex-direction:column;gap:8px}
-.inpaint-foot{display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between}
-.inpaint-params{display:flex;flex-wrap:wrap;gap:14px}
-.inpaint-params .mp-field{flex-direction:row;align-items:center;gap:8px}
-.inpaint-params .mp-field .fld-label{margin-bottom:0;white-space:nowrap}
-.inpaint-params input[type=number]{width:5.5rem}
-#inpaintGo{margin-left:auto}
-#inpaintResult{margin-top:16px}
-#inpaintResult .result-card{max-width:560px;margin:0 auto}
-#inpaintResult .result-card img,#inpaintResult .result-card video{width:100%;border-radius:12px;display:block}
 /* outpaint — the frame is the editor: the original is pinned inside it, the hatched margin is what gets generated */
 .outpaint-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:13px;color:var(--ink-soft);margin:0 0 10px}
 .outpaint-tools .op-hint{flex:1 1 auto;min-width:160px}
@@ -699,16 +701,17 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .op-side input[type=number]{width:5rem}
 .op-size{margin-left:auto;font:12px var(--mono);color:var(--ink-faint);white-space:nowrap}
 #outpaintComposer{display:flex;flex-direction:column;gap:8px}
+.outpaint-foot{display:flex;flex-wrap:wrap;align-items:center;gap:14px;justify-content:space-between}
 #outpaintGo{margin-left:auto}
 #outpaintResult{margin-top:16px}
 #outpaintResult .result-card{max-width:560px;margin:0 auto}
 #outpaintResult .result-card img{width:100%;border-radius:12px;display:block}
 @media (max-width:640px){.op-stage{height:320px}}
-#inpaintResult .result-card.loading,#outpaintResult .result-card.loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:22px}
-#inpaintResult .result-card.loading .b-dots,#outpaintResult .result-card.loading .b-dots{color:var(--ink-soft);font-size:13px}
-#inpaintResult .result-card.loading .b-bar,#outpaintResult .result-card.loading .b-bar{width:70%;max-width:240px;height:4px;background:var(--line);border-radius:999px;overflow:hidden}
-#inpaintResult .result-card.loading .b-bar>i,#outpaintResult .result-card.loading .b-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s ease}
-/* loading placeholder for the chat result card (mirrors the inpaint one) */
+#outpaintResult .result-card.loading{display:flex;flex-direction:column;align-items:center;gap:10px;padding:22px}
+#outpaintResult .result-card.loading .b-dots{color:var(--ink-soft);font-size:13px}
+#outpaintResult .result-card.loading .b-bar{width:70%;max-width:240px;height:4px;background:var(--line);border-radius:999px;overflow:hidden}
+#outpaintResult .result-card.loading .b-bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s ease}
+/* loading placeholder for the chat result card (mirrors the outpaint one) */
 #chatMode #result .result-card.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--ink-soft);font-size:13.5px}
 /* One output, capped + centered, exactly like the gen page. A fan-out across workflows lands each image here in turn
    and every one of them reconciles into Recent below — that strip is where they're compared, not a grid up here. */

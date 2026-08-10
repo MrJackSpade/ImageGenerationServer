@@ -1,0 +1,96 @@
+{
+  "id": "qwen-image-edit-inpaint",
+  "workflow": "qwen-image-edit-inpaint",
+  "friendly_name": "Qwen-Image-Edit (masked)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-edit-2511",
+    "text_encoders": [
+      "qwen-2-5-vl-7b"
+    ],
+    "vae": "qwen-image-vae"
+  },
+  "params": {
+    "loader": "unet",
+    "clip_type": "qwen_image",
+    "dual": false,
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "reference_max": {
+      "value": 2,
+      "visibility": "hidden"
+    },
+    "reference_latents_method": "index_timestep_zero",
+    "reference_inputs": [
+      "image2",
+      "image3"
+    ],
+    "mask_grow": {
+      "value": 16,
+      "visibility": "exposed",
+      "min": 0,
+      "max": 64
+    },
+    "mask_blur": {
+      "value": 12,
+      "visibility": "exposed",
+      "min": 0,
+      "max": 31
+    }
+  },
+  "card": {
+    "architecture": "Qwen-Image 20B MMDiT edit model (Qwen2.5-VL encoder), masked to a painted region via InpaintModelConditioning — full instruction editing + reference images inside the mask only",
+    "summary": "Paint a region, give an instruction, and optionally attach reference images — the Qwen edit runs only inside the mask and everything outside is composited back untouched. Unlike the base Qwen-Image inpaint (ControlNet, no references), this rides the Edit fine-tune, so you can say 'put the chair from image 2 here' and it edits the masked area with full reference/instruction understanding.",
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "yes",
+    "pick_when": "You want a masked edit that still understands an instruction and reference images — e.g. drop an object from a reference into a painted region, or replace what's under the mask while keeping identity. Use the plain Qwen-Image inpaint when you have no reference and just want the region regenerated from a description.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Paint the region to change, then write an imperative instruction. Attached references are image 2 and image 3 — refer to them by number.",
+      "example": "(mask over the empty corner) Add the armchair from image 2, matching the room's lighting.",
+      "instructions": "Plain natural-language edit instructions (English or Chinese). Only the painted region is regenerated; the instruction and any references describe what goes there. Refer to references by number (your photo is image 1). Recommended: 20 steps, cfg 4.0, euler/simple.",
+      "negative_guidance": "Official Qwen-Image-Edit usage passes an effectively-empty negative; the graph derives the negative from the instruction contrast, so no user negative is consumed.",
+      "source": "https://huggingface.co/Qwen/Qwen-Image-Edit-2511"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Like Qwen-Image-Edit, the negative is the empty-instruction encode over the same image conditioning (real CFG contrast), not a user field."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "fp8 20B Qwen edit; masked so only the region is sampled but the whole model still loads."
+    },
+    "ui_help": {
+      "note": "Paint over the area to change, describe the edit, optionally attach a reference image, and send.",
+      "good_for": "instruction + reference edits confined to a painted region"
+    },
+    "edit_use_cases": [
+      "masked instruction editing with references: drop an object from a reference into a painted region, replace or restyle what's under the mask, keep everything outside it"
+    ],
+    "reference": {
+      "max": 2,
+      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number. Example: 'put the chair from image 2 into the masked area.'"
+    }
+  },
+  "resolution": {
+    "min_w": 928,
+    "min_h": 928,
+    "max_w": 1664,
+    "max_h": 1664,
+    "step": 16
+  }
+}

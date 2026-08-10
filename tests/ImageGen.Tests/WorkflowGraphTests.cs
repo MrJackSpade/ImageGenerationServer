@@ -1353,6 +1353,46 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("\"ImageScale\"", json);   // no stretch-and-blur prefill (that's the Qwen path's fix)
     }
 
+    /// <summary>The masked Qwen-Image-EDIT editor: unlike the base-model InstantX inpaint, it keeps the Edit
+    /// fine-tune's instruction/reference understanding INSIDE a painted region. The Qwen edit conditioning (references
+    /// stitched by the config's method) is routed through <c>InpaintModelConditioning</c> — no ControlNet, and its
+    /// <c>noise_mask</c> is what confines the denoise, so no <c>SetLatentNoiseMask</c> either. Output is composited
+    /// back so everything outside the mask is the source.</summary>
+    [Fact]
+    public void QwenImageEditInpaint_edits_a_masked_region_with_references_via_inpaint_conditioning()
+    {
+        WorkflowInputs maskedWithRef = new()
+        {
+            Positive = "add the chair from image 2",
+            SourceImageName = "src.png",
+            MaskImageName = "mask.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+        };
+        string json = BuildJson("qwen-image-edit-inpaint", maskedWithRef);
+
+        // It IS the Edit fine-tune (Qwen2.5-VL instruction encoder), not base Qwen-Image + a ControlNet.
+        Assert.Contains("\"TextEncodeQwenImageEditPlus\"", json);
+        Assert.DoesNotContain("ControlNet", json);
+        // References are stitched with the config's declared method (index_timestep_zero), same as the plain editor.
+        Assert.Contains("\"FluxKontextMultiReferenceLatentMethod\"", json);
+        Assert.Contains("\"reference_latents_method\":\"index_timestep_zero\"", json);
+        // The mask confines the edit: the painted upload feeds InpaintModelConditioning, whose noise_mask pins the
+        // outside. That IS the latent confinement, so there is no separate SetLatentNoiseMask.
+        Assert.Contains("\"LoadImageMask\"", json);
+        Assert.Contains("\"InpaintModelConditioning\"", json);
+        Assert.Contains("\"noise_mask\":true", json);
+        Assert.DoesNotContain("SetLatentNoiseMask", json);
+        // Standard 2511 sampling fix + real CFG (not a lightning/turbo bake): ModelSamplingAuraFlow + CFGNorm, cfg 4.
+        Assert.Contains("\"ModelSamplingAuraFlow\"", json);
+        Assert.Contains("\"CFGNorm\"", json);
+        Assert.Contains("\"cfg\":4", json);
+        // Paste-back keeps everything outside the mask identical to the (bucket-scaled) source.
+        Assert.Contains("\"ImageCompositeMasked\"", json);
+        Assert.Contains("\"GrowMask\"", json);
+    }
+
     [Fact]
     public void QwenImageInpaint_conditions_the_fill_on_the_instantx_controlnet_and_pastes_back()
     {

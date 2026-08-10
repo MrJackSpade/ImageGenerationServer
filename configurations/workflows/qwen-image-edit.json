@@ -3,6 +3,7 @@
   "workflow": "qwen-image-edit",
   "friendly_name": "Qwen-Image-Edit",
   "default": false,
+  "mask_workflow": "qwen-image-edit-inpaint",
   "requirements": {
     "checkpoint": "qwen-image-edit-2511",
     "text_encoders": [

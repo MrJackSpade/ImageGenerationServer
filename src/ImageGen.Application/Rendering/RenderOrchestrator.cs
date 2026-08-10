@@ -37,6 +37,12 @@ public sealed class RenderOrchestrator
     /// landed) before it is declared LOST. Debounces the history-flush race; NOT a render deadline.</summary>
     private const int LivenessVanishThreshold = 3;
 
+    /// <summary>Feather for the server-side masked-edit composite (the Kind=Edit route). These mirror the in-graph
+    /// inpaint defaults (mask_grow 16, mask_blur 12) so the composite route and the sibling-inpaint route paste the
+    /// masked region back with the same soft edge.</summary>
+    private const int CompositeMaskGrowPx = 16;
+    private const int CompositeMaskBlurPx = 12;
+
     /// <summary>The param-bag key the orchestrator injects a random seed under when a submission pins none.</summary>
     private static class Keys
     {
@@ -1134,6 +1140,39 @@ public sealed class RenderOrchestrator
                 // Finalize the instruction for tag-speaking editors (inpaint), as the generate path does. Non-tag
                 // editors have no tagging block, so Finalize passes the instruction through unchanged.
                 WorkflowInfo? editInfo = _catalog.ResolveInfo(edit.Workflow);
+
+                // Mask routing (implicit wire shape): a Kind=Inpaint workflow consumes the mask IN-GRAPH; a Kind=Edit
+                // workflow keeps the mask OUT of the graph and the server composites the masked region back afterwards
+                // (below, at the result block). Any other kind carrying a mask is a client bug — throw, never silently
+                // ignore. The mask is painted at source resolution, so it must match the source dimensions exactly.
+                bool inGraphMask = string.Equals(editInfo?.Kind, WorkflowKindTokens.Inpaint, StringComparison.Ordinal);
+                if (inGraphMask && maskBytes is null)
+                {
+                    // A mask is a REQUIREMENT of an inpaint — the painted region is the whole point. Without this
+                    // guard the graph would silently fall back to the source's alpha channel (LoadImageMask's default),
+                    // "inpainting" nothing or everything; an inpaint item arriving without a mask fails here instead.
+                    FailSlot(slot, $"'{edit.Workflow}' is an inpaint workflow and requires a painted mask, but none was supplied");
+                    return;
+                }
+
+                if (maskBytes is not null)
+                {
+                    bool serverComposite = string.Equals(editInfo?.Kind, WorkflowKindTokens.Edit, StringComparison.Ordinal);
+                    if (!inGraphMask && !serverComposite)
+                    {
+                        FailSlot(slot, $"a mask was supplied to '{edit.Workflow}', which is neither an inpaint nor an edit workflow and cannot use one");
+                        return;
+                    }
+
+                    ImageDimensions maskDims = _media.Identify(maskBytes);
+                    ImageDimensions srcDims = _media.Identify(src);
+                    if (maskDims.Width != srcDims.Width || maskDims.Height != srcDims.Height)
+                    {
+                        FailSlot(slot, $"the mask is {maskDims.Width}x{maskDims.Height} but the source image is {srcDims.Width}x{srcDims.Height}; a mask is painted at source resolution and must match it");
+                        return;
+                    }
+                }
+
                 FinalizedPrompt editFinal = PromptFinalizer.Finalize(edit.Instruction, editInfo?.Tagging);
                 // The instruction and its negative arrive in marker form and are stored verbatim, exactly as the generate
                 // path stores its raw prompt — so an edited image's prompt comes back to the box the way it was written.
@@ -1147,7 +1186,9 @@ public sealed class RenderOrchestrator
                 // those markers leak raw into the negative conditioning and degrade output. Marks aren't kept (negatives
                 // aren't bookmarkable). Comfy then appends this onto the model's default negative (ComposeNegative).
                 string editNeg = PromptFinalizer.Finalize(edit.NegativePrompt, editInfo?.Tagging).Rendered;
-                SubmitResult editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, maskBytes, lastFrameBytes, ct);
+                // Kind=Edit composites server-side, so the plain graph must run untouched — the mask never reaches Comfy.
+                byte[]? graphMask = inGraphMask ? maskBytes : null;
+                SubmitResult editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, graphMask, lastFrameBytes, ct);
                 promptId = editSubmit.PromptId;
                 slot.EtaSignature = editSubmit.Eta;
             }
@@ -1420,27 +1461,55 @@ public sealed class RenderOrchestrator
             ImageDimensions dims = isMp4 ? _media.IdentifyVideo(img.Png) : _media.Identify(img.Png);
             (int w, int h) = (dims.Width, dims.Height);
 
-            if (slot.IsEdit && src is not null)
+            if (slot.IsEdit)
             {
-                // 1.0 ("fully changed") is the honest answer for a video, which has no still pHash to compare against.
-                // For a still it has to be MEASURED: defaulting a failed comparison to 1.0 would wave the result
-                // straight past the no-change gate — the one case the gate exists to catch — storing a declined edit
-                // as a successful one. A comparison that cannot run fails the slot instead.
-                double diff = isVideo ? 1.0 : _media.Difference(src, img.Png);
-                // Some edits intentionally preserve composition (inpaint; pixel transforms). Their whole-image pHash
-                // diff is tiny BY DESIGN and would trip the no-change gate, so those workflows opt out.
-                bool preservesComposition = _catalog.ResolveInfo(slot.RequireEdit().Workflow)?.PreservesComposition ?? false;
-                if (!preservesComposition && diff < _media.NoChangeThreshold)
+                EditSpec edit = slot.RequireEdit();
+                WorkflowInfo? editInfo = _catalog.ResolveInfo(edit.Workflow);
+                // A mask on a Kind=Edit item means the plain graph ran the whole canvas and the server pastes the masked
+                // region back over the source HERE — for a fresh render and a resumed one alike (the resumed slot never
+                // reloaded the source, so it is re-fetched below). Kind=Inpaint consumed the mask in-graph already.
+                string maskImageId = edit.MaskImageId ?? "";
+                bool serverComposite = !isVideo
+                    && string.Equals(editInfo?.Kind, WorkflowKindTokens.Edit, StringComparison.Ordinal)
+                    && maskImageId.Length > 0;
+
+                // The fresh path has the source in scope; the composite path can re-fetch it. A resumed NON-composite
+                // edit has neither and is stored as-is by the generic path below, exactly as before.
+                if (src is not null || serverComposite)
                 {
-                    SlotEditNoChange(slot, Math.Round(diff, 3));
+                    byte[] outBytes = img.Png;
+                    if (serverComposite)
+                    {
+                        byte[] original = src ?? await GetImageBytesAsync(edit.ImageId, ct);
+                        byte[] maskPng = await GetImageBytesAsync(maskImageId, ct);
+                        outBytes = _media.CompositeMasked(original, outBytes, maskPng, CompositeMaskGrowPx, CompositeMaskBlurPx);
+                        // The composite is re-encoded PNG at the ORIGINAL (source) dimensions, which differ from the
+                        // edit's bucket dims — re-read them so history records the size actually stored.
+                        ImageDimensions cd = _media.Identify(outBytes);
+                        (w, h) = (cd.Width, cd.Height);
+                    }
+
+                    // A video has no still pHash to compare, so its diff is null (no score is recorded and the gate
+                    // below skips it — a video edit is never declared "no change"). For a still it is MEASURED against
+                    // the source; a comparison that cannot run fails the slot rather than defaulting past the gate.
+                    // Also null when there is no source to compare (a resumed composite — the gate is skipped anyway).
+                    double? diff = src is null || isVideo ? null : _media.Difference(src, img.Png);
+                    // Some edits intentionally preserve composition (inpaint; pixel transforms), and a server composite
+                    // keeps all but the painted region — both read a tiny whole-image diff BY DESIGN, so both opt out of
+                    // the no-change gate.
+                    bool preservesComposition = editInfo?.PreservesComposition ?? false;
+                    if (!preservesComposition && !serverComposite && diff is double d && d < _media.NoChangeThreshold)
+                    {
+                        SlotEditNoChange(slot, Math.Round(d, 3));
+                        return;
+                    }
+
+                    string editId = await StoreImageAsync(outBytes, contentType, w, h, ct);
+                    await PersistSpriteDataAsync(editId, img, ct);
+                    await WriteHistoryAsync(slot, editId, ct);
+                    SlotDone(slot, editId, w, h, changed: true, score: diff is double sd ? Math.Round(sd, 3) : null);
                     return;
                 }
-
-                string editId = await StoreImageAsync(img.Png, contentType, w, h, ct);
-                await PersistSpriteDataAsync(editId, img, ct);
-                await WriteHistoryAsync(slot, editId, ct);
-                SlotDone(slot, editId, w, h, changed: true, score: isVideo ? null : Math.Round(diff, 3));
-                return;
             }
 
             string id = await StoreImageAsync(img.Png, contentType, w, h, ct);

@@ -1,4 +1,4 @@
-﻿using ImageGen.Application.Snapshots;
+using ImageGen.Application.Snapshots;
 using ImageGen.Application.Workflows;
 using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain;
@@ -42,7 +42,8 @@ public sealed partial class WorkflowCatalogService(
         string friendly = card.FriendlyName ?? cfg.FriendlyName ?? cfg.Id;
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
         bool preserves = wf?.PreservesComposition ?? false;
-        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card), wf?.HasAudio ?? false);
+        string kind = wf is null ? "" : KindToken(ResolveKind(cfg, wf));
+        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card), wf?.HasAudio ?? false, kind);
     }
 
     /// <summary>The workflow's reference capability, or null when it accepts no references — the single projection of a
@@ -215,6 +216,10 @@ public sealed partial class WorkflowCatalogService(
             avgs = new GenTimingAverages(new Dictionary<string, double>());
         }
 
+        // Validate every masked-sibling link across the WHOLE catalogue and collect the ids that are the target of one
+        // — a broken link is an authoring error regardless of eligibility, and a target must be marked hidden.
+        HashSet<string> maskTargets = MaskLinkTargets();
+
         // Shared display name (within a kind + effect + edit section) → keep the first. The section is part of the
         // identity for the same reason the effect is: "Anima" under the Redraw header and a plain "Anima" editor are
         // different offerings, not duplicates.
@@ -222,7 +227,58 @@ public sealed partial class WorkflowCatalogService(
             .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
-                avgs.SecondsFor(e.cfg.Id) is double s ? (int?)Math.Round(s) : null))];
+                avgs.SecondsFor(e.cfg.Id) is double s ? (int?)Math.Round(s) : null,
+                maskTargets.Contains(e.cfg.Id)))];
+    }
+
+    /// <summary>
+    /// Validate every configuration's <see cref="WorkflowConfiguration.MaskWorkflow"/> link and return the set of ids
+    /// that are the TARGET of one (suppressed from the picker but kept in the payload). A link is only valid when the
+    /// SOURCE is a plain Edit config and the TARGET exists, resolves to <see cref="WorkflowKind.Inpaint"/>, and
+    /// preserves composition — anything else is a boot/authoring error and THROWS rather than silently dropping the
+    /// link (which would leave the client unable to route a mask and give no reason).
+    /// </summary>
+    private HashSet<string> MaskLinkTargets() => ValidateMaskLinks(_catalog.AllConfigs(), _registry);
+
+    /// <summary>The validation body of <see cref="MaskLinkTargets"/>, pure over its inputs so it is unit-testable
+    /// without the snapshot machinery <see cref="ListEligibleAsync"/> needs.</summary>
+    internal static HashSet<string> ValidateMaskLinks(IReadOnlyList<WorkflowConfiguration> configs, WorkflowRegistry registry)
+    {
+        Dictionary<string, WorkflowConfiguration> byId = configs.ToDictionary(c => c.Id, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> targets = new(StringComparer.OrdinalIgnoreCase);
+        foreach (WorkflowConfiguration cfg in configs)
+        {
+            if (string.IsNullOrEmpty(cfg.MaskWorkflow))
+            {
+                continue;
+            }
+
+            IWorkflow? srcWf = registry.Find(cfg.WorkflowName);
+            if (srcWf is null || ResolveKind(cfg, srcWf) != WorkflowKind.Edit)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares mask_workflow '{cfg.MaskWorkflow}', but only a plain Edit "
+                    + "configuration may link a masked sibling.");
+            }
+
+            if (!byId.TryGetValue(cfg.MaskWorkflow, out WorkflowConfiguration? target))
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares mask_workflow '{cfg.MaskWorkflow}', which is not a known configuration.");
+            }
+
+            IWorkflow? targetWf = registry.Find(target.WorkflowName);
+            if (targetWf is null || ResolveKind(target, targetWf) != WorkflowKind.Inpaint || !targetWf.PreservesComposition)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares mask_workflow '{cfg.MaskWorkflow}', but the target is not a "
+                    + "composition-preserving Inpaint workflow — the only kind that consumes a mask in-graph.");
+            }
+
+            _ = targets.Add(target.Id);
+        }
+
+        return targets;
     }
 
     /// <inheritdoc/>
@@ -380,31 +436,17 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>The client token for a resolved kind — the value the badge and the edit-page tab routing read.</summary>
     internal static string KindToken(WorkflowKind kind) => kind switch
     {
-        WorkflowKind.Generate => KindTokens.Generate,
-        WorkflowKind.Edit => KindTokens.Edit,
-        WorkflowKind.Inpaint => KindTokens.Inpaint,
-        WorkflowKind.Outpaint => KindTokens.Outpaint,
-        WorkflowKind.Redraw => KindTokens.Redraw,
-        WorkflowKind.Upscale => KindTokens.Upscale,
-        WorkflowKind.Effect => KindTokens.Effect,
-        WorkflowKind.Animate => KindTokens.Animate,
-        WorkflowKind.VideoEdit => KindTokens.VideoEdit,
-        _ => KindTokens.Generate,
+        WorkflowKind.Generate => WorkflowKindTokens.Generate,
+        WorkflowKind.Edit => WorkflowKindTokens.Edit,
+        WorkflowKind.Inpaint => WorkflowKindTokens.Inpaint,
+        WorkflowKind.Outpaint => WorkflowKindTokens.Outpaint,
+        WorkflowKind.Redraw => WorkflowKindTokens.Redraw,
+        WorkflowKind.Upscale => WorkflowKindTokens.Upscale,
+        WorkflowKind.Effect => WorkflowKindTokens.Effect,
+        WorkflowKind.Animate => WorkflowKindTokens.Animate,
+        WorkflowKind.VideoEdit => WorkflowKindTokens.VideoEdit,
+        _ => WorkflowKindTokens.Generate,
     };
-
-    /// <summary>The wire tokens for a resolved <see cref="WorkflowKind"/> — one fixed vocabulary shared with the client.</summary>
-    private static class KindTokens
-    {
-        public const string Generate = "generate";
-        public const string Edit = "edit";
-        public const string Inpaint = "inpaint";
-        public const string Outpaint = "outpaint";
-        public const string Redraw = "redraw";
-        public const string Upscale = "upscale";
-        public const string Effect = "effect";
-        public const string Animate = "animate";
-        public const string VideoEdit = "videoedit";
-    }
 
     /// <summary>The config edit-group magic values the catalog promotes to their own kind.</summary>
     private static class EditGroups
@@ -414,7 +456,7 @@ public sealed partial class WorkflowCatalogService(
     }
 
     private WorkflowDescriptor ToDescriptor(
-        WorkflowConfiguration cfg, IWorkflow wf, int? avgSeconds)
+        WorkflowConfiguration cfg, IWorkflow wf, int? avgSeconds, bool hiddenFromPicker)
     {
         ModelCard c = cfg.Card;
         // This machine's overrides win here too. Reporting the SHIPPED value while rendering the overridden one
@@ -488,7 +530,11 @@ public sealed partial class WorkflowCatalogService(
             IsVariant: _catalog.IsVariant(cfg.Id),
             // Each config's aspect→[w,h] map travels to the composer, which writes a clicked shape's dims into its
             // width/height controls and submits the dims (#209). Null for a config with no aspect map.
-            Aspects: RequestSize.BuildAspectMap(cfg, machine));
+            Aspects: RequestSize.BuildAspectMap(cfg, machine),
+            // The masked sibling this Edit config routes to when a mask is drawn ("" = none), and whether this config
+            // is itself the hidden target of such a link (kept in the payload, filtered from the picker client-side).
+            MaskWorkflow: cfg.MaskWorkflow,
+            HiddenFromPicker: hiddenFromPicker);
     }
 
     /// <summary>One exposed parameter as the composer sees it. Normally a straight projection of the schema/config, but

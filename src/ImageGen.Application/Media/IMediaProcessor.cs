@@ -52,4 +52,15 @@ public interface IMediaProcessor
     /// ImageSharp cannot read, so the frame comes from an ffmpeg decode). Throws on bytes that don't demux, carry no
     /// video stream, or yield no frame.</summary>
     MediaPayload VideoThumbnail(byte[] source, int maxEdge);
+
+    /// <summary>
+    /// Composite <paramref name="result"/> back over <paramref name="original"/> in the painted region only, for the
+    /// server-side masked-edit path (a plain Edit workflow ran the whole canvas; only the masked area is kept). The
+    /// result is scaled to the original's dimensions, then the binary white-on-black <paramref name="maskPng"/> is
+    /// feathered — grown by <paramref name="growPx"/> then blurred by <paramref name="blurRadius"/> — and used as the
+    /// per-pixel alpha: <c>out = original*(1-a) + result*a</c>. Mirrors the in-graph recipe
+    /// (<c>GrowMask + ImageBlur</c>) so the composite route and the sibling-inpaint route paste back the same way.
+    /// Throws when the mask's dimensions do not match the original's. Returns PNG bytes.
+    /// </summary>
+    byte[] CompositeMasked(byte[] original, byte[] result, byte[] maskPng, int growPx, int blurRadius);
 }

@@ -18,7 +18,6 @@
             <button type="button" class="edit-tab" data-mode="upscale" role="tab">Upscale</button>
             <button type="button" class="edit-tab" data-mode="effects" role="tab">Effects</button>
             <button type="button" class="edit-tab" data-mode="animate" role="tab">Animate</button>
-            <button type="button" class="edit-tab" data-mode="inpaint" role="tab">Inpaint</button>
             <button type="button" class="edit-tab" data-mode="outpaint" role="tab">Outpaint</button>
             @* Video-to-video (pixel quantize). Shown ONLY when the source is a clip — and then it's the only tab. *@
             <button type="button" class="edit-tab" data-mode="video" role="tab" hidden>Pixelize</button>
@@ -87,44 +86,6 @@
         <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "bar", EtaId: "eta", CancelId: "cancelEdit", ResultId: "result")' />
     </div>
 
-    @* INPAINT mode — purpose-built: paint a region, edit the full (tag) prompt, regenerate only that region. *@
-    <div id="inpaintMode" class="hidden">
-        <div class="edit-subhead">
-            <label for="inpaintModelToggle" class="edit-head-label">Workflow</label>
-            <div class="model-select" id="inpaintModelSelect">
-                <button type="button" id="inpaintModelToggle" class="model-toggle" aria-haspopup="listbox" aria-expanded="false">…</button>
-                <div id="inpaintModelMenu" class="model-menu" hidden role="listbox"></div>
-            </div>
-        </div>
-        <div class="inpaint-tools">
-            <span class="mask-hint">Paint the area to regenerate (e.g. the face)</span>
-            <label class="mask-brush">Brush <input type="range" id="brushSize" min="6" max="220" value="56" /></label>
-            <button type="button" id="brushErase" class="mask-btn" title="Toggle eraser">Erase</button>
-            <button type="button" id="maskClear" class="mask-btn" title="Clear the mask">Clear</button>
-        </div>
-        <div id="maskStage" class="mask-stage"></div>
-        <form id="inpaintComposer" autocomplete="off">
-            <label class="fld-label">Prompt</label>
-            <div class="prompt-wrap">
-                <textarea id="inpaintPrompt" placeholder="full prompt for the picture — type # for tags, @@ for artists"></textarea>
-                <div id="inpaintTagPop" class="tag-pop hidden" role="listbox" aria-label="Tag suggestions"></div>
-            </div>
-            @* Optional negative — shown only when the inpaint model supports one; added on top of its built-in negative. *@
-            <div class="neg-wrap" id="inpaintNegWrap" hidden>
-                <label class="fld-label" for="inpaintNeg">Negative prompt</label>
-                <div class="prompt-wrap">
-                    <textarea id="inpaintNeg" placeholder="worst quality, artist name…"></textarea>
-                    <div id="inpaintNegTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
-                </div>
-            </div>
-            <div class="inpaint-foot">
-                <div class="inpaint-params" id="inpaintParams"></div>
-                <button id="inpaintGo" class="primary-btn" type="submit" title="Hold to make several">Generate</button>
-            </div>
-        </form>
-        <partial name="_ProgressPanel" model='new ProgressPanel(BarId: "inpaintBar", EtaId: "inpaintEta", CancelId: "cancelInpaint", ResultId: "inpaintResult")' />
-    </div>
-
     @* OUTPAINT mode — purpose-built, and deliberately NOT the inpaint editor: you don't paint a region, you drag the
        frame outward. The original sits pinned inside the enlarged canvas (the hatched margin is what gets generated),
        the four pad amounts are source-native pixels sent as pad_left/top/right/bottom, and the prompt describes the
@@ -174,7 +135,7 @@
                configuration's defaults. Rendering them here also fed them back as overrides through the SHARED flat
                param map, where `denoise` means "Change amount" to inpaint but "Fill strength" to outpaint: an inpaint
                value of 0.5 half-denoised the grey border and returned a grey box. *@
-            <div class="inpaint-foot">
+            <div class="outpaint-foot">
                 <button id="outpaintGo" class="primary-btn" type="submit">Generate</button>
             </div>
         </form>
@@ -184,6 +145,20 @@
     @* Source picker, shared by every mode: shown in the image area when the editor is opened with no source. Accepts a
        video too — a clip source switches the editor to the pixel-quantize V2V pass. *@
     <input type="file" id="editSrcFile" class="hidden" accept="image/*,video/*" />
+
+    @* Paint MODAL — reached by the pencil on the source preview. Paint a region to confine an edit; the presence of a
+       mask drives routing (a masked sibling workflow, else a server-side composite). Reuses the lightbox idiom. *@
+    <div id="maskModal" class="lightbox hidden" role="dialog" aria-label="Paint a mask">
+        <div class="mask-modal-inner">
+            <div class="mask-toolbar">
+                <label class="mask-brush">Brush <input type="range" id="brushSize" min="6" max="220" value="56" /></label>
+                <button type="button" class="mask-btn" data-mask-erase title="Eraser">Erase</button>
+                <button type="button" class="mask-btn" data-mask-clear title="Clear the mask">Clear</button>
+                <button type="button" class="mask-btn" data-mask-close title="Done">Done</button>
+            </div>
+            <div id="maskModalStage" class="mask-stage"></div>
+        </div>
+    </div>
 </section>
 <div class="status" id="status"></div>
 
@@ -198,6 +173,7 @@
     <script src="~/js/core.js" asp-append-version="true"></script>
     <script src="~/js/modelpicker.js" asp-append-version="true"></script>
     <script src="~/js/tagbox.js" asp-append-version="true"></script>
+    <script src="~/js/mask-editor.js" asp-append-version="true"></script>
     <script src="~/js/edit.js" asp-append-version="true"></script>
     <script src="~/js/recents.js" asp-append-version="true"></script>
     <script src="~/js/bookmarkCategories.js" asp-append-version="true"></script>

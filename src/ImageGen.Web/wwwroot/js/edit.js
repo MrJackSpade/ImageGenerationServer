@@ -4,13 +4,15 @@
 //   • Effects — deterministic image transforms (Line art / Pixelize), same gen-style layout; the dropdown is
 //               grouped by effect type. These carry an effect_type in the catalog (Edit holds the rest).
 //   • Animate — image→video editors (Wan / LTX / AnimateDiff), same gen-style layout.
-//   • Inpaint — purpose-built: paint a region, edit the FULL (tag) prompt, regenerate only that region.
 //   • Outpaint— purpose-built: drag the frame outward, edit the FULL (tag) prompt, generate only the new margin.
-// Shares only helpers from core.js (+ tagbox.js for the inpaint prompt autocomplete). History is written
+// Masking is NOT a tab: a pencil on the source preview opens a paint modal (mask-editor.js). A drawn mask routes the
+// selected Edit workflow to its masked sibling when it has one, else the plain edit runs and the server composites the
+// painted region back. Pure-inpaint workflows live in the Edit picker and simply can't submit until a mask is drawn.
+// Shares only helpers from core.js (+ tagbox.js for the prompt autocomplete). History is written
 // server-side by the worker; the browser never writes it. To iterate on an OUTPUT, the user clicks it and
 // chooses Edit, which re-seeds this page (/edit/{outputId}) with that output as the fixed source.
 
-const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMode = $("chatMode"), $inpaintMode = $("inpaintMode"), $outpaintMode = $("outpaintMode"),
+const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMode = $("chatMode"), $outpaintMode = $("outpaintMode"),
       $editModelSelect = $("editModelSelect"), $editModelToggle = $("editModelToggle"), $editModelMenu = $("editModelMenu"),
       $editSrc = $("editSrc"), $bar = $("bar"), $eta = $("eta"), $cancelEdit = $("cancelEdit"), $result = $("result"), $editComposer = $("editComposer"),
       $instruction = $("instruction"), $instructionTagPop = $("instructionTagPop"), $editSend = $("editSend"), $status = $("status"),
@@ -18,26 +20,21 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $editLastFrame = $("editLastFrame"), $editLastFrameBtn = $("editLastFrameBtn"), $editLastFrameFile = $("editLastFrameFile"),
       $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"),
       $editSrcFile = $("editSrcFile"),
-      // inpaint
-      $inpaintModelSelect = $("inpaintModelSelect"), $inpaintModelToggle = $("inpaintModelToggle"), $inpaintModelMenu = $("inpaintModelMenu"),
-      $inpaintComposer = $("inpaintComposer"), $inpaintPrompt = $("inpaintPrompt"), $inpaintTagPop = $("inpaintTagPop"),
-      $inpaintParams = $("inpaintParams"), $inpaintGo = $("inpaintGo"), $inpaintResult = $("inpaintResult"),
-      $inpaintBar = $("inpaintBar"), $inpaintEta = $("inpaintEta"), $cancelInpaint = $("cancelInpaint"),
-      $maskStage = $("maskStage"), $brushSize = $("brushSize"), $brushErase = $("brushErase"), $maskClear = $("maskClear"),
+      // mask painting (a modal off the source preview; the brush slider lives inside the modal toolbar)
+      $maskModal = $("maskModal"), $maskModalStage = $("maskModalStage"), $brushSize = $("brushSize"),
       // outpaint
       $outpaintModelSelect = $("outpaintModelSelect"), $outpaintModelToggle = $("outpaintModelToggle"), $outpaintModelMenu = $("outpaintModelMenu"),
       $outpaintComposer = $("outpaintComposer"), $outpaintPrompt = $("outpaintPrompt"), $outpaintTagPop = $("outpaintTagPop"),
       $outpaintGo = $("outpaintGo"), $outpaintResult = $("outpaintResult"),
       $outpaintBar = $("outpaintBar"), $outpaintEta = $("outpaintEta"), $cancelOutpaint = $("cancelOutpaint"),
       $outpaintStage = $("outpaintStage"), $outPads = $("outPads"), $outSize = $("outSize"), $outPresets = $("outPresets"),
-      // optional negative prompt (chat + inpaint + outpaint) — shown only when a selected editor's card declares support
+      // optional negative prompt (chat + outpaint) — shown only when a selected editor's card declares support
       $editNegWrap = $("editNegWrap"), $editNeg = $("editNeg"), $editNegTagPop = $("editNegTagPop"),
-      $inpaintNegWrap = $("inpaintNegWrap"), $inpaintNeg = $("inpaintNeg"), $inpaintNegTagPop = $("inpaintNegTagPop"),
       $outpaintNegWrap = $("outpaintNegWrap"), $outpaintNeg = $("outpaintNeg"), $outpaintNegTagPop = $("outpaintNegTagPop");
 
 // The seed record names the image this page opens on — or names none, which is a legitimate starting state, not a
 // failure: the rail's Edit button (GET /edit) exists precisely to open the editor with NO source and pick a file,
-// and every mode already renders a picker when its base is empty (renderSrc, setupMaskStage, setupOutpaintStage).
+// and every mode already renders a picker when its base is empty (renderSrc, setupOutpaintStage).
 //
 // Having a source is a precondition of APPLYING an edit, not of loading the editor, so the check lives at each
 // mode's submit control — its buildItems refuses with "Select a file to … first" (and the button is disabled anyway).
@@ -109,8 +106,8 @@ const seedNegative = () => (seed.negativePrompt || "").trim();
 // page, so switching workflows never wipes your knobs. Writes are debounced and go to the account via saveEditPrefs;
 // the blob is restored on boot in loadEditModels. The instruction/prompt text is intentionally NOT retained: it's
 // tied to the specific source image being edited, so carrying a prior image's instruction to a new source is wrong.
-let editParamPrefs = {};            // flat { paramKey: value }, shared across every param panel (edit + inpaint + outpaint)
-let savedMode = null, savedInpaintWorkflowId = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null;   // seeded from the account blob on boot
+let editParamPrefs = {};            // flat { paramKey: value }, shared across every param panel (edit + outpaint)
+let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null;   // seeded from the account blob on boot
 
 let prefsTimer = null;
 // False until the stored blob has actually been read. savePrefs writes the WHOLE editor state, so writing before we
@@ -122,7 +119,6 @@ function savePrefs() {
   const json = JSON.stringify({
     mode: activeMode,
     modelIds: editSelIds(),
-    inpaintWorkflowId: selectedInpaintId,
     outpaintWorkflowId: selectedOutpaintId,
     params: editParamPrefs,
     brushSize: $brushSize ? $brushSize.value : null,
@@ -150,14 +146,31 @@ let activeMode = "edit", chatBucket = "edit";          // chatBucket ∈ {edit, 
 // Chat (Edit/Redraw/Effects/Animate) is a MULTI-select picker (the shared createModelPicker) mirroring the gen page:
 // any number of models in the bucket can be checked, and Apply fans the SAME instruction across all of them to compare.
 // selectedEditIds persists the pick across rebuilds (bucket switches). Inpaint stays single-select (buildMenu).
-let selectedEditIds = [], selectedInpaintId = null, selectedOutpaintId = null, editPicker = null;
+let selectedEditIds = [], selectedOutpaintId = null, editPicker = null;
 const editSelIds = () => editPicker ? editPicker.getSelectedIds() : [];
 const editModels = () => editPicker ? editPicker.getSelected() : [];
 // "Primary" = the model when EXACTLY one is checked; it alone drives the per-model params/refs/placeholder. With
 // 2+ checked there is no primary (null), so those single-model affordances hide and each model runs on its defaults.
 const editModel = () => editPicker ? editPicker.getPrimary() : null;
-const inpaintModel = () => EDIT_MODELS[selectedInpaintId] || null;
 const outpaintModel = () => EDIT_MODELS[selectedOutpaintId] || null;
+// A painted mask is live. The effective descriptor (below) and the submit gate both key off this.
+function maskActive() { return !!(maskEditor && maskEditor.hasMask()); }
+// The descriptor that ACTUALLY runs for the chat/edit submit: when a mask is drawn and the primary editor names a
+// masked sibling, the sibling (its exposed params, refs, negative, prompt semantics) drives the panel and the submit;
+// otherwise the primary itself. A pure-inpaint editor selected directly is already its own effective descriptor.
+function effectiveEditModel() {
+  const m = editModel();
+  if (m && maskActive() && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) return EDIT_MODELS[m.maskWorkflow];
+  return m;
+}
+// The models the shared param panel renders over. While a mask exists the picker is single-select, so this is the one
+// effective descriptor; otherwise it's every checked model (the panel shows their common params).
+function effectiveEditModels() { const em = effectiveEditModel(); return (maskActive() && em) ? [em] : editModels(); }
+// A pure-inpaint editor cannot run without a mask — block its submit (the pencil shows an accent ring; see
+// updateMaskControls). Checked across EVERY selected model, not just the primary: with 2+ checked there is no primary,
+// and a mask can never attach to a multi-select anyway (it collapses the selection to one), so a fan-out that includes
+// an inpaint editor is unsubmittable until the selection is narrowed and a mask drawn.
+function editSubmitBlockedByMask() { return editModels().some(m => m && isInpaint(m)) && !maskActive(); }
 
 // Edit-box display names: strip redundant tags and fix misleading ones, keyed by catalog friendly_name.
 const EDIT_NAME = {
@@ -192,11 +205,9 @@ let editCurrent = seed.id, editRefs = [];
 // source like the instruction text: cleared on a source swap and on manual removal, never persisted to the account.
 let lastFrameId = null;
 let busy = false, activeGen = null, cancelRequested = false;
-// The FIXED image inpaint paints over. Like editCurrent, it never advances on its own: a finished inpaint leaves the
-// base and the painted mask in place, so the same region can be re-rolled. Only a new source (upload / click-to-edit
-// re-seed) moves it.
-let inpaintBase = seed.id;
-let maskCanvas = null, maskCtx = null, eraseMode = false, inpaintTag = null;
+// The paint-mask controller (mask-editor.js), created at boot. `maskId` is the LAZILY-uploaded white-on-black mask PNG
+// id: null until built at submit, and reset to null on every stroke/clear/source-change so it is re-uploaded fresh.
+let maskEditor = null, maskId = null;
 
 function setStatus(t, { error = false } = {}) { $status.classList.toggle("error", error); $status.textContent = t; }
 // The Apply/Generate button STAYS itself while a render runs — clicking it again queues another job (the shared submit
@@ -204,18 +215,16 @@ function setStatus(t, { error = false } = {}) { $status.classList.toggle("error"
 // shown only while busy. Mode switching stays free while busy, so the visible mode is NOT the job's mode: the Cancel
 // follows the JOB (runningSpecMode, captured at submit/adopt), so it stays on the mode that owns the running job even
 // after the user switches tabs to set up another edit. The other two are always cleared so no stale Cancel lingers.
-let runningSpecMode = null;   // "chat" | "inpaint" | "outpaint" of the in-flight job; null when idle
+let runningSpecMode = null;   // "chat" | "outpaint" of the in-flight job; null when idle
 function setBusy(b) {
   busy = b;
   if (!b) runningSpecMode = null;
   $cancelEdit.classList.toggle("show", b && runningSpecMode === "chat");
-  $cancelInpaint.classList.toggle("show", b && runningSpecMode === "inpaint");
   $cancelOutpaint.classList.toggle("show", b && runningSpecMode === "outpaint");
   // The running job's own panel keeps a slim progress-bar+Cancel surface even after the user switches tabs away from it
   // (CSS: a `.running.hidden` mode div reveals only its .bar-row/.eta). Without this the Cancel would sit inside the
   // now-hidden mode div and be unreachable the moment mode switching is used mid-render.
   $chatMode.classList.toggle("running", b && runningSpecMode === "chat");
-  $inpaintMode.classList.toggle("running", b && runningSpecMode === "inpaint");
   $outpaintMode.classList.toggle("running", b && runningSpecMode === "outpaint");
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
@@ -225,8 +234,7 @@ function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested =
 // first" error. Called whenever the source or the workflow set for a mode changes, and on mode switch. A running
 // batch keeps its source, so the button stays enabled while busy (a click then queues more).
 function updateSubmitEnabled() {
-  if ($editSend) $editSend.disabled = !editCurrent || editModels().length === 0;
-  if ($inpaintGo) $inpaintGo.disabled = !inpaintBase || inpaintModelList().length === 0;
+  if ($editSend) $editSend.disabled = !editCurrent || editModels().length === 0 || editSubmitBlockedByMask();
   if ($outpaintGo) $outpaintGo.disabled = !outpaintBase || outpaintModelList().length === 0;
 }
 
@@ -240,11 +248,6 @@ let editActiveJobId = null;   // the one job the live tracker owns (for cancel +
 // Per-mode wiring: which bar/ETA the batch drives, how a finished slot is rendered, the source id that identifies an
 // in-flight job to recover on return, and which workflow ids belong to this mode (so recover claims only its own job).
 function editModeSpec(mode) {
-  if (mode === "inpaint") {
-    return { bar: $inpaintBar, eta: $inpaintEta, show: showInpaintBar,
-      onSlot: s => renderInpaintResult(s.id), onNoneMade: () => renderInpaintResult(inpaintBase),
-      sourceId: () => inpaintBase, mine: id => inpaintWorkflowIds().has(id) };
-  }
   if (mode === "outpaint") {
     return { bar: $outpaintBar, eta: $outpaintEta, show: showOutpaintBar,
       onSlot: s => { outpaintBase = s.id; renderOutpaintResult(s.id); setupOutpaintStage(); outStagedBase = outpaintBase; },
@@ -255,7 +258,8 @@ function editModeSpec(mode) {
     // The slot's own media/hasAudio (server-stated) back up the EDIT_MODELS lookup: an adopted job's model can be
     // absent from this page's map, and a miss must not render a clip as a still <img>.
     onSlot: s => showEditResult(s.id, "", EDIT_MODELS[s.model] || { media: s.media, hasAudio: s.hasAudio }, s.notice), onNoneMade: () => { $result.innerHTML = ""; },
-    sourceId: () => editCurrent, mine: id => { const inp = inpaintWorkflowIds(), out = outpaintWorkflowIds(); return !inp.has(id) && !out.has(id); } };
+    // chat now owns inpaint workflows too (masking is a per-source action, not a tab) — only outpaint is a separate job.
+    sourceId: () => editCurrent, mine: id => !outpaintWorkflowIds().has(id) };
 }
 
 // The progress/preview wiring for one edit mode — the object the shared submit control (core.js attachEnqueueSubmit)
@@ -321,6 +325,8 @@ async function loadEditModels() {
         negativeSupported: !!(r.card && r.card.negativeSupported),   // editor uses a negative prompt (append-on-top)
         tagging: (r.card && r.card.tagging) || null,
         promptGuidance: (r.card && r.card.promptGuidance) || null,   // card's how-to-prompt line → instruction placeholder
+        maskWorkflow: r.maskWorkflow || "",   // the masked sibling this Edit config routes to when a mask is drawn ("" = none)
+        hiddenFromPicker: !!r.hiddenFromPicker,   // a link TARGET: kept in the map for the panel swap + routing, never shown in the picker
         edit: { reference: r.reference || null, default: !!r.default }
       };
     });
@@ -337,7 +343,6 @@ async function loadEditModels() {
         if (p && typeof p === "object") {
           if (p.params && typeof p.params === "object") editParamPrefs = p.params;
           if (typeof p.mode === "string") savedMode = p.mode;
-          if (typeof p.inpaintWorkflowId === "string") savedInpaintWorkflowId = p.inpaintWorkflowId;
           if (typeof p.outpaintWorkflowId === "string") savedOutpaintWorkflowId = p.outpaintWorkflowId;
           if (p.brushSize != null) savedBrushSize = p.brushSize;
           if (typeof p.loop === "boolean") savedLoop = p.loop;
@@ -355,20 +360,20 @@ async function loadEditModels() {
   } catch (e) { $editModelToggle.textContent = "Unavailable"; setStatus(friendlyError(e), { error: true }); return {}; }
 }
 const visibleOf = list => list.filter(m => !editHidden.has(m.id));
-// edit   = image editors with NO effect_type (pure instruction editors); effects = image with an effect_type
-// (Line art / Pixelize, grouped by type in the dropdown); animate = video editors. Inpaint is its own mode.
+// edit   = instruction editors AND pure-inpaint editors (masking is a per-source action now, not a tab); effects =
+// image with an effect_type (Line art / Pixelize, grouped by type); animate = video editors. Outpaint keeps its tab.
 const chatModels = () => visibleOf(Object.values(EDIT_MODELS).filter(m => {
+  if (m.hiddenFromPicker) return false;              // a link TARGET (e.g. the qwen masked sibling): routing-only, never listed
   if (chatBucket === "video") return isV2V(m);      // the V2V (clip-source) bucket — only video-source editors
   if (isV2V(m)) return false;                        // video-source editors never appear in the image buckets
   if (chatBucket === "animate") return m.kind === "animate";
-  if (isInpaint(m) || isOutpaint(m)) return false;   // these have their own tabs (separate lists)
+  if (isOutpaint(m)) return false;                   // outpaint has its own tab (a frame editor, not a dropdown pick)
   if (chatBucket === "redraw") return isRedraw(m);
   if (isRedraw(m)) return false;                     // redraws have their own tab — never also in Edit/Effects
   if (chatBucket === "upscale") return isUpscale(m);
   if (isUpscale(m)) return false;                    // upscalers have their own tab — never also in Edit/Effects
-  return chatBucket === "effects" ? m.kind === "effect" : m.kind === "edit";
+  return chatBucket === "effects" ? m.kind === "effect" : (m.kind === "edit" || m.kind === "inpaint");
 }));
-const inpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isInpaint));
 const outpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isOutpaint));
 const sortModels = ms => ms.slice().sort((a, b) => {
   const af = editFavs.has(a.id) ? 0 : 1, bf = editFavs.has(b.id) ? 0 : 1;
@@ -376,10 +381,13 @@ const sortModels = ms => ms.slice().sort((a, b) => {
   return af !== bf ? af - bf : cleanName(a).localeCompare(cleanName(b), undefined, { sensitivity: "base" });
 });
 
-// Styled single-select popover (mirrors the gen page): ★ favorites first, render time, tag chips.
-function buildMenu(menuEl, models, selectedId) {
+// Styled single-select popover (mirrors the gen page): ★ favorites first, render time, tag chips. `groupBy(m)->label`
+// is optional: when given AND it yields more than one distinct label, the options render under `model-group` section
+// headers (like the shared multi-select picker); otherwise the list is flat.
+function buildMenu(menuEl, models, selectedId, groupBy) {
   menuEl.innerHTML = "";
-  for (const m of sortModels(models)) {
+  const sorted = sortModels(models);
+  const optEl = m => {
     const opt = document.createElement("div"); opt.className = "model-opt" + (m.id === selectedId ? " selected" : ""); opt.dataset.id = m.id; opt.setAttribute("role", "option");
     const text = document.createElement("div"); text.className = "model-opt-text";
     const nameRow = document.createElement("div"); nameRow.className = "model-opt-namerow";
@@ -388,7 +396,20 @@ function buildMenu(menuEl, models, selectedId) {
     text.appendChild(nameRow);
     const tg = editTags[m.id] || [];
     if (tg.length) { const sub = document.createElement("div"); sub.className = "model-opt-tags"; for (const t of tg) { const chip = document.createElement("span"); chip.className = "model-opt-tag"; chip.textContent = t; sub.appendChild(chip); } text.appendChild(sub); }
-    opt.appendChild(text); menuEl.appendChild(opt);
+    opt.appendChild(text); return opt;
+  };
+  // Group by label when asked and there's more than one section — a lone header is just noise. "Reference" sorts
+  // before "Non-Reference"; any other label falls back to alphabetical after those two.
+  const labels = groupBy ? [...new Set(sorted.map(m => groupBy(m) || ""))] : [];
+  if (groupBy && labels.length > 1) {
+    const order = ["Reference", "Non-Reference"];
+    const rank = l => { const i = order.indexOf(l); return i < 0 ? order.length : i; };
+    for (const label of labels.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))) {
+      const head = document.createElement("div"); head.className = "model-group"; head.textContent = label; menuEl.appendChild(head);
+      for (const m of sorted.filter(m => (groupBy(m) || "") === label)) menuEl.appendChild(optEl(m));
+    }
+  } else {
+    for (const m of sorted) menuEl.appendChild(optEl(m));
   }
   // Size the toggle box to the WIDEST option name so its width is stable — it no longer shrinks/grows to the
   // currently-selected name. Measured with canvas (the menu is hidden, so offsetWidth would be 0).
@@ -427,7 +448,7 @@ editPicker = createModelPicker({
     || (chatBucket === "redraw" || chatBucket === "upscale" ? null : m.editGroup)
     || null,
   hint: "Long-press a workflow to pick several and compare",
-  onChange: ids => { selectedEditIds = ids; updateEditRefBtn(); updateEditRefHint(); renderEditLastFrame(); updateEditParams(); updateInstructionPlaceholder(); updateEditNeg(); updateSubmitEnabled(); },
+  onChange: ids => { selectedEditIds = ids; refreshMaskRouting(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
 });
 function populateChatMenu() {
@@ -446,9 +467,47 @@ function populateChatMenu() {
 }
 
 function updateEditParams() {
-  renderParamFields($("editParams"), editModels());
+  renderParamFields($("editParams"), effectiveEditModels());   // the sibling's params (mask_grow/blur) when masked
   restoreParams($("editParams"));   // prefill from the shared flat param map (carries across workflow switches)
 }
+// Re-run everything that depends on the EFFECTIVE descriptor and the mask state: the param/refs/negative/prompt panel,
+// the pencil/clear overlay, the submit gate. Also collapses the multi-select to a single pick while a mask exists, so
+// the panel reflects exactly one effective descriptor (its params/refs/negative can't be an intersection of several).
+function refreshMaskRouting() {
+  if (maskActive() && editSelIds().length > 1) {
+    editPicker.setSelectedIds([editSelIds()[0]]);   // keep the first, drop the rest — fires onChange → re-enters here single
+    return;
+  }
+  updateEditRefBtn(); updateEditRefHint(); renderEditRefs();
+  renderEditLastFrame();
+  updateEditParams();
+  updateInstructionPlaceholder();
+  updateEditNeg();
+  updateMaskControls();
+  updateSubmitEnabled();
+}
+// The pencil (open the paint modal) and, when a mask exists, the clear-mask button — overlaid on the source preview.
+// Rebuilt in place so a stroke/clear (maskChanged) or a selection change reshapes them without re-rendering the media.
+function updateMaskControls() {
+  const overlay = $("srcOverlay"); if (!overlay) return;
+  overlay.innerHTML = "";
+  if (srcIsVideo || !editCurrent) return;
+  const pencil = document.createElement("button");
+  pencil.type = "button"; pencil.className = "src-overlay-btn"; pencil.title = "Edit mask"; pencil.textContent = "✎";
+  pencil.classList.toggle("needs-mask", editSubmitBlockedByMask());   // accent ring: a pure-inpaint editor with no mask
+  pencil.addEventListener("click", openMaskModal);
+  overlay.appendChild(pencil);
+  if (maskActive()) {
+    const er = document.createElement("button");
+    er.type = "button"; er.className = "src-overlay-btn"; er.title = "Clear mask"; er.textContent = "⌫";
+    er.addEventListener("click", clearMaskAll);
+    overlay.appendChild(er);
+  }
+}
+function openMaskModal() { if (editCurrent && !srcIsVideo && maskEditor) maskEditor.open(viewUrl(editCurrent), 0, 0); }
+function clearMaskAll() { if (maskEditor) maskEditor.clear(); }   // maskEditor.clear fires onChange (maskChanged) → refresh
+// A stroke or a clear inside the modal: the built mask id is now stale, so drop it (rebuilt at submit), and re-route.
+function maskChanged() { maskId = null; refreshMaskRouting(); }
 // Persist tuned values the moment they change.
 $("editParams").addEventListener("change", () => persistParams($("editParams")));
 // Honest wording for whatever the primary model actually consumes. An instruction editor is told to name a CHANGE; a
@@ -460,12 +519,12 @@ $("editParams").addEventListener("change", () => persistParams($("editParams")))
 // an empty instruction is already legal (buildChatItems never blocks on a blank prompt), so hiding the box changes nothing.
 function updateInstructionVisibility() {
   const field = $("instructionField");
-  if (field) field.hidden = !editModels().some(m => m && m.takesPrompt);
+  if (field) field.hidden = !effectiveEditModels().some(m => m && m.takesPrompt);
 }
 
 function updateInstructionPlaceholder() {
   updateInstructionVisibility();
-  const m = editModel();
+  const m = effectiveEditModel();
   const label = $("instructionLabel");
   const setLabel = t => { if (label) label.textContent = t; };
   if (m && m.media === "video") {
@@ -497,10 +556,8 @@ function updateInstructionPlaceholder() {
 // whatever's typed is APPENDED to the model's built-in default negative server-side (ComfyGraph.ComposeNegative),
 // never replaces it — a blank negative just yields the default. Chat shows it when ANY selected editor supports it;
 // the per-model value is dropped for any model that doesn't (mirrors the gen page's negFor).
-function updateEditNeg() { if ($editNegWrap) $editNegWrap.hidden = !editModels().some(m => m && m.negativeSupported); }
+function updateEditNeg() { if ($editNegWrap) $editNegWrap.hidden = !effectiveEditModels().some(m => m && m.negativeSupported); }
 function editNegFor(model) { const t = $editNeg ? $editNeg.value.trim() : ""; return (model && model.negativeSupported && t) ? t : null; }
-function updateInpaintNeg() { const m = inpaintModel(); if ($inpaintNegWrap) $inpaintNegWrap.hidden = !(m && m.negativeSupported); }
-function inpaintNegFor(model) { const t = $inpaintNeg ? $inpaintNeg.value.trim() : ""; return (model && model.negativeSupported && t) ? t : null; }
 function updateOutpaintNeg() { const m = outpaintModel(); if ($outpaintNegWrap) $outpaintNegWrap.hidden = !(m && m.negativeSupported); }
 function outpaintNegFor(model) { const t = $outpaintNeg ? $outpaintNeg.value.trim() : ""; return (model && model.negativeSupported && t) ? t : null; }
 
@@ -521,29 +578,37 @@ function renderSrc() {
     media.addEventListener("click", () => openImage(imageId(editCurrent)));
   }
   $editSrc.appendChild(media);
+  // A still source can be masked: a tinted preview canvas over the thumbnail + the pencil/clear overlay controls.
+  if (!srcIsVideo) {
+    const preview = document.createElement("canvas"); preview.className = "mask-preview";
+    $editSrc.appendChild(preview);
+    if (maskEditor) maskEditor.drawPreview(preview);
+    const overlay = document.createElement("div"); overlay.className = "src-overlay"; overlay.id = "srcOverlay";
+    $editSrc.appendChild(overlay);
+  }
   $editSrc.appendChild(srcClearButton());
+  updateMaskControls();
 }
-// A small "×" overlay on a source preview that clears the source. Upload sets ONE source for every mode
-// (editCurrent + inpaintBase + outpaintBase together, :481), so clearing drops all of them — consistent with how
-// they're set — returning every stage to its empty "Select a file" picker.
+// A small "×" overlay on a source preview that clears the source. Upload sets ONE source for chat + outpaint together,
+// so clearing drops both — consistent with how they're set — returning every stage to its empty "Select a file" picker.
 function srcClearButton() {
   const x = document.createElement("button");
   x.type = "button"; x.className = "src-clear"; x.textContent = "×"; x.title = "Clear source";
   x.addEventListener("click", e => { e.stopPropagation(); clearSource(); });
   return x;
 }
-// Mirror the upload reset at :481-484, but to null: drop the shared source and every source-tied piece of state
-// (end frame, video-ness, staged bases), then re-render whichever stage is active so its empty picker returns.
+// Drop the shared source and every source-tied piece of state (end frame, video-ness, the mask, the outpaint stage),
+// then re-render whichever stage is active so its empty picker returns.
 function clearSource() {
-  editCurrent = null; inpaintBase = null; outpaintBase = null;
-  stagedBase = null; outStagedBase = null;
+  editCurrent = null; outpaintBase = null;
+  outStagedBase = null;
   lastFrameId = null;                                     // the end frame was tied to the old source
   srcIsVideo = false;                                     // no clip source anymore
+  maskId = null; if (maskEditor) maskEditor.clear();      // the painted mask was bound to the old source
   renderSrc(); renderEditLastFrame();
   applySourceMediaUi();
   updateSubmitEnabled();   // no source now → every mode's submit disables
   if (activeMode === "video") setMode("edit");            // leave V2V-only mode — there's no clip to quantize now
-  else if (activeMode === "inpaint") setupMaskStage();
   else if (activeMode === "outpaint") setupOutpaintStage();
 }
 // Empty-state control shown in the image area when the editor is opened with no source (the rail's Edit button).
@@ -574,16 +639,16 @@ async function handleEditSrcFiles(files) {
   setStatus("Uploading…");
   try {
     const id = await uploadToInput(f, f.name || (isVid ? "edit_src.mp4" : "edit_src.png"));
-    editCurrent = id; inpaintBase = id; stagedBase = null;   // the new upload is the source for chat, inpaint AND outpaint
+    editCurrent = id;                                        // the new upload is the source for chat AND outpaint
     outpaintBase = id; outStagedBase = null;
     lastFrameId = null;                                      // the end frame was tied to the old source — drop it
+    maskId = null; if (maskEditor) maskEditor.clear();       // the painted mask was bound to the old source
     srcIsVideo = isVid;                                       // a clip upload flips the editor into V2V-only mode
     renderSrc(); renderEditLastFrame();
     applySourceMediaUi();
     updateSubmitEnabled();   // a source is now set → enable the submit(s) whose workflows are available
     if (srcIsVideo) setMode("video");                         // clip → the single Pixelize (V2V) mode
     else if (activeMode === "video") setMode("edit");         // switched back to an image source
-    else if (activeMode === "inpaint") { setupMaskStage(); stagedBase = inpaintBase; }
     else if (activeMode === "outpaint") { setupOutpaintStage(); outStagedBase = outpaintBase; }
     setStatus("");
   } catch (err) { setStatus(friendlyError(err), { error: true }); }
@@ -591,7 +656,6 @@ async function handleEditSrcFiles(files) {
 $editSrcFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditSrcFiles(files); });
 // The source box and both empty-state stages accept a dropped image/video — same path as picking one.
 attachDropUpload($editSrc, handleEditSrcFiles);
-attachDropUpload($maskStage, handleEditSrcFiles);
 attachDropUpload($outpaintStage, handleEditSrcFiles);
 // Pasting an image from the clipboard (Ctrl+V) seeds the source, the same as picking or dropping one.
 document.addEventListener("paste", e => {
@@ -653,58 +717,75 @@ function showEditResult(id, instruction, model, notice) {
 // empty until a real result lands (no "working" placeholder), so an in-flight batch never shows an empty spinner box.
 
 // --- references (image / audio / video, per the workflow's declared types) ----------------------
-// The workflow's accepted reference types: [{ kind, max }]. Most editors declare only image; ref2va takes all three.
-function editRefTypes() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.types) || []; }
-// Does a given model accept any reference input? Drives the Edit dropdown's Reference / Non-Reference split.
-function modelTakesRef(m) { const r = m && m.edit && m.edit.reference; return !!(r && (r.types || []).some(t => (t.max || 0) > 0)); }
-function editRefMaxOf(kind) { const t = editRefTypes().find(x => x.kind === kind); return (t && t.max) || 0; }
-function editRefTotalMax() { return editRefTypes().reduce((n, t) => n + (t.max || 0), 0); }
-function editRefCountOf(kind) { return editRefs.filter(r => r.kind === kind).length; }
-// The <input accept> string from the accepted kinds, so the picker only offers files the workflow takes.
-function editRefAccept() { return editRefTypes().filter(t => t.max > 0).map(t => `${t.kind}/*`).join(","); }
-function updateEditRefBtn() {
-  const total = editRefTotalMax();
-  $editRefBtn.classList.toggle("hidden", total <= 0);
-  $editRefBtn.disabled = editRefs.length >= total;
-  $editRefBtn.textContent = total > 0 ? `＋ ref (${editRefs.length}/${total})` : "＋ ref";
-  $editRefFile.accept = editRefAccept() || "image/*";
-}
-function renderEditRefs() {
-  $editRefs.innerHTML = "";
-  editRefs.forEach((rf, i) => {
-    const chip = document.createElement("div"); chip.className = "ref-chip";
-    // Only an image reference has a thumbnail; an audio/video reference shows a kind glyph (its preview isn't an <img>).
-    if (rf.kind === "image") {
-      const im = document.createElement("img"); im.src = viewUrl(rf.id); im.alt = "reference"; chip.appendChild(im);
-    } else {
-      const g = document.createElement("span"); g.className = "ref-glyph"; g.textContent = rf.kind === "audio" ? "♪" : "▶"; g.title = rf.kind + " reference"; chip.appendChild(g);
-    }
-    const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { editRefs.splice(i, 1); renderEditRefs(); });
-    chip.appendChild(x); $editRefs.appendChild(chip);
-  });
-  $editRefs.classList.toggle("hidden", editRefs.length === 0); updateEditRefBtn(); updateEditRefHint();
-}
-function editRefHint() { const m = editModel(); const r = m && m.edit && m.edit.reference; return (r && r.hint) || ""; }
-function updateEditRefHint() { const txt = editRefHint(); $editRefHint.textContent = txt; $editRefHint.classList.toggle("hidden", editRefs.length === 0 || !txt); }
-$editRefBtn.addEventListener("click", () => $editRefFile.click());
-// References accept MULTIPLE files (picked or dropped), each routed by its media kind — the workflow declares which
-// kinds it takes and how many of each; a file of an unaccepted kind, or one over its per-kind cap, is rejected here.
-async function handleEditRefFiles(files) {
-  for (const f of Array.from(files || [])) {
-    if (editRefs.length >= editRefTotalMax()) break;
-    const kind = fileKind(f);
-    if (!kind || editRefMaxOf(kind) <= 0) { setStatus(`This model doesn't accept ${kind || "that"} references.`, { error: true }); continue; }
-    if (editRefCountOf(kind) >= editRefMaxOf(kind)) { setStatus(`At most ${editRefMaxOf(kind)} ${kind} reference(s).`, { error: true }); continue; }
-    setStatus("Uploading reference…");
-    try { const id = await uploadToInput(f, f.name || `ref.${kind}`); editRefs.push({ id, kind }); renderEditRefs(); setStatus(""); }
-    catch (err) { setStatus(friendlyError(err), { error: true }); }
+// The reference machinery is shared by two tabs — chat Edit/Animate and the reference-capable Inpaint (Qwen-Image-Edit
+// masked). The pure accessors below read a MODEL's declared reference types [{ kind, max }]; makeRefUi() binds a live
+// model-getter + a refs array + its DOM strip into one controller, so each tab owns its own refs without duplicating
+// the upload/chip/cap logic.
+function refTypesOf(m) { const r = m && m.edit && m.edit.reference; return (r && r.types) || []; }
+// Does a given model accept any reference input? Drives both dropdowns' Reference / Non-Reference split.
+function modelTakesRef(m) { return refTypesOf(m).some(t => (t.max || 0) > 0); }
+function refMaxOf(m, kind) { const t = refTypesOf(m).find(x => x.kind === kind); return (t && t.max) || 0; }
+function refTotalMax(m) { return refTypesOf(m).reduce((n, t) => n + (t.max || 0), 0); }
+function refCountOf(refs, kind) { return refs.filter(r => r.kind === kind).length; }
+// The <input accept> string from a model's accepted kinds, so the picker only offers files the workflow takes.
+function refAcceptOf(m) { return refTypesOf(m).filter(t => t.max > 0).map(t => `${t.kind}/*`).join(","); }
+function refHintOf(m) { const r = m && m.edit && m.edit.reference; return (r && r.hint) || ""; }
+
+// One reference controller bound to a tab. `modelOf()` returns the tab's current workflow, `refs` is the tab's array
+// (mutated in place so callers keep their reference), and `els` are its strip/button/file/hint. References accept
+// MULTIPLE files (picked or dropped), each routed by its media kind; a file of an unaccepted kind, or one over its
+// per-kind cap, is rejected here.
+function makeRefUi({ modelOf, refs, els }) {
+  function updateBtn() {
+    const total = refTotalMax(modelOf());
+    els.btn.classList.toggle("hidden", total <= 0);
+    els.btn.disabled = refs.length >= total;
+    els.btn.textContent = total > 0 ? `＋ ref (${refs.length}/${total})` : "＋ ref";
+    els.file.accept = refAcceptOf(modelOf()) || "image/*";
   }
+  function updateHint() { const txt = refHintOf(modelOf()); els.hint.textContent = txt; els.hint.classList.toggle("hidden", refs.length === 0 || !txt); }
+  function render() {
+    els.list.innerHTML = "";
+    refs.forEach((rf, i) => {
+      const chip = document.createElement("div"); chip.className = "ref-chip";
+      // Only an image reference has a thumbnail; an audio/video reference shows a kind glyph (its preview isn't an <img>).
+      if (rf.kind === "image") {
+        const im = document.createElement("img"); im.src = viewUrl(rf.id); im.alt = "reference"; chip.appendChild(im);
+      } else {
+        const g = document.createElement("span"); g.className = "ref-glyph"; g.textContent = rf.kind === "audio" ? "♪" : "▶"; g.title = rf.kind + " reference"; chip.appendChild(g);
+      }
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { refs.splice(i, 1); render(); });
+      chip.appendChild(x); els.list.appendChild(chip);
+    });
+    els.list.classList.toggle("hidden", refs.length === 0); updateBtn(); updateHint();
+  }
+  async function handleFiles(files) {
+    for (const f of Array.from(files || [])) {
+      const m = modelOf();
+      if (refs.length >= refTotalMax(m)) break;
+      const kind = fileKind(f);
+      if (!kind || refMaxOf(m, kind) <= 0) { setStatus(`This model doesn't accept ${kind || "that"} references.`, { error: true }); continue; }
+      if (refCountOf(refs, kind) >= refMaxOf(m, kind)) { setStatus(`At most ${refMaxOf(m, kind)} ${kind} reference(s).`, { error: true }); continue; }
+      setStatus("Uploading reference…");
+      try { const id = await uploadToInput(f, f.name || `ref.${kind}`); refs.push({ id, kind }); render(); setStatus(""); }
+      catch (err) { setStatus(friendlyError(err), { error: true }); }
+    }
+  }
+  els.btn.addEventListener("click", () => els.file.click());
+  els.file.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleFiles(files); });
+  // The refs strip is hidden when empty, so the ＋ ref button is the drop target that's always visible; the strip
+  // itself takes drops once it holds chips.
+  attachDropUpload(els.btn, handleFiles);
+  attachDropUpload(els.list, handleFiles);
+  return { render, updateBtn, updateHint, handleFiles };
 }
-$editRefFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditRefFiles(files); });
-// The refs strip is hidden when empty, so the ＋ ref button is the drop target that's always visible; the strip
-// itself takes drops once it holds chips.
-attachDropUpload($editRefBtn, handleEditRefFiles);
-attachDropUpload($editRefs, handleEditRefFiles);
+
+// Chat reference controller. Reads the EFFECTIVE descriptor so a masked route offers the sibling's reference capacity
+// (Qwen-Image-Edit masked takes references too). The thin same-named wrappers keep every existing call site working.
+const editRefUi = makeRefUi({ modelOf: effectiveEditModel, refs: editRefs, els: { list: $editRefs, btn: $editRefBtn, file: $editRefFile, hint: $editRefHint } });
+function renderEditRefs() { editRefUi.render(); }
+function updateEditRefBtn() { editRefUi.updateBtn(); }
+function updateEditRefHint() { editRefUi.updateHint(); }
 
 // --- last frame (i2v first/last-frame editors) --------------------------------------------------
 // A single optional END frame, offered only when the primary editor accepts one (supportsLastFrame) — a single-model
@@ -758,23 +839,33 @@ attachDropUpload($editLastFrame, handleEditLastFrameFiles);
 // n comes from the Apply button's hold-to-reveal count picker (a plain click = 1), exactly like the gen page. It
 // multiplies ON TOP of the model fan-out: models × n runs, so two checked models held to 4 makes eight edits — all
 // submitted as ONE /enqueue job with N slots, which the queue renders one at a time.
-function buildChatItems(n) {
+async function buildChatItems(n) {
   const instruction = $instruction.value.trim();
   const models = editModels();
   if (!models.length || !editCurrent) return [];
-  // "single" is about the number of MODELS: reference images and the end frame have no primary with 2+ checked; the
-  // shared param panel (params common to every selected model) applies to all of them.
+  // "single" is about the number of MODELS: reference images, the end frame and the mask have no primary with 2+
+  // checked (and a mask forces single-select anyway); the shared param panel applies to every selected model.
   const single = models.length === 1;
   const refIds = single ? editRefs.map(r => r.id) : [];
   const overrides = readOverrides($("editParams"));
+  // A painted mask (single-select only): upload it once, lazily. It routes to the masked sibling when the editor has
+  // one; otherwise it rides the plain workflow and the server composites the painted region back over the source.
+  let maskAttach = null;
+  if (single && maskActive()) {
+    if (maskId == null) maskId = await uploadToInput(await maskEditor.buildMaskPng(), "inpaint_mask.png");
+    maskAttach = maskId;
+  }
   const items = [];
   for (const m of models)
     for (let i = 0; i < n; i++) {
       // The end frame is a single-model affordance (no primary with 2+). Loop sends the source itself as the last frame.
       const lastFrame = (single && m.supportsLastFrame) ? (editLoopActive() ? editCurrent : lastFrameId) : null;
+      // The effective descriptor when masked: the sibling workflow (if any), whose negative capability also applies.
+      const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
+      const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
       // Re-roll [a|b|…] per slot so the model fan-out AND the copies can differ.
-      items.push({ workflow: gwModel(m), edit: true, instruction: expandRandomPrompt(instruction), negativePrompt: editNegFor(m),
-        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, overrides });
+      items.push({ workflow: wf, edit: true, instruction: expandRandomPrompt(instruction), negativePrompt: editNegFor(eff),
+        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides });
     }
   return items;
 }
@@ -782,14 +873,15 @@ function buildChatItems(n) {
 // the items and POSTs one /enqueue job; a press while busy queues another. buildItems does the mode's own validation.
 attachEnqueueSubmit({
   button: $editSend, form: $editComposer, panel: editPanel(editModeSpec("chat")), ...editSubmitBase("chat"),
-  buildItems: n => {
+  buildItems: async n => {
     const models = editModels();
     if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return []; }
     if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return []; }
-    const items = buildChatItems(Math.max(1, n || 1));   // empty instruction is allowed — never blocked on a blank prompt
+    // A pure-inpaint editor needs a mask (the button is disabled anyway; this is the belt-and-braces message).
+    if (editSubmitBlockedByMask()) { setStatus("Draw a mask first — click the pencil on the source.", { error: true }); return []; }
     // Keep the attached references after Apply so repeated animate/edit runs reuse them (like the gen page keeps its
     // composer). They're removed only by the user (the × on each chip) or when switching source/model.
-    return items;
+    return await buildChatItems(Math.max(1, n || 1));   // empty instruction is allowed — never blocked on a blank prompt
   },
 });
 $cancelEdit.addEventListener("click", () => cancelGeneration());
@@ -799,136 +891,14 @@ $cancelEdit.addEventListener("click", () => cancelGeneration());
 // highlighted tag while it is open, which is the only special meaning Enter has in this box.
 if ($instruction && $instructionTagPop) initTagBox({ input: $instruction, pop: $instructionTagPop, getModel: editModel });
 
-// --- inpaint mode -------------------------------------------------------------------------------
-function populateInpaintMenu() {
-  const models = inpaintModelList();
-  if (!models.length) { $inpaintModelToggle.textContent = "No inpaint workflows installed"; $inpaintGo.disabled = true; return; }
-  updateSubmitEnabled();   // enabled only when a source is also present
-  // Restore the last-used inpaint workflow from the account; else the catalog default / first.
-  if (!models.some(m => m.id === selectedInpaintId)) {
-    selectedInpaintId = (models.find(m => m.id === savedInpaintWorkflowId) || models.find(m => m.edit && m.edit.default) || models[0]).id;
-  }
-  buildMenu($inpaintModelMenu, models, selectedInpaintId);
-  syncInpaintLabel(); renderInpaintParams(); updateInpaintNeg();
-}
-function syncInpaintLabel() { const m = inpaintModel(); $inpaintModelToggle.innerHTML = ""; const s = document.createElement("span"); s.textContent = m ? cleanName(m) : "Pick a workflow…"; $inpaintModelToggle.appendChild(s); }
-// Render the inpaint param panel and prefill it from the shared flat param map.
-function renderInpaintParams() { renderParamFields($inpaintParams, inpaintModel()); restoreParams($inpaintParams); }
-function selectInpaint(id) { selectedInpaintId = id; savePrefs(); $inpaintModelMenu.querySelectorAll(".model-opt").forEach(o => o.classList.toggle("selected", o.dataset.id === id)); syncInpaintLabel(); renderInpaintParams(); updateInpaintNeg(); }
-$inpaintParams.addEventListener("change", () => persistParams($inpaintParams));
-$inpaintModelToggle.addEventListener("click", () => openMenu($inpaintModelMenu, $inpaintModelToggle, $inpaintModelMenu.hidden));
-$inpaintModelMenu.addEventListener("click", e => { const opt = e.target.closest(".model-opt"); if (!opt) return; selectInpaint(opt.dataset.id); openMenu($inpaintModelMenu, $inpaintModelToggle, false); });
-document.addEventListener("pointerdown", e => { if (!$inpaintModelMenu.hidden && !$inpaintModelSelect.contains(e.target)) openMenu($inpaintModelMenu, $inpaintModelToggle, false); }, true);
+// --- mask painting (modal off the source preview) -----------------------------------------------
+// The paint machinery lives in mask-editor.js; the controller is created at boot. Here we only keep the brush-size
+// persistence — the slider now sits in the modal toolbar, and its value rides the editor-state blob like before.
+$brushSize.addEventListener("change", savePrefs);
 
-// Paint canvas. The mask is painted at FULL opacity (solid → unambiguous binary mask); the see-through tint is
-// purely a CSS opacity on the canvas element, so the extracted mask is always 100% solid, never 50%.
-function setupMaskStage() {
-  $maskStage.innerHTML = ""; maskCanvas = maskCtx = null;
-  if (!inpaintBase) { $maskStage.appendChild(selectFileButton("Select a file to inpaint")); return; }
-  const img = new Image(); img.className = "mask-img"; img.alt = ""; img.decoding = "async";
-  const canvas = document.createElement("canvas"); canvas.className = "mask-canvas";
-  img.onload = () => { canvas.width = img.naturalWidth || 1024; canvas.height = img.naturalHeight || 1024; maskCtx = canvas.getContext("2d"); };
-  img.src = viewUrl(inpaintBase);
-  $maskStage.appendChild(img); $maskStage.appendChild(canvas);
-  $maskStage.appendChild(srcClearButton());
-  maskCanvas = canvas; bindPaint(canvas);
-}
-function bindPaint(canvas) {
-  let drawing = false;
-  const stamp = e => {
-    if (!maskCtx) return;
-    const r = canvas.getBoundingClientRect(); if (!r.width) return;
-    const scale = canvas.width / r.width;
-    const x = (e.clientX - r.left) * scale, y = (e.clientY - r.top) * scale;
-    const radius = Math.max(1, (Number($brushSize.value) || 56) * scale / 2);
-    maskCtx.globalCompositeOperation = eraseMode ? "destination-out" : "source-over";
-    maskCtx.fillStyle = "rgba(255,40,60,1)";              // SOLID — display tint comes from CSS canvas opacity
-    maskCtx.beginPath(); maskCtx.arc(x, y, radius, 0, Math.PI * 2); maskCtx.fill();
-  };
-  canvas.addEventListener("pointerdown", e => { drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch (err) { console.debug("pointer capture failed:", err); } stamp(e); });
-  canvas.addEventListener("pointermove", e => { if (drawing) stamp(e); });
-  const stop = () => { drawing = false; };
-  canvas.addEventListener("pointerup", stop); canvas.addEventListener("pointercancel", stop); canvas.addEventListener("pointerleave", stop);
-}
-function clearMask() { if (maskCtx && maskCanvas) maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height); }
-$brushErase.addEventListener("click", () => { eraseMode = !eraseMode; $brushErase.classList.toggle("active", eraseMode); });
-$maskClear.addEventListener("click", clearMask);
-$brushSize.addEventListener("change", savePrefs);   // brush size rides along in the editor-state blob
-
-// Build a SEPARATE white-on-black mask PNG (white = the painted region to regenerate) and upload it; returns its id.
-// The source image is sent untouched, so the model keeps the original pixels outside the mask AND has the real face
-// inside it to partially-denoise from. (Baking the mask into the source's alpha would black out the masked region,
-// because PNG drops the RGB under transparent pixels.)
-async function buildMaskPng() {
-  if (!maskCanvas || !maskCtx) throw new Error("Paint the area to change first.");
-  const W = maskCanvas.width, H = maskCanvas.height;
-  const md = maskCtx.getImageData(0, 0, W, H).data;
-  let any = false; for (let i = 3; i < md.length; i += 4) if (md[i] > 12) { any = true; break; }
-  if (!any) throw new Error("Paint the area to change first.");
-  const c = document.createElement("canvas"); c.width = W; c.height = H;
-  const ctx = c.getContext("2d"); const out = ctx.createImageData(W, H);
-  for (let i = 0; i < out.data.length; i += 4) {
-    const on = md[i + 3] > 12 ? 255 : 0;            // painted (overlay alpha) → white, opaque
-    out.data[i] = on; out.data[i + 1] = on; out.data[i + 2] = on; out.data[i + 3] = 255;
-  }
-  ctx.putImageData(out, 0, 0);
-  const blob = await new Promise(res => c.toBlob(res, "image/png"));
-  if (!blob) throw new Error("Couldn't build the mask.");
-  return await uploadToInput(blob, "inpaint_mask.png");
-}
-// One inpaint output card. Clicking opens the LIGHTBOX rather than navigating, so the stage and the painted mask
-// survive a look at the result.
-function inpaintCard(id) {
-  const c = document.createElement("div"); c.className = "result-card";
-  const im = document.createElement("img"); im.src = viewUrl(id); im.alt = "result"; im.style.cursor = "pointer";
-  im.addEventListener("click", () => openImage(imageId(id)));
-  c.appendChild(im);
-  return c;
-}
-// The result box holds ONLY finished pictures, exactly like the gen page's #result: the newest lands in the big box
-// and each also reconciles into the Recent strip below. Progress lives in the page-level bar (#inpaintBar), not in a
-// card, so a batch never turns the box into a grid of loading cells.
-function renderInpaintResult(id) { $inpaintResult.innerHTML = ""; $inpaintResult.appendChild(inpaintCard(id)); }
-// Build the inpaint items: n copies of the SAME base + mask + prompt, re-rolling [a|b|…] per slot so the takes differ
-// (the server also fills a fresh seed per slot). The mask PNG is built once here and shared by every slot in the job.
-async function buildInpaintItems(n) {
-  const model = inpaintModel();
-  if (!model || !inpaintBase) return [];
-  const maskId = await buildMaskPng();   // throws if nothing is painted — the caller surfaces it
-  const prompt = $inpaintPrompt.value.trim();
-  const overrides = readOverrides($inpaintParams);
-  const items = [];
-  for (let i = 0; i < n; i++)
-    items.push({ workflow: gwModel(model), edit: true, instruction: expandRandomPrompt(prompt), negativePrompt: inpaintNegFor(model),
-      imageId: inpaintBase, maskImageId: maskId, referenceIds: [], overrides });
-  return items;
-}
-function showInpaintBar(show) { $inpaintBar.classList.toggle("show", show); if (!show) $inpaintBar.querySelector("i").style.width = "0"; }
-// Inpaint uses the ONE shared submit control: n images from the same base + mask + prompt as one /enqueue job. The
-// mask is built once (in buildInpaintItems) and shared by every slot; a press while busy queues another take.
-attachEnqueueSubmit({
-  button: $inpaintGo, form: $inpaintComposer, panel: editPanel(editModeSpec("inpaint")), ...editSubmitBase("inpaint"),
-  buildItems: async n => {
-    if (!inpaintModel()) { setStatus("Pick a workflow.", { error: true }); return []; }
-    if (!inpaintBase) { setStatus("Select a file to inpaint first.", { error: true }); return []; }
-    setStatus("Preparing mask…");
-    return await buildInpaintItems(Math.max(1, n || 1));   // throws if unpainted → the control surfaces it
-  },
-});
-inpaintTag = initTagBox({ input: $inpaintPrompt, pop: $inpaintTagPop, getModel: inpaintModel });
-// The same booru '#'/'@' autocomplete on the negative boxes (chat + inpaint), gated on the active editor's tagging
-// (so it's inert for non-tag editors — which don't show a negative box anyway). Uses the primary model per mode.
+// The booru '#'/'@' autocomplete on the chat negative box, gated on the primary editor's tagging (inert for non-tag
+// editors, which don't show a negative box anyway).
 if ($editNeg && $editNegTagPop) initTagBox({ input: $editNeg, pop: $editNegTagPop, getModel: editModel });
-if ($inpaintNeg && $inpaintNegTagPop) initTagBox({ input: $inpaintNeg, pop: $inpaintNegTagPop, getModel: inpaintModel });
-$cancelInpaint.addEventListener("click", () => cancelGeneration());
-let stagedBase = null;
-function enterInpaint() {
-  if (!$inpaintPrompt.value.trim() && seedPrompt()) $inpaintPrompt.value = seedPrompt();
-  if ($inpaintNeg && !$inpaintNeg.value.trim() && seedNegative()) $inpaintNeg.value = seedNegative();
-  populateInpaintMenu();
-  if (stagedBase !== inpaintBase) { setupMaskStage(); stagedBase = inpaintBase; }   // re-stage only when the base changed
-  if (liveRecover) liveRecover.tick();   // entering the tab with a job already running (came back) → adopt it now
-}
 
 // --- outpaint mode ------------------------------------------------------------------------------
 // The editor is a FRAME, not a brush: the source is pinned inside an enlarged canvas and you drag its edges out.
@@ -1102,21 +1072,19 @@ function enterOutpaint() {
 
 // --- tabs ---------------------------------------------------------------------------------------
 function setMode(mode) {
-  if (!["edit", "redraw", "upscale", "effects", "animate", "inpaint", "outpaint", "video"].includes(mode)) mode = "edit";
+  if (!["edit", "redraw", "upscale", "effects", "animate", "outpaint", "video"].includes(mode)) mode = "edit";
   activeMode = mode;
   for (const t of $editTabs.querySelectorAll(".edit-tab")) t.classList.toggle("active", t.dataset.mode === mode);
-  const chat = mode !== "inpaint" && mode !== "outpaint";
+  const chat = mode !== "outpaint";
   $chatMode.classList.toggle("hidden", !chat);
-  $inpaintMode.classList.toggle("hidden", mode !== "inpaint");
   $outpaintMode.classList.toggle("hidden", mode !== "outpaint");
   // V2V (video) has no prompt — the quantize is deterministic — so hide the instruction box; only its params matter.
   const instrField = $instruction.closest(".field");
   if (instrField) instrField.hidden = (mode === "video");
   // Expose the active chat bucket on the composer so CSS can scope per-mode tweaks (e.g. animate right-aligns its
-  // side-pane controls). Inpaint/outpaint hide the chat composer entirely, so their value is irrelevant.
+  // side-pane controls). Outpaint hides the chat composer entirely, so its value is irrelevant.
   if (chat) $chatMode.dataset.mode = mode;
   if (chat) { chatBucket = mode; populateChatMenu(); }   // chat modes: edit | redraw | upscale | effects | animate | video
-  else if (mode === "inpaint") enterInpaint();
   else enterOutpaint();
   updateSubmitEnabled();   // reflect the newly-active mode's source/workflow presence on its submit
   refreshTabSelect();   // keep the mobile mirror's selected option on the active mode
@@ -1124,7 +1092,6 @@ function setMode(mode) {
 // Whether a tab's group has ≥1 available (non-hidden) workflow. Chat buckets reuse chatHasModels; inpaint/outpaint
 // have their own workflow sets. Drives both the source-media split and the empty-tab hiding below.
 function tabHasModels(mode) {
-  if (mode === "inpaint") return inpaintModelList().length > 0;
   if (mode === "outpaint") return outpaintModelList().length > 0;
   return chatHasModels(mode);   // edit | redraw | upscale | effects | animate | video buckets
 }
@@ -1174,16 +1141,14 @@ $editTabsSelect.addEventListener("change", () => { setMode($editTabsSelect.value
 // is this mode's OWN source + workflow. A plain compose gen, or an edit on another image/mode, still lights the bar
 // (so work in flight is always visible) but isn't previewed. When the tracked job finishes, the next tick picks up any
 // job queued behind it (queue-more), draining the queue continuously.
-const inpaintWorkflowIds = () => new Set(inpaintModelList().map(gwModel));
 const outpaintWorkflowIds = () => new Set(outpaintModelList().map(gwModel));
 // The adopted job's spec mode, derived from its OWN workflow (not the visible tab): inpaint/outpaint workflows route to
 // their tab, everything else — including a plain compose gen with no editor workflow — is chat. Mode switching is free
 // while a job runs, so the spec must be captured from the job at adopt time (runningSpecMode) and NOT re-read off the
 // currently-visible mode, which the user may have since switched away from.
 function specModeForJob(job) {
-  if (inpaintWorkflowIds().has(job.model)) return "inpaint";
   if (outpaintWorkflowIds().has(job.model)) return "outpaint";
-  return "chat";
+  return "chat";   // chat owns the edit + inpaint workflows now
 }
 const recoverSpec = () => editModeSpec(runningSpecMode || "chat");
 let liveRecover = null;
@@ -1221,6 +1186,9 @@ function startEditRecover() {
   fetchBookmarks().then(setTagBoxFavorites);
   fetchAllBans().then(setTagBoxBans);
   editCurrent = seed.id;
+  // The paint-mask controller (mask-editor.js) — created before renderSrc so the source preview can register its
+  // tinted mask-preview canvas. A stroke or clear routes back through maskChanged.
+  maskEditor = createMaskEditor({ modalEl: $maskModal, stageEl: $maskModalStage, brushEl: $brushSize, onChange: maskChanged });
   srcIsVideo = await detectSrcVideo(seed.id);   // a clip seed → collapse the editor to the single V2V mode
   if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders
   renderSrc(); renderEditRefs(); renderEditLastFrame();
@@ -1232,11 +1200,11 @@ function startEditRecover() {
   } else {
     let saved = savedMode || "edit";
     // Don't land on an empty tab: fall back to one that has models.
-    const has = { edit: chatHasModels("edit"), redraw: chatHasModels("redraw"), upscale: chatHasModels("upscale"), effects: chatHasModels("effects"), animate: chatHasModels("animate"), inpaint: inpaintModelList().length > 0, outpaint: outpaintModelList().length > 0 };
-    if (!has[saved]) saved = ["edit", "redraw", "upscale", "effects", "animate", "inpaint", "outpaint"].find(k => has[k]) || "edit";
+    const has = { edit: chatHasModels("edit"), redraw: chatHasModels("redraw"), upscale: chatHasModels("upscale"), effects: chatHasModels("effects"), animate: chatHasModels("animate"), outpaint: outpaintModelList().length > 0 };
+    if (!has[saved]) saved = ["edit", "redraw", "upscale", "effects", "animate", "outpaint"].find(k => has[k]) || "edit";
     setMode(saved);
   }
-  setTimeout(() => { if (activeMode !== "inpaint" && activeMode !== "outpaint" && activeMode !== "video") $instruction.focus(); }, 50);
+  setTimeout(() => { if (activeMode !== "outpaint" && activeMode !== "video") $instruction.focus(); }, 50);
   startEditRecover();   // attachLiveRecover owns its own poll interval + visibility re-check + initial adoption tick
 })();
 function chatHasModels(bucket) {

@@ -90,91 +90,20 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         return (x, y, w, h);
     }
 
-    /// <summary>The TextEncodeQwenImageEditPlus node's variable input-field names carried in the encode's overflow bag.
-    /// The fixed <c>clip</c>/<c>image1</c>/<c>prompt</c> are typed properties on the node; the per-reference image slots
-    /// come from the <c>reference_inputs</c> param. <c>vae</c> is added only when at least one reference is present.</summary>
-    private static class Inputs
-    {
-        public const string Vae = "vae";
-    }
-
     protected override ComfyWorkflowGraph Build(QwenEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         long seed = ComfyGraph.Seed(p.Seed);
-        string instruction = inputs.Positive;
-        IReadOnlyList<string> refNames = inputs.ImageReferences;
 
-        // Default resolution normalisation (FluxKontextImageScale snaps to a Qwen-trained bucket) + the danamir blur
-        // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent
-        // ourselves (VAE off the text-encode so it can't force-rescale) -> ref latent matches sample latent, no
-        // per-turn resample -> no compounding blur over a multi-turn conversation.
-        g[Nodes.KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
+        // The shared reference-encode head: Kontext-scale the source, load the references into image2/image3, and emit
+        // the positive/negative TextEncodeQwenImageEditPlus encodes with their reference-latent stitch (+ the standard
+        // 2511 ModelSamplingAuraFlow/CFGNorm sampling fix unless AIO). Everything below is this editor's own tail.
+        QwenRefHeadOut head = QwenReferenceHead.Emit(g, Aio, model0, clip0, vae0, inputs, p.ReferenceInputs, p.ReferenceMax, p.ReferenceLatentsMethod);
+        Output<Slot.Conditioning> cond = head.Cond;
+        Output<Slot.Conditioning> negCond = head.NegCond;
+        Output<Slot.Model> ksModel = head.KsModel;
 
-        string[] qInputs = p.ReferenceInputs ?? [];
-        // Capacity is the smaller of the model's reference_max and the graph's available image slots — both hard
-        // structural limits. More references than that is REFUSED, not silently truncated to fit.
-        int refCapacity = Math.Min(p.ReferenceMax ?? 0, qInputs.Length);
-        if (refNames.Count > refCapacity)
-        {
-            throw new RenderValidationException($"This configuration accepts at most {refCapacity} reference image(s); got {refNames.Count}.");
-        }
-
-        int qn = refNames.Count;
-        Dictionary<string, object> encRefs = [];
-        for (int i = 0; i < qn; i++)                          // each reference: load RAW into image2/image3
-        {
-            // The official 2511 blueprint feeds references into the encode node unscaled — the node does its own
-            // ~1MP area snap for the ref latent and 384² resample for the vision tokens. Pre-bucketing here resampled
-            // every reference twice for no benefit (#218).
-            string load = $"{40 + (i * 2)}";
-            g[load] = new LoadImage { Image = refNames[i] };
-            encRefs[qInputs[i]] = LoadImage.ImageOut(load);
-        }
-
-        g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.KontextScale), Vae = vae0 };
-        Output<Slot.Conditioning> cond;
-        Output<Slot.Conditioning> negCond;
-        if (qn > 0)
-        {
-            // The stitch method is the CONFIG's declaration of what its model supports: Qwen-Image handles
-            // index_timestep_zero, but LongCat (plain-Flux modulation) crashes on it and takes index — see
-            // ComfyWidgets.ReferenceLatents. An unknown value is refused here rather than surfacing as a Comfy error.
-            string refMethod = p.ReferenceLatentsMethod switch
-            {
-                ComfyWidgets.ReferenceLatents.Offset or ComfyWidgets.ReferenceLatents.Index or
-                ComfyWidgets.ReferenceLatents.UxoUno or ComfyWidgets.ReferenceLatents.IndexTimestepZero => p.ReferenceLatentsMethod,
-                _ => throw new ArgumentException($"unknown reference_latents_method '{p.ReferenceLatentsMethod}'."),
-            };
-            encRefs[Inputs.Vae] = vae0;
-            g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction, Extra = encRefs };
-            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
-            cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
-            // The official 2511 blueprint's negative is a second full encode — the SAME images and reference latents
-            // with an EMPTY instruction — not a zeroed-out positive. With real CFG the contrast is then "with vs
-            // without the instruction" over identical image conditioning; zeroing everything made CFG push away from
-            // the references themselves, which read as the source and reference ghosting into each other (#218).
-            g[Nodes.NegativeEncode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = string.Empty, Extra = encRefs };
-            g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
-            negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
-        }
-        else
-        {
-            g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = FluxKontextImageScale.Out(Nodes.KontextScale), Prompt = instruction };
-            g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), Latent = VAEEncode.Out(Nodes.SourceEncode) };
-            cond = ReferenceLatent.Out(Nodes.RefLatent);
-            g[Nodes.ZeroNegative] = new ConditioningZeroOut { Conditioning = cond };
-            negCond = ConditioningZeroOut.Out(Nodes.ZeroNegative);
-        }
-
-        Output<Slot.Model> ksModel = model0;
-        if (!Aio)                                             // standard 2511 needs ModelSamplingAuraFlow + CFGNorm
-        {
-            g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = 3.1 };
-            g[Nodes.CfgNorm] = new CFGNorm { Model = ModelSamplingAuraFlow.Out(Nodes.ModelSampling), Strength = 1.0 };
-            ksModel = CFGNorm.Out(Nodes.CfgNorm);
-        }
         // Optional canvas mask, implemented as a REFRAME (see Schema). Sample on a latent shaped like the drawing
         // rectangle instead of the full canvas, then paste the decoded result back onto a white canvas at the
         // rectangle's offset. The model's fill-the-frame bias then works FOR us: given a 66%-tall frame it draws a
@@ -192,7 +121,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         (int X, int Y, int W, int H)? rect = MaskGeom(Pct(p.MaskLeftPct), Pct(p.MaskRightPct), Pct(p.MaskTopPct), Pct(p.MaskBottomPct),
                             inputs.SourceWidth, inputs.SourceHeight);
 
-        Output<Slot.Latent> sampleLatent = VAEEncode.Out(Nodes.SourceEncode);
+        Output<Slot.Latent> sampleLatent = head.SourceLatent;
         if (rect is (int, int, int rw, int rh))
         {
             // Sample at the rectangle, aligned down to the VAE/patch stride; a blank white canvas is the starting
@@ -227,7 +156,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[Nodes.RectResize] = new ImageScale { Image = VAEDecode.Out(Nodes.Decode), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = pw, Height = ph, Crop = ComfyWidgets.Crop.Disabled };
             g[Nodes.PasteCanvas] = new EmptyImageLiteral { Width = inputs.SourceWidth, Height = inputs.SourceHeight, BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
             g[Nodes.Composite] = new ImageCompositePaste { Destination = EmptyImageLiteral.Out(Nodes.PasteCanvas), Source = ImageScale.Out(Nodes.RectResize), X = px, Y = py, ResizeSource = false };
-            g[Nodes.OutputSize] = new GetImageSize { Image = FluxKontextImageScale.Out(Nodes.KontextScale) };
+            g[Nodes.OutputSize] = new GetImageSize { Image = head.Kontext };
             g[Nodes.OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Nodes.Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(Nodes.OutputSize), Height = GetImageSize.HeightOut(Nodes.OutputSize), Crop = ComfyWidgets.Crop.Disabled };
             output = ImageScaleFromSize.Out(Nodes.OutputScale);
         }
@@ -241,16 +170,6 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 /// (EditNodes.Model/Clip/Vae/Source). The per-reference load nodes stay computed ($"{40+i*2}").</summary>
 file static class Nodes
 {
-    public const string KontextScale = "11";
-    public const string Encode = "13";
-    public const string SourceEncode = "14";
-    public const string RefLatent = "30";
-    public const string MultiRefLatent = "70";
-    public const string NegativeEncode = "71";
-    public const string NegMultiRefLatent = "72";
-    public const string ZeroNegative = "26";
-    public const string ModelSampling = "2";
-    public const string CfgNorm = "7";
     public const string RectCanvas = "80";
     public const string RectEncode = "81";
     public const string Sampler = "3";

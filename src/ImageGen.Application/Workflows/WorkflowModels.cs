@@ -25,7 +25,23 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// views so a client rendering a result it did not submit still knows to offer an unmute control.</param>
 public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
-    WorkflowReference? Reference = null, bool HasAudio = false);
+    WorkflowReference? Reference = null, bool HasAudio = false, string Kind = "");
+
+/// <summary>The wire tokens for a workflow's resolved kind — the one vocabulary shared by the descriptor's
+/// <see cref="WorkflowDescriptor.Kind"/> badge/routing, <see cref="WorkflowInfo.Kind"/>, and the render orchestrator's
+/// mask-routing preflight. Const-extracted so no surface spells a kind as a magic string.</summary>
+public static class WorkflowKindTokens
+{
+    public const string Generate = "generate";
+    public const string Edit = "edit";
+    public const string Inpaint = "inpaint";
+    public const string Outpaint = "outpaint";
+    public const string Redraw = "redraw";
+    public const string Upscale = "upscale";
+    public const string Effect = "effect";
+    public const string Animate = "animate";
+    public const string VideoEdit = "videoedit";
+}
 
 /// <summary>How one workflow parameter may be surfaced, per its configuration file. Three explicit states — there is
 /// no fourth "absent" meaning, and no flag pair welding visibility to lockability (issue #191).</summary>
@@ -178,7 +194,13 @@ public sealed record WorkflowDescriptor(
     // The configuration's aspect→[w,h] dims map (this machine's override applied), or null for a config with none.
     // The composer writes a clicked shape's dims into its (possibly hidden) width/height controls from THIS map and
     // submits the dims, not an aspect name (#209); the server derives the ratio from the submitted width/height.
-    IReadOnlyDictionary<string, int[]>? Aspects = null);
+    IReadOnlyDictionary<string, int[]>? Aspects = null,
+    // This Edit config's masked sibling (the Inpaint config submit routes to when a mask is drawn), or "" when none.
+    // The client swaps the param/refs/negative panel to the sibling's descriptor and sends the sibling id at enqueue.
+    string MaskWorkflow = "",
+    // True for a config that is the TARGET of another's MaskWorkflow link: suppressed from the picker UI but kept in
+    // this payload (the client needs its ExposedParams/Reference/Card for the panel swap) and still enqueue-resolvable.
+    bool HiddenFromPicker = false);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(

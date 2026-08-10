@@ -681,6 +681,7 @@ public sealed class WorkflowCatalog : IDisposable
             EffectType = baseCfg.EffectType,
             EditGroup = baseCfg.EditGroup,
             Default = false,
+            MaskWorkflow = baseCfg.MaskWorkflow,
             Card = baseCfg.Card,
             Resolution = baseCfg.Resolution,
         };
@@ -816,6 +817,7 @@ public sealed class WorkflowCatalog : IDisposable
             EffectType = c.EffectType,
             EditGroup = c.EditGroup,
             Default = c.Default ?? false,
+            MaskWorkflow = c.MaskWorkflow ?? "",
             Resolution = BuildResolution(c.Resolution, id),
             Card = BuildCard(c.Card, id, c.FriendlyName),
         };

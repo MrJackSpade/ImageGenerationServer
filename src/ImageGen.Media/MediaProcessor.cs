@@ -1,9 +1,11 @@
 using ImageGen.Application.Media;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Convolution;
 
 namespace ImageGen.Media;
 
@@ -198,6 +200,110 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
         image.Save(ms, new JpegEncoder { Quality = 80 });
         return new MediaPayload(ms.ToArray(), MimeTypes.JpegMimeType);
     }
+
+    /// <summary>Gaussian sigma for the mask-edge feather, in original pixels — mirrors the in-graph
+    /// <see cref="MaskBlurSigma"/> so the server composite and the sibling-inpaint paste-back crossfade the same width.
+    /// The graph's ImageBlur runs at bucket resolution with sigma 8; the composite runs at source resolution, which is
+    /// larger, so the same sigma is a proportionally tighter band — acceptable, and tuned together with grow/blur.</summary>
+    private const float MaskBlurSigma = 8.0f;
+
+    /// <summary>Any grown-mask intensity above this (of 255) counts as inside the region — a low threshold so a box-blur
+    /// spread of the binary mask dilates the white area by ~<c>growPx</c> rather than eroding it to the blur's midpoint.</summary>
+    private const byte GrowThreshold = 8;
+
+    /// <inheritdoc/>
+    public byte[] CompositeMasked(byte[] original, byte[] result, byte[] maskPng, int growPx, int blurRadius)
+    {
+        using Image<Rgba32> orig = Image.Load<Rgba32>(original);
+        using Image<Rgba32> mask = Image.Load<Rgba32>(maskPng);
+        if (mask.Width != orig.Width || mask.Height != orig.Height)
+        {
+            throw new ArgumentException(
+                $"The mask is {mask.Width}x{mask.Height} but the original is {orig.Width}x{orig.Height}; a composite "
+                + "mask is painted at source resolution and must match it exactly.", nameof(maskPng));
+        }
+
+        using Image<Rgba32> res = Image.Load<Rgba32>(result);
+        if (res.Width != orig.Width || res.Height != orig.Height)
+        {
+            res.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Stretch,
+                Size = new Size(orig.Width, orig.Height),
+                Sampler = KnownResamplers.Lanczos3,
+            }));
+        }
+
+        // Feather the binary mask: box-blur + re-threshold dilates the region (ImageSharp has no morphology op), then a
+        // Gaussian softens the boundary. The raw binary is re-added afterwards so the fill core stays a hard 1 and the
+        // ramp only descends outward — exactly the one-sided crossfade the graph builds with GrowMask + MaskComposite.
+        using Image<Rgba32> feather = mask.Clone();
+        if (growPx > 0)
+        {
+            feather.Mutate(x => x.BoxBlur(growPx));
+            feather.ProcessPixelRows(a =>
+            {
+                for (int y = 0; y < a.Height; y++)
+                {
+                    Span<Rgba32> row = a.GetRowSpan(y);
+                    foreach (ref Rgba32 px in row)
+                    {
+                        byte v = px.R > GrowThreshold ? (byte)255 : (byte)0;
+                        px = new Rgba32(v, v, v, 255);
+                    }
+                }
+            });
+        }
+
+        if (blurRadius > 0)
+        {
+            feather.Mutate(x => x.ApplyProcessor(new GaussianBlurProcessor(MaskBlurSigma, blurRadius)));
+        }
+
+        // Alpha = max(feathered, raw binary): the raw mask pins the fill region to a hard 1, the feather only extends
+        // the ramp outward over real source pixels.
+        feather.ProcessPixelRows(mask, (f, m) =>
+        {
+            for (int y = 0; y < f.Height; y++)
+            {
+                Span<Rgba32> fr = f.GetRowSpan(y);
+                Span<Rgba32> mr = m.GetRowSpan(y);
+                for (int x = 0; x < fr.Length; x++)
+                {
+                    byte v = Math.Max(fr[x].R, mr[x].R);
+                    fr[x] = new Rgba32(v, v, v, 255);
+                }
+            }
+        });
+
+        // out = orig*(1-a) + result*a, per pixel, with a the feathered mask.
+        orig.ProcessPixelRows(res, feather, (o, r, f) =>
+        {
+            for (int y = 0; y < o.Height; y++)
+            {
+                Span<Rgba32> orow = o.GetRowSpan(y);
+                Span<Rgba32> rrow = r.GetRowSpan(y);
+                Span<Rgba32> frow = f.GetRowSpan(y);
+                for (int x = 0; x < orow.Length; x++)
+                {
+                    float a = frow[x].R / 255f;
+                    orow[x] = new Rgba32(
+                        Blend(orow[x].R, rrow[x].R, a),
+                        Blend(orow[x].G, rrow[x].G, a),
+                        Blend(orow[x].B, rrow[x].B, a),
+                        255);
+                }
+            }
+        });
+
+        using MemoryStream ms = new();
+        orig.Save(ms, new PngEncoder());
+        return ms.ToArray();
+    }
+
+    /// <summary>One channel of the alpha blend <c>dst*(1-a) + src*a</c>, rounded to a byte.</summary>
+    private static byte Blend(byte dst, byte src, float a) =>
+        (byte)Math.Clamp((int)Math.Round((dst * (1f - a)) + (src * a)), 0, 255);
 
     /// <inheritdoc/>
     public MediaPayload StillThumbnail(byte[] source, int maxEdge)
