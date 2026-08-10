@@ -769,6 +769,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_UserWorkflowTag_User')
 CREATE INDEX IX_UserWorkflowTag_User ON dbo.UserWorkflowTag (UserId, WorkflowId);
 GO
 
+-- Tags are a DEFINITION property (the card's tags) overridden by a per-workflow delta: Removed = 0 is a tag the user
+-- ADDED on top of the base tags (every pre-existing row, so no backfill), Removed = 1 is a BASE tag they took off.
+-- The displayed set is (base + added) minus removed, computed client-side. Guarded ALTER, constant default -- 0 =
+-- "added", so existing rows keep their meaning.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Removed' AND Object_ID = Object_ID('dbo.UserWorkflowTag'))
+    ALTER TABLE dbo.UserWorkflowTag ADD Removed BIT NOT NULL CONSTRAINT DF_UserWorkflowTag_Removed DEFAULT 0;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_JobSlot_Job')
 CREATE INDEX IX_JobSlot_Job ON dbo.JobSlot (JobId, SlotIndex ASC);
 GO

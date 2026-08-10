@@ -86,6 +86,7 @@ internal sealed record CardDto
     [JsonPropertyName("summary")] public string? Summary { get; init; }
     [JsonPropertyName("notes")] public string? Notes { get; init; }
     [JsonPropertyName("use_cases")] public string[]? UseCases { get; init; }
+    [JsonPropertyName("tags")] public string[]? Tags { get; init; }
     [JsonPropertyName("prompt")] public PromptDto? Prompt { get; init; }
     [JsonPropertyName("speed")] public SpeedDto? Speed { get; init; }
     [JsonPropertyName("negative")] public NegativeDto? Negative { get; init; }

@@ -160,7 +160,11 @@ public sealed record WorkflowCardSummary(
     [property: AllowNullable("null = no measured ETA for the card; 0.0 would be a real (instant) estimate")] double? ExpectedGenSeconds,
     [property: AllowNullable("null = the card doesn't state negative-prompt support (unknown); distinct from an explicit false")] bool? NegativeSupported,
     string[]? EditUseCases,
-    WorkflowTagging? Tagging);
+    WorkflowTagging? Tagging,
+    // The workflow's BASE categorization tags from its definition, or null when it declares none. The client merges
+    // these with the user's per-workflow added/removed delta to show the effective tag set; a base tag added to the
+    // definition later shows up for everyone who has not explicitly removed that value.
+    string[]? Tags = null);
 
 /// <summary>
 /// One eligible workflow configuration as offered to the SPA/MCP <c>/workflows</c> list: its identity + capability

@@ -579,3 +579,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_WorkflowVariant_Machine_Variant ON Work
 -- column would never arrive; the runner adds it only when absent). Catalog identifiers, not user content -- stored
 -- plain, like GenerationTagTypes. NULL = no overrides (shipped visibility applies).
 ALTER TABLE dbo.AppUser ADD COLUMN ParamVisibilityPrefs TEXT NULL;
+
+
+-- --- 0.15.0 -----------------------------------------------------------------------------------------------------
+
+-- Workflow tags become a DEFINITION property (the card's `tags`) that a user overrides with a per-workflow delta.
+-- dbo.UserWorkflowTag holds that delta now, not the user's absolute set: Removed = 0 is a tag the user ADDED on top
+-- of the base tags (what every existing row already is -- so no backfill), Removed = 1 is a BASE tag the user took
+-- off. The displayed set is (base tags + added) minus removed, computed client-side. New column on the pre-existing
+-- table, so it MUST be an ALTER (an existing database skips the 0.9.0/later CREATE, so an inlined column would never
+-- arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = "added", so every existing
+-- row keeps meaning "a label the user put on this workflow" with no backfill.
+ALTER TABLE dbo.UserWorkflowTag ADD COLUMN Removed INTEGER NOT NULL DEFAULT 0;

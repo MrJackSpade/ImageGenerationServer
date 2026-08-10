@@ -519,7 +519,8 @@ public sealed partial class WorkflowCatalogService(
                 // default negative still applies via ComfyGraph.ComposeNegative; only the user-typed field is gone.
                 NegativeSupported: kind == WorkflowKind.Edit ? false : c.NegativeSupported,
                 EditUseCases: c.EditUseCases is { Length: > 0 } ? c.EditUseCases : null,
-                Tagging: ToTagging(c.Tagging)),
+                Tagging: ToTagging(c.Tagging),
+                Tags: c.Tags is { Length: > 0 } ? c.Tags : null),
             // The composer's LoRA picker opens to this folder for this workflow (per-machine override, Part H);
             // null falls back client-side to a folder matching the workflow, else the root.
             LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder),

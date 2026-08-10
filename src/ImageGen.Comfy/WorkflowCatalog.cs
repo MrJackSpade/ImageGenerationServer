@@ -898,6 +898,7 @@ public sealed class WorkflowCatalog : IDisposable
             Summary = m?.Summary,
             Notes = m?.Notes,
             UseCases = Arr(m?.UseCases),
+            Tags = Arr(m?.Tags),
             PromptFormat = prompt?.Format,
             RequiredPrefix = prompt?.RequiredPrefix,
             PromptOptionalTags = Arr(prompt?.OptionalTags),
@@ -1035,6 +1036,10 @@ public sealed class ModelCard
     /// <summary>Free-form authoring note about the model (e.g. a licence caveat), or null. Card <c>notes</c>.</summary>
     public string? Notes { get; init; }
     public string[] UseCases { get; init; } = [];
+    /// <summary>The workflow's BASE categorization tags — the definition's own labels, before any per-user delta.
+    /// The library/detail UI shows these merged with the user's added labels minus the ones they removed. Card
+    /// <c>tags</c>.</summary>
+    public string[] Tags { get; init; } = [];
     public string? PromptFormat { get; init; }
     public string? RequiredPrefix { get; init; }
     /// <summary>Optional booru tag groups a tag-model prompt may draw from — each entry a pipe-delimited option set,
