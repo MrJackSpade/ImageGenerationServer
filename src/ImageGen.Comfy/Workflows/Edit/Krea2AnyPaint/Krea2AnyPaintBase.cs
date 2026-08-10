@@ -42,6 +42,7 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
         new() { Key = WorkflowParamKeys.BoundaryRedrawPx, Type = ParamType.Int, Min = 0, Max = 256, Label = "Boundary redraw (px)" },
         new() { Key = WorkflowParamKeys.VlmReference, Type = ParamType.Bool, Label = "VLM reference" },
         new() { Key = WorkflowParamKeys.KvCache, Type = ParamType.Bool, Label = "Reference K/V cache" },
+        .. Krea2Rebalance.Schema,
     ];
 
     /// <summary>Produce the interior region to regenerate (null = none, a pure outpaint) and the per-side padding
@@ -84,6 +85,12 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
             VlmReference = p.VlmReference,
         };
 
+        // Krea 2's per-layer conditioning rebalance (the uncensor knob), spliced AFTER the AnyPaint encode: the node
+        // rescales only the conditioning tensor and shallow-copies the extras dict, so the reference latents Encode
+        // attached ride through untouched. Neutral knobs emit no node (matching the other Krea 2 graphs).
+        Output<Slot.Conditioning> positive = Krea2Rebalance.Apply(
+            g, Krea2AnyPaintEncode.PositiveOut(Nodes.Encode), p.Multiplier, p.PerLayerWeights, Nodes.Rebalance);
+
         // Krea 2 Turbo runs at cfg 1, so the negative is inert; wired for graph symmetry (matching the Krea 2 edit paths).
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
 
@@ -96,7 +103,7 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
             Model = patched,
-            Positive = Krea2AnyPaintEncode.PositiveOut(Nodes.Encode),
+            Positive = positive,
             Negative = CLIPTextEncode.Out(Nodes.Negative),
             LatentImage = Krea2AnyPaintEncode.LatentOut(Nodes.Encode),
         };
@@ -112,6 +119,7 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
 internal static class Nodes
 {
     public const string ModelPatch = "91";
+    public const string Rebalance = "15";
     public const string Prepare = "20";
     public const string Encode = "21";
     public const string Mask = "22";
@@ -124,7 +132,8 @@ internal static class Nodes
 /// <summary>Krea 2 AnyPaint parameters, shared by the inpaint and outpaint subclasses: the shared loader-head knobs
 /// (<c>loader</c>/<c>weight_dtype</c>/<c>clip_type</c> for the typed <c>LoadModel</c>), the Turbo sampler settings,
 /// the AnyPaint LoRA (<c>lora</c>/<c>lora_strength</c>), the reference/preservation knobs
-/// (<c>reference_max_edge</c>/<c>boundary_redraw_px</c>/<c>vlm_reference</c>/<c>kv_cache</c>), the outpaint per-side
+/// (<c>reference_max_edge</c>/<c>boundary_redraw_px</c>/<c>vlm_reference</c>/<c>kv_cache</c>), Krea 2's per-layer
+/// conditioning rebalance (<c>rebalance_multiplier</c> + <c>per_layer_weights</c>), the outpaint per-side
 /// pads, and the app's single-sourced <c>seed</c>. The <c>*Req</c> reads are <c>required</c>;
 /// <c>vlm_reference</c>/<c>kv_cache</c> default to true; the <c>pad_*</c> reads default to 0 (no growth).</summary>
 public sealed record Krea2AnyPaintParams
@@ -145,6 +154,9 @@ public sealed record Krea2AnyPaintParams
     [Range(128, 768)] public required int ReferenceMaxEdge { get; init; }
     [JsonPropertyName(WorkflowParamKeys.BoundaryRedrawPx)]
     [Range(0, 256)] public int BoundaryRedrawPx { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.RebalanceMultiplier)]
+    [Range(1.0, 8.0)] public required double Multiplier { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PerLayerWeights)] public required string PerLayerWeights { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VlmReference)] public bool VlmReference { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.KvCache)] public bool KvCache { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.PadLeft)]

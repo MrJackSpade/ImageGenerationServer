@@ -60,6 +60,14 @@
       "value": true,
       "visibility": "hidden"
     },
+    "rebalance_multiplier": {
+      "value": 4.0,
+      "visibility": "hidden"
+    },
+    "per_layer_weights": {
+      "value": "1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
+      "visibility": "locked"
+    },
     "pad_left": {
       "value": 0,
       "visibility": "exposed",

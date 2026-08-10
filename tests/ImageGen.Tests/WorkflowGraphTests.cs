@@ -2256,6 +2256,36 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"multiplier\":1", json);
     }
 
+    [Theory]
+    [InlineData("krea2-anypaint-inpaint")]
+    [InlineData("krea2-anypaint-outpaint")]
+    public void Krea2AnyPaint_bakes_the_uncensor_rebalance_by_default(string configId)
+    {
+        // The AnyPaint configs bake the same multiplier-4.0 uncensor rebalance as the other Krea 2 graphs. It splices
+        // AFTER the AnyPaint encode (node 21) — the node rescales only the conditioning tensor and copies the extras
+        // dict, so the reference latents the encode attached ride through untouched.
+        WorkflowInputs inputs = new()
+        {
+            Positive = "a complete coherent photograph of a sunlit kitchen",
+            SourceImageName = "src.png",
+            SourceWidth = 1024,
+            SourceHeight = 1024,
+            MaskImageName = "mask.png",
+        };
+        string json = BuildJson(configId, inputs);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+        JsonElement node = root.GetProperty("15");
+        Assert.Equal("ConditioningKrea2Rebalance", node.GetProperty("class_type").GetString());
+        Assert.Equal(4.0, node.GetProperty("inputs").GetProperty("multiplier").GetDouble());
+        Assert.Equal("1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,5.0,1.1,4.0,1.0",
+            node.GetProperty("inputs").GetProperty("per_layer_weights").GetString());
+        // The rebalance consumes the AnyPaint encode's positive (which carries the reference latents)...
+        Assert.Equal("21", node.GetProperty("inputs").GetProperty("conditioning")[0].GetString());
+        // ...and the sampler consumes the rebalance, not the raw encode.
+        Assert.Equal("15", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
+    }
+
     [Fact]
     public void Krea2Refine_builds_base_then_turbo_polish_chain()
     {
