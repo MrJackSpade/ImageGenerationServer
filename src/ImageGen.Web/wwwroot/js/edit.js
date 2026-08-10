@@ -502,6 +502,9 @@ function updateMaskControls() {
   const overlay = $("srcOverlay"); if (!overlay) return;
   overlay.innerHTML = "";
   if (srcIsVideo || !editCurrent) return;
+  // Masking only makes sense where you confine an edit to a region. Upscale and Animate consume the whole frame, so
+  // they get no pencil (Outpaint has its own pane and never reaches here).
+  if (!["edit", "redraw", "effects"].includes(activeMode)) return;
   const pencil = document.createElement("button");
   pencil.type = "button"; pencil.className = "src-overlay-btn"; pencil.title = "Edit mask"; pencil.textContent = "✎";
   pencil.classList.toggle("needs-mask", editSubmitBlockedByMask());   // accent ring: a pure-inpaint editor with no mask
