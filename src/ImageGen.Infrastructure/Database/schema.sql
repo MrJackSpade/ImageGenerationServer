@@ -905,3 +905,34 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'Generated' AND Object_ID = Object_ID('dbo.JobSlotMark'))
     ALTER TABLE dbo.JobSlotMark ADD Generated BIT NOT NULL CONSTRAINT DF_JobSlotMark_Generated DEFAULT 0;
 GO
+
+-- Server-side auth sessions, moved out of the in-process MemoryTicketStore so a signed-in session survives an app
+-- restart. The cookie still carries only the opaque SessionKey; this row holds the serialized ticket. The ghost-cookie
+-- guarantee is preserved -- wiping the database wipes these rows, so a surviving cookie names no session and the
+-- request is simply anonymous. Expired rows are swept on sign-in and filtered on read.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AuthSession' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.AuthSession
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AuthSession PRIMARY KEY,
+    SessionKey   NVARCHAR(64)   NOT NULL,
+    Ticket       VARBINARY(MAX) NOT NULL,
+    ExpiresAtUtc DATETIME2(3)   NULL
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_AuthSession_SessionKey')
+CREATE UNIQUE INDEX UX_AuthSession_SessionKey ON dbo.AuthSession (SessionKey);
+GO
+
+-- The ASP.NET Data Protection key ring, moved out of the OS user profile so the keys that unprotect the auth cookie
+-- live and die with the accounts and sessions they protect (and follow the database to another box). Append-only:
+-- the key manager only ever adds keys and reads them all back in insertion (Id) order.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DataProtectionKey' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.DataProtectionKey
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DataProtectionKey PRIMARY KEY,
+    FriendlyName NVARCHAR(256) NOT NULL,
+    Xml          NVARCHAR(MAX) NOT NULL,
+    CreatedAtUtc DATETIME2(3)  NOT NULL CONSTRAINT DF_DataProtectionKey_Created DEFAULT SYSUTCDATETIME()
+);
+GO

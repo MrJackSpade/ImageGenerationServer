@@ -4,6 +4,7 @@ using ImageGen.Application.Platform;
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Tags;
 using ImageGen.Comfy;
+using ImageGen.Domain.Repositories;
 using ImageGen.Comfy.Patches;
 using ImageGen.Infrastructure;
 using ImageGen.Infrastructure.Database;
@@ -17,6 +18,7 @@ using ImageGen.Web.Hosting;
 using ImageGen.Web.Reconciler;
 using ImageGen.Web.Updates;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
@@ -408,22 +410,27 @@ public partial class Program
                     return Task.CompletedTask;
                 };
                 // A valid signature is not a valid session. The identity does NOT live in the cookie — the cookie carries an
-                // opaque session key and MemoryTicketStore (wired in as SessionStore just below) holds the ticket server-side.
+                // opaque session key and DbTicketStore (wired in as SessionStore just below) holds the ticket in dbo.AuthSession.
                 // So a cookie is a handle to a session, not a self-contained "I am user 1" assertion that keeps meaning that
-                // for as long as its signature verifies. That is what closes the ghost-cookie hole: the Data Protection keys
-                // that sign the cookie live in the OS user profile, not the database, so wiping the database (or reinstalling)
-                // would leave a perfectly-signed cookie for a user that no longer exists — and checking "does a user with
-                // this id still exist" would not save it, because ids are BIGINT IDENTITY and a re-created first account retakes
-                // id 1, so the ghost would authenticate as whoever now holds its id. A session key names a row in the store; after a
-                // restart (which a wipe or a redeploy is) there is no such row, so the request is anonymous and login runs.
+                // for as long as its signature verifies. That is what closes the ghost-cookie hole: wiping the database wipes
+                // the session rows too, so a surviving cookie names no session and the request is simply anonymous — and
+                // checking "does a user with this id still exist" would not have saved a self-contained cookie, because ids are
+                // BIGINT IDENTITY and a re-created first account retakes id 1, so a ghost would authenticate as whoever now
+                // holds its id. Being in the database (not in-process, as it used to be), a session survives an app restart.
             });
 
-        // Server-side session state for the cookie above. Singleton (it owns an in-process cache); post-configured onto the
-        // cookie options here, after DI is built, because the AddCookie callback runs before the provider that holds it exists.
-        _ = builder.Services.AddSingleton<MemoryTicketStore>();
+        // Auth persistence lives in the database, both halves of it: the Data Protection key ring (dbo.DataProtectionKey —
+        // the keys that sign the session cookie move with the database instead of sitting in the OS user profile) and the
+        // server-side session state for the cookie above (dbo.AuthSession, via DbTicketStore). The store is post-configured
+        // onto the cookie options here, after DI is built, because the AddCookie callback runs before the provider exists.
+        _ = builder.Services.AddDataProtection();
+        _ = builder.Services
+            .AddOptions<KeyManagementOptions>()
+            .Configure<IDataProtectionKeyRepository>((options, keys) => options.XmlRepository = new DbXmlRepository(keys));
+        _ = builder.Services.AddSingleton<DbTicketStore>();
         _ = builder.Services
             .AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
-            .Configure<MemoryTicketStore>((options, store) => options.SessionStore = store);
+            .Configure<DbTicketStore>((options, store) => options.SessionStore = store);
 
         _ = builder.Services.AddAuthorization();
 

@@ -591,3 +591,31 @@ ALTER TABLE dbo.AppUser ADD COLUMN ParamVisibilityPrefs TEXT NULL;
 -- arrive; the runner adds it only when absent). NOT NULL with a constant default -- 0 = "added", so every existing
 -- row keeps meaning "a label the user put on this workflow" with no backfill.
 ALTER TABLE dbo.UserWorkflowTag ADD COLUMN Removed INTEGER NOT NULL DEFAULT 0;
+
+
+-- --- 0.16.0 -----------------------------------------------------------------------------------------------------
+
+-- Server-side auth sessions, moved out of the in-process MemoryTicketStore so a signed-in session survives an app
+-- restart. The cookie still carries only the opaque SessionKey; this row holds the serialized ticket. The ghost-cookie
+-- guarantee is preserved -- wiping the database wipes these rows, so a surviving cookie names no session and the
+-- request is simply anonymous. Expired rows are swept on sign-in and filtered on read. New table, so a plain
+-- CREATE IF NOT EXISTS (the runner replays it as a no-op once it exists).
+CREATE TABLE IF NOT EXISTS dbo.AuthSession
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    SessionKey   TEXT NOT NULL,
+    Ticket       BLOB NOT NULL,
+    ExpiresAtUtc TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_AuthSession_SessionKey ON AuthSession (SessionKey);
+
+-- The ASP.NET Data Protection key ring, moved out of the OS user profile so the keys that unprotect the auth cookie
+-- live and die with the accounts and sessions they protect (and follow the database to another box). Append-only:
+-- the key manager only ever adds keys and reads them all back in insertion (Id) order.
+CREATE TABLE IF NOT EXISTS dbo.DataProtectionKey
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    FriendlyName TEXT NOT NULL,
+    Xml          TEXT NOT NULL,
+    CreatedAtUtc TEXT NOT NULL
+);

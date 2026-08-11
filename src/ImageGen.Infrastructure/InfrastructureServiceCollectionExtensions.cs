@@ -86,6 +86,11 @@ public static class InfrastructureServiceCollectionExtensions
         _ = services.AddSingleton<IMachineSettingRepository, MachineSettingRepository>();
         _ = services.AddSingleton<IJobRepository, JobRepository>();
         _ = services.AddSingleton<IUserLogRepository, UserLogRepository>();
+        // Auth persistence: server-side cookie sessions and the Data Protection key ring, both DB-backed so a
+        // session survives a restart and everything auth dies together with a database wipe. Singletons — the
+        // cookie handler's session store and the key manager's XML repository are themselves singletons.
+        _ = services.AddSingleton<IAuthSessionRepository, AuthSessionRepository>();
+        _ = services.AddSingleton<IDataProtectionKeyRepository, DataProtectionKeyRepository>();
         return services;
     }
 
