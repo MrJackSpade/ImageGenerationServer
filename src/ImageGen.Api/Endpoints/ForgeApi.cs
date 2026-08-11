@@ -854,11 +854,18 @@ public static class ForgeApi
         });
 
         // POLL one job (legacy single-image shape). Memory first, DB fallback once finalized; unknown id → error.
-        _ = app.MapGet(Routes.Result, async (string id, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
+        // Owner-checked.
+        _ = app.MapGet(Routes.Result, async (string id, HttpRequest http, RenderOrchestrator queue, IJobRepository jobs, CancellationToken ct) =>
         {
+            long owner = OwnerOf(http);
             RenderJob? job = queue.Get(id);
             if (job is not null && job.Slots.Count > 0)
             {
+                if (job.Owner != owner)
+                {
+                    return Results.Unauthorized();
+                }
+
                 RenderSlot s = job.Slots[0];
                 return Results.Ok(LegacyResultSlot(RenderPhases.Of(s.State), s.ImageId, s.ExpectedGenSeconds, s.GenStartedAt,
                     s.Width, s.Height, s.IsEdit, s.EditResult?.Changed ?? true, s.EditResult?.ChangeScore, s.EffectivePrompt, s.Marks, s.Error, queue.JobsAhead(job), s.Notice));
@@ -868,6 +875,11 @@ public static class ForgeApi
             if (rec is null || rec.Slots.Count == 0)
             {
                 return Results.Ok(new { status = "error", error = "unknown job id" });
+            }
+
+            if (rec.UserId != owner)
+            {
+                return Results.Unauthorized();
             }
 
             JobSlotRecord sr = rec.Slots.OrderBy(x => x.SlotIndex).First();

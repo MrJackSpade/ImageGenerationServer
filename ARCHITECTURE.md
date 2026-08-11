@@ -439,7 +439,7 @@ change was invisible until something built on it broke.
 
 `/generate`, `/edit` (submit a 1-slot job; return its `jobId`), `/enqueue` (submit an **N-slot** job — one
 `jobId`, not N; owner-scoped; `model` = a workflow configuration id) · `/result/{id}` (legacy single-image
-poll; memory then DB) · **`/jobs`** (this user's **ACTIVE** jobs only — each with `total`, `progress`, and the
+poll; owner-scoped; memory then DB) · **`/jobs`** (this user's **ACTIVE** jobs only — each with `total`, `progress`, and the
 positional `imageIds[]` the client diffs; a finalized job has LEFT this feed) · **`/job/{id}`** (one job by
 id, active or finalized — the durable lookup the client makes when a tracked job vanishes from `/jobs`, to
 collect its final image array) · `/cancel/{id}`, `/interrupt` · `/upload` · `/image/{id}` (DB-first bytes,
