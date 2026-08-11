@@ -1,0 +1,6 @@
+{
+  "id": "gemma4-12b-ltx-2-5",
+  "kind": "text_encoder",
+  "label": "Gemma 4 12B (LTX-2.5, with projection)",
+  "page": "https://huggingface.co/Lightricks/LTX-2.5"
+}

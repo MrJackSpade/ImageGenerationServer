@@ -1169,6 +1169,12 @@ Test-Workflow 'ltx2-i2v'                          -Edit -Overrides @{ steps = 1;
 # LTX-2.3 22B — 9 frames not 97
 Test-Workflow 'ltx23-i2v'                         -Edit -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
 
+# LTX-2.5 22B dev — 8 steps not 30; 9 frames not 97
+Test-Workflow 'ltx25-i2v-dev'                     -Edit -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
+
+# LTX-2.5 22B — 9 frames not 97
+Test-Workflow 'ltx25-i2v'                         -Edit -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
+
 # LTX Video 13B — 9 frames not 97
 Test-Workflow 'ltxv-13b-i2v'                      -Edit -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
 
