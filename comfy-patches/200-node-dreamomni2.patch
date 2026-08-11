@@ -22,7 +22,7 @@ Why: Six fixes to the RunningHub DreamOmni2 pack. The load-bearing one is re-pin
  silently falling back.
 ---
 diff --git a/pipeline_dreamomni2.py b/pipeline_dreamomni2.py
-index 5b9c4d8..e4a6c45 100644
+index 5b9c4d8..030f983 100644
 --- a/pipeline_dreamomni2.py
 +++ b/pipeline_dreamomni2.py
 @@ -765,6 +765,8 @@ class DreamOmni2Pipeline(
@@ -124,8 +124,15 @@ index 5b9c4d8..e4a6c45 100644
                  # compute the previous noisy sample x_t -> x_t-1
                  latents_dtype = latents.dtype
                  latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+@@ -1147,4 +1223,4 @@ class DreamOmni2Pipeline(
+         if not return_dict:
+             return (image,)
+ 
+-        return FluxPipelineOutput(images=image)
+\ No newline at end of file
++        return FluxPipelineOutput(images=image)
 diff --git a/rh_dreamomni2.py b/rh_dreamomni2.py
-index 335842f..15382a9 100644
+index 335842f..878c101 100644
 --- a/rh_dreamomni2.py
 +++ b/rh_dreamomni2.py
 @@ -3,6 +3,7 @@ from optimum.quanto import freeze, qint8, quantize
@@ -142,7 +149,7 @@ index 335842f..15382a9 100644
      def load(self, **kwargs):
 -        base_path = os.path.join(folder_paths.models_dir, 'flux', 'FLUX.1-Kontext-dev')
 -        vlm_path = os.path.join(folder_paths.models_dir, 'DreamOmni2', 'vlm-model')
-+        base_path = rh_paths.base_model(kwargs.get('base_model'))
++        base_path = rh_paths.base_model()
 +        vlm_path = rh_paths.vlm_model()
          pipeline = DreamOmni2Pipeline.from_pretrained(base_path, torch_dtype=torch.bfloat16)
          pipeline.enable_model_cpu_offload()
@@ -156,19 +163,10 @@ index 335842f..15382a9 100644
          pipeline = super().load(**kwargs)[0]
          pipeline.load_lora_weights(
              gen_lora_path,
-@@ -199,5 +200,6 @@ class RH_DreamOmni2_Edit_Pipeline(RH_DreamOmni2_Base_Pipeline):
- class RH_DreamOmni2_Edit_Pipeline(RH_DreamOmni2_Base_Pipeline):
-     @classmethod
-     def INPUT_TYPES(s):
-         return {
-             "required": {
-+                "base_model": (rh_paths.list_base_models(), {"tooltip": "Diffusers base model (FLUX.1-Kontext family) the DreamOmni2 pipeline loads."}),
-@@ -212,7 +213,9 @@ class RH_DreamOmni2_Edit_Pipeline(RH_DreamOmni2_Base_Pipeline):
+@@ -212,7 +213,7 @@ class RH_DreamOmni2_Edit_Pipeline(RH_DreamOmni2_Base_Pipeline):
      CATEGORY = "Runninghub/DreamOmni2"
-
+ 
      def load(self, **kwargs):
-+        if not kwargs.get('base_model'):
-+            raise ValueError("RH_DreamOmni2_Edit_Pipeline needs a 'base_model' input naming the diffusers base; none was provided.")
 -        edit_lora_path = os.path.join(folder_paths.models_dir, 'DreamOmni2', 'edit_lora')
 +        edit_lora_path = rh_paths.lora(rh_paths.EDIT_LORA)
          pipeline = super().load(**kwargs)[0]
@@ -243,12 +241,19 @@ index 335842f..15382a9 100644
          ).images[0]
          image = np.array(image).astype(np.float32) / 255.0
          image = torch.from_numpy(image)[None,]
+@@ -302,4 +344,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
+     "RunningHub DreamOmni2 Edit Pipeline": "RunningHub DreamOmni2 Edit Pipeline",
+     "RunningHub DreamOmni2 Generator": "RunningHub DreamOmni2 Generator",
+     "RunningHub DreamOmni2 Editor": "RunningHub DreamOmni2 Editor",
+-} 
+\ No newline at end of file
++} 
 diff --git a/rh_paths.py b/rh_paths.py
 new file mode 100644
 index 0000000..625822c
 --- /dev/null
 +++ b/rh_paths.py
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,75 @@
 +"""Where DreamOmni2's weights live: whichever folder ComfyUI keeps that kind of thing in.
 +
 +Upstream builds every path from `folder_paths.models_dir` — ComfyUI's own `models/` and nothing else — which
@@ -290,27 +295,8 @@ index 0000000..625822c
 +            name, kind, ", ".join(folders) or "(none configured)"))
 +
 +
-+def base_model(name=None):
-+    """The diffusers base pipeline directory `name`, resolved under any configured `diffusers` folder. `name` is
-+    the app's model-ref binding, passed as the Edit pipeline's REQUIRED base_model input -- and the Edit node
-+    rejects a missing one before this runs, so an edit never defaults silently. The `name or BASE_MODEL` default
-+    exists ONLY for the Gen pipeline, which has no such input and always loads the built-in FLUX.1-Kontext-dev."""
-+    return _directory("diffusers", name or BASE_MODEL)
-+
-+
-+def list_base_models():
-+    """Every diffusers pipeline directory ComfyUI can see, for the Edit Pipeline's `base_model` dropdown. A
-+    diffusers model is a DIRECTORY carrying a model_index.json, so qualifying subdirectories of every configured
-+    `diffusers` folder are listed -- not files. Empty when none are installed: the node still registers and its
-+    workflows presence-gate off rather than offering a model that is not on disk."""
-+    names = []
-+    for base in _folder("diffusers"):
-+        if not os.path.isdir(base):
-+            continue
-+        for entry in sorted(os.listdir(base)):
-+            if entry not in names and os.path.isfile(os.path.join(base, entry, "model_index.json")):
-+                names.append(entry)
-+    return names
++def base_model():
++    return _directory("diffusers", BASE_MODEL)
 +
 +
 +def vlm_model():
