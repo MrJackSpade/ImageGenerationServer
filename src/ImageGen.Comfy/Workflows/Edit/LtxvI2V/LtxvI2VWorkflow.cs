@@ -10,7 +10,7 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
     public override FrameRule? FrameRule => new(1, 8);
 
     /// <summary>The shared edit menu plus the per-config i2v <c>megapixels</c> budget control (#186).</summary>
-    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, VideoSizeSchema.Megapixels];
+    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, VideoSizeSchema.Megapixels, .. CkAttention.Schema];
 
     /// <summary>LTX's i2v snap grid (32-px). The megapixel BUDGET is the per-config <c>megapixels</c> control (#186),
     /// read off the params record.</summary>
@@ -23,6 +23,7 @@ public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
         ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out _, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA on the LTX model
+        model0 = CkAttention.Apply(g, model0, p.CkAttention, Nodes.CkAttention);
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;

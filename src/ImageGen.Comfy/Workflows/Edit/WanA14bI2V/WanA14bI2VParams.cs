@@ -40,5 +40,6 @@ public sealed record WanA14bI2VParams
     [JsonPropertyName(WorkflowParamKeys.EndPadTopPct)][AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadTopPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.EndPadBottomPct)][AllowNullable("null = the config didn't set this end-frame pad percentage; distinct from a real 0%")] public int? EndPadBottomPct { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
 }

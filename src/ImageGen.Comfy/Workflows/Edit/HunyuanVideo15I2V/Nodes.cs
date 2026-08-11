@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 internal static class Nodes
 {
     public const string ModelSampling = "30";
+    public const string CkAttention = "59";
     public const string SourceScale = "51";
     public const string SourceSize = "52";
     public const string ClipVisionLoader = "40";

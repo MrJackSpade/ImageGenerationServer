@@ -18,6 +18,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Label = "Flow shift" },
         VideoSizeSchema.Megapixels,
         .. HunyuanSr.Schema,
+        .. CkAttention.Schema,
     ];
 
     /// <summary>HunyuanVideo 1.5's i2v snap grid (16-px). The megapixel BUDGET is the per-config <c>megapixels</c>
@@ -34,7 +35,7 @@ public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VPa
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime LoRA on the Hunyuan model
         g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
-        Output<Slot.Model> modelS = ModelSamplingSD3.Out(Nodes.ModelSampling);
+        Output<Slot.Model> modelS = CkAttention.Apply(g, ModelSamplingSD3.Out(Nodes.ModelSampling), p.CkAttention, Nodes.CkAttention);
         long seed = ComfyGraph.Seed(p.Seed);
         int frames = p.Length;
         double fps = p.Fps;

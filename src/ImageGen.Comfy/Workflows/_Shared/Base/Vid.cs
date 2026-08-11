@@ -77,12 +77,14 @@ internal static class Vid
     /// <summary>Load a high+low expert pair, each through ModelSamplingSD3(shift), over a typed graph. High file = the
     /// resolved checkpoint, low = the resolved <c>unet_low</c>. Both load through
     /// <see cref="ComfyGraph.DiffusionLoaderNode"/>, which picks its node from the bound file.</summary>
-    public static (Output<Slot.Model> high, Output<Slot.Model> low) LoadExperts(ComfyWorkflowGraph g, string highFile, string lowFile, double shift)
+    public static (Output<Slot.Model> high, Output<Slot.Model> low) LoadExperts(ComfyWorkflowGraph g, string highFile, string lowFile, double shift, bool ckAttention)
     {
         g[VidNodes.HighExpert] = ComfyGraph.DiffusionLoaderNode(highFile);
         g[VidNodes.HighSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(VidNodes.HighExpert), Shift = shift };
         g[VidNodes.LowExpert] = ComfyGraph.DiffusionLoaderNode(lowFile);
         g[VidNodes.LowSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(VidNodes.LowExpert), Shift = shift };
-        return (ModelSamplingSD3.Out(VidNodes.HighSampling), ModelSamplingSD3.Out(VidNodes.LowSampling));
+        // Both experts sample the same latent, so the attention toggle patches the pair together.
+        return (CkAttention.Apply(g, ModelSamplingSD3.Out(VidNodes.HighSampling), ckAttention, VidNodes.HighCkAttention),
+                CkAttention.Apply(g, ModelSamplingSD3.Out(VidNodes.LowSampling), ckAttention, VidNodes.LowCkAttention));
     }
 }

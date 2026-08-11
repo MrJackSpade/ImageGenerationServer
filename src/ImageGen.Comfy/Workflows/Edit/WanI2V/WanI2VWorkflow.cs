@@ -17,6 +17,7 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         .. EditWorkflowBase.SharedSchema,
         new() { Key = WorkflowParamKeys.Shift, Type = ParamType.Double, Min = 1.0, Max = 12.0, Step = 0.1, Label = "Flow shift" },
         VideoSizeSchema.Megapixels,
+        .. CkAttention.Schema,
     ];
 
     /// <summary>Wan's i2v snap grid (32-px). The megapixel BUDGET is the per-config <c>megapixels</c> control (#186),
@@ -31,7 +32,7 @@ public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA (e.g. Flat Color) on the WAN model
         g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
-        model0 = ModelSamplingSD3.Out(Nodes.ModelSampling);
+        model0 = CkAttention.Apply(g, ModelSamplingSD3.Out(Nodes.ModelSampling), p.CkAttention, Nodes.CkAttention);
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;
         double fps = p.Fps;

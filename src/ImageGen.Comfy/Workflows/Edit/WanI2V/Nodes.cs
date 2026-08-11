@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.WanI2V;
 internal static class Nodes
 {
     public const string ModelSampling = "30";
+    public const string CkAttention = "31";
     public const string ScaleSource = "11";
     public const string ImageSize = "15";
     public const string Positive = "13";

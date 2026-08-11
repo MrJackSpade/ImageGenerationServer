@@ -14,6 +14,10 @@
     ]
   },
   "params": {
+    "ck_attention": {
+      "value": false,
+      "visibility": "exposed"
+    },
     "loader": "unet",
     "clip_type": "wan",
     "unet_low": "wan2-2-i2v-low-noise-14b",

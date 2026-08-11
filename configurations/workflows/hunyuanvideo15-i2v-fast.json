@@ -15,6 +15,10 @@
     ]
   },
   "params": {
+    "ck_attention": {
+      "value": false,
+      "visibility": "exposed"
+    },
     "megapixels": {
       "value": 0.4,
       "visibility": "hidden"

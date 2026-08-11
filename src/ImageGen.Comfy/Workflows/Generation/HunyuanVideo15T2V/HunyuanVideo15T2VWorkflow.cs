@@ -17,7 +17,7 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         long seed = ComfyGraph.Seed(p.Seed);
         g[EditNodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[HunyuanVideo15T2VWorkflowNodes.ModelSampling] = new ModelSamplingSD3 { Model = UNETLoader.ModelOut(EditNodes.Model), Shift = p.Shift };
-        Output<Slot.Model> model = ModelSamplingSD3.Out(HunyuanVideo15T2VWorkflowNodes.ModelSampling);
+        Output<Slot.Model> model = CkAttention.Apply(g, ModelSamplingSD3.Out(HunyuanVideo15T2VWorkflowNodes.ModelSampling), p.CkAttention, Nodes.CkAttention);
         g[EditNodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanVideo15, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(EditNodes.Clip);
         g[EditNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };

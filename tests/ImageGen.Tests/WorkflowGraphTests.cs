@@ -1249,6 +1249,14 @@ public sealed class WorkflowGraphTests
         // The same toggle rides the shared txt2img topology (node 37).
         Assert.DoesNotContain("\"ModelAttentionBackend\"", BuildJson("flux1-dev", Gen));
         Assert.Contains("\"ModelAttentionBackend\"", BuildJson("flux1-dev", Gen, on));
+
+        // The Wan MoE patches BOTH experts (nodes 45/46) — one selector per expert.
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(BuildJson("wan22-t2v-a14b", Gen, on), "\"ModelAttentionBackend\"").Count);
+        Assert.DoesNotContain("\"ModelAttentionBackend\"", BuildJson("wan22-t2v-a14b", Gen));
+
+        // A custom i2v graph (HunyuanVideo 1.5) splices it too.
+        Assert.Contains("\"ModelAttentionBackend\"", BuildJson("hunyuanvideo15-i2v", Edit, on));
+        Assert.DoesNotContain("\"ModelAttentionBackend\"", BuildJson("hunyuanvideo15-i2v", Edit));
     }
 
     [Fact]

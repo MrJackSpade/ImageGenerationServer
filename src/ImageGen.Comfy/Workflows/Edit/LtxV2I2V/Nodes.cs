@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.LtxV2I2V;
 internal static class Nodes
 {
     public const string Scale = "51";
+    public const string CkAttention = "57";
     public const string Size = "52";
     public const string Positive = "13";
     public const string Negative = "12";

@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.LtxvI2V;
 internal static class Nodes
 {
     public const string T5Loader = "50";
+    public const string CkAttention = "57";
     public const string ScaledSource = "51";
     public const string SourceSize = "52";
     public const string Positive = "13";

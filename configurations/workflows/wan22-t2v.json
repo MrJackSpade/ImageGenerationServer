@@ -11,6 +11,10 @@
     "vae": "wan-2-1-vae"
   },
   "params": {
+    "ck_attention": {
+      "value": false,
+      "visibility": "exposed"
+    },
     "megapixels": {
       "value": 0.88,
       "visibility": "hidden"

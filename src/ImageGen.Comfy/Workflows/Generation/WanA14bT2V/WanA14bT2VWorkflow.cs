@@ -21,7 +21,7 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
         ComfyWorkflowGraph g = new();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
-        (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);
+        (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift, p.CkAttention);
         g[EditNodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Wan, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(EditNodes.Clip);
         g[EditNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };

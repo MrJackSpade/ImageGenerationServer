@@ -33,6 +33,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         new() { Key = WorkflowParamKeys.PadBottomPct, Type = ParamType.Int, Min = 0, Max = 2000, Step = 1, Label = "Pad bottom %", Help = "Whitespace on the bottom, % of source height" },
         new() { Key = WorkflowParamKeys.RefinerSteps, Type = ParamType.Int, Min = 0, Max = 40, Step = 1, Label = "Refiner steps", Help = "Low = fast draft (same motion), high = sharp final; re-run the same seed to commit" },
         new() { Key = WorkflowParamKeys.UnetLow, Type = ParamType.String, IsModelRef = true, Label = "Low-noise expert" },
+        .. CkAttention.Schema,
     ];
 
     /// <summary>
@@ -74,7 +75,7 @@ public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
         ComfyWorkflowGraph g = new();
         string sampler = ComfyGraph.MapSampler(p.Sampler);
         string scheduler = ComfyGraph.MapScheduler(p.Scheduler);
-        (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift);
+        (Output<Slot.Model> mh, Output<Slot.Model> ml) = Vid.LoadExperts(g, req.RequiredCheckpoint(), p.UnetLow, p.Shift, p.CkAttention);
         g[WanA14bI2VWorkflowNodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Wan, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = CLIPLoader.ClipOut(WanA14bI2VWorkflowNodes.Clip);
         g[WanA14bI2VWorkflowNodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
