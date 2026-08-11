@@ -1,3 +1,4 @@
+using ImageGen.Application.Images;
 using ImageGen.Application.Services;
 using ImageGen.Domain.Entities;
 using ImageGen.Web.ViewModels;
@@ -7,9 +8,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace ImageGen.Web.Controllers;
 
 [Authorize]
-public sealed class EditController(HistoryService history) : Controller
+public sealed class EditController(HistoryService history, ImageVisibilityService visibility) : Controller
 {
     private readonly HistoryService _history = history;
+    private readonly ImageVisibilityService _visibility = visibility;
 
     /// <summary>No id: the rail's Edit button lands here with no source — the page shows a file picker in the
     /// image area, and picking a file uploads it and makes it the source for every mode.</summary>
@@ -27,6 +29,14 @@ public sealed class EditController(HistoryService history) : Controller
         string tagPrompt = "";
         string negativePrompt = "";
         long userId = User.GetRequiredUserId();
+
+        // A missing history row is legitimate — a freshly uploaded source has none — but that is now distinguishable
+        // from another user's image, because an upload carries its owner. Only the former loads.
+        if (await _visibility.CanReadImageAsync(userId, id, ct) is null)
+        {
+            return Unauthorized();
+        }
+
         HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is not null)
         {

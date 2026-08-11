@@ -15,7 +15,7 @@ namespace ImageGen.Tests;
 /// </summary>
 public sealed class UploadRetentionTests
 {
-    private static UploadedImage Image(int bytes) => new(new byte[bytes], "image/png", 8, 8);
+    private static UploadedImage Image(int bytes) => new(new byte[bytes], "image/png", 8, 8, 1);
 
     [Fact]
     public void Every_upload_resolves_however_many_follow_it()

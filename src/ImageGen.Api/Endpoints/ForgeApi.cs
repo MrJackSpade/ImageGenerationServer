@@ -149,6 +149,19 @@ public static class ForgeApi
         public const string AudioPrefix = "audio/";
     }
 
+    /// <summary>Cache-Control values written on the media responses. Every image response is PRIVATE: the bytes are
+    /// served only to the caller who owns the id, so a shared cache holding one could hand it to another user.</summary>
+    private static class CacheControls
+    {
+        /// <summary>An image's bytes never change under its id, so one caller's browser may keep it indefinitely.</summary>
+        public const string PrivateImmutable = "private, max-age=31536000, immutable";
+        /// <summary>A legacy image proxied from ComfyUI, which can rotate its output directory out from under the id.</summary>
+        public const string PrivateShort = "private, max-age=300";
+        /// <summary>A LoRA's cached CivitAI preview: keyed by LoRA name, machine-global, and replaced under the same
+        /// name by the refresh button — so shareable, and deliberately not immutable.</summary>
+        public const string PublicShort = "public, max-age=300";
+    }
+
     /// <summary>JSON property names read off the backend's progress frames.</summary>
     private static class JsonFields
     {
@@ -1279,11 +1292,11 @@ public static class ForgeApi
     /// does not have it — the case the caller turns into a 404. Every OTHER failure propagates: catching everything
     /// and reporting "image not found" would tell the user their image did not exist when ComfyUI was down,
     /// unreachable, or erroring. Those are opposite facts, and only one of them is the user's to act on.</summary>
-    private static async Task<byte[]?> FetchLegacyOrNullAsync(IComfyClient comfy, string id, CancellationToken ct)
+    private static async Task<byte[]?> FetchLegacyOrNullAsync(IComfyClient comfy, ImageReadGrant grant, CancellationToken ct)
     {
         try
         {
-            return await comfy.FetchLegacyImageAsync(id, ct);
+            return await comfy.FetchLegacyImageAsync(grant.ImageId, ct);
         }
         catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
         {
@@ -1314,7 +1327,9 @@ public static class ForgeApi
 
     #region images
 
-    private static void MapImages(RouteGroupBuilder app)
+    /// <summary>Maps the image-serving routes onto the group. Internal, not private, so the visibility tests can mount
+    /// just this family without standing up every /forge dependency.</summary>
+    internal static void MapImages(RouteGroupBuilder app)
     {
         // An upload is a render INPUT (edit source, reference, inpaint mask, i2v end frame) and is never retrievable
         // afterwards, so it is held in memory only and never written to dbo.ImageBlob. See IUploadStore.
@@ -1363,13 +1378,19 @@ public static class ForgeApi
             // untrusted claim (a client can send image/png for webp bytes), and IdentifyUpload sniffed the true family
             // from the header. Deriving unconditionally makes the stored/served MIME always match the content — and it
             // is that MIME the render path reads to route a reference to the graph input for its media kind.
-            string id = uploads.Add(new UploadedImage(bytes, ident.MimeType, ident.Width, ident.Height));
+            string id = uploads.Add(new UploadedImage(bytes, ident.MimeType, ident.Width, ident.Height, OwnerOf(request)));
             return Results.Ok(new { id });
         });
 
         _ = app.MapGet(Routes.Image, async (string id, int? w, bool? still, IUploadStore uploads, IImageBlobRepository blobs,
-            IMemoryCache cache, IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
+            IMemoryCache cache, IComfyClient comfy, IMediaProcessor media, ImageVisibilityService visibility, HttpContext ctx) =>
         {
+            // Before anything else, including the thumbnail cache: a cached thumbnail is still this user's picture.
+            if (await visibility.CanReadImageAsync(OwnerOf(ctx.Request), id, ctx.RequestAborted) is not { } grant)
+            {
+                return Results.Unauthorized();
+            }
+
             if (w is int requested)
             {
                 if (requested is < MinWidth or > MaxWidth)
@@ -1382,9 +1403,9 @@ public static class ForgeApi
                 string key = $"thumb:{id}:{width}:{(wantStill ? "s" : "a")}";
                 if (!cache.TryGetValue(key, out MediaPayload? thumb) || thumb is null)
                 {
-                    (byte[] Bytes, string ContentType)? stored = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
+                    (byte[] Bytes, string ContentType)? stored = await LoadImageAsync(grant, uploads, blobs, ctx.RequestAborted);
                     byte[]? source = stored?.Bytes;
-                    source ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
+                    source ??= await FetchLegacyOrNullAsync(comfy, grant, ctx.RequestAborted);
                     if (source is null)
                     {
                         return Results.NotFound(new { error = "image not found" });
@@ -1408,24 +1429,24 @@ public static class ForgeApi
                     _ = cache.Set(key, thumb, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
                 }
 
-                ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                ctx.Response.Headers.CacheControl = CacheControls.PrivateImmutable;
                 return Results.File(thumb.Bytes, thumb.ContentType);
             }
 
-            (byte[] Bytes, string ContentType)? found = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
+            (byte[] Bytes, string ContentType)? found = await LoadImageAsync(grant, uploads, blobs, ctx.RequestAborted);
             if (found is { } image)
             {
-                ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                ctx.Response.Headers.CacheControl = CacheControls.PrivateImmutable;
                 return Results.File(image.Bytes, image.ContentType);
             }
 
-            byte[]? png = await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
+            byte[]? png = await FetchLegacyOrNullAsync(comfy, grant, ctx.RequestAborted);
             if (png is null)
             {
                 return Results.NotFound(new { error = "image not found" });
             }
 
-            ctx.Response.Headers.CacheControl = "public, max-age=300";
+            ctx.Response.Headers.CacheControl = CacheControls.PrivateShort;
             return Results.File(png, ContentTypes.ImagePng);
         });
 
@@ -1445,15 +1466,20 @@ public static class ForgeApi
                 return Results.NotFound(new { error = "no cached preview for this LoRA" });
             }
 
-            ctx.Response.Headers.CacheControl = "public, max-age=300";
+            ctx.Response.Headers.CacheControl = CacheControls.PublicShort;
             return Results.File(blob.Bytes, blob.ContentType);
         });
 
         _ = app.MapGet(Routes.ImageInfo, async (string id, IUploadStore uploads, IImageBlobRepository blobs,
-            IComfyClient comfy, IMediaProcessor media, HttpContext ctx) =>
+            IComfyClient comfy, IMediaProcessor media, ImageVisibilityService visibility, HttpContext ctx) =>
         {
-            byte[]? bytes = (await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted))?.Bytes;
-            bytes ??= await FetchLegacyOrNullAsync(comfy, id, ctx.RequestAborted);
+            if (await visibility.CanReadImageAsync(OwnerOf(ctx.Request), id, ctx.RequestAborted) is not { } grant)
+            {
+                return Results.Unauthorized();
+            }
+
+            byte[]? bytes = (await LoadImageAsync(grant, uploads, blobs, ctx.RequestAborted))?.Bytes;
+            bytes ??= await FetchLegacyOrNullAsync(comfy, grant, ctx.RequestAborted);
             if (bytes is null)
             {
                 return Results.NotFound(new { error = "image not found" });
@@ -1468,8 +1494,14 @@ public static class ForgeApi
         });
 
         _ = app.MapGet(Routes.ImageMp4, async (string id, int? w, IUploadStore uploads, IImageBlobRepository blobs,
-            IMemoryCache cache, IMediaProcessor media, HttpContext ctx) =>
+            IMemoryCache cache, IMediaProcessor media, ImageVisibilityService visibility, HttpContext ctx) =>
         {
+            // Ahead of the clip cache, for the same reason as the thumbnail cache above.
+            if (await visibility.CanReadImageAsync(OwnerOf(ctx.Request), id, ctx.RequestAborted) is not { } grant)
+            {
+                return Results.Unauthorized();
+            }
+
             if (w is int rw && (rw < MinWidth || rw > MaxWidth))
             {
                 return Results.BadRequest(new { error = $"w must be between {MinWidth} and {MaxWidth}, got {rw}" });
@@ -1480,7 +1512,7 @@ public static class ForgeApi
             if (!cache.TryGetValue(key, out MediaPayload? clip) || clip is null)
             {
                 // Uploads included: a V2V edit's source is an uploaded clip the editor plays back before rendering.
-                (byte[] Bytes, string ContentType)? source = await LoadImageAsync(id, uploads, blobs, ctx.RequestAborted);
+                (byte[] Bytes, string ContentType)? source = await LoadImageAsync(grant, uploads, blobs, ctx.RequestAborted);
                 if (source is not { } clipSource)
                 {
                     return Results.NotFound(new { error = "no video for this id" });
@@ -1502,7 +1534,7 @@ public static class ForgeApi
                 _ = cache.Set(key, clip, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(2) });
             }
 
-            ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+            ctx.Response.Headers.CacheControl = CacheControls.PrivateImmutable;
             // Without a filename the browser would name a "Save as" after the last URL segment ("mp4") and append the
             // extension -> "mp4.mp4". Name it after the id. "inline" (not "attachment") so the <video> still plays.
             string ext = clip.ContentType.StartsWith(ContentTypes.VideoPrefix, StringComparison.OrdinalIgnoreCase)
@@ -1512,30 +1544,56 @@ public static class ForgeApi
             return Results.File(clip.Bytes, clip.ContentType);
         });
 
-        _ = app.MapGet(Routes.ImagePalette, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImagePalette, async (string id, HttpRequest req, IImageBlobRepository blobs,
+            ImageVisibilityService visibility, CancellationToken ct) =>
         {
+            if (await visibility.CanReadImageAsync(OwnerOf(req), id, ct) is null)
+            {
+                return Results.Unauthorized();
+            }
+
             string? json = await blobs.GetPaletteAsync(id, ct);
             return json is null ? Results.NotFound(new { error = "no palette for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
         });
 
         // The fp quantize's pooled label frequencies (JSON float array, indexed by the palette's order) — fetched
         // together with /palette so a later single-frame re-quantize can replay BOTH globals bit-exactly.
-        _ = app.MapGet(Routes.ImageFrequencies, async (string id, IImageBlobRepository blobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageFrequencies, async (string id, HttpRequest req, IImageBlobRepository blobs,
+            ImageVisibilityService visibility, CancellationToken ct) =>
         {
+            if (await visibility.CanReadImageAsync(OwnerOf(req), id, ct) is null)
+            {
+                return Results.Unauthorized();
+            }
+
             string? json = await blobs.GetFrequenciesAsync(id, ct);
             return json is null ? Results.NotFound(new { error = "no frequencies for this id" }) : Results.Content(json, ContentTypes.ApplicationJson);
         });
 
-        _ = app.MapGet(Routes.ImageParams, async (string id, HttpRequest req, IJobRepository jobs, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageParams, async (string id, HttpRequest req, IJobRepository jobs,
+            ImageVisibilityService visibility, CancellationToken ct) =>
         {
+            if (await visibility.CanReadImageAsync(OwnerOf(req), id, ct) is null)
+            {
+                return Results.Unauthorized();
+            }
+
+            // Still matched against the slot's own owner: a request record describes the job that made the image, and
+            // a visible id whose job belongs to someone else (a blob named by two users' history) is not that job.
             ImageRequestRecord? r = await jobs.GetRequestByImageAsync(id, ct);
             return r is { } rr && rr.OwnerUserId == OwnerOf(req)
                 ? Results.Content(rr.RequestJson, ContentTypes.ApplicationJson)
                 : Results.NotFound(new { error = "no params for this id" });
         });
 
-        _ = app.MapGet(Routes.ImageFrames, async (string id, IImageFrameRepository frames, CancellationToken ct) =>
+        _ = app.MapGet(Routes.ImageFrames, async (string id, HttpRequest req, IImageFrameRepository frames,
+            ImageVisibilityService visibility, CancellationToken ct) =>
         {
+            if (await visibility.CanReadImageAsync(OwnerOf(req), id, ct) is null)
+            {
+                return Results.Unauthorized();
+            }
+
             IReadOnlyList<byte[]> list = await frames.GetFramesAsync(id, ct);
             if (list.Count == 0)
             {
@@ -1557,7 +1615,8 @@ public static class ForgeApi
             return Results.File(ms, ContentTypes.ApplicationZip);
         });
 
-        _ = app.MapPost(Routes.Media, async (MediaTypesRequest body, IUploadStore uploads, IImageBlobRepository blobs, IMediaProcessor media, CancellationToken ct) =>
+        _ = app.MapPost(Routes.Media, async (MediaTypesRequest body, HttpRequest req, IUploadStore uploads,
+            IImageBlobRepository blobs, IMediaProcessor media, ImageVisibilityService visibility, CancellationToken ct) =>
         {
             // ids arrive in the request BODY, not the query string (see MediaTypesRequest): the caller asks about
             // every gateway image on the page at once, which is hundreds of ids and a URL past Kestrel's request-line
@@ -1592,11 +1651,19 @@ public static class ForgeApi
             // write (RenderOrchestrator), and a still generation is stored as image/png. So the only id that can be a
             // still webp is a resident upload, whose bytes are already in hand — sniff those (no load), and leave
             // stored webp as the clip it must be. This keeps the batched gallery lookup (hundreds of ids) load-free.
+            //
+            // An id the caller may not read is answered exactly as an id nobody knows — "image" — so this endpoint
+            // cannot be used to probe for another user's clips. One bulk lookup for the whole page, not a check per id.
+            IReadOnlySet<string> readable = await visibility.ReadableAsync(OwnerOf(req), list, ct);
             Dictionary<string, string> map = new(StringComparer.Ordinal);
             List<string> needStored = [];
             foreach (string id in list)
             {
-                if (uploads.Get(id) is { } up)
+                if (!readable.Contains(id))
+                {
+                    map[id] = Kind(null);
+                }
+                else if (uploads.Get(id) is { } up)
                 {
                     map[id] = string.Equals(up.ContentType, ContentTypes.ImageWebp, StringComparison.OrdinalIgnoreCase) && !media.IsAnimatedWebp(up.Bytes)
                         ? "image"
@@ -1620,10 +1687,14 @@ public static class ForgeApi
 
     /// <summary>Bytes for an image id from either place it can live: an in-memory upload (a render input the user
     /// just handed us) or the durable <c>dbo.ImageBlob</c> row (a generated image). Null when neither has it — the
-    /// callers then try the legacy ComfyUI /view fallback for ids that predate DB-first serving.</summary>
+    /// callers then try the legacy ComfyUI /view fallback for ids that predate DB-first serving.
+    /// <para>It takes a <see cref="ImageReadGrant"/> rather than a bare id, which only
+    /// <see cref="ImageVisibilityService"/> issues: a route cannot reach image bytes without having asked whether
+    /// this caller may read them.</para></summary>
     private static async Task<(byte[] Bytes, string ContentType)?> LoadImageAsync(
-        string id, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct)
+        ImageReadGrant grant, IUploadStore uploads, IImageBlobRepository blobs, CancellationToken ct)
     {
+        string id = grant.ImageId;
         if (uploads.Get(id) is { } upload)
         {
             return (upload.Bytes, upload.ContentType);

@@ -95,7 +95,7 @@ public sealed class SqliteSchemaMigrationTests
             // IF NOT EXISTS will see this table and skip it — exactly the case that would strand LorasJson.
             await ExecAsync(factory,
                 "CREATE TABLE dbo.JobSlot (Id INTEGER PRIMARY KEY AUTOINCREMENT, JobId TEXT NOT NULL, " +
-                "SlotIndex INTEGER NOT NULL, CONSTRAINT UQ_JobSlot_Job_Index UNIQUE (JobId, SlotIndex));");
+                "SlotIndex INTEGER NOT NULL, ImageId TEXT NULL, CONSTRAINT UQ_JobSlot_Job_Index UNIQUE (JobId, SlotIndex));");
             Assert.DoesNotContain("LorasJson", await ColumnsAsync(factory, "JobSlot"));
 
             // GenTiming as a 0.9.0 database has it: present, WITHOUT the 0.11.0 ETA columns. The 0.9.0 CREATE TABLE

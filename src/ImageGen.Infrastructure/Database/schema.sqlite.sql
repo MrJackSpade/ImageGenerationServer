@@ -619,3 +619,11 @@ CREATE TABLE IF NOT EXISTS dbo.DataProtectionKey
     Xml          TEXT NOT NULL,
     CreatedAtUtc TEXT NOT NULL
 );
+
+
+-- --- 0.17.0 -----------------------------------------------------------------------------------------------------
+
+-- The image visibility check resolves an image id to its owner through JobSlot.ImageId (joined to Job), and runs on
+-- every image/thumbnail/clip request. Without this index that lookup is a scan of every slot on the box. New index on
+-- the pre-existing table, so a plain CREATE INDEX IF NOT EXISTS (the runner replays it as a no-op once it exists).
+CREATE INDEX IF NOT EXISTS dbo.IX_JobSlot_Image ON JobSlot (ImageId);

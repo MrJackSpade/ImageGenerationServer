@@ -8,11 +8,14 @@ namespace ImageGen.Application.Images;
 /// <param name="ContentType">The declared content type (defaulted to image/png when the client sent none).</param>
 /// <param name="Width">Pixel width, or null when the bytes had no identifiable image header.</param>
 /// <param name="Height">Pixel height, or null when the bytes had no identifiable image header.</param>
+/// <param name="OwnerUserId">The user who handed it over. An upload id is served back by the image routes, and it is
+/// the only ownership record there is for one — nothing about an upload is ever written to the database.</param>
 public sealed record UploadedImage(
     byte[] Bytes,
     string ContentType,
     [property: AllowNullable("null = the bytes had no identifiable image header, so no dimensions; distinct from a 0px default")] int? Width,
-    [property: AllowNullable("null = the bytes had no identifiable image header, so no dimensions; distinct from a 0px default")] int? Height);
+    [property: AllowNullable("null = the bytes had no identifiable image header, so no dimensions; distinct from a 0px default")] int? Height,
+    long OwnerUserId);
 
 /// <summary>
 /// Process-local store for uploaded images, keyed by a minted id.
@@ -35,7 +38,8 @@ public sealed record UploadedImage(
 /// </summary>
 public interface IUploadStore
 {
-    /// <summary>Take an uploaded image into memory under a freshly minted, globally-unique id; returns that id.</summary>
+    /// <summary>Take an uploaded image — with the user it belongs to — into memory under a freshly minted,
+    /// globally-unique id; returns that id.</summary>
     string Add(UploadedImage image);
 
     /// <summary>The upload for an id, or null if this process never issued it.</summary>

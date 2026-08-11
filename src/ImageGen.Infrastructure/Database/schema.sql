@@ -936,3 +936,9 @@ CREATE TABLE dbo.DataProtectionKey
     CreatedAtUtc DATETIME2(3)  NOT NULL CONSTRAINT DF_DataProtectionKey_Created DEFAULT SYSUTCDATETIME()
 );
 GO
+
+-- The image visibility check resolves an image id to its owner through dbo.JobSlot.ImageId (joined to dbo.Job), and
+-- runs on every image/thumbnail/clip request. Without this index that lookup is a scan of every slot on the box.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_JobSlot_Image')
+CREATE INDEX IX_JobSlot_Image ON dbo.JobSlot (ImageId);
+GO

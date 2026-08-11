@@ -1,3 +1,4 @@
+using ImageGen.Application.Images;
 using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Domain;
@@ -10,17 +11,24 @@ namespace ImageGen.Web.Controllers;
 
 [Authorize]
 public sealed class ImageController(
-    HistoryService history, BookmarkService bookmarks, BanService bans, ITagCatalog tags, ImageViewService views) : Controller
+    HistoryService history, BookmarkService bookmarks, BanService bans, ITagCatalog tags, ImageViewService views,
+    ImageVisibilityService visibility) : Controller
 {
     private readonly HistoryService _history = history;
     private readonly BookmarkService _bookmarks = bookmarks;
     private readonly BanService _bans = bans;
     private readonly ITagCatalog _tags = tags;
     private readonly ImageViewService _views = views;
+    private readonly ImageVisibilityService _visibility = visibility;
 
     [HttpGet("/image/{id}")]
     public async Task<IActionResult> Detail(string id, CancellationToken ct)
     {
+        if (await _visibility.CanReadImageAsync(User.GetRequiredUserId(), id, ct) is null)
+        {
+            return Unauthorized();
+        }
+
         ImageDetailViewModel? vm = await BuildAsync(id, ct);
         return vm is null ? NotFound() : View(vm);
     }
@@ -29,10 +37,17 @@ public sealed class ImageController(
     [HttpGet("/image/{id}/card")]
     public async Task<IActionResult> Card(string id, CancellationToken ct)
     {
+        if (await _visibility.CanReadImageAsync(User.GetRequiredUserId(), id, ct) is null)
+        {
+            return Unauthorized();
+        }
+
         ImageDetailViewModel? vm = await BuildAsync(id, ct);
         return vm is null ? NotFound() : PartialView(Views.Card, vm);
     }
 
+    /// <summary>The page's data, or null when the caller has no history row for the id — a readable id that never
+    /// entered their history (its slot produced it, the history write did not land) has no detail to show.</summary>
     private async Task<ImageDetailViewModel?> BuildAsync(string id, CancellationToken ct)
     {
         long userId = User.GetRequiredUserId();

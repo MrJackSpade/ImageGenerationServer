@@ -33,6 +33,8 @@ public static class ApplicationServiceCollectionExtensions
         _ = services.AddScoped<LoraService>();
         _ = services.AddScoped<TagService>();
         _ = services.AddScoped<ImageViewService>();
+        // The one owner check every id-addressed image read goes through, on both the API and the MVC surface.
+        _ = services.AddScoped<ImageVisibilityService>();
 
         _ = services.AddSingleton<IUserLogService>(sp => new UserLogService(
             sp.GetRequiredService<IUserCipher>(),

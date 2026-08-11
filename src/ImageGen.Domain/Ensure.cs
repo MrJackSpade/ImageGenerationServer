@@ -136,6 +136,17 @@ public static class Ensure
         return value;
     }
 
+    /// <summary>The value, or a refusal naming it when it is not greater than zero.</summary>
+    public static long GreaterThanZero(long value, [CallerArgumentExpression(nameof(value))] string? name = null)
+    {
+        if (value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(name, value, $"{name} must be greater than zero.");
+        }
+
+        return value;
+    }
+
     /// <summary>The value, or a refusal naming it when it is negative.</summary>
     public static int NotNegative(int value, [CallerArgumentExpression(nameof(value))] string? name = null)
     {
