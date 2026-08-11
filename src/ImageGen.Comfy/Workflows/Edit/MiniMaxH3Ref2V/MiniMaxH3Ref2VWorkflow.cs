@@ -17,7 +17,7 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     public override FrameRule? FrameRule => new(5, 17);
     public override IReadOnlyList<ParamSpec> Schema =>
     [
-        .. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema, VideoSizeSchema.Megapixels,
+        .. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema, .. CkAttention.Schema, VideoSizeSchema.Megapixels,
         new()
         {
             Key = WorkflowParamKeys.RefImageSize, Type = ParamType.Enum,
@@ -28,7 +28,7 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     ];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
-        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
+        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.CkAttention, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
 
     /// <summary>H3 pins the primary reference to the per-config <c>megapixels</c> budget, so the ETA keys on it.</summary>
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3Ref2VParams p) => (p.Megapixels, H3.BudgetSteps);

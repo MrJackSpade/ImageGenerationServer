@@ -23,6 +23,7 @@ internal static class WorkflowParamKeys
     public const string CfgHigh = "cfg_high";
     public const string CfgLow = "cfg_low";
     public const string CfgOverride = "cfg_override";
+    public const string CkAttention = "ck_attention";
     public const string ClipSkip = "clip_skip";
     public const string ClipType = "clip_type";
     public const string ClipVision = "clip_vision";

@@ -29,6 +29,7 @@ public record Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.Width)][AllowNullable("null = the config didn't set a flat width (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Width { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Height)][AllowNullable("null = the config didn't set a flat height (it may supply an aspect map instead); Dims() throws when neither is present, so a real 0 is never invented")] public int? Height { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Aspect)] public Dictionary<string, int[]>? Aspect { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Megapixels)]
     [AllowNullable("null = no megapixels control (aspect-map/flat-W/H size used unchanged). No [Range]: an out-of-range budget CLAMPS to the model's own envelope in RenderSizing (#186 snaps/clamps, never throws); a ≤0 budget still fails fast via Ensure in BudgetScale.Snap")] public double? Megapixels { get; init; }
 
@@ -102,6 +103,7 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
         public const string PostEncode = "13";
         public const string DenoisePatch = "35";
         public const string PostDecode = "36";
+        public const string CkAttention = "37";
     }
 
     /// <summary>The <c>latent</c> param's kind values — which empty-latent node the topology emits.</summary>
@@ -181,6 +183,7 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
 
         g[Nodes.Latent] = new EmptyLatent(LatentClass(p.RequiredLatent())) { Width = w, Height = h, BatchSize = 1 };
         modelSrc = PatchDenoiseModel(g, modelSrc, vaeSrc, p);
+        modelSrc = CkAttention.Apply(g, modelSrc, p.CkAttention, Nodes.CkAttention);
         g[Nodes.Sampler] = new KSampler
         {
             Seed = ComfyGraph.Seed(p.Seed),

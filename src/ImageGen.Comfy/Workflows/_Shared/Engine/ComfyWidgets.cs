@@ -92,6 +92,14 @@ internal static class ComfyWidgets
         public const string Minimax = "minimax";
     }
 
+    /// <summary>The <c>attention</c> combo on ModelAttentionBackend — which attention kernel the model samples with.
+    /// Only the comfy-kitchen value is ever emitted: "pytorch attention" is ComfyUI's default, expressed here by not
+    /// emitting the node at all (so the off state stays byte-identical to the plain graph).</summary>
+    internal static class Attention
+    {
+        public const string ComfyKitchen = "comfy kitchen attention";
+    }
+
     /// <summary>The <c>weight_dtype</c> combo on Step1X's text-encode load.</summary>
     internal static class WeightDtype
     {

@@ -74,9 +74,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Pinned to a FIXED revision (a tag, or an exact commit when the needed feature has no tag yet), NEVER a branch:
 # a branch moves, so tracking it would silently change the backend between builds -- non-reproducible, and a
 # deployment could then fail for a reason nobody chose (a patch stops applying, a workflow graph breaks). Currently
-# an exact commit past v0.30.2: MiniMax-H3's native dual-schedule AV sampling (ModelSamplingAV), which the 6-step
-# H3 Turbo configs' audio depends on, is not on any release tag yet. Move back to the newest tag once one carries it.
-ARG COMFYUI_REF=531ea7db139a856a830182694441e9755f0e260a
+# an exact commit past v0.31.1: the comfy-kitchen attention backend (ModelAttentionBackend) and the H3 peak-memory
+# fix are not on any release tag yet. Move back to the newest tag once one carries them.
+ARG COMFYUI_REF=62b3c94bd45154f6486c7abf1b9efcacee96ea69
 # init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.
 RUN git init /opt/ComfyUI \
     && git -C /opt/ComfyUI remote add origin https://github.com/comfyanonymous/ComfyUI.git \

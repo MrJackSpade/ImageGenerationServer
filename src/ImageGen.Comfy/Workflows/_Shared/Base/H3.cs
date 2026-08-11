@@ -74,9 +74,9 @@ internal static class H3
     /// <summary>Text→video: no source, the clip size is the aspect map's resolved <paramref name="dims"/>.</summary>
     public static ComfyWorkflowGraph BuildT2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, (int w, int h) dims)
+        string? lora, double loraStrength, bool ckAttention, (int w, int h) dims)
     {
-        Rig rig = Loaders(req, audioVae, lora, loraStrength);
+        Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         rig.Graph[H3Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = rig.Clip, Vae = rig.VideoVae, Prompt = inputs.Positive, Length = length, Width = dims.w, Height = dims.h };
         return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Generate);
     }
@@ -85,9 +85,9 @@ internal static class H3
     /// per-config <paramref name="budgetMp"/>).</summary>
     public static ComfyWorkflowGraph BuildI2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, double budgetMp)
+        string? lora, double loraStrength, bool ckAttention, double budgetMp)
     {
-        Rig rig = Loaders(req, audioVae, lora, loraStrength);
+        Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
 
         // Source = first frame. Scale to the config's megapixel budget (multiple of 32) and use those dims as the clip
@@ -140,9 +140,9 @@ internal static class H3
     /// ref_image_1…N. They condition the subject/identity — NOT a first frame.</summary>
     public static ComfyWorkflowGraph BuildRef2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, double budgetMp, int refMax, string refImageSize)
+        string? lora, double loraStrength, bool ckAttention, double budgetMp, int refMax, string refImageSize)
     {
-        Rig rig = Loaders(req, audioVae, lora, loraStrength);
+        Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
 
         // The primary reference sets the output canvas; picker references enter the ref node's autogrow ref_images
@@ -225,11 +225,12 @@ internal static class H3
     /// default keeps its INT8). Qwen3-VL text encoder through CLIPLoader type "minimax". TWO VAEs: video (frames)
     /// and audio (the native stereo track); the audio VAE is the audio_vae model-ref slot. An optional model-only
     /// LoRA (the Turbo configs' distilled low-step LoRA) sits between the loader and everything downstream.</summary>
-    private static Rig Loaders(ResolvedRequirements req, string audioVae, string? lora, double loraStrength)
+    private static Rig Loaders(ResolvedRequirements req, string audioVae, string? lora, double loraStrength, bool ckAttention)
     {
         ComfyWorkflowGraph g = new();
         g[H3Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // H3 sets no weight_dtype → AutoWeightDtype (native INT8 ConvRot)
         Output<Slot.Model> model = ComfyGraph.ApplyLora(g, UNETLoader.ModelOut(H3Nodes.Model), lora, loraStrength, H3Nodes.Lora);
+        model = CkAttention.Apply(g, model, ckAttention, H3Nodes.CkAttention);
         g[H3Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Minimax, Device = ComfyWidgets.Device.Default };
         g[H3Nodes.VideoVae] = new VAELoader { VaeName = req.RequiredVae() };
         g[H3Nodes.AudioVae] = new VAELoader { VaeName = audioVae };

@@ -1234,6 +1234,24 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void CkAttention_splices_the_backend_node_only_when_toggled_on()
+    {
+        // Off (the shipped default) emits no node — the graph stays byte-identical to the plain topology.
+        string off = BuildJson("minimax-h3-t2v", Gen);
+        Assert.DoesNotContain("\"ModelAttentionBackend\"", off);
+
+        // On: the selector splices onto the model chain with the comfy-kitchen kernel (H3 loader head, node 51).
+        Dictionary<string, object?> on = new() { [WorkflowParamKeys.CkAttention] = true };
+        string h3 = BuildJson("minimax-h3-t2v", Gen, on);
+        Assert.Contains("\"ModelAttentionBackend\"", h3);
+        Assert.Contains("comfy kitchen attention", h3);
+
+        // The same toggle rides the shared txt2img topology (node 37).
+        Assert.DoesNotContain("\"ModelAttentionBackend\"", BuildJson("flux1-dev", Gen));
+        Assert.Contains("\"ModelAttentionBackend\"", BuildJson("flux1-dev", Gen, on));
+    }
+
+    [Fact]
     public void AnimaEdit_appends_the_ui_negative_to_the_config_default()
     {
         // The core of the feature: a UI negative (WorkflowInputs.Negative) is merged with the model's config default

@@ -63,8 +63,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --- ComfyUI ---
 # Pinned to a fixed revision (tag or exact commit) rather than tracking a branch: an image that silently changes its
 # backend between builds is not reproducible, and a ComfyUI change can break a workflow graph. Bump it deliberately,
-# in both Dockerfiles. Currently an exact commit past v0.30.2 -- see Dockerfile for why (H3 AV sampling has no tag yet).
-ARG COMFYUI_REF=531ea7db139a856a830182694441e9755f0e260a
+# in both Dockerfiles. Currently an exact commit past v0.31.1 -- see Dockerfile for why (comfy-kitchen attention has no tag yet).
+ARG COMFYUI_REF=62b3c94bd45154f6486c7abf1b9efcacee96ea69
 # The ROCm wheel channel. ComfyUI's own AMD instructions use this exact index; keep it in step with the base image.
 ARG ROCM_CHANNEL=rocm7.2
 # init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.

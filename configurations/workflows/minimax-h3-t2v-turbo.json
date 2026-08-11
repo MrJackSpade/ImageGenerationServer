@@ -20,6 +20,10 @@
     },
     "loader": "unet",
     "clip_type": "minimax",
+    "ck_attention": {
+      "value": false,
+      "visibility": "exposed"
+    },
     "audio_vae": "minimax-h3-audio-vae",
     "steps": {
       "value": 6,
