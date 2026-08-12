@@ -920,6 +920,12 @@ Test-Workflow 'hunyuanimage21'                    -Overrides @{ steps = 1; width
 # HunyuanVideo — 8 steps not 20; 9 frames not 73; 544x544, its smallest supported
 Test-Workflow 'hunyuanvideo-t2v'                  -Overrides @{ steps = 1; length = 5; width = 544; height = 544 }
 
+# LTX-2.5 22B dev T2V — 8 steps not 30; 9 frames not 97
+Test-Workflow 'ltx25-t2v-dev'                     -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
+
+# LTX-2.5 22B T2V — 9 frames not 97
+Test-Workflow 'ltx25-t2v'                         -Overrides @{ steps = 1; length = 9; width = 128; height = 128 }
+
 # HunyuanVideo 1.5 480p T2V Full — 8 steps not 30; 9 frames not 49; 320x320, its smallest supported
 Test-Workflow 'hunyuanvideo15-480p-t2v-full'      -Overrides @{ steps = 1; length = 5; width = 320; height = 320 }
 

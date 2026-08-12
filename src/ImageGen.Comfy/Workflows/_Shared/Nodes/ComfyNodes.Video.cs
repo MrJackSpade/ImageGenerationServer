@@ -108,3 +108,15 @@ public sealed record LTXVScheduler : ComfyNode
     [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
     public static Output<Slot.Sigmas> Out(string id) => new(id, 0);
 }
+
+/// <summary>An empty LTX-Video latent (ComfyUI core) — seeds a text-to-video clip with no source image. Its
+/// width/height/length are literal render dimensions (length on the LTX 8n+1 grid). Output 0 = latent.</summary>
+public sealed record EmptyLTXVLatentVideo : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.EmptyLTXVLatentVideo;
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
+    [JsonPropertyName("length")] public required int Length { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
+    public static Output<Slot.Latent> Out(string id) => new(id, 0);
+}

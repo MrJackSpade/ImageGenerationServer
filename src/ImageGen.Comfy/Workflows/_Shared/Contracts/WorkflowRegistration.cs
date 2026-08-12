@@ -65,6 +65,7 @@ using ImageGen.Comfy.Generation.HunyuanVideoT2V;
 using ImageGen.Comfy.Generation.Ideogram4;
 using ImageGen.Comfy.Generation.Krea2;
 using ImageGen.Comfy.Generation.Krea2Refine;
+using ImageGen.Comfy.Generation.LtxV2T2V;
 using ImageGen.Comfy.Generation.Lumina2;
 using ImageGen.Comfy.Generation.MageFlow;
 using ImageGen.Comfy.Generation.MageFlowTurbo;
@@ -193,6 +194,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, WanA14bT2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, HunyuanVideo15T2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, HunyuanVideoT2VWorkflow>();
+        _ = services.AddSingleton<IWorkflow, LtxV2T2VWorkflow>();       // LTX-2 / 2.3 / 2.5 text→video (EmptyLTXVLatentVideo + LTXV sampler chain)
         // MiniMax-H3 — omni-modal video with NATIVE audio (mp4, not the silent SaveAnimatedWEBP). TWO task-specific
         // diffusion checkpoints over one shared encoder/VAE stack: fl2va serves T2V (generation) and I2V (edit,
         // optional last frame); ref2va (edit, subject-reference conditioning) is its own weight set.

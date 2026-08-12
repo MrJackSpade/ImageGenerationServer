@@ -1,0 +1,135 @@
+{
+  "id": "ltx25-t2v-dev",
+  "workflow": "ltx2-t2v",
+  "friendly_name": "LTX-2.5 22B dev (text)",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ltx-2-5-22b-dev",
+    "text_encoders": [
+      "gemma4-12b-ltx-2-5"
+    ],
+    "vae": "ltx-2-5-video-vae"
+  },
+  "params": {
+    "ck_attention": {
+      "value": false,
+      "visibility": "exposed"
+    },
+    "megapixels": {
+      "value": 0.4,
+      "visibility": "hidden"
+    },
+    "loader": "unet",
+    "clip_type": "ltxv",
+    "dual": false,
+    "steps": {
+      "value": 30,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 3,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "normal",
+      "visibility": "hidden"
+    },
+    "length": {
+      "value": 97,
+      "visibility": "exposed",
+      "min": 9,
+      "max": 161,
+      "step": 8
+    },
+    "fps": {
+      "value": 24,
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 832,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 480,
+      "visibility": "hidden"
+    },
+    "negative_supported": true,
+    "aspect": {
+      "square": [
+        640,
+        640
+      ],
+      "landscape": [
+        832,
+        480
+      ],
+      "portrait": [
+        480,
+        832
+      ]
+    }
+  },
+  "card": {
+    "architecture": "LTX-2.5 22B dev (non-distilled, Gemma-4-12B text encoder) — TEXT-TO-VIDEO",
+    "summary": "The NON-distilled LTX-2.5 22B (dev) text→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). The ComfyUI int8-convrot build on 24 GB, with negative-prompt support.",
+    "use_cases": [
+      "highest-quality LTX-2.5 text→video",
+      "detailed prompt-driven motion"
+    ],
+    "nsfw_capable": "no",
+    "commercial_use": "yes",
+    "pick_when": "You want LTX-2.5's best text→video quality and can accept ~30 steps.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the scene, motion, and camera; the prompt directs everything.",
+      "example": "a red convertible drives along a coastal road at golden hour, the camera tracking from a low angle, cinematic",
+      "overview": "For LTX-2.5 text-to-video, write a single present-tense paragraph that establishes the subject and setting, then directs the motion, camera, and any audio that unfolds — the model invents everything from the text.",
+      "instructions": "LTX-2.5 (the 22B, Gemma-4 text-encoder model) wants one flowing cinematic paragraph with no line breaks, lists, or fragments, written entirely in present tense (walks, tilts, flickers). Name the subject and setting first, then spend most of the prompt on what happens: how subjects move, how the camera behaves, and how the scene goes from still to motion. State the camera's perspective, angle, movement, and speed explicitly, and include audio cues (dialogue in quotes, music, ambient sound) since LTX-2.5 generates synced audio. Keep it to roughly 3-6 sentences / under ~200 words.",
+      "do": [
+        "Establish the subject and setting first, then build motion and camera on top",
+        "Write one flowing paragraph with no line breaks, bullets, or fragments",
+        "Use present tense for every action (walks, turns, drifts, flickers)",
+        "Name the camera perspective, angle, movement, and speed explicitly",
+        "Describe the transition from stillness into motion and how it resolves",
+        "Add audio cues - dialogue in quotation marks, music, ambient sound",
+        "Use concrete cinematographic and physical detail; keep it literal and ordered"
+      ],
+      "dont": [
+        "Don't omit the subject/scene - text→video invents everything from the words",
+        "Don't use line breaks, lists, headings, or keyword/tag spam",
+        "Don't write in past or future tense",
+        "Don't leave camera motion unspecified",
+        "Don't pad far beyond ~200 words"
+      ],
+      "examples": [
+        "A young woman stands at a rain-streaked cafe window at night, a white ceramic mug in both hands and warm interior lights glowing behind her. She slowly turns toward the camera and smiles as a soft breeze lifts a loose strand of hair, steam curling from the mug. The camera opens on a static medium close-up, then gently pushes in at eye level, the shallow depth of field softening the wet street outside. Quiet piano plays beneath the faint patter of rain on the glass.",
+        "A red vintage convertible drives along a sunlit coastal road, its polished hood catching the sky. The camera tracks smoothly alongside at hip height from a low angle, reflections sliding across the chrome while palm-frond shadows ripple over the paint. The move slows as warm afternoon light flares across the windshield, gentle ocean waves and distant gulls filling the ambience."
+      ],
+      "negative_guidance": "LTX-2.5 supports a negative prompt. On this full (real-CFG) dev path, negatives meaningfully shape the video (useful: subtitle, text, watermark, morphing, warping, flicker, jitter, shaky camera, deformed, extra limbs). On the distilled CFG~1 path they have little effect.",
+      "source": "https://huggingface.co/Lightricks/LTX-2.5 ; https://docs.ltx.video/open-source-model/usage-guides/text-to-video"
+    },
+    "negative": {
+      "supported": true,
+      "note": "non-distilled dev runs at real CFG, so negatives apply"
+    },
+    "speed": {
+      "class": "very_slow",
+      "measured_note": "24 GB video model; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Makes a higher-quality video from text on LTX-2.5 (slower). Describe the scene, action, and camera.",
+      "good_for": "highest-quality LTX-2.5 text→video"
+    }
+  },
+  "resolution": {
+    "min_w": 128,
+    "min_h": 128,
+    "max_w": 3840,
+    "max_h": 2160,
+    "step": 32
+  }
+}

@@ -43,6 +43,7 @@ internal static class ComfyNodeTypes
     public const string EmptyHunyuanVideo15Latent = "EmptyHunyuanVideo15Latent";
     public const string EmptyImage = "EmptyImage";
     public const string EmptyLatentImage = "EmptyLatentImage";
+    public const string EmptyLTXVLatentVideo = "EmptyLTXVLatentVideo";
     public const string EmptySD3LatentImage = "EmptySD3LatentImage";
     public const string Flux2Scheduler = "Flux2Scheduler";
     public const string FluxGuidance = "FluxGuidance";
