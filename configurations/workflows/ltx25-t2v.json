@@ -1,7 +1,7 @@
 {
   "id": "ltx25-t2v",
   "workflow": "ltx2-t2v",
-  "friendly_name": "LTX-2.5 22B (text)",
+  "friendly_name": "LTX-2.5 22B",
   "default": false,
   "requirements": {
     "checkpoint": "ltx-2-5-22b-distilled",

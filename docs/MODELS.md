@@ -1,6 +1,6 @@
 # Supported models
 
-**110 models, 157 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
+**108 models, 157 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
 
 A model can appear in more than one section: the same weights that generate a picture often also redraw one or drive an effect.
 
@@ -122,10 +122,8 @@ Animate a still, or generate a clip from a prompt.
 | **LTX-2** | Newer, larger LTX video model (19B) run as an 11GB Q4 GGUF + Gemma encoder, spilling to RAM on 8GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2) |
 | **LTX-2 dev** | The NON-distilled LTX-2 19B (dev) image→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). | [Hugging Face](https://huggingface.co/Lightricks/LTX-2) |
 | **LTX-2.3 22B** | The newest LTX flagship (2.3, 22B) — distilled-1.1, image→video, Q4_K_M GGUF on 24 GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.3) |
-| **LTX-2.5 22B** | The newest LTX flagship (2.5, 22B) — distilled, image→video, the ComfyUI int8-convrot build on 24 GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
-| **LTX-2.5 22B (text)** | The newest LTX flagship (2.5, 22B) — distilled, text→video, the ComfyUI int8-convrot build on 24 GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
-| **LTX-2.5 22B dev** | The NON-distilled LTX-2.5 22B (dev) image→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
-| **LTX-2.5 22B dev (text)** | The NON-distilled LTX-2.5 22B (dev) text→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
+| **LTX-2.5 22B** ×2 | The newest LTX flagship (2.5, 22B) — distilled, image→video, the ComfyUI int8-convrot build on 24 GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
+| **LTX-2.5 22B dev** ×2 | The NON-distilled LTX-2.5 22B (dev) image→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
 | **MiniMax-H3** ×2 | Animate a still into a clip with NATIVE stereo audio — voice, sound effects and music generated together with the motion. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **MiniMax-H3 (reference)** | Generate a clip whose SUBJECT is taken from your reference image(s), with NATIVE stereo audio — voice, sound effects and music generated together with the motion. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **MiniMax-H3 Turbo** ×2 | The fast MiniMax-H3 image→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
