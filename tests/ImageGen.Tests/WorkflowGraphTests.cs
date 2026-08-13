@@ -423,6 +423,7 @@ public sealed class WorkflowGraphTests
         Assert.Contains("audio_vae", json);                      // the ref node takes the audio VAE directly
         Assert.Contains("ref_image_size", json);
         Assert.Contains("\"max\"", json);
+        Assert.Contains("\"scheduler\":\"beta\"", json);          // reference-heavy base default
         Assert.Contains("VAEDecodeAudio", json);                 // native audio path intact
         Assert.Contains("CreateVideo", json);
         Assert.Contains("SaveVideo", json);
@@ -462,8 +463,8 @@ public sealed class WorkflowGraphTests
         Assert.Contains("ref_audios.ref_audio_0", json);
     }
 
-    /// <summary>ref2va refuses more picker references than the configured cap (reference_max=3), rather than silently
-    /// dropping them.</summary>
+    /// <summary>ref2va accepts eight picker images (plus the primary source = H3's nine-image limit) and refuses a
+    /// ninth picker image rather than silently dropping it.</summary>
     [Fact]
     public void MiniMaxH3_ref2v_rejects_more_references_than_the_cap()
     {
@@ -473,7 +474,43 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            References = [new ReferenceInput("r1.png", ReferenceKind.Image), new ReferenceInput("r2.png", ReferenceKind.Image), new ReferenceInput("r3.png", ReferenceKind.Image), new ReferenceInput("r4.png", ReferenceKind.Image)],
+            References = [.. Enumerable.Range(1, 9).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
+        };
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
+    }
+
+    [Fact]
+    public void MiniMaxH3_ref2v_accepts_nine_images_including_the_primary_source()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "subject_definitions: <Subject 1> is the person in <Picture 1>.",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [.. Enumerable.Range(1, 8).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
+        };
+        string json = BuildJson("minimax-h3-ref2v", inputs);
+        Assert.Contains("ref_images.ref_image_8", json);
+        Assert.DoesNotContain("ref_images.ref_image_9", json);
+    }
+
+    [Fact]
+    public void MiniMaxH3_ref2v_rejects_more_than_twelve_mixed_reference_files_including_the_source()
+    {
+        List<ReferenceInput> references =
+        [
+            .. Enumerable.Range(1, 8).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image)),
+            .. Enumerable.Range(1, 3).Select(i => new ReferenceInput($"v{i}.mp4", ReferenceKind.Video)),
+            new ReferenceInput("a1.wav", ReferenceKind.Audio),
+        ];
+        WorkflowInputs inputs = new()
+        {
+            Positive = "subject_definitions: <Subject 1> is the person in <Picture 1>.",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = references,
         };
         _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }

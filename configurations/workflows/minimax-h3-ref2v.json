@@ -34,7 +34,7 @@
       "visibility": "hidden"
     },
     "scheduler": {
-      "value": "simple",
+      "value": "beta",
       "visibility": "hidden"
     },
     "length": {
@@ -49,7 +49,7 @@
       "visibility": "hidden"
     },
     "reference_max": {
-      "value": 3,
+      "value": 8,
       "visibility": "hidden"
     },
     "ref_image_size": {
@@ -68,31 +68,32 @@
     "nsfw_capable": "limited",
     "pick_when": "You want a NEW clip featuring the subject from your reference image(s) — not to animate the current picture as its literal first frame (use MiniMax-H3 image→video for that).",
     "prompt": {
-      "format": "natural_language",
-      "guidance": "Refer to each reference by its tag — the open image is <Picture 1>, picker images continue <Picture 2>…, video clips are <Video 1>…, audio clips <Audio 1>… (1-based per type). Say which reference drives which element (identity, setting, motion, voice), then add an 'Audio:' line.",
-      "example": "Insert the woman from <Picture 1> into the scene of <Video 1>: use the setting, lighting and actions from <Video 1>, and the woman's appearance from <Picture 1>. Audio: distant city traffic, footsteps on wet pavement, a moody synth line.",
-      "overview": "The reference image(s) define WHO/WHAT appears — the model knows them only by their tags: <Picture i> for images (the open image is <Picture 1>), <Video k> for clips, <Audio j> for audio. State explicitly which tag drives identity, which drives setting/motion/camera, and which drives voice; then add an 'Audio:' line so H3 generates the soundtrack (ambience, effects, dialogue, score) jointly with the motion.",
-      "instructions": "Reference every attachment by its exact tag (<Picture 1>, <Video 1>, <Audio 1> — 1-based per type; no other tag names work) and assign each a role: e.g. 'the person from <Picture 1>' for identity, 'the setting and motion from <Video 1>'. Describe the action with concrete verbs (speed + direction), specify a camera move, and add atmosphere. Then add an 'Audio:' section describing ambience, timed sound effects, any dialogue, and score. Don't re-describe the referenced subject's static appearance (the references define it). Quote spoken lines. Timeline cues like [0s-2s] help place motion and audio beats.",
+      "format": "h3_context_ir",
+      "guidance": "Write H3's six-section Context-IR prompt: subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, and non_diegetic_music. Define reusable people, objects, scenes, and styles as <Subject N> sourced from exact attachment tags (<Picture N>, <Video N>, <Audio N>), then state explicitly what must be fully preserved.",
+      "example": "subject_definitions:\n<Subject 1> is the woman in <Picture 1>; preserve her facial identity, hair, age, and clothing.\n\nsummary:\n[reference generation] <Subject 1> walks through a rain-lit city plaza while remaining fully recognizable.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - retain the face, hair, body proportions, and clothing from <Picture 1>.\n\ndetailed_description:\nThe target video is realistic and cinematic. [Shot 1] <Subject 1> walks slowly toward the camera across wet pavement, glances left, and remains centered during a steady dolly-back. Warm storefront light reflects in the rain.\n\noverall_soundscape:\nSoft city traffic, footsteps on wet pavement, and distant crowd ambience.\n\nnon_diegetic_music:\nA restrained, moody synth motif.",
+      "overview": "References are most reliable when converted into H3 Context-IR. Images are numbered in connection order: the open image is <Picture 1>, and picker images continue <Picture 2>…. Define reusable identity/content as <Subject N>, cite its source tag, and describe its preservation in retention_analysis. Video soundtracks consume <Audio N> labels before standalone audio, so audio numbering can shift when a reference video contains sound.",
+      "instructions": "Use all six headings in order. In subject_definitions, define each reusable person, object, scene, style, action, or voice as <Subject N> and cite the source attachment tag. In summary, identify the task as [reference generation] and assign each reference a role. In retention_analysis, mark important identities fully_preserved and list the exact traits that must remain. In detailed_description, describe each shot, action, composition, lighting, camera movement, dialogue, and when each subject appears. Finish with overall_soundscape and non_diegetic_music. Picture and video tags are 1-based per type. Audio tags are also 1-based, but a connected video soundtrack receives an audio label before standalone audio clips.",
       "do": [
-        "Refer to references by their tags: <Picture 1>… / <Video 1>… / <Audio 1>…",
-        "Assign each tag a role: identity, setting, motion, camera, or voice",
-        "Describe the scene/setting the subject is placed into",
-        "Lead the subject's action with concrete verbs (speed + direction)",
-        "Specify a camera move (slow push-in, dolly out, pan, orbit, static)",
-        "Add an explicit 'Audio:' line: ambience, timed effects, dialogue, score",
-        "Quote spoken lines; use [0s-2s] cues to time beats"
+        "Use all six Context-IR sections in the documented order",
+        "Define <Subject N> from exact <Picture N>/<Video N>/<Audio N> sources",
+        "State identity-critical traits explicitly and mark them fully_preserved",
+        "Assign each reference one or more clear roles: identity, style, setting, motion, camera, or voice",
+        "Describe visible action, composition, lighting, and camera movement shot by shot",
+        "Describe ambience and effects in overall_soundscape and score in non_diegetic_music",
+        "Use <d>[Language] spoken words</d> for dialogue when exact speech matters"
       ],
       "dont": [
-        "Don't invent tag names — it's <Picture 1>, not <Image 1>/<Photo 1>; an unknown tag grounds to nothing",
-        "Don't re-describe the referenced subject's static appearance (the references define it)",
+        "Don't mention only <Picture 1> and assume H3 will infer which subject or traits must be retained",
+        "Don't use <Image N>/<Photo N>; attachment source tags are <Picture N>/<Video N>/<Audio N>",
+        "Don't label a standalone clip <Audio 1> without accounting for earlier reference-video soundtracks",
         "Don't rely on negative prompts — this is a distilled model",
-        "Don't forget the audio: leaving it out wastes H3's main capability"
+        "Don't omit retention_analysis or the two audio sections"
       ],
       "examples": [
-        "The woman from <Picture 1> walks slowly toward the camera across a sunlit plaza, glancing to her side. Steady dolly-back keeping her centered, shallow depth of field, warm afternoon light. Audio: soft crowd murmur, distant fountain, a gentle acoustic guitar motif.",
-        "Insert the woman from <Picture 1> into the scene of <Video 1>: keep the setting, lighting, camera and actions of <Video 1>, replacing its subject with the woman from <Picture 1>. Audio: match the ambience of <Video 1>."
+        "subject_definitions: <Subject 1> is the woman in <Picture 1>; preserve her facial identity, hair, age, and clothing. summary: [reference generation] <Subject 1> walks through a sunlit plaza. retention_analysis: <Subject 1> (appears in [Shot 1]): fully_preserved - retain all identity-defining traits from <Picture 1>. detailed_description: [Shot 1] <Subject 1> walks slowly toward the camera while a steady dolly-back keeps her centered. overall_soundscape: Soft crowd murmur and a distant fountain. non_diegetic_music: Gentle acoustic guitar.",
+        "subject_definitions: <Subject 1> is the woman in <Picture 1>; her appearance is preserved, while her walking motion, setting, lighting, and camera path come from <Video 1>. summary: [reference generation] Transfer <Video 1>'s scene and motion to <Subject 1>. retention_analysis: <Subject 1>: fully_preserved - keep her identity and clothing; <Video 1>: attribute_transfer - reuse its motion, setting, lighting, and camera. detailed_description: Describe the transferred shot beat by beat. overall_soundscape: Reference the appropriate <Audio N> after accounting for the soundtrack paired with <Video 1>. non_diegetic_music: Preserve or describe the intended score."
       ],
-      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/Comfy-Org/MiniMax-H3"
+      "source": "https://docs.comfy.org/tutorials/video/minimax/minimax-h3 ; https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_ref_en.md"
     },
     "negative": {
       "supported": false,
@@ -103,7 +104,7 @@
       "measured_note": "large video model with a 32B text encoder; reference tokens ride every sampling step. Not yet benchmarked on this box."
     },
     "ui_help": {
-      "note": "Generate a clip WITH sound featuring the subject from your reference image(s). Describe the scene, motion and audio.",
+      "note": "Generate a clip WITH sound from reference media. For reliable identity, define <Subject N> from each attachment and include retention_analysis plus the documented Context-IR sections.",
       "good_for": "reference→video with native audio"
     },
     "edit_use_cases": [
@@ -113,7 +114,7 @@
       "types": [
         {
           "kind": "image",
-          "max": 3
+          "max": 8
         },
         {
           "kind": "video",
@@ -124,7 +125,7 @@
           "max": 3
         }
       ],
-      "hint": "The current image is <Picture 1>; picker refs follow as <Picture 2>…, <Video 1>…, <Audio 1>… Refer to them by those exact tags in the prompt and say which drives identity, setting/motion, and voice."
+      "hint": "The current image is <Picture 1>; up to eight picker images follow as <Picture 2>…<Picture 9>. Define reusable content as <Subject N> sourced from those tags. Video soundtracks take <Audio N> labels before standalone audio, and H3 allows at most 12 source/reference files total."
     }
   },
   "resolution": {

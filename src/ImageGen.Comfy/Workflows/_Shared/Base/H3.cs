@@ -61,9 +61,10 @@ internal static class H3
     /// <summary>First id for the per-audio-reference <c>LoadAudio</c> nodes (the node's <c>ref_audios</c> input).</summary>
     private const int RefAudioBase = 90;
 
-    /// <summary>The <see cref="MiniMaxH3ReferenceToVideo"/> node's structural autogrow caps: up to 3 driving videos and 3
-    /// driving audios (image refs are capped per-config by <c>reference_max</c>). A last-resort graph-integrity guard —
-    /// the accepted-per-kind policy is enforced upstream at enqueue against the workflow's declared reference types.</summary>
+    /// <summary>The <see cref="MiniMaxH3ReferenceToVideo"/> node's structural autogrow caps: up to 9 images (the edit
+    /// source plus 8 picker images), 3 driving videos and 3 driving audios, with at most 12 files across all families.
+    /// Per-kind picker policy is enforced upstream from the workflow card; these are last-resort graph guards.</summary>
+    private const int MaxTotalReferenceFiles = 12;
     private const int MaxVideoRefs = 3;
     private const int MaxAudioRefs = 3;
 
@@ -157,6 +158,12 @@ internal static class H3
         IReadOnlyList<string> imageRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Image).Select(r => r.Name)];
         IReadOnlyList<string> videoRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Video).Select(r => r.Name)];
         IReadOnlyList<string> audioRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Audio).Select(r => r.Name)];
+        int totalReferenceFiles = 1 + imageRefNames.Count + videoRefNames.Count + audioRefNames.Count; // source + picker refs
+        if (totalReferenceFiles > MaxTotalReferenceFiles)
+        {
+            throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxTotalReferenceFiles} source/reference files total; got {totalReferenceFiles}.");
+        }
+
         if (imageRefNames.Count > refMax)
         {
             throw new RenderValidationException($"This configuration accepts at most {refMax} reference image(s); got {imageRefNames.Count}.");
