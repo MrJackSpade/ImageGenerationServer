@@ -9,7 +9,10 @@
     "text_encoders": [
       "qwen3vl-8b-boogu"
     ],
-    "vae": "flux2-vae"
+    "vae": "flux2-vae",
+    "extra": [
+      "comfyui-ideogram4-debanner"
+    ]
   },
   "params": {
     "megapixels": {
@@ -72,8 +75,8 @@
     }
   },
   "card": {
-    "architecture": "Ideogram 4 — dual conditional/unconditional UNet CFG (DualModelGuider + CFGOverride + Ideogram4Scheduler), Qwen3-VL 8B encoder, Flux2 VAE; fp8 (no bf16 published)",
-    "summary": "Ideogram's open text-to-image model, renowned for best-in-class typography/text rendering and prompt adherence. Uses a two-UNet guidance scheme (both ~9.3 GB models resident at once), so it's VRAM-heavy — tight on a 24 GB card. Accepts plain prompts or a structured-JSON caption.",
+    "architecture": "Ideogram 4 — conditional UNET with a frozen first-step residual correction, separate unconditional UNET, DualModelGuider + CFGOverride + Ideogram4Scheduler, Qwen3-VL 8B encoder, Flux2 VAE; fp8 (no bf16 published)",
+    "summary": "Ideogram's open text-to-image model, renowned for best-in-class typography/text rendering and prompt adherence. Uses a two-UNet guidance scheme (both ~9.3 GB models resident at once), so it's VRAM-heavy — tight on a 24 GB card. A reversible conditional-model correction reduces the repeatable unwanted card/text composition so ordinary prompts can be used directly.",
     "use_cases": [
       "legible in-image text, logos, posters, typography",
       "strong prompt adherence and layout control",

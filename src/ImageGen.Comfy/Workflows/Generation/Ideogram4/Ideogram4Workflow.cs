@@ -8,13 +8,10 @@ namespace ImageGen.Comfy.Generation.Ideogram4;
 /// <c>SamplerCustomAdvanced</c>. Flux2 latent + flux2-vae, Qwen3-VL 8B encoder (CLIPLoader type "ideogram4"); the flow
 /// shift (1.0) is baked in at load. VERY VRAM-heavy: BOTH ~9.3 GB UNets are resident during sampling. The
 /// unconditional companion model is carried in the configuration's "motion_model" requirement slot.
-/// Exact lift of the official Comfy-Org image_ideogram4_t2i template's sampling path.
-///
-/// NOTE: its configuration is currently <b>hidden</b> (visible:false in workflows.json). Ideogram 4 only renders from
-/// a full structured-JSON caption; a raw natural-language prompt trips a safety placeholder baked into the weights
-/// ("Image blocked by safety filter"). The official workflow does NOT contain an LLM — it ships a system prompt the
-/// user pastes into their own chat model to produce the JSON. Making plain prompts work here needs an NL->JSON
-/// rewriter (an LLM running that system prompt) which the app no longer has. Re-enable once that exists.
+/// The sampler path is an exact lift of the official Comfy-Org image_ideogram4_t2i template. Before that path, the
+/// conditional model alone receives the frozen two-stage first-step residual correction. The separately loaded
+/// unconditional model is deliberately untouched. The correction was validated on fixed held-out prompt/seed pairs
+/// and is installed as a reversible first-party ComfyUI node pack; no checkpoint file is modified.
 /// </summary>
 public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 {
@@ -36,6 +33,13 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[Ideogram4WorkflowNodes.UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
+        g[Ideogram4WorkflowNodes.Debanner] = new DebannerTwoStagePatch
+        {
+            Model = UNETLoader.ModelOut(Nodes.Model),
+            Enabled = true,
+            Stage1Strength = DebannerTwoStagePatch.VALIDATED_STAGE1_STRENGTH,
+            Stage2Strength = DebannerTwoStagePatch.VALIDATED_STAGE2_STRENGTH,
+        };
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
@@ -44,7 +48,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 
         // Asymmetric CFG: CFGOverride raises guidance on the conditional model over the last (1 - start_percent) of the
         // schedule; DualModelGuider then fuses the (override) conditional and the unconditional model at the base cfg.
-        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = UNETLoader.ModelOut(Nodes.Model), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
+        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = DebannerTwoStagePatch.Out(Ideogram4WorkflowNodes.Debanner), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
         g[Ideogram4WorkflowNodes.Guider] = new DualModelGuider
         {
             Model = CFGOverride.Out(Ideogram4WorkflowNodes.CfgOverride),

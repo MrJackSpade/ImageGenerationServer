@@ -1,0 +1,76 @@
+Id: core-ideogram4-block-patch
+Title: Ideogram 4 residual-block patch point
+Does: Lets a model patch inspect or adjust Ideogram 4 residual tokens after each transformer block. With no registered callback, the model executes the same operations as before.
+Target: .
+Base: comfyanonymous/ComfyUI
+Why: The Ideogram 4 early-trajectory correction must enter the conditional model's residual stream during the first forward pass. ComfyUI exposes no Ideogram-specific block patch point upstream, so the correction node would otherwise register but never be called. The hook supplies block index, image-token offset and grid shape, and sigma without changing the unpatched path.
+---
+diff --git a/comfy/ldm/ideogram4/model.py b/comfy/ldm/ideogram4/model.py
+index 12e1a14f..8f32d1a0 100644
+--- a/comfy/ldm/ideogram4/model.py
++++ b/comfy/ldm/ideogram4/model.py
+@@ -157,5 +157,7 @@ class Ideogram4Transformer(nn.Module):
+     """A single Ideogram 4 backbone operating on a packed token sequence."""
+ 
++    supports_ideogram4_block_patch = True
++
+     def __init__(self, emb_dim, num_layers, num_heads, intermediate_size, adaln_dim,
+                  in_channels, llm_features_dim, rope_theta, mrope_section, norm_eps,
+                  dtype=None, device=None, operations=None):
+@@ -180,7 +182,7 @@ class Ideogram4Transformer(nn.Module):
+ 
+         self.final_layer = Ideogram4FinalLayer(emb_dim, in_channels, adaln_dim, dtype=dtype, device=device, operations=operations)
+ 
+-    def _backbone(self, llm_features, x, t, position_ids, attn_mask, indicator, transformer_options={}):
++    def _backbone(self, llm_features, x, t, position_ids, attn_mask, indicator, image_shape=None, transformer_options={}):
+         indicator = indicator.to(torch.long)
+         output_image_mask = (indicator == OUTPUT_IMAGE_INDICATOR).to(x.dtype).unsqueeze(-1)
+ 
+@@ -212,9 +214,28 @@ class Ideogram4Transformer(nn.Module):
+         if attn_mask is not None and attn_mask.dtype == torch.bool:
+             attn_mask = torch.zeros_like(attn_mask, dtype=h.dtype).masked_fill_(~attn_mask, -torch.finfo(h.dtype).max)
+ 
+-        for layer in self.layers:
++        patches = transformer_options.get("patches", {})
++        transformer_options["total_blocks"] = len(self.layers)
++        transformer_options["block_type"] = "ideogram4"
++        image_offset = llm_features.shape[1] if llm_features is not None else 0
++        sigma = 1.0 - t
++
++        for block_index, layer in enumerate(self.layers):
++            transformer_options["block_index"] = block_index
+             h = layer(h, attn_mask, freqs_cis, adaln_input, transformer_options=transformer_options)
+ 
++            if "ideogram4_block" in patches:
++                for patch in patches["ideogram4_block"]:
++                    out = patch({
++                        "img": h,
++                        "block_index": block_index,
++                        "img_offset": image_offset,
++                        "image_shape": image_shape,
++                        "sigma": sigma,
++                        "transformer_options": transformer_options,
++                    })
++                    h = out["img"]
++
+         return self.final_layer(h, adaln_input)
+ 
+ 
+@@ -288,7 +309,7 @@ class Ideogram4Transformer2DModel(Ideogram4Transformer):
+             # Block-diagonal mask from segment ids: (B, 1, L, L), True = attend.
+             attn_mask = (segment_ids.unsqueeze(2) == segment_ids.unsqueeze(1)).unsqueeze(1)
+ 
+-        out = self._backbone(context_chunk, x_full, t_chunk, position_ids, attn_mask, indicator,
++        out = self._backbone(context_chunk, x_full, t_chunk, position_ids, attn_mask, indicator, image_shape=(gh, gw),
+                              transformer_options=transformer_options)
+         return self._tokens_to_img(out[:, L_text:], gh, gw)
+ 
+@@ -302,7 +323,7 @@ class Ideogram4Transformer2DModel(Ideogram4Transformer):
+         indicator = torch.full((B, L_img), OUTPUT_IMAGE_INDICATOR, dtype=torch.long, device=device)
+ 
+         # Image-only sequence is a single segment -> no mask, full attention, no LLM context.
+-        out = self._backbone(None, img_tokens, t_chunk, position_ids, None, indicator, transformer_options=transformer_options)
++        out = self._backbone(None, img_tokens, t_chunk, position_ids, None, indicator, image_shape=(gh, gw), transformer_options=transformer_options)
+         return self._tokens_to_img(out, gh, gw)
+ 
+     def forward(self, x, timesteps, context=None, attention_mask=None, transformer_options={}, **kwargs):

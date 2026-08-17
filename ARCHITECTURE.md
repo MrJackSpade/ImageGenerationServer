@@ -729,15 +729,16 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
     frequency-analyze. This is an accepted trade-off given the "accidental viewing" threat model, not a defect;
     prompts (randomized) don't leak it. Strengthening it would mean giving up searchable tags.
 
-11. **Ideogram 4 is integrated but hidden (`visible:false`), pending a caption rewriter.** The `ideogram4`
-    workflow + its fp8 weights (conditional + unconditional UNets) are in place and verified to render, but
-    Ideogram 4 only produces a real image from a *full structured-JSON caption*; a raw natural-language prompt
-    trips a placeholder ("Image blocked by safety filter") baked into the model weights (there is no
-    safety-filter code in ComfyUI — it's the model's own output). Ideogram's official ComfyUI workflow contains
-    **no LLM**: it ships a system prompt the user pastes into their own chat model to make the JSON, then pastes
-    it back. Making plain prompts work in-app needs an NL→JSON rewriter (an LLM running that system prompt),
-    which this app no longer has (the planner LLM was removed). So the config is hidden via `_hidden_reason` in
-    `workflows.json`; flip `visible` to `true` once a rewriter exists. Krea 2 and Boogu have no such requirement.
+11. **Ideogram 4 carries a first-step conditional-model correction.** The `ideogram4` graph loads separate
+    conditional and unconditional fp8 UNets. It passes only the conditional model through the first-party
+    `DebannerTwoStagePatch` node, then through `CFGOverride`, before `DualModelGuider` combines it with the
+    untouched unconditional model. The node rotates image-token residuals at blocks 20–28 during step 0/pass 0
+    using two frozen, held-out-validated directions and restores each token's norm. It clones the in-memory model
+    patcher and never writes checkpoint weights. The node pack and its 5.3 MB tensor bundle live under
+    `comfy-nodes/ComfyUI-Ideogram4Debanner`; `comfyui-ideogram4-debanner` presence-gates the workflow so a fresh
+    renderer cannot advertise a graph whose custom node is absent. The paired reversible
+    `core-ideogram4-block-patch` adds the otherwise-missing residual hook; the node pack registers nothing when
+    that capability marker is absent, so missing the core patch also keeps the workflow unavailable.
 
 ---
 

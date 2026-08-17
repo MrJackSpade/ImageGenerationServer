@@ -32,6 +32,17 @@
       "why": "SaveConditioning / LoadConditioning -- encode a fixed prompt once and reuse it across a clip's per-frame graphs, instead of paying for the text encoder on every frame. Its cache/ directory is a runtime artifact and is not part of the patch."
     },
     {
+      "dir": "ComfyUI-Ideogram4Debanner",
+      "order": 125,
+      "id": "node-ideogram4-debanner",
+      "title": "Ideogram 4 early-trajectory correction",
+      "does": "Applies the validated two-stage first-step residual correction to the Ideogram 4 conditional model, reducing unwanted card and text-overlay compositions while leaving the checkpoint files untouched.",
+      "why": "The Ideogram 4 workflow accepts ordinary prompts, but some prompt-and-seed pairs enter two repeatable unwanted composition modes during the first denoising step. This pack carries the frozen held-out-validated directions and a reversible MODEL patch node. The workflow applies it only to the conditional UNET before guidance; the unconditional UNET remains unchanged.",
+      "provides": [
+        "comfyui-ideogram4-debanner"
+      ]
+    },
+    {
       "dir": "ComfyUI-ColorCorrectedComposite",
       "order": 130,
       "id": "node-color-corrected-composite",

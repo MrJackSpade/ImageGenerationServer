@@ -2073,6 +2073,43 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("\"steps\":28", overridden);
     }
 
+    /// <summary>
+    /// The correction belongs on the conditional Ideogram model before its late-guidance wrapper. Wiring the
+    /// unconditional model through it would change both CFG branches and invalidate the held-out validation.
+    /// </summary>
+    [Fact]
+    public void Ideogram4_patches_only_the_conditional_model_before_guidance()
+    {
+        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
+        WorkflowConfiguration? cfg = catalog.FindConfig("ideogram4");
+        Assert.NotNull(cfg);
+        IWorkflow? wf = registry.Find(cfg.WorkflowName);
+        Assert.NotNull(wf);
+
+        string json = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+        JsonElement patch = root.GetProperty("41");
+        JsonElement patchInputs = patch.GetProperty("inputs");
+
+        Assert.Equal("DebannerTwoStagePatch", patch.GetProperty("class_type").GetString());
+        Assert.True(patchInputs.GetProperty("enabled").GetBoolean());
+        Assert.Equal(0.4, patchInputs.GetProperty("stage1_strength").GetDouble());
+        Assert.Equal(0.6422342360019688, patchInputs.GetProperty("stage2_strength").GetDouble());
+
+        string conditionalLoader = patchInputs.GetProperty("model")[0].RequireString();
+        Assert.Equal("UNETLoader", root.GetProperty(conditionalLoader).GetProperty("class_type").GetString());
+        Assert.NotEqual("40", conditionalLoader);
+
+        JsonElement cfgModel = root.GetProperty("2").GetProperty("inputs").GetProperty("model");
+        Assert.Equal("41", cfgModel[0].GetString());
+        Assert.Equal(0, cfgModel[1].GetInt32());
+
+        JsonElement negativeModel = root.GetProperty("22").GetProperty("inputs").GetProperty("model_negative");
+        Assert.Equal("40", negativeModel[0].GetString());
+        Assert.Equal("UNETLoader", root.GetProperty("40").GetProperty("class_type").GetString());
+    }
+
     [Fact]
     public void WanA14b_i2v_builds_a_two_expert_moe_video_graph()
     {

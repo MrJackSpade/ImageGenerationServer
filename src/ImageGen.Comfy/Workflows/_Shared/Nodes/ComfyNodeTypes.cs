@@ -32,6 +32,7 @@ internal static class ComfyNodeTypes
     public const string ControlNetInpaintingAliMamaApply = "ControlNetInpaintingAliMamaApply";
     public const string ControlNetLoader = "ControlNetLoader";
     public const string CreateVideo = "CreateVideo";
+    public const string DebannerTwoStagePatch = "DebannerTwoStagePatch";
     public const string DeflickerAuto = "DeflickerAuto";
     public const string DifferentialDiffusion = "DifferentialDiffusion";
     public const string DualCLIPLoader = "DualCLIPLoader";

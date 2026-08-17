@@ -45,6 +45,7 @@ public static class ComfyPatchCatalog
         public const string Does = "does";
         public const string Why = "why";
         public const string Warn = "warn";
+        public const string Provides = "provides";
     }
 
     /// <summary>File names and globs used when discovering patches and packs.</summary>
@@ -217,7 +218,15 @@ public static class ComfyPatchCatalog
     }
 
     /// <summary>One entry in <c>comfy-nodes/packs.json</c> — what a pack directory is, for the patch that installs it.</summary>
-    private sealed record PackEntry(string Dir, int Order, string Id, string Title, string Does, string Why, string? Warn);
+    private sealed record PackEntry(
+        string Dir,
+        int Order,
+        string Id,
+        string Title,
+        string Does,
+        string Why,
+        string? Warn,
+        IReadOnlyList<string> Provides);
 
     private static List<ComfyPatch> ReadNodePacks(string nodesDirectory)
     {
@@ -243,6 +252,33 @@ public static class ComfyPatchCatalog
                     : throw new LoadException($"packs.json: an entry has no \"{field}\".");
             }
 
+            IReadOnlyList<string> OptionalStrings(string field)
+            {
+                if (!element.TryGetProperty(field, out JsonElement value))
+                {
+                    return [];
+                }
+
+                if (value.ValueKind != JsonValueKind.Array)
+                {
+                    throw new LoadException($"packs.json: \"{field}\" must be an array of strings.");
+                }
+
+                List<string> result = [];
+                foreach (JsonElement item in value.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString()))
+                    {
+                        throw new LoadException($"packs.json: \"{field}\" contains an empty or non-string value.");
+                    }
+
+                    result.Add(item.GetString() ?? throw new LoadException(
+                        $"packs.json: \"{field}\" contains a null string."));
+                }
+
+                return result;
+            }
+
             PackEntry entry = new(
                 Dir: Required(PackProperty.Dir),
                 Order: element.TryGetProperty(PackProperty.Order, out JsonElement order) ? order.GetInt32() : int.MaxValue,
@@ -250,7 +286,8 @@ public static class ComfyPatchCatalog
                 Title: Required(PackProperty.Title),
                 Does: Required(PackProperty.Does),
                 Why: Required(PackProperty.Why),
-                Warn: element.TryGetProperty(PackProperty.Warn, out JsonElement warn) ? warn.GetString() : null);
+                Warn: element.TryGetProperty(PackProperty.Warn, out JsonElement warn) ? warn.GetString() : null,
+                Provides: OptionalStrings(PackProperty.Provides));
 
             string packRoot = Path.Combine(nodesDirectory, entry.Dir);
             if (!Directory.Exists(packRoot))
@@ -302,7 +339,7 @@ public static class ComfyPatchCatalog
             Rev: null,
             Warn: entry.Warn,
             Order: entry.Order,
-            Provides: [],
+            Provides: entry.Provides,
             Files: files);
     }
 
