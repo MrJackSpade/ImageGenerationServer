@@ -2094,7 +2094,7 @@ public sealed class WorkflowGraphTests
 
         Assert.Equal("Ideogram4CorrectionPatch", patch.GetProperty("class_type").GetString());
         Assert.True(patchInputs.GetProperty("enabled").GetBoolean());
-        Assert.Equal(0.55, patchInputs.GetProperty("strength").GetDouble());
+        Assert.Equal(0.6, patchInputs.GetProperty("strength").GetDouble());
 
         ParamSpec strength = Assert.Single(wf.Schema, s => s.Key == WorkflowParamKeys.DebannerStrength);
         Assert.Equal("Debanner Strength", strength.Label);

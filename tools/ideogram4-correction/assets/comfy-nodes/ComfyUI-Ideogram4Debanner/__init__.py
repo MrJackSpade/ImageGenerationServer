@@ -23,7 +23,7 @@ class Ideogram4CorrectionPatch:
                 "model": ("MODEL",),
                 "enabled": ("BOOLEAN", {"default": True}),
                 "strength": (
-                    "FLOAT", {"default": 0.55, "min": 0.0, "max": 2.0, "step": 0.01}
+                    "FLOAT", {"default": 0.6, "min": 0.0, "max": 2.0, "step": 0.01}
                 ),
             }
         }
@@ -32,7 +32,7 @@ class Ideogram4CorrectionPatch:
     FUNCTION = "patch"
     CATEGORY = "model_patches/ideogram4"
 
-    def patch(self, model, enabled=True, strength=0.55):
+    def patch(self, model, enabled=True, strength=0.6):
         strength = float(strength)
 
         # A disabled or zero-strength node is a strict model-level no-op.

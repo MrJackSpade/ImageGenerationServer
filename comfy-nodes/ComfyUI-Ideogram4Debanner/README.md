@@ -11,7 +11,7 @@ normal node-presence check keeps the workflow unavailable instead of silently ru
 
 Configured operation:
 
-- Step 0, conditional pass 0, blocks 25–28, strength `0.55`.
+- Step 0, conditional pass 0, blocks 25–28, strength `0.6`.
 - Subtract the spatial direction and restore every edited image token to its original norm.
 
 The disabled state or zero strength is a strict model-level no-op: it returns the original

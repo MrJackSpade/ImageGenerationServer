@@ -37,7 +37,7 @@ param(
     [string] $ConfigFile = (Join-Path $PSScriptRoot 'reproduction.config.psd1'),
 
     [Parameter()]
-    [string] $Root = (Join-Path (Get-Location) 'ideogram4-correction-reproduction-v3'),
+    [string] $Root = (Join-Path (Get-Location) 'ideogram4-correction-reproduction-v4'),
 
     [Parameter()]
     [ValidateSet('Smoke', 'FullValidation', 'Custom')]
@@ -182,7 +182,7 @@ if ($Mode -eq 'Custom') {
 # These versions, hashes, dimensions, and strengths are deliberately not user configuration.
 # Changing one creates a different experiment and should result in a new bundle identifier.
 $ComfyCommit = '62b3c94bd45154f6486c7abf1b9efcacee96ea69'
-$MethodBundleId = 'ideogram4_correction_v3'
+$MethodBundleId = 'ideogram4_correction_v4'
 $BundledArtifactRoot = Join-Path $PSScriptRoot 'assets'
 $FrozenCasesSchema = 'ideogram4_frozen_validation_cases_v2'
 $FrozenCasesPath = Join-Path $PSScriptRoot 'frozen-validation.cases.psd1'
@@ -193,8 +193,8 @@ $TorchVisionVersion = '0.27.0+cu130'
 $TorchAudioVersion = '2.11.0+cu130'
 $PipVersion = '25.0.1'
 $ModelLicenseUrl = 'https://huggingface.co/ideogram-ai/ideogram-4-fp8/blob/main/LICENSE.md'
-$RootSchema = 'ideogram4_correction_reproduction_root_v3'
-$ResultSchema = 'ideogram4_correction_reproduction_results_v3'
+$RootSchema = 'ideogram4_correction_reproduction_root_v4'
+$ResultSchema = 'ideogram4_correction_reproduction_results_v4'
 $RuntimeReserveBytes = 12L * 1024L * 1024L * 1024L
 $MinimumTestedVramMiB = 24000
 $MinimumFreeVramMiB = 22000
@@ -239,23 +239,23 @@ $ArtifactSpecs = @(
     },
     [pscustomobject]@{
         RelativePath = 'comfy-nodes/ComfyUI-Ideogram4Debanner/__init__.py'
-        Bytes = 5001L
-        Sha256 = '60e305f839ce5f2760e21560fbdba38a7f69302f46586e1b12c7de8a107db13f'
+        Bytes = 4999L
+        Sha256 = 'a46c0c5ec65788293b76b6b96d9d0d8476c63207b8542a58ba37d036ee4790fe'
     },
     [pscustomobject]@{
         RelativePath = 'comfy-nodes/ComfyUI-Ideogram4Debanner/README.md'
-        Bytes = 873L
-        Sha256 = 'b8a71b8915d1d673e473c724656b658e4de1c065109081828ef126bff2ae4bac'
+        Bytes = 872L
+        Sha256 = '2876686765fefe0b5f3a855991faaa2bccf52667ecdf9d299f85bf04ff9159df'
     },
     [pscustomobject]@{
         RelativePath = 'comfy-nodes/ComfyUI-Ideogram4Debanner/models/ideogram4_correction_v1.json'
-        Bytes = 679L
-        Sha256 = '2100664d88a3e191c92a6bb6f8a08bc4f41c65892fbb153eac54a1bd1e509fbb'
+        Bytes = 678L
+        Sha256 = '3cdf853e415f93b5beaffb42e574f0d4b183b08054a9aa90e2594c2f21a301f1'
     },
     [pscustomobject]@{
         RelativePath = 'comfy-nodes/ComfyUI-Ideogram4Debanner/models/ideogram4_correction_v1.safetensors'
         Bytes = 2359784L
-        Sha256 = '6abb54adae513bd9a57a862b5f9c3ea3e658c0e36fb2f7f4e794bc7bd9b92165'
+        Sha256 = '5ce873adae5701e9d5f05ebfa8f8b923a1622745c6e9a2bcb3e22fd090ed30c3'
     }
 )
 
@@ -766,7 +766,7 @@ function Get-ReproductionCases {
 # Build the exact API graph for one arm:
 #   baseline  - raw conditional model
 #   zero      - correction node present at zero strength (identity gate)
-#   corrected - frozen direction at strength 0.55
+#   corrected - frozen direction at strength 0.6
 function New-Workflow {
     param(
         [Parameter(Mandatory)][string] $Text,
@@ -797,7 +797,7 @@ function New-Workflow {
     # The correction touches only the conditional model before late guidance is applied.
     # The separately loaded unconditional model remains connected directly to the guider.
     if ($Arm -ne 'baseline') {
-        $strength = if ($Arm -eq 'zero') { 0.0 } else { 0.55 }
+        $strength = if ($Arm -eq 'zero') { 0.0 } else { 0.6 }
         $workflow['49'] = [ordered]@{
             class_type = 'Ideogram4CorrectionPatch'
             inputs = [ordered]@{
@@ -1574,7 +1574,7 @@ if __name__ == "__main__":
                 core_patch_sha256 = (Get-Sha256 -Path $patchPath)
                 comfy_core_original_sha256 = $OriginalIdeogramModelSha256
                 comfy_core_patched_sha256 = (Get-Sha256 -Path $coreModelPath)
-                correction_tensor_sha256 = 'b8da29505666bb1e568b475de31b38a2b705e9202f0e96df1c9ef0e9f604500a'
+                correction_tensor_sha256 = '5ce873adae5701e9d5f05ebfa8f8b923a1622745c6e9a2bcb3e22fd090ed30c3'
             }
             environment = [ordered]@{
                 operating_system = [Environment]::OSVersion.VersionString
@@ -1605,7 +1605,7 @@ if __name__ == "__main__":
                 target_pass = 0
                 operation = 'subtract direction from each image token, then restore that token norm'
                 blocks = @(25, 26, 27, 28)
-                strength = 0.55
+                strength = 0.6
                 checkpoint_mutated = $false
             }
             strict_noop = [ordered]@{

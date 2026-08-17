@@ -115,7 +115,7 @@ If the four model files already exist, they can be verified and referenced read-
   and late guidance 3 over the last 30 percent.
 
 The correction edits only the in-memory conditional-model residual stream during the first
-denoising pass. It uses blocks 25–28 at strength 0.55. Each edited image token has its
+denoising pass. It uses blocks 25–28 at strength 0.6. Each edited image token has its
 original norm restored. The separate unconditional model and all checkpoint files remain
 unchanged.
 

@@ -733,7 +733,7 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
     conditional and unconditional fp8 UNets. It passes only the conditional model through the first-party
     `Ideogram4CorrectionPatch` node, then through `CFGOverride`, before `DualModelGuider` combines it with the
     untouched unconditional model. The node rotates image-token residuals at blocks 25–28 during step 0/pass 0
-    using one frozen direction at strength 0.55 and restores each token's norm. It clones the in-memory model
+    using one frozen direction at strength 0.6 and restores each token's norm. It clones the in-memory model
     patcher and never writes checkpoint weights. The node pack and its 2.36 MB tensor bundle live under
     `comfy-nodes/ComfyUI-Ideogram4Debanner`; `comfyui-ideogram4-debanner` presence-gates the workflow so a fresh
     renderer cannot advertise a graph whose custom node is absent. The paired reversible

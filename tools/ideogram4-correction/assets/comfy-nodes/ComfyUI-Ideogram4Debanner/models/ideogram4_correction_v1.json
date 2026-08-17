@@ -1,12 +1,12 @@
 {
   "schema": "ideogram4_correction_tensor_bundle_v1",
   "tensor_file": "ideogram4_correction_v1.safetensors",
-  "tensor_sha256": "6abb54adae513bd9a57a862b5f9c3ea3e658c0e36fb2f7f4e794bc7bd9b92165",
+  "tensor_sha256": "5ce873adae5701e9d5f05ebfa8f8b923a1622745c6e9a2bcb3e22fd090ed30c3",
   "tensor_bytes": 2359784,
   "source_hash": "80f438aafeb16e9eec45814946afe3f6231aeb7a4a69a08626287c2050439c64",
   "configuration": {
     "blocks": [25, 26, 27, 28],
-    "strength": 0.55,
+    "strength": 0.6,
     "step": 0,
     "pass": 0,
     "operation": "subtract_direction_then_preserve_each_image_token_norm"
