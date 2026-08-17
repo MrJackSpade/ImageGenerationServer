@@ -20,6 +20,8 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
     public override IReadOnlyList<ParamSpec> Schema =>
     [
         .. Txt2ImgWorkflowBase.SharedSchema,
+        new() { Key = WorkflowParamKeys.DebannerStage1Strength, Type = ParamType.Double, Min = 0, Max = 2, Step = 0.01, Label = "Debanner Stage 1 Strength" },
+        new() { Key = WorkflowParamKeys.DebannerStage2Strength, Type = ParamType.Double, Min = 0, Max = 3, Step = 0.01, Label = "Debanner Stage 2 Strength" },
         new() { Key = WorkflowParamKeys.CfgOverride, Type = ParamType.Double, Min = 1,   Max = 30, Label = "Late-step CFG" },
         new() { Key = WorkflowParamKeys.Mu,          Type = ParamType.Double, Min = -10, Max = 10, Label = "Schedule shift (mu)" },
         new() { Key = WorkflowParamKeys.Std,         Type = ParamType.Double, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
@@ -36,9 +38,9 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         g[Ideogram4WorkflowNodes.Debanner] = new DebannerTwoStagePatch
         {
             Model = UNETLoader.ModelOut(Nodes.Model),
-            Enabled = true,
-            Stage1Strength = DebannerTwoStagePatch.VALIDATED_STAGE1_STRENGTH,
-            Stage2Strength = DebannerTwoStagePatch.VALIDATED_STAGE2_STRENGTH,
+            Enabled = p.DebannerStage1Strength != 0 || p.DebannerStage2Strength != 0,
+            Stage1Strength = p.DebannerStage1Strength,
+            Stage2Strength = p.DebannerStage2Strength,
         };
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };

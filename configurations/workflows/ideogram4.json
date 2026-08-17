@@ -22,6 +22,14 @@
     "loader": "unet",
     "clip_type": "ideogram4",
     "latent": "flux2",
+    "debanner_stage1_strength": {
+      "value": 0.4,
+      "visibility": "hidden"
+    },
+    "debanner_stage2_strength": {
+      "value": 0.6422342360019688,
+      "visibility": "hidden"
+    },
     "steps": {
       "value": 20,
       "visibility": "hidden"

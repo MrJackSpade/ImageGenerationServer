@@ -34,6 +34,8 @@ internal static class WorkflowParamKeys
     public const string ColorCorrect = "color_correct";
     public const string ColorCorrection = "color_correction";
     public const string ControlnetStrength = "controlnet_strength";
+    public const string DebannerStage1Strength = "debanner_stage1_strength";
+    public const string DebannerStage2Strength = "debanner_stage2_strength";
     public const string Denoise = "denoise";
     public const string Device = "device";
     public const string Diffdiff = "diffdiff";
