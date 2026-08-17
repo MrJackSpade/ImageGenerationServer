@@ -2,5 +2,5 @@
   "id": "comfyui-ideogram4-debanner",
   "kind": "custom_node",
   "label": "Ideogram 4 early-trajectory correction",
-  "node": "DebannerTwoStagePatch"
+  "node": "Ideogram4CorrectionPatch"
 }

@@ -1,0 +1,3 @@
+# One prompt per line. Blank lines and comments are ignored.
+a ceramic teapot beside a folded linen napkin
+a stone footbridge over a shallow woodland creek in autumn

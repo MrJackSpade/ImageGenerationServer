@@ -9,9 +9,9 @@ namespace ImageGen.Comfy.Generation.Ideogram4;
 /// shift (1.0) is baked in at load. VERY VRAM-heavy: BOTH ~9.3 GB UNets are resident during sampling. The
 /// unconditional companion model is carried in the configuration's "motion_model" requirement slot.
 /// The sampler path is an exact lift of the official Comfy-Org image_ideogram4_t2i template. Before that path, the
-/// conditional model alone receives the frozen two-stage first-step residual correction. The separately loaded
-/// unconditional model is deliberately untouched. The correction was validated on fixed held-out prompt/seed pairs
-/// and is installed as a reversible first-party ComfyUI node pack; no checkpoint file is modified.
+/// conditional model alone receives the frozen first-step residual correction. The separately loaded unconditional
+/// model is deliberately untouched. The correction is installed as a reversible first-party ComfyUI node pack; no
+/// checkpoint file is modified.
 /// </summary>
 public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 {
@@ -20,8 +20,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
     public override IReadOnlyList<ParamSpec> Schema =>
     [
         .. Txt2ImgWorkflowBase.SharedSchema,
-        new() { Key = WorkflowParamKeys.DebannerStage1Strength, Type = ParamType.Double, Min = 0, Max = 2, Step = 0.01, Label = "Debanner Stage 1 Strength" },
-        new() { Key = WorkflowParamKeys.DebannerStage2Strength, Type = ParamType.Double, Min = 0, Max = 3, Step = 0.01, Label = "Debanner Stage 2 Strength" },
+        new() { Key = WorkflowParamKeys.DebannerStrength, Type = ParamType.Double, Min = 0, Max = 2, Step = 0.01, Label = "Debanner Strength" },
         new() { Key = WorkflowParamKeys.CfgOverride, Type = ParamType.Double, Min = 1,   Max = 30, Label = "Late-step CFG" },
         new() { Key = WorkflowParamKeys.Mu,          Type = ParamType.Double, Min = -10, Max = 10, Label = "Schedule shift (mu)" },
         new() { Key = WorkflowParamKeys.Std,         Type = ParamType.Double, Min = 0.1, Max = 5,  Label = "Schedule spread (std)" },
@@ -35,12 +34,11 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         // Conditional (req.Checkpoint) + unconditional (req.MotionModel slot) diffusion models.
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
         g[Ideogram4WorkflowNodes.UncondModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
-        g[Ideogram4WorkflowNodes.Debanner] = new DebannerTwoStagePatch
+        g[Ideogram4WorkflowNodes.Debanner] = new Ideogram4CorrectionPatch
         {
             Model = UNETLoader.ModelOut(Nodes.Model),
-            Enabled = p.DebannerStage1Strength != 0 || p.DebannerStage2Strength != 0,
-            Stage1Strength = p.DebannerStage1Strength,
-            Stage2Strength = p.DebannerStage2Strength,
+            Enabled = p.DebannerStrength != 0,
+            Strength = p.DebannerStrength,
         };
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
@@ -50,7 +48,7 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
 
         // Asymmetric CFG: CFGOverride raises guidance on the conditional model over the last (1 - start_percent) of the
         // schedule; DualModelGuider then fuses the (override) conditional and the unconditional model at the base cfg.
-        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = DebannerTwoStagePatch.Out(Ideogram4WorkflowNodes.Debanner), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
+        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = Ideogram4CorrectionPatch.Out(Ideogram4WorkflowNodes.Debanner), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
         g[Ideogram4WorkflowNodes.Guider] = new DualModelGuider
         {
             Model = CFGOverride.Out(Ideogram4WorkflowNodes.CfgOverride),

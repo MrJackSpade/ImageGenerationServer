@@ -2092,17 +2092,13 @@ public sealed class WorkflowGraphTests
         JsonElement patch = root.GetProperty("41");
         JsonElement patchInputs = patch.GetProperty("inputs");
 
-        Assert.Equal("DebannerTwoStagePatch", patch.GetProperty("class_type").GetString());
+        Assert.Equal("Ideogram4CorrectionPatch", patch.GetProperty("class_type").GetString());
         Assert.True(patchInputs.GetProperty("enabled").GetBoolean());
-        Assert.Equal(0.4, patchInputs.GetProperty("stage1_strength").GetDouble());
-        Assert.Equal(0.6422342360019688, patchInputs.GetProperty("stage2_strength").GetDouble());
+        Assert.Equal(0.55, patchInputs.GetProperty("strength").GetDouble());
 
-        ParamSpec stage1 = Assert.Single(wf.Schema, s => s.Key == WorkflowParamKeys.DebannerStage1Strength);
-        ParamSpec stage2 = Assert.Single(wf.Schema, s => s.Key == WorkflowParamKeys.DebannerStage2Strength);
-        Assert.Equal("Debanner Stage 1 Strength", stage1.Label);
-        Assert.Equal("Debanner Stage 2 Strength", stage2.Label);
-        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.DebannerStage1Strength].Visibility);
-        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.DebannerStage2Strength].Visibility);
+        ParamSpec strength = Assert.Single(wf.Schema, s => s.Key == WorkflowParamKeys.DebannerStrength);
+        Assert.Equal("Debanner Strength", strength.Label);
+        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.DebannerStrength].Visibility);
 
         string conditionalLoader = patchInputs.GetProperty("model")[0].RequireString();
         Assert.Equal("UNETLoader", root.GetProperty(conditionalLoader).GetProperty("class_type").GetString());
@@ -2118,29 +2114,25 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
-    public void Ideogram4_debanner_strengths_are_standard_overridable_parameters_and_zero_disables_the_patch()
+    public void Ideogram4_debanner_strength_is_a_standard_overridable_parameter_and_zero_disables_the_patch()
     {
         string adjustedJson = BuildJson("ideogram4", Gen, new Dictionary<string, object?>
         {
-            [WorkflowParamKeys.DebannerStage1Strength] = 1.25,
-            [WorkflowParamKeys.DebannerStage2Strength] = 2.5,
+            [WorkflowParamKeys.DebannerStrength] = 1.25,
         });
         using JsonDocument adjustedDocument = JsonDocument.Parse(adjustedJson);
         JsonElement adjustedInputs = adjustedDocument.RootElement.GetProperty("41").GetProperty("inputs");
         Assert.True(adjustedInputs.GetProperty("enabled").GetBoolean());
-        Assert.Equal(1.25, adjustedInputs.GetProperty("stage1_strength").GetDouble());
-        Assert.Equal(2.5, adjustedInputs.GetProperty("stage2_strength").GetDouble());
+        Assert.Equal(1.25, adjustedInputs.GetProperty("strength").GetDouble());
 
         string disabledJson = BuildJson("ideogram4", Gen, new Dictionary<string, object?>
         {
-            [WorkflowParamKeys.DebannerStage1Strength] = 0.0,
-            [WorkflowParamKeys.DebannerStage2Strength] = 0.0,
+            [WorkflowParamKeys.DebannerStrength] = 0.0,
         });
         using JsonDocument document = JsonDocument.Parse(disabledJson);
         JsonElement patchInputs = document.RootElement.GetProperty("41").GetProperty("inputs");
         Assert.False(patchInputs.GetProperty("enabled").GetBoolean());
-        Assert.Equal(0, patchInputs.GetProperty("stage1_strength").GetDouble());
-        Assert.Equal(0, patchInputs.GetProperty("stage2_strength").GetDouble());
+        Assert.Equal(0, patchInputs.GetProperty("strength").GetDouble());
     }
 
     [Fact]

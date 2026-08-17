@@ -32,7 +32,6 @@ internal static class ComfyNodeTypes
     public const string ControlNetInpaintingAliMamaApply = "ControlNetInpaintingAliMamaApply";
     public const string ControlNetLoader = "ControlNetLoader";
     public const string CreateVideo = "CreateVideo";
-    public const string DebannerTwoStagePatch = "DebannerTwoStagePatch";
     public const string DeflickerAuto = "DeflickerAuto";
     public const string DifferentialDiffusion = "DifferentialDiffusion";
     public const string DualCLIPLoader = "DualCLIPLoader";
@@ -58,6 +57,7 @@ internal static class ComfyNodeTypes
     public const string HunyuanVideo15SuperResolution = "HunyuanVideo15SuperResolution";
     public const string IPAdapter = "IPAdapter";
     public const string IPAdapterUnifiedLoader = "IPAdapterUnifiedLoader";
+    public const string Ideogram4CorrectionPatch = "Ideogram4CorrectionPatch";
     public const string Ideogram4Scheduler = "Ideogram4Scheduler";
     public const string ImageBatch = "ImageBatch";
     public const string ImageBlend = "ImageBlend";
