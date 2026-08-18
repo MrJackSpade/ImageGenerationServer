@@ -1,6 +1,6 @@
 # Supported models
 
-**108 models, 157 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
+**108 models, 158 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
 
 A model can appear in more than one section: the same weights that generate a picture often also redraw one or drive an effect.
 
@@ -82,6 +82,7 @@ Take an existing image and change it. Multi-turn: each edit builds on the last.
 | **FLUX.2-Klein 4B** ×2 | Newest small Flux.2: 4B unified generate+edit model with a Qwen3 encoder, fast (4-step), Apache-licensed, strong complex-prompt understanding for its size. | [Hugging Face](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) |
 | **FLUX.2-Klein 4B Base** | Reinterpret an entire existing image through FLUX.2-Klein 4B using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but… | [Hugging Face](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4B) |
 | **FLUX.2-Klein 9B** ×2 | Higher-quality Klein with best-in-family complex-prompt handling; non-commercial. | [Hugging Face](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B) |
+| **Ideogram 4** | Refine or redraw an existing image through Ideogram 4. | [Hugging Face](https://huggingface.co/Comfy-Org/Ideogram-4) |
 | **Krea 2 (Base + Turbo Polish)** | Best-of-both Krea 2: the RAW base gives strong prompt adherence and composition at real CFG, then the distilled Turbo polishes texture and aesthetic over the base latent in a few steps. | [Hugging Face](https://huggingface.co/Comfy-Org/Krea-2) |
 | **Krea 2 AnyPaint** ×2 | Arbitrary-mask inpainting on Krea 2 Turbo. | [Hugging Face](https://huggingface.co/Comfy-Org/Krea-2) · [Hugging Face](https://huggingface.co/yijunwang2/krea2-anypaint) |
 | **Krea 2 Turbo** | Polish any existing image through Krea 2 Turbo — the source is VAE-encoded to the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept while Turbo reworks texture… | [Hugging Face](https://huggingface.co/Comfy-Org/Krea-2) |

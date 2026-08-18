@@ -1,0 +1,116 @@
+{
+  "id": "ideogram4-refine",
+  "workflow": "ideogram4-refine",
+  "friendly_name": "Ideogram 4",
+  "edit_group": "Redraw",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ideogram4",
+    "motion_model": "ideogram4-unconditional",
+    "text_encoders": [
+      "qwen3vl-8b-boogu"
+    ],
+    "vae": "flux2-vae",
+    "extra": [
+      "comfyui-ideogram4-debanner"
+    ]
+  },
+  "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "cfg_override": {
+      "value": 3.0,
+      "visibility": "hidden"
+    },
+    "mu": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "std": {
+      "value": 1.75,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "denoise": {
+      "value": 0.35,
+      "visibility": "hidden",
+      "min": 0.0,
+      "max": 1.0
+    },
+    "debanner_strength": {
+      "value": 0.6,
+      "visibility": "hidden"
+    },
+    "negative_supported": false,
+    "prompt_template": {
+      "value": "{\n  \"high_level_description\": {{ prompt | tojson }},\n  \"compositional_deconstruction\": {\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"desc\": {{ prompt | tojson }}\n      }\n    ]\n  }\n}",
+      "visibility": "hidden"
+    }
+  },
+  "card": {
+    "architecture": "Ideogram 4 conditional + unconditional UNets, native Ideogram schedule, whole-image partial-denoise img2img through the Flux2 VAE",
+    "summary": "Refine or redraw an existing image through Ideogram 4. The source is VAE-encoded and sampled over only the selected low-noise tail, preserving composition at low strength while improving typography, prompt adherence, and design detail.",
+    "use_cases": [
+      "repair or sharpen text in an existing design",
+      "polish posters and marketing images while retaining layout",
+      "redraw an existing composition with stronger prompt adherence"
+    ],
+    "nsfw_capable": "limited (safety-aligned)",
+    "commercial_use": "open weights — verify the Ideogram 4 license for your use",
+    "pick_when": "You have an existing image whose layout should remain recognizable, but want Ideogram 4 to improve its text, design detail, or adherence to a full-image prompt.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Describe the complete target image; quote literal text to render it. Refine strength controls how much the result may depart from the source.",
+      "example": "A retro travel poster, bold headline reading \"IDEOGRAM\" in cream serif letters over a sunset mountain range, clean vector style",
+      "instructions": "Write a full description of the desired result, not an edit command. The prompt is wrapped in Ideogram's structured JSON caption template. Use lower refine strength to retain the source and higher strength to redraw toward the prompt. No user negative prompt.",
+      "do": [
+        "Quote literal on-image text",
+        "Describe the entire target image and layout",
+        "Start around 0.35 refine strength"
+      ],
+      "dont": [
+        "Write only a terse change instruction",
+        "Expect a separate negative prompt to apply",
+        "Use high refine strength when exact source preservation matters"
+      ],
+      "negative_guidance": "No user negative prompt — guidance comes from the dedicated unconditional UNet.",
+      "source": "https://huggingface.co/Comfy-Org/Ideogram-4"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Guidance uses a dedicated unconditional model; no user negative."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "Runs only a denoise tail, but both ~9.3 GB fp8 UNets remain resident during sampling.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send an image plus a full description of the target. Refine strength controls how strongly Ideogram redraws it.",
+      "good_for": "typography, poster, and design refinement while preserving layout"
+    },
+    "edit_use_cases": [
+      "whole-image img2img: refine an existing image through Ideogram 4 from a full target description"
+    ]
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}

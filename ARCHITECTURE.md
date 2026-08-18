@@ -729,14 +729,16 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
     frequency-analyze. This is an accepted trade-off given the "accidental viewing" threat model, not a defect;
     prompts (randomized) don't leak it. Strengthening it would mean giving up searchable tags.
 
-11. **Ideogram 4 carries a first-step conditional-model correction.** The `ideogram4` graph loads separate
-    conditional and unconditional fp8 UNets. It passes only the conditional model through the first-party
+11. **Ideogram 4 carries a first-step conditional-model correction.** The `ideogram4` generation graph and
+    `ideogram4-refine` whole-image img2img graph load separate conditional and unconditional fp8 UNets. The refine
+    graph VAE-encodes its source and selects the low-sigma tail with `SplitSigmasDenoise`; both graphs pass only the
+    conditional model through the first-party
     `Ideogram4CorrectionPatch` node, then through `CFGOverride`, before `DualModelGuider` combines it with the
     untouched unconditional model. The node rotates image-token residuals at blocks 25–28 during step 0/pass 0
     using one frozen direction at strength 0.6 and restores each token's norm. It clones the in-memory model
     patcher and never writes checkpoint weights. The node pack and its 2.36 MB tensor bundle live under
-    `comfy-nodes/ComfyUI-Ideogram4Debanner`; `comfyui-ideogram4-debanner` presence-gates the workflow so a fresh
-    renderer cannot advertise a graph whose custom node is absent. The paired reversible
+    `comfy-nodes/ComfyUI-Ideogram4Debanner`; `comfyui-ideogram4-debanner` presence-gates both workflows so a fresh
+    renderer cannot advertise either graph when its custom node is absent. The paired reversible
     `core-ideogram4-block-patch` adds the otherwise-missing residual hook; the node pack registers nothing when
     that capability marker is absent, so missing the core patch also keeps the workflow unavailable.
 

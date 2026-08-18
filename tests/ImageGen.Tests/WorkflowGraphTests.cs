@@ -900,6 +900,7 @@ public sealed class WorkflowGraphTests
     [InlineData("anima-redraw")]
     [InlineData("photanima-redraw")]
     [InlineData("krea2-redraw")]
+    [InlineData("ideogram4-refine")]
     public void Redraw_denoise_knob_steps_finely_enough_to_reach_its_default(string configId)
     {
         // A 0.1 step can't express 0.35 (and makes 0.6 a coarse slider). The configs omit `step`, so the value has to
@@ -926,6 +927,7 @@ public sealed class WorkflowGraphTests
         // fill vs −6 with a region prompt). Getting any of these wrong is a lie to the user.
         Assert.Equal(PromptSemantics.WholeImage, new Img2ImgRedrawWorkflow().PromptSemantics);
         Assert.Equal(PromptSemantics.WholeImage, new Krea2RedrawWorkflow().PromptSemantics);
+        Assert.Equal(PromptSemantics.WholeImage, new Ideogram4RefineWorkflow().PromptSemantics);
         Assert.Equal(PromptSemantics.WholeImage, new AnimaInpaintWorkflow().PromptSemantics);
         Assert.Equal(PromptSemantics.WholeImage, new AnimaOutpaintWorkflow().PromptSemantics);
         Assert.Equal(PromptSemantics.WholeImage, new FluxFillOutpaintWorkflow().PromptSemantics);
@@ -941,7 +943,7 @@ public sealed class WorkflowGraphTests
     {
         // The "Redraw" header carries the category, so the names must not repeat it.
         (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
-        foreach (string? id in new[] { "anima-redraw", "photanima-redraw", "krea2-redraw" })
+        foreach (string? id in new[] { "anima-redraw", "photanima-redraw", "krea2-redraw", "ideogram4-refine" })
         {
             WorkflowConfiguration? cfg = catalog.FindConfig(id);
             Assert.NotNull(cfg);
@@ -2133,6 +2135,36 @@ public sealed class WorkflowGraphTests
         JsonElement patchInputs = document.RootElement.GetProperty("41").GetProperty("inputs");
         Assert.False(patchInputs.GetProperty("enabled").GetBoolean());
         Assert.Equal(0, patchInputs.GetProperty("strength").GetDouble());
+    }
+
+    [Fact]
+    public void Ideogram4Refine_samples_the_source_latent_over_only_the_denoise_tail()
+    {
+        string json = BuildJson("ideogram4-refine", Edit);
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
+
+        Assert.Equal("VAEEncode", root.GetProperty("12").GetProperty("class_type").GetString());
+        Assert.Equal("10", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+
+        JsonElement scheduler = root.GetProperty("17");
+        Assert.Equal("Ideogram4Scheduler", scheduler.GetProperty("class_type").GetString());
+        Assert.Equal(1216, scheduler.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(832, scheduler.GetProperty("inputs").GetProperty("height").GetInt32());
+
+        JsonElement split = root.GetProperty("27");
+        Assert.Equal("SplitSigmasDenoise", split.GetProperty("class_type").GetString());
+        Assert.Equal(0.35, split.GetProperty("inputs").GetProperty("denoise").GetDouble());
+        Assert.Equal("17", split.GetProperty("inputs").GetProperty("sigmas")[0].GetString());
+
+        JsonElement samplerInputs = root.GetProperty("23").GetProperty("inputs");
+        Assert.Equal("12", samplerInputs.GetProperty("latent_image")[0].GetString());
+        Assert.Equal("27", samplerInputs.GetProperty("sigmas")[0].GetString());
+        Assert.Equal(1, samplerInputs.GetProperty("sigmas")[1].GetInt32());
+
+        Assert.Equal("41", root.GetProperty("2").GetProperty("inputs").GetProperty("model")[0].GetString());
+        Assert.Equal("40", root.GetProperty("22").GetProperty("inputs").GetProperty("model_negative")[0].GetString());
+        Assert.True(new Ideogram4RefineWorkflow().PreservesComposition);
     }
 
     [Fact]

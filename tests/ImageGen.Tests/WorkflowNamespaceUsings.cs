@@ -6,6 +6,7 @@ global using ImageGen.Comfy.Edit.FluxFillInpaint;
 global using ImageGen.Comfy.Edit.FluxFillOutpaint;
 global using ImageGen.Comfy.Edit.FluxKontextEdit;
 global using ImageGen.Comfy.Edit.Img2ImgRedraw;
+global using ImageGen.Comfy.Edit.Ideogram4Refine;
 global using ImageGen.Comfy.Edit.Krea2Redraw;
 global using ImageGen.Comfy.Edit.QwenImageEdit;
 global using ImageGen.Comfy.Edit.QwenPixelize;

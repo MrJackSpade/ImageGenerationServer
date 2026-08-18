@@ -19,6 +19,7 @@ using ImageGen.Comfy.Edit.FluxKontextEdit;
 using ImageGen.Comfy.Edit.FluxKontextPixelize;
 using ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 using ImageGen.Comfy.Edit.Img2ImgRedraw;
+using ImageGen.Comfy.Edit.Ideogram4Refine;
 using ImageGen.Comfy.Edit.Krea2AnyPaint;
 using ImageGen.Comfy.Edit.Krea2Redraw;
 using ImageGen.Comfy.Edit.LineThickenAnime2Sketch;
@@ -147,6 +148,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, Krea2AnyPaintInpaintWorkflow>();   // Krea 2 Turbo + AnyPaint LoRA — arbitrary-mask inpaint (reference attention + per-step token pinning, no composite)
         _ = services.AddSingleton<IWorkflow, Krea2AnyPaintOutpaintWorkflow>();  // same LoRA/nodes, canvas grown by per-side pads
         _ = services.AddSingleton<IWorkflow, Img2ImgRedrawWorkflow>();  // whole-image img2img redraw on any gen checkpoint (anima / photanima)
+        _ = services.AddSingleton<IWorkflow, Ideogram4RefineWorkflow>(); // whole-image partial-denoise refine on Ideogram 4's native dual-model graph
         _ = services.AddSingleton<IWorkflow, Krea2RedrawWorkflow>();    // whole-image partial-denoise polish on Krea 2 Turbo
         _ = services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)
         _ = services.AddSingleton<IWorkflow, SeedVr2UpscaleWorkflow>(); // one-step diffusion upscale/restore (SeedVR2 3B)
