@@ -1212,6 +1212,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 SubmitResult editSubmit = await _comfy.SubmitEditAsync(src, editFinal.Rendered, editNeg, edit.Workflow, references, edit.Overrides, graphMask, lastFrameBytes, ct);
                 promptId = editSubmit.PromptId;
                 slot.EtaSignature = editSubmit.Eta;
+                slot.ModelPrompt = editSubmit.ModelPrompt;
             }
             else
             {
@@ -1313,6 +1314,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 SubmitResult submit = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
                 promptId = submit.PromptId;
                 slot.EtaSignature = submit.Eta;
+                slot.ModelPrompt = submit.ModelPrompt;
             }
 
             if (!resuming)
@@ -1967,6 +1969,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 Height = s.Height == 0 ? null : s.Height,
                 Error = s.Error,
                 EffectivePrompt = s.EffectivePrompt,
+                ModelPrompt = s.ModelPrompt,
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
                 Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), s.GeneratedTokens?.Contains(kv.Key) == true))],
@@ -2231,6 +2234,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 EditResult = sr.Edit is { } e ? new EditResult { Changed = e.Changed, ChangeScore = e.ChangeScore } : null,
                 Error = parseError ?? sr.Error,
                 EffectivePrompt = sr.EffectivePrompt,
+                ModelPrompt = sr.ModelPrompt,
                 RawPrompt = sr.RawPrompt,
                 RawNegativePrompt = sr.RawNegativePrompt,
                 Marks = marks,

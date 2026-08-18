@@ -57,7 +57,7 @@ public sealed class JobRecord
 /// One image slot of a <see cref="JobRecord"/>. Mirrors dbo.JobSlot; carries everything the worker needs to (re)render
 /// it — the SPEC, from <see cref="Workflow"/> down — and everything needed to write its HistoryEntry on completion
 /// (<see cref="ImageId"/>, <see cref="EffectivePrompt"/>, <see cref="RawPrompt"/>, <see cref="Marks"/>).
-/// <para>Encryption is a property of a FIELD: the two protected text fields are encrypted and the ids, flags and
+/// <para>Encryption is a property of a FIELD: protected prompt text is encrypted and the ids, flags and
 /// numbers beside them are not. A foreign key sealed inside an encrypted JSON blob is not a foreign key — nothing can
 /// join it, count it, or garbage-collect against it, so the images it references leak.</para>
 /// <para>Typed columns also delete a whole failure class. In a serialized JSON contract a renamed property
@@ -83,8 +83,11 @@ public sealed class JobSlotRecord
     [AllowNullable("null = image not yet produced; mirrors the nullable dbo.JobSlot column. A produced image is never 0px, so a default can't stand in for absent")]
     public int? Height { get; set; }
     public string? Error { get; set; }
-    /// <summary>The finalized prompt this slot rendered.</summary>
+    /// <summary>The concise finalized prompt before workflow-specific prompt-template rendering.</summary>
     public string? EffectivePrompt { get; set; }
+    /// <summary>The exact positive prompt embedded in the submitted workflow graph after prompt-template rendering.
+    /// User text: ENCRYPTED at rest. Null for slots recorded before this value was captured.</summary>
+    public string? ModelPrompt { get; set; }
     /// <summary>The prompt verbatim in marker form (random injections included) — copied to the history row on
     /// completion, so a job resumed after a restart still records one.</summary>
     public string? RawPrompt { get; set; }

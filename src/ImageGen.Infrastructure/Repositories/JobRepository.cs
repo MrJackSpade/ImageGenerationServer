@@ -15,7 +15,7 @@ namespace ImageGen.Infrastructure.Repositories;
 /// because the singleton <c>JobQueue</c> writes through it on every state transition — same singleton-safe exception as
 /// <see cref="ImageBlobRepository"/> (it holds no mutable state; it opens a fresh connection per call). See
 /// ARCHITECTURE.md §4.
-/// <para>Encryption is per FIELD. The user's text — Job.Prompt, and a slot's EffectivePrompt / RawPrompt /
+/// <para>Encryption is per FIELD. The user's text — Job.Prompt, and a slot's EffectivePrompt / ModelPrompt / RawPrompt /
 /// RawNegativePrompt / Prompt / NegativePrompt — is randomized-encrypted under the job owner's key. A slot's MARK
 /// tokens are deterministically encrypted, so equality and IN (…) still work over them. Everything else — ids,
 /// workflow, states, flags, numbers, timings — is plaintext, because none of it is protected and hiding it behind a
@@ -39,7 +39,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
             "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
             "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
-            "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground";
+            "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground, ModelPrompt";
     }
 
     public async Task UpsertAsync(JobRecord job, CancellationToken ct)
@@ -87,6 +87,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = cmd.AddParam("@score", (object?)slot.Edit?.ChangeScore ?? DBNull.Value);
             _ = cmd.AddParam("@error", (object?)slot.Error ?? DBNull.Value);
             _ = cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@modelPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.ModelPrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@started", (object?)slot.GenStartedAtUtc ?? DBNull.Value);
@@ -376,13 +377,13 @@ WHERE JobId = @jobId
         string jobId;
         int slotIndex;
         bool isEdit;
-        string? workflow, prompt, negative, aspect, tagTypes, overrides, loras, source, mask, lastFrame;
+        string? workflow, prompt, negative, aspect, tagTypes, overrides, loras, source, mask, lastFrame, modelPrompt;
         bool? randomArtist, randomPrompt;
         double? temperature;
         await using (DbCommand cmd = conn.Command(
             "SELECT j.UserId, s.JobId, s.SlotIndex, s.IsEdit, s.Workflow, s.Prompt, s.NegativePrompt, s.Aspect, " +
             "       s.RandomArtist, s.RandomPrompt, s.Temperature, s.TagTypesJson, s.OverridesJson, " +
-            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson " +
+            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson, s.ModelPrompt " +
             "FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId WHERE s.ImageId = @id;"))
         {
             _ = cmd.AddParam("@id", imageId);
@@ -409,6 +410,7 @@ WHERE JobId = @jobId
             mask = reader.IsDBNull(14) ? null : reader.GetString(14);
             lastFrame = reader.IsDBNull(15) ? null : reader.GetString(15);
             loras = reader.IsDBNull(16) ? null : reader.GetString(16);
+            modelPrompt = reader.IsDBNull(17) ? null : reader.GetString(17);
         }
 
         if (workflow is null)
@@ -429,12 +431,16 @@ WHERE JobId = @jobId
             }
         }
 
-        // Only the two text fields were ever encrypted; decrypting is keyed by the owning user.
+        // Prompt-bearing fields are encrypted; decrypting is keyed by the owning user. Generation Values calls the
+        // exact positive text embedded in the submitted graph `prompt`, because that is the value the model used. A
+        // pre-ModelPrompt row falls back to its original request text rather than showing an empty prompt.
+        string? requestPrompt = await _cipher.DecryptNullableAsync(userId, prompt, ct);
+        string? submittedPrompt = await _cipher.DecryptNullableAsync(userId, modelPrompt, ct);
         string json = JsonSerializer.Serialize(new
         {
             kind = isEdit ? "edit" : "generate",
             workflow,
-            prompt = await _cipher.DecryptNullableAsync(userId, prompt, ct),
+            prompt = submittedPrompt ?? requestPrompt,
             negativePrompt = await _cipher.DecryptNullableAsync(userId, negative, ct),
             aspect,
             randomArtist,
@@ -467,6 +473,7 @@ WHERE JobId = @jobId
         foreach (JobSlotRecord slot in job.Slots)
         {
             slot.EffectivePrompt = await _cipher.DecryptNullableAsync(job.UserId, slot.EffectivePrompt, ct);
+            slot.ModelPrompt = await _cipher.DecryptNullableAsync(job.UserId, slot.ModelPrompt, ct);
             slot.RawPrompt = await _cipher.DecryptNullableAsync(job.UserId, slot.RawPrompt, ct);
             slot.RawNegativePrompt = await _cipher.DecryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct);
             slot.Prompt = await _cipher.DecryptNullableAsync(job.UserId, slot.Prompt, ct);
@@ -605,6 +612,7 @@ WHERE JobId = @jobId
             OverridesJson = r.IsDBNull(24) ? null : r.GetString(24),
             LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
             IsBackground = r.AsBool(29),
+            ModelPrompt = r.IsDBNull(30) ? null : r.GetString(30),
             // Exactly one mode group is populated, by IsEdit — each field read from its own (unchanged) column.
             Generate = isEdit ? null : new GenerateSlotData
             {

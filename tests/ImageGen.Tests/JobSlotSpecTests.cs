@@ -1,6 +1,8 @@
 using ImageGen.Domain;
 using ImageGen.Domain.Entities;
+using ImageGen.Domain.Repositories;
 using System.Data.Common;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -61,6 +63,43 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal(TriState.False, back.Generate.RandomPrompt);
         Assert.Equal(0.85, back.Generate.Temperature);
         Assert.Equal("""["character","meta"]""", back.Generate.TagTypesJson);
+    }
+
+    /// <summary>The generation-values payload distinguishes what the user requested from the exact positive text the
+    /// workflow submitted after applying its prompt template.</summary>
+    [Fact]
+    public async Task Image_request_values_include_the_exact_model_prompt()
+    {
+        User user = await fixture.NewUserAsync("slot-model-prompt");
+        string jobId = Guid.NewGuid().ToString("N");
+        const string imageId = "model-prompt-image";
+        const string requested = "a lighthouse at dusk";
+        const string displayed = "a lighthouse at dusk";
+        const string submitted = "{\"high_level_description\":\"a lighthouse at dusk\"}";
+        JobSlotRecord slot = new()
+        {
+            JobId = jobId,
+            SlotIndex = 0,
+            State = JobSlotState.Done,
+            ImageId = imageId,
+            Workflow = "ideogram4",
+            Prompt = requested,
+            EffectivePrompt = displayed,
+            ModelPrompt = submitted,
+            Generate = new GenerateSlotData { Aspect = "square" },
+        };
+
+        await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, [slot]), Ct);
+        JobRecord? job = await fixture.Jobs.GetAsync(jobId, Ct);
+        ImageRequestRecord? record = await fixture.Jobs.GetRequestByImageAsync(imageId, Ct);
+
+        Assert.NotNull(job);
+        Assert.Equal(displayed, Assert.Single(job.Slots).EffectivePrompt);
+        Assert.Equal(submitted, Assert.Single(job.Slots).ModelPrompt);
+        Assert.NotNull(record);
+        using JsonDocument values = JsonDocument.Parse(record.RequestJson);
+        Assert.Equal(submitted, values.RootElement.GetProperty("prompt").GetString());
+        Assert.False(values.RootElement.TryGetProperty("modelPrompt", out _));
     }
 
     /// <summary>
@@ -144,18 +183,20 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             {
                 JobId = jobId, SlotIndex = 0, State = JobSlotState.Queued,
                 Workflow = "anima", Prompt = "a very distinctive prompt",
+                ModelPrompt = "{\"description\":\"a very distinctive prompt\"}",
             },
         ]), Ct);
 
         await using DbConnection conn = await fixture.ConnectionFactory.OpenAsync(Ct);
         await using DbCommand cmd = conn.Command(
-            "SELECT Prompt, Workflow FROM dbo.JobSlot WHERE JobId = @jobId;");
+            "SELECT Prompt, Workflow, ModelPrompt FROM dbo.JobSlot WHERE JobId = @jobId;");
         _ = cmd.AddParam("@jobId", jobId);
         await using DbDataReader reader = await cmd.ExecuteReaderAsync(Ct);
         Assert.True(await reader.ReadAsync(Ct));
 
         Assert.NotEqual("a very distinctive prompt", reader.GetString(0));   // ciphertext at rest
         Assert.Equal("anima", reader.GetString(1));                          // plain, so it can be queried
+        Assert.DoesNotContain("a very distinctive prompt", reader.GetString(2)); // exact model prompt is protected too
     }
 
     /// <summary>

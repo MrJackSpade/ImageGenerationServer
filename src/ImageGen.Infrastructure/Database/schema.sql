@@ -942,3 +942,10 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_JobSlot_Image')
 CREATE INDEX IX_JobSlot_Image ON dbo.JobSlot (ImageId);
 GO
+
+-- Exact positive prompt embedded in the submitted workflow graph after prompt-template rendering. Kept apart from
+-- EffectivePrompt because the established image display shows the concise prompt while Generation Values shows what
+-- the model actually received. User content: randomized-encrypted by the repository. Existing rows remain null.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ModelPrompt' AND Object_ID = Object_ID('dbo.JobSlot'))
+    ALTER TABLE dbo.JobSlot ADD ModelPrompt NVARCHAR(MAX) NULL;
+GO

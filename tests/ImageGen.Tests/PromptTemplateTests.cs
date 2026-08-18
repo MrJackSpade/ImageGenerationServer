@@ -1,7 +1,12 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Snapshots;
 using ImageGen.Comfy;
+using ImageGen.Comfy.Snapshots;
+using ImageGen.Media;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Net;
+using System.Text;
 using System.Text.Json;
 
 namespace ImageGen.Tests;
@@ -78,6 +83,44 @@ public sealed class PromptTemplateTests
         Assert.Equal(template, stored.GetString());
     }
 
+    [Fact]
+    public async Task Ideogram4_submission_posts_the_rendered_json_prompt_to_comfyui()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
+            .GetRequiredService<WorkflowRegistry>();
+        CapturePromptHandler handler = new();
+        HttpClient http = new(handler);
+        ComfyClient client = new(
+            new FixedHttpClientFactory(http),
+            new FixedEndpoint(),
+            catalog,
+            registry,
+            new MediaProcessor(new MediaOptions()),
+            new FixedSnapshot<ComfyFilesByKind>(new ComfyFilesByKind(
+                new Dictionary<RequirementKind, IReadOnlyList<string>>())),
+            NullLogger<ComfyClient>.Instance);
+        const string prompt = "A sign reading \"hello\" beneath a lighthouse";
+
+        SubmitResult submission = await client.SubmitGenerateAsync(
+            prompt, null, "ideogram4", "square", null, null, CancellationToken.None);
+
+        Assert.NotNull(handler.Body);
+        using JsonDocument request = JsonDocument.Parse(handler.Body);
+        JsonElement graph = request.RootElement.GetProperty("prompt");
+        JsonElement encode = Assert.Single(graph.EnumerateObject(), node =>
+            node.Value.GetProperty("class_type").GetString() == "CLIPTextEncode").Value;
+        string modelPrompt = encode.GetProperty("inputs").GetProperty("text").RequireString();
+        Assert.Equal(modelPrompt, submission.ModelPrompt);
+        using JsonDocument rendered = JsonDocument.Parse(modelPrompt);
+        Assert.Equal(prompt, rendered.RootElement.GetProperty("high_level_description").GetString());
+        Assert.Equal(prompt, rendered.RootElement.GetProperty("compositional_deconstruction")
+            .GetProperty("elements")[0].GetProperty("desc").GetString());
+    }
+
     private static string RepoRoot()
     {
         string? directory = AppContext.BaseDirectory;
@@ -87,5 +130,38 @@ public sealed class PromptTemplateTests
         }
 
         return directory ?? throw new DirectoryNotFoundException("Repository root not found.");
+    }
+
+    private sealed class FixedHttpClientFactory(HttpClient client) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => client;
+    }
+
+    private sealed class FixedEndpoint : IComfyEndpoint
+    {
+        public string BaseUrl => "http://comfy.test";
+        public string GateToken => "test-token";
+    }
+
+    private sealed class FixedSnapshot<T>(T value) : ISnapshot<T>
+    {
+        public ValueTask<T> GetAsync(CancellationToken ct) => new(value);
+        public T PeekCurrent() => value;
+        public void Invalidate() { }
+    }
+
+    private sealed class CapturePromptHandler : HttpMessageHandler
+    {
+        public string? Body { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Assert.Equal("/prompt", request.RequestUri?.AbsolutePath);
+            Body = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"prompt_id\":\"captured\"}", Encoding.UTF8, "application/json"),
+            };
+        }
     }
 }

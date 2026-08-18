@@ -38,16 +38,16 @@ ON CONFLICT (JobId) DO UPDATE SET
     public string UpsertJobSlot => @"
 INSERT INTO dbo.JobSlot
     (JobId, SlotIndex, IsEdit, IsBackground, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, Error,
-     EffectivePrompt, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
+     EffectivePrompt, ModelPrompt, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
      Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson,
      OverridesJson, LorasJson, SourceImageId, MaskImageId, LastFrameImageId)
 VALUES (@jobId, @idx, @isEdit, @isBackground, @state, @comfy, @imageId, @width, @height, @changed, @score, @error,
-        @effective, @raw, @rawNeg, @started, @expected,
+        @effective, @modelPrompt, @raw, @rawNeg, @started, @expected,
         @workflow, @specPrompt, @specNegative, @aspect, @randomArtist, @randomPrompt, @temperature, @tagTypes,
         @overrides, @loras, @source, @mask, @lastFrame)
 ON CONFLICT (JobId, SlotIndex) DO UPDATE SET
     IsEdit = @isEdit, IsBackground = @isBackground, State = @state, ComfyPromptId = @comfy, ImageId = @imageId, Width = @width, Height = @height,
-    Changed = @changed, ChangeScore = @score, Error = @error, EffectivePrompt = @effective, RawPrompt = @raw,
+    Changed = @changed, ChangeScore = @score, Error = @error, EffectivePrompt = @effective, ModelPrompt = @modelPrompt, RawPrompt = @raw,
     RawNegativePrompt = @rawNeg, GenStartedAtUtc = @started, ExpectedGenSeconds = @expected,
     Workflow = @workflow, Prompt = @specPrompt, NegativePrompt = @specNegative, Aspect = @aspect,
     RandomArtist = @randomArtist, RandomPrompt = @randomPrompt, Temperature = @temperature,

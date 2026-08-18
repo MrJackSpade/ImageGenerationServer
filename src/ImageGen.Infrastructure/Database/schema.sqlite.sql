@@ -627,3 +627,11 @@ CREATE TABLE IF NOT EXISTS dbo.DataProtectionKey
 -- every image/thumbnail/clip request. Without this index that lookup is a scan of every slot on the box. New index on
 -- the pre-existing table, so a plain CREATE INDEX IF NOT EXISTS (the runner replays it as a no-op once it exists).
 CREATE INDEX IF NOT EXISTS dbo.IX_JobSlot_Image ON JobSlot (ImageId);
+
+
+-- --- 0.17.1 -----------------------------------------------------------------------------------------------------
+
+-- Exact positive prompt embedded in the submitted workflow graph after prompt-template rendering. Kept apart from
+-- EffectivePrompt because the established image display shows the concise prompt while Generation Values shows what
+-- the model actually received. User content: randomized-encrypted by the repository. Existing rows remain null.
+ALTER TABLE dbo.JobSlot ADD COLUMN ModelPrompt TEXT NULL;

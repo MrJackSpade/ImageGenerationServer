@@ -5,6 +5,6 @@ namespace ImageGen.Domain.Repositories;
 /// caller can gate access to the owner. Returned as null by the repository when no slot produced the image id.
 /// </summary>
 /// <param name="OwnerUserId">The user who owns the job that produced the image.</param>
-/// <param name="RequestJson">The render request (parameters incl. the seed) as JSON, assembled from the slot's typed
-/// columns and its reference rows — the only text field it carries is decrypted on the way out.</param>
+/// <param name="RequestJson">The render request (parameters incl. the seed and exact submitted model prompt) as JSON,
+/// assembled from the slot's typed columns and its reference rows; prompt-bearing fields are decrypted on the way out.</param>
 public sealed record ImageRequestRecord(long OwnerUserId, string RequestJson);

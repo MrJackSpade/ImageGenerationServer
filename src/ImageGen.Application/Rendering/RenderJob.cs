@@ -84,8 +84,13 @@ public sealed class RenderSlot
     public string? Error;
     /// <summary>A non-fatal, user-facing notice set at enqueue when an input was normalized to a valid value.</summary>
     public string? Notice;
-    /// <summary>The prompt actually rendered (markers stripped + any random artist).</summary>
+    /// <summary>The concise finalized prompt (markers stripped + any random artist), before a workflow-specific prompt
+    /// template is applied. This is the established prompt shown by the image display.</summary>
     public string? EffectivePrompt;
+    /// <summary>The exact positive prompt embedded in the submitted workflow graph after its prompt template was
+    /// rendered. Kept separate from <see cref="EffectivePrompt"/> because the existing image display intentionally
+    /// shows the concise, template-free prompt while Generation Values shows exactly what the model received.</summary>
+    public string? ModelPrompt;
     /// <summary>The prompt VERBATIM in marker form ("#tag, @artist"), random injections included — the string that,
     /// resubmitted, remakes this image. Finalizing it yields <see cref="EffectivePrompt"/> and <see cref="Marks"/>.</summary>
     public string? RawPrompt;

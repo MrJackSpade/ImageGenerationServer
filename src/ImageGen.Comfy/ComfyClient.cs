@@ -597,7 +597,7 @@ public sealed class ComfyClient : IComfyClient
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.
         EtaSignature eta = new(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
-        return new SubmitResult(await SubmitAsync(graph, ct), eta);
+        return new SubmitResult(await SubmitAsync(graph, ct), eta, pos);
     }
 
     /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
@@ -666,7 +666,7 @@ public sealed class ComfyClient : IComfyClient
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
             EtaSignature eta0 = new(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
-            return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0);
+            return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0, renderedInstruction0);
         }
 
         // Distinct filename per role — a fixed name for every upload would make source and references clobber each
@@ -717,7 +717,7 @@ public sealed class ComfyClient : IComfyClient
         // EtaVariable time drivers — Frames (length) dominates for i2v.
         (int etaW, int etaH) = wf.EtaRenderSize(dict, resolved, srcW, srcH);
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
-        return new SubmitResult(await SubmitAsync(graph, ct), eta);
+        return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction);
     }
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveGenerate(string? configId)
