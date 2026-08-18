@@ -116,7 +116,30 @@ public sealed class RenderValidationException : Exception
 /// accepted work is never discarded for one — but a submission that cannot be recorded must not be accepted at all,
 /// or it renders and the record of it dies with the process.</para>
 /// </summary>
-public sealed class RenderStorageException(string message) : Exception(message);
+public sealed class RenderStorageException : Exception
+{
+    public RenderStorageException(string message, Exception innerException) : base(message, innerException) { }
+
+    /// <summary>Build the submission-boundary failure shown by the UI. The full exception is still logged, while the
+    /// response carries every exception type/message in the chain — enough to expose provider errors such as a missing
+    /// database column without dumping server stack frames into the page.</summary>
+    [AllowMagicStrings("human-readable error formatting")]
+    public static RenderStorageException Submission(Exception failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        List<string> details = [];
+        for (Exception? current = failure; current is not null; current = current.InnerException)
+        {
+            string type = current.GetType().FullName ?? current.GetType().Name;
+            string message = string.IsNullOrWhiteSpace(current.Message) ? "(no message)" : current.Message.Trim();
+            details.Add($"{type}: {message}");
+        }
+
+        return new RenderStorageException(
+            "The generation was not started because its database record could not be saved. "
+            + string.Join(" -> ", details), failure);
+    }
+}
 
 /// <summary>
 /// Render-pipeline options resolved from configuration at composition.

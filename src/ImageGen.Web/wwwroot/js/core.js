@@ -677,7 +677,7 @@ function attachEnqueueSubmit(o) {
       const r = await fetch(`${GATEWAY}/enqueue`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobs: items }) });
       if (!r.ok) throw new Error(await gwError(r));
       toast(o.queuedToast ? o.queuedToast(items.length) : (items.length > 1 ? `Queued ${items.length} more — they start when the current one finishes.` : "Queued another — starts when the current one finishes."));
-    } catch (e) { console.error("queue-more failed:", e); toast("Couldn't queue more"); }
+    } catch (e) { console.error("queue-more failed:", e); toast(friendlyError(e)); }
   }
   const picker = attachCountPicker(o.button, { onPick: n => o.isBusy() ? queueMore(n) : submit(n) });
   if (o.form) o.form.addEventListener("submit", e => { e.preventDefault(); if (picker.opened) { picker.opened = false; return; } o.isBusy() ? queueMore(1) : submit(1); });

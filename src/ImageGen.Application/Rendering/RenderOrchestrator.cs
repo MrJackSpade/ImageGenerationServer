@@ -216,14 +216,15 @@ public sealed class RenderOrchestrator : IStepProgressSink
         // false here means the write was REJECTED — and a job that exists only in memory must not become schedulable:
         // it would render, and the record of it would die with the process. Refusing a new submission is acceptable;
         // accepting one we cannot write down is not. The job is dropped again so nothing is left half-accepted.
-        if (!await PersistAsync(job))
+        Exception? persistFailure = await PersistAsync(job);
+        if (persistFailure is not null)
         {
             lock (_lock)
             {
                 _ = _jobs.Remove(job.JobId);
             }
 
-            throw new RenderStorageException("This generation could not be recorded, so it was not started.");
+            throw RenderStorageException.Submission(persistFailure);
         }
 
         // A foreground submission is what preemption and the idle clock hinge on, so decide it up front. A batch is
@@ -1746,7 +1747,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
             }
         }
 
-        bool persisted = await PersistAsync(job);
+        bool persisted = await PersistAsync(job) is null;
 
         // Finalizing means dropping the job from memory next — so if the write failed, memory is about to become the
         // only place the outcome ever existed. Keep the job resident (it is terminal, so it renders nothing) and let a
@@ -1861,9 +1862,10 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
     #region persistence (write-through)
 
-    /// <summary>Write the job through. Returns false if the write failed, so a caller about to DISCARD the in-memory
-    /// job can decline to — on the finalizing write, memory holds the only copy of the outcome.</summary>
-    private async Task<bool> PersistAsync(RenderJob job)
+    /// <summary>Write the job through. Returns the actual failure (null on success), so the submission boundary can
+    /// surface its provider detail and a caller about to DISCARD the in-memory job can decline to — on the finalizing
+    /// write, memory holds the only copy of the outcome.</summary>
+    private async Task<Exception?> PersistAsync(RenderJob job)
     {
         JobRecord rec;
         lock (_lock)
@@ -1879,13 +1881,13 @@ public sealed class RenderOrchestrator : IStepProgressSink
             // forever. That is the zombie-Active-row mechanism, and it is this call that has to not give up.
             await AwaitingDatabaseAsync(
                 ct => _jobRepo.UpsertAsync(rec, ct), $"persisting job {job.JobId}", CancellationToken.None);
-            return true;
+            return null;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Job persist failed for {JobId} ({Slots} slots, status {Status}).",
                 job.JobId, rec.Slots.Count, rec.Status);
-            return false;
+            return ex;
         }
     }
 
