@@ -21,5 +21,5 @@ public sealed record BooguParams
     [JsonPropertyName(WorkflowParamKeys.Megapixels)]
     [Range(0.5, 4.0)] public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

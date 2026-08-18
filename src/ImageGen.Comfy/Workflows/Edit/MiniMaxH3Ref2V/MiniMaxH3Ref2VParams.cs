@@ -26,5 +26,5 @@ public sealed record MiniMaxH3Ref2VParams
     [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RefImageSize)] public required string RefImageSize { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)][AllowNullable("null = the config didn't set reference_max; absent means no picker references beyond the source (treated as 0), distinct from a config that explicitly caps at a real 0")] public int? ReferenceMax { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

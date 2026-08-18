@@ -166,7 +166,14 @@ public sealed class WorkflowCatalog : IDisposable
                     continue;
                 }
 
-                parsed[key[CatalogText.ParamPrefix.Length..]] = AsJson(raw);
+                string paramKey = key[CatalogText.ParamPrefix.Length..];
+                // A prompt template is TEXT even when it happens to be valid JSON (for example, a fixed JSON caption
+                // with no substitutions). The generic override parser normally promotes JSON-looking text to an
+                // object/array for typed params such as aspect; doing that here would make SubmissionCommon unable to
+                // read the template as a string. Its reserved key gives it an unambiguous wire type.
+                parsed[paramKey] = string.Equals(paramKey, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
+                    ? JsonSerializer.SerializeToElement(raw)
+                    : AsJson(raw);
             }
 
             if (parsed.Count > 0)

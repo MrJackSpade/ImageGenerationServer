@@ -27,5 +27,5 @@ public sealed record SdxlAnimateDiffParams
     public required double Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

@@ -34,5 +34,5 @@ public sealed record QwenImageEditInpaintParams
     [Range(0, 64)] public int MaskGrow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.MaskBlur)]
     [Range(0, 31)] public required int MaskBlur { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

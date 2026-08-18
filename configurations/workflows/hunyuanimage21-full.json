@@ -12,6 +12,10 @@
     "vae": "hunyuan-image-2-1-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 3.75,
       "visibility": "hidden"

@@ -12,6 +12,10 @@
     "vae": "qwen-image-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "snap_resolution": {
       "value": true,
       "visibility": "exposed"

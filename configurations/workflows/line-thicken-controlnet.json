@@ -9,6 +9,10 @@
     "controlnet": "controlnet-sd15-lineart"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "steps": {
       "value": 20,

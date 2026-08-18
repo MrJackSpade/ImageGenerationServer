@@ -337,7 +337,10 @@ public sealed partial class WorkflowCatalogService(
             .Where(kv => wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase)) is not { IsModelRef: true })
             .Select(kv =>
             {
-                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase))
+                    ?? (string.Equals(kv.Key, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
+                        ? PromptTemplates.Schema
+                        : null);
                 return new ConfigSetting(
                     kv.Key,
                     spec?.Label ?? kv.Key,
@@ -583,7 +586,10 @@ public sealed partial class WorkflowCatalogService(
         KeyValuePair<string, ConfigParam> kv, IWorkflow wf, WorkflowConfiguration cfg,
         IReadOnlyDictionary<string, JsonElement> machine)
     {
-        ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase));
+        ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase))
+            ?? (string.Equals(kv.Key, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
+                ? PromptTemplates.Schema
+                : null);
         object? value = machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value;
 
         if (string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)

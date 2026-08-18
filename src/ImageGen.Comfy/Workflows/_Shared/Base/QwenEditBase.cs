@@ -216,5 +216,5 @@ public sealed record QwenEditParams
     [JsonPropertyName(WorkflowParamKeys.MaskBottomPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
     [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskBottomPct { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

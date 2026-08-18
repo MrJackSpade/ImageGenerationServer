@@ -12,6 +12,10 @@
     "vae": "flux2-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "flux2",
     "dual": false,

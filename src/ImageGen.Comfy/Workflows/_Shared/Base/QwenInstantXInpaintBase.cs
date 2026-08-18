@@ -358,5 +358,5 @@ public abstract record QwenInpaintParams
     [Range(0, 4096)] public int PadRight { get; init; }
     [JsonPropertyName(WorkflowParamKeys.PadBottom)]
     [Range(0, 4096)] public int PadBottom { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

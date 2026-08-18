@@ -11,6 +11,7 @@
        tag/catalog ports; no ASP.NET Core HTTP surface lives here. -->
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="NetJinja" Version="1.0.4" />
   </ItemGroup>
 
   <ItemGroup>

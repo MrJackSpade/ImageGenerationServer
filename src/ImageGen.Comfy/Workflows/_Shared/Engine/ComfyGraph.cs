@@ -69,12 +69,11 @@ public static class ComfyGraph
             ? throw new RenderValidationException("This configuration has no scheduler set; a scheduler is required.")
             : (s.Equals(Scheduling.Automatic, StringComparison.OrdinalIgnoreCase) ? "normal" : s);
 
-    public static long Seed() => Random.Shared.NextInt64(0, long.MaxValue);
+    public static long Seed() => RenderSeed.Random();
 
-    /// <summary>The generation seed from the resolved value: it if set, else a fresh random (never 0). Every sampler
-    /// node uses THIS instead of rolling its own inline value, so the seed is single-sourced and persisted with the
-    /// image (reproducible). A caller can pin it via a "seed" override.</summary>
-    public static long Seed(long seed) => seed != 0 ? seed : Random.Shared.NextInt64(1, long.MaxValue);
+    /// <summary>The already-resolved generation seed. Randomness is represented by an absent/blank request value and
+    /// resolved before graph construction, so every numeric value — including 0 — is deterministic.</summary>
+    public static long Seed(long seed) => seed;
 
     /// <summary>
     /// The diffusion-model loader node for a file, chosen BY THE FILE: a <c>.gguf</c> needs <c>UnetLoaderGGUF</c>,

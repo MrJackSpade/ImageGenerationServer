@@ -25,5 +25,5 @@ public sealed record SeedVr2Params
     [JsonPropertyName(WorkflowParamKeys.VaeTileSize)] public required int VaeTileSize { get; init; }
     [JsonPropertyName(WorkflowParamKeys.VaeTileOverlap)] public required int VaeTileOverlap { get; init; }
     [JsonPropertyName(WorkflowParamKeys.BatchSize)] public required int BatchSize { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

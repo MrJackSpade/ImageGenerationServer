@@ -71,6 +71,7 @@ public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
         new() { Key = WorkflowParamKeys.VaeTileOverlap, Type = ParamType.Int },
         // A still is a one-frame clip. 4n+1 => 1. Never raise this for an image editor.
         new() { Key = WorkflowParamKeys.BatchSize, Type = ParamType.Int },
+        .. SeedParam.Schema,
     ];
 
     protected override ComfyWorkflowGraph Build(SeedVr2Params p, ResolvedRequirements req, WorkflowInputs inputs)

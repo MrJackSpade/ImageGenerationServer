@@ -20,6 +20,7 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
         new() { Key = WorkflowParamKeys.Cfg,        Type = ParamType.Double, Min = ParamBounds.CfgMin,    Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,    Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler,  Type = ParamType.String },
+        .. SeedParam.Schema,
         new() { Key = WorkflowParamKeys.Denoise,    Type = ParamType.Double, Min = ParamBounds.DenoiseMin, Max = ParamBounds.DenoiseMax, Step = 0.01, Label = "Redraw amount" },
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Style prompt" },
         new() { Key = WorkflowParamKeys.Negative,   Type = ParamType.String },

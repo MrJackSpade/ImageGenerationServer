@@ -12,6 +12,10 @@
     "vae": "ae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "weight_dtype": "fp8_e4m3fn",
     "clip_type": "flux",

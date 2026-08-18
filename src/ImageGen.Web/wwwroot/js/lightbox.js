@@ -39,6 +39,7 @@
   const positionOf = (id, cards) => cards.findIndex(a => idOf(a) === id);
 
   async function show(a) {
+    if (window.closeGenerationValuesModal) window.closeGenerationValuesModal();
     if (!a) { close(); return; }
     const eid = escId(a);
     if (!eid) { location.href = a.href; return; }   // unexpected shape — just navigate
@@ -185,6 +186,7 @@
 
   // Hide the UI without touching history (popstate already moved us).
   function hide() {
+    if (window.closeGenerationValuesModal) window.closeGenerationValuesModal();
     token++;                                           // cancel any in-flight load
     overlay.classList.add("hidden");
     document.body.style.overflow = "";

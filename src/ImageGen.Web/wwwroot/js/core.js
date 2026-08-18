@@ -206,7 +206,7 @@ function renderParamFields(box, modelOrModels, extraParams) {
   if (!box) return;
   box.innerHTML = "";
   const models = Array.isArray(modelOrModels) ? modelOrModels.filter(Boolean) : (modelOrModels ? [modelOrModels] : []);
-  const ps = sharedExposedParams(models).filter(p => ["int", "double", "enum", "string", "bool"].includes(p.type));
+  const ps = sharedExposedParams(models).filter(p => ["int", "double", "enum", "string", "multiline", "bool"].includes(p.type));
   // Caller-forced params (the compose page's custom-size width/height): appended when the visibility overlay didn't
   // already produce them, so they render through the same control path as any exposed param.
   for (const p of (extraParams || [])) if (!ps.some(q => q.key === p.key)) ps.push(p);
@@ -231,11 +231,16 @@ function renderParamFields(box, modelOrModels, extraParams) {
       if (p.min != null) inp.min = p.min;
       if (p.max != null) inp.max = p.max;
       inp.step = p.step != null ? p.step : (p.type === "double" ? "0.1" : "1");
-      inp.value = (p.value != null ? p.value : "");
+      // Configurations carry seed=0 as their typed fallback, but an untouched/revealed seed control must be blank:
+      // omission is what asks the server to choose and persist a fresh seed. Explicitly typing 0 still submits 0.
+      inp.value = (p.key === "seed" && Number(p.value) === 0) ? "" : (p.value != null ? p.value : "");
     } else if (p.type === "bool") {
       inp = document.createElement("input"); inp.type = "checkbox";
       inp.checked = (p.value === true || p.value === "true");
       wrap.classList.add("mp-field-bool");
+    } else if (p.type === "multiline") {
+      inp = document.createElement("textarea"); inp.rows = 8; inp.value = (p.value != null ? p.value : "");
+      wrap.classList.add("mp-field-multiline");
     } else {
       inp = document.createElement("input"); inp.type = "text"; inp.value = (p.value != null ? p.value : "");
     }
@@ -295,6 +300,9 @@ function applyParamPrefs(box, prefs) {
 }
 function collectParamPrefs(box, prefs) {
   if (!box || !prefs) return;
+  // Clearing a pinned seed must stay cleared across a panel re-render. readOverrides correctly omits blanks, but its
+  // merge semantics would otherwise leave the previous seed behind in the flat preference map.
+  for (const inp of box.querySelectorAll('[data-key="seed"]')) if (inp.value === "") delete prefs.seed;
   Object.assign(prefs, readOverrides(box));
 }
 

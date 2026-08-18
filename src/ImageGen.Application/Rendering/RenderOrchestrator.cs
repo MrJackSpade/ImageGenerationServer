@@ -294,16 +294,23 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
     /// <summary>The overrides with a fresh RNG <c>seed</c> filled in unless the caller pinned one — so the generation
     /// seed is decided here, persisted with the request, and single-sourced for the build.</summary>
-    private static Dictionary<string, JsonElement> WithSeed(Dictionary<string, JsonElement>? overrides)
+    internal static Dictionary<string, JsonElement> WithSeed(Dictionary<string, JsonElement>? overrides)
     {
         Dictionary<string, JsonElement> d = overrides is null ? [] : new Dictionary<string, JsonElement>(overrides);
-        if (!d.ContainsKey(Keys.Seed))
+        if (!d.TryGetValue(Keys.Seed, out JsonElement seed) || IsBlankSeed(seed))
         {
-            d[Keys.Seed] = JsonSerializer.SerializeToElement(Random.Shared.NextInt64(1, long.MaxValue));
+            d[Keys.Seed] = JsonSerializer.SerializeToElement(RenderSeed.Random());
         }
 
         return d;
     }
+
+    private static bool IsBlankSeed(JsonElement seed) => seed.ValueKind switch
+    {
+        JsonValueKind.Null or JsonValueKind.Undefined => true,
+        JsonValueKind.String => string.IsNullOrWhiteSpace(seed.GetString()),
+        _ => false,
+    };
 
     private static Dictionary<string, JsonElement>? AsDict(IReadOnlyDictionary<string, JsonElement>? d) =>
         d is null ? null : new Dictionary<string, JsonElement>(d);

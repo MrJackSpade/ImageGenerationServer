@@ -11,6 +11,10 @@
     "vae": "wan2-2-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "ck_attention": {
       "value": false,
       "visibility": "exposed"

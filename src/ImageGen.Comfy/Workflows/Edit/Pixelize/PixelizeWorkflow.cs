@@ -33,6 +33,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },   // Flux distilled guidance (omit the node for non-flux)
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
+        .. SeedParam.Schema,
         // The harness uses a FIXED style prompt for the correction pass (not the edit instruction). Blank it to
         // fall back to the caller's instruction.
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Style prompt" },

@@ -7,6 +7,10 @@
     "checkpoint": "sd3-5-medium"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 1.0,
       "visibility": "hidden"

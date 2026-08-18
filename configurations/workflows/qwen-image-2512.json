@@ -11,6 +11,10 @@
     "vae": "qwen-image-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 1.47,
       "visibility": "hidden"

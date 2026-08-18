@@ -12,6 +12,10 @@
     ]
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 1.57,
       "visibility": "hidden"

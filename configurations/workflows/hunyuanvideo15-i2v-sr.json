@@ -17,6 +17,10 @@
     ]
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "ck_attention": {
       "value": false,
       "visibility": "exposed"

@@ -7,6 +7,10 @@
     "checkpoint": "v1-5-pruned-emaonly"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 0.25,
       "visibility": "hidden"

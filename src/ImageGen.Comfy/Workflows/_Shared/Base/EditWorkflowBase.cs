@@ -20,6 +20,7 @@ internal static class EditWorkflowBase
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
+        .. SeedParam.Schema,
         // Video shapes (wan/animatediff/ltxv): frame-size budget, clip length (frames), playback fps. 0 = builder default.
         new() { Key = WorkflowParamKeys.Width,     Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Height,    Type = ParamType.Int },
@@ -51,6 +52,7 @@ internal static class EditWorkflowBase
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
+        PromptTemplates.Schema,
         // How the sampler stitches reference latents into the conditioning — a per-MODEL contract, not a preference:
         // Qwen-Image handles index_timestep_zero, plain-Flux LongCat crashes on it and takes index (see
         // ComfyWidgets.ReferenceLatents), so each config declares its model's method.

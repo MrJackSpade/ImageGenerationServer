@@ -44,5 +44,5 @@ public sealed record AnimaOutpaintParams
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipSkip)]
     [AllowNullable("null = the config didn't set clip skip; the CLIPSetLastLayer node is emitted only when set, distinct from a real 0")] public int? ClipSkip { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

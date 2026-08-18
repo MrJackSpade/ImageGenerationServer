@@ -22,7 +22,7 @@ public record Txt2ImgParams
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)][AllowNullable("null = the config didn't set CFG (a custom-build model supplies its own guidance); 0 is a real CFG value, and RequiredCfg() throws when it's needed and unset")] public double? Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.GenLoraStrengthMin, ParamBounds.GenLoraStrengthMax)] public double LoraStrength { get; init; }

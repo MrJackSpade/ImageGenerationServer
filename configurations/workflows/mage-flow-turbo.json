@@ -11,6 +11,10 @@
     "vae": "mage-flow-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 0.98,
       "visibility": "hidden"

@@ -24,6 +24,7 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin,   Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String, Label = "Sampler" },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
+        .. SeedParam.Schema,
         new() { Key = WorkflowParamKeys.Width,     Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Height,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Aspect,    Type = ParamType.String },   // { square/landscape/portrait: [w,h] } dims map
@@ -39,6 +40,7 @@ internal static class Txt2ImgWorkflowBase
         new() { Key = WorkflowParamKeys.Length,    Type = ParamType.Int,    Label = "Frames", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Fps,       Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.RequiredPrefix,     Type = ParamType.String },
+        PromptTemplates.Schema,
         new() { Key = WorkflowParamKeys.NegativeSupported,  Type = ParamType.Bool },
         // Optional LoRA on the base model — lets a config be a "base + LoRA" txt2img variant (e.g. a Z-Image LoRA).
         new() { Key = WorkflowParamKeys.Lora,          Type = ParamType.String, IsModelRef = true },

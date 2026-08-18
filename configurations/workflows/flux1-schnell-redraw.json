@@ -13,6 +13,10 @@
     "vae": "ae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "unet_gguf",
     "clip_type": "flux",
     "dual": true,

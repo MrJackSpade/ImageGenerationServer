@@ -27,5 +27,5 @@ public sealed record LineThickenControlNetParams
     [Range(0.0, 2.0)] public required double ControlnetStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Resolution)]
     [Range(256, 2048)] public required int Resolution { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

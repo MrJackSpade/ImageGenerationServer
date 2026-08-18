@@ -4,6 +4,10 @@
   "friendly_name": "Step1X-Edit (i1258)",
   "default": false,
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "steps": {
       "value": 28,
       "visibility": "hidden"

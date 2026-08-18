@@ -14,5 +14,5 @@ public sealed record Step1XParams
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Width)] public required int Width { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

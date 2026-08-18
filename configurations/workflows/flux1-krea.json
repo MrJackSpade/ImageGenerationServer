@@ -12,6 +12,10 @@
     "vae": "ae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 1.41,
       "visibility": "hidden"

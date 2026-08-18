@@ -53,5 +53,5 @@ public sealed record PixelizeParams
     [Range(0.0, 1.0)] public required double EndPercent { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ProjectEvery)]
     [Range(1, 8)] public required int ProjectEvery { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

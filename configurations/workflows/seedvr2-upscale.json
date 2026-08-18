@@ -12,6 +12,10 @@
     ]
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "dit_model": {
       "value": "seedvr2-3b",
       "visibility": "locked"

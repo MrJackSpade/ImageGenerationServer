@@ -25,6 +25,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
+        .. SeedParam.Schema,
         new() { Key = WorkflowParamKeys.Shift,     Type = ParamType.Double },   // ModelSamplingAuraFlow shift (2511)
         new() { Key = WorkflowParamKeys.StylePrompt, Type = ParamType.String, Label = "Instruction" },
         // false (default) = GENERATE a new on-character design from the reference (semantic/vision guidance only,

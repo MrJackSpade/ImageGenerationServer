@@ -25,5 +25,5 @@ public sealed record ChronoEditParams
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

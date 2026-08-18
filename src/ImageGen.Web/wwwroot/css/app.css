@@ -284,6 +284,32 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 .num-row button:hover{border-color:var(--accent);color:#fff}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;align-items:center}
 
+/* Exact stored request values opened from the image detail/lightbox. Wider than the small confirmation modals;
+   the body, not the page behind it, owns overflow, and long prompts/filenames remain selectable and wrap in place. */
+.generation-values-card{width:min(760px,96vw);max-height:min(88vh,900px);padding:0;text-align:left;display:flex;flex-direction:column;overflow:hidden}
+.generation-values-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px 12px;border-bottom:1px solid var(--line)}
+.generation-values-card .generation-values-head h3{margin:0;text-align:left}
+.generation-values-close{appearance:none;border:0;background:transparent;color:var(--ink-soft);font-size:26px;line-height:1;cursor:pointer;padding:2px 5px}
+.generation-values-close:hover{color:#fff}
+.generation-values-body{min-height:90px;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:8px}
+.generation-value-row{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr);gap:14px;padding:7px 9px;border-radius:8px}
+.generation-value-row:nth-child(odd){background:color-mix(in srgb,var(--elev) 62%,transparent)}
+.generation-value-name{font:12px var(--mono);color:var(--ink-faint);word-break:break-word}
+.generation-value-value{font:13px var(--mono);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.generation-value-value.is-empty{color:var(--ink-faint);font-style:italic}
+.generation-values-group{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.generation-values-group h4{margin:0;padding:9px 11px;background:var(--elev);color:var(--ink-soft);font:600 12px var(--mono)}
+.generation-values-nested{padding:5px;display:flex;flex-direction:column;gap:3px}
+.generation-values-nested .generation-values-group{margin:3px}
+.generation-values-message{margin:auto;padding:24px;color:var(--ink-soft);text-align:center}
+.generation-values-message.is-error{color:var(--danger)}
+.generation-values-card>.modal-actions{padding:12px 20px 18px;border-top:1px solid var(--line)}
+@media (max-width:560px){
+  .generation-values-modal{padding:0}
+  .generation-values-card{width:100%;height:100%;max-height:none;border-radius:0}
+  .generation-value-row{grid-template-columns:1fr;gap:3px}
+}
+
 /* Bookmark-category long-press dialog (bookmarkCategories.js). */
 .cat-card{width:min(360px,92vw);text-align:left}
 .cat-card h3{text-align:left}
@@ -745,6 +771,9 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 .machine-restart{text-transform:none;letter-spacing:0;font-weight:400;color:var(--warn);margin-left:6px}
 .mp-field-bool{flex-direction:row;align-items:center;gap:9px}
 .mp-field-bool .fld-label{margin-bottom:0;order:2}
+.mp-field-multiline textarea.fld-input{min-height:9rem;resize:vertical;font-family:var(--mono);line-height:1.4}
+.edit-params .mp-field-multiline{flex-direction:column;align-items:stretch}
+.edit-params .mp-field-multiline .fld-label{margin-bottom:6px}
 .settings-card h3{margin:0 0 6px;font-size:15px;font-weight:650;color:var(--ink)}
 .settings-desc{margin:0 0 14px;font-size:13px;color:var(--ink-soft);line-height:1.55}
 .settings-btn{appearance:none;border:1px solid var(--line);background:var(--elev);color:var(--ink);font:inherit;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;cursor:pointer}
@@ -929,6 +958,7 @@ body.auth .page{max-width:none;padding:0}
 .wf-setting:hover{background:var(--elev)}
 .wf-setting .fld-label{margin:0}
 .wf-setting .fld-input{width:100%;max-width:26rem}
+.wf-setting textarea.fld-input{max-width:52rem;min-height:11rem;resize:vertical;font-family:var(--mono);line-height:1.4}
 .wf-setting input[type=checkbox].fld-input{width:auto;justify-self:start}
 .wf-setting.is-overridden .fld-label{color:var(--accent-hi)}
 /* A model binding is global per (machine,slot): changing it from one workflow's page changes it for every workflow

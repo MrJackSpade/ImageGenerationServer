@@ -27,5 +27,5 @@ public sealed record LtxV2I2VParams
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

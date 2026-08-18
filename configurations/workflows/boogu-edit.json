@@ -11,6 +11,10 @@
     "vae": "flux1-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "boogu",
     "dual": false,

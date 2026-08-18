@@ -22,5 +22,5 @@ public sealed record MageFlowEditParams
     [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceMax)]
     [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Seed)] public long Seed { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

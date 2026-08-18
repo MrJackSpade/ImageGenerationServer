@@ -68,7 +68,7 @@ public enum WorkflowMedia { Image, Video }
 public enum PromptSemantics { Instruction, WholeImage, MaskedRegion }
 
 /// <summary>The CLR type of a workflow parameter, so a configuration value can be coerced + a UI control chosen.</summary>
-public enum ParamType { Int, Double, String, Bool, Enum }
+public enum ParamType { Int, Double, String, Multiline, Bool, Enum }
 
 /// <summary>How a configuration's diffusion model is loaded — the closed vocabulary of the <c>loader</c> param.
 /// <see cref="Checkpoint"/> is an all-in-one checkpoint (model+CLIP+VAE) via <c>CheckpointLoaderSimple</c>;
@@ -349,6 +349,7 @@ public sealed record SubmissionCommon
     [JsonPropertyName(WorkflowParamKeys.Megapixels)]
     [AllowNullable("null = the config exposes no megapixels control; the ETA/guard size is the aspect-map/flat-W/H size unchanged, distinct from a real 0 budget")] public double? Megapixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.RequiredPrefix)] public string? RequiredPrefix { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PromptTemplate)] public string? PromptTemplate { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Cfg)]
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)]
     [AllowNullable("null = the config didn't set CFG (a custom-build model supplies its own guidance); 0 is a real CFG value")] public double? Cfg { get; init; }

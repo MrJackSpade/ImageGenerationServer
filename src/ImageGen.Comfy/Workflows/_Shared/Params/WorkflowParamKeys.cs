@@ -107,6 +107,7 @@ internal static class WorkflowParamKeys
     public const string PerLayerWeights = "per_layer_weights";
     public const string Phi = "phi";
     public const string PolishDenoise = "polish_denoise";
+    public const string PromptTemplate = "prompt_template";
     public const string ProjMethod = "proj_method";
     public const string ProjectEvery = "project_every";
     public const string RebalanceMultiplier = "rebalance_multiplier";

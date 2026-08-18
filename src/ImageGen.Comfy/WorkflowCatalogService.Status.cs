@@ -1,5 +1,6 @@
 ﻿using ImageGen.Application.Workflows;
 using ImageGen.Comfy.Snapshots;
+using ImageGen.Application.Rendering;
 using ImageGen.Domain.Repositories;
 using System.Text.Json;
 
@@ -265,6 +266,20 @@ public sealed partial class WorkflowCatalogService
             && !string.IsNullOrWhiteSpace(settingValue))
         {
             GuardAspectAgainstEnvelope(configId, settingValue);
+        }
+
+        if (string.Equals(settingKey, "param." + WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(settingValue))
+        {
+            WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
+            try
+            {
+                PromptTemplates.Validate(settingValue, cfg?.FriendlyName ?? cfg?.Id ?? configId);
+            }
+            catch (RenderValidationException ex)
+            {
+                throw new ArgumentException(ex.Message, nameof(settingValue), ex);
+            }
         }
 
         await _overrides.SetOverrideAsync(Environment.MachineName, configId, settingKey, settingValue, ct);

@@ -581,6 +581,7 @@ public sealed class ComfyClient : IComfyClient
         _ = wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
+        pos = PromptTemplates.Render(common.PromptTemplate, pos, cfg.Id);
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
         string normAspect = ComfyGraph.NormalizeAspect(aspect);
         WorkflowInputs inputs = new() { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
@@ -660,7 +661,8 @@ public sealed class ComfyClient : IComfyClient
             ResolvedRequirements resolved0 = _catalog.Resolve(cfg);
             _ = wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
             SubmissionCommon common0 = ParamsCodec.Deserialize<SubmissionCommon>(dict0);
-            WorkflowInputs inputs0 = new() { Positive = instruction, SourceVideoName = videoName };
+            string renderedInstruction0 = PromptTemplates.Render(common0.PromptTemplate, instruction, cfg.Id);
+            WorkflowInputs inputs0 = new() { Positive = renderedInstruction0, SourceVideoName = videoName };
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
             EtaSignature eta0 = new(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
@@ -707,7 +709,8 @@ public sealed class ComfyClient : IComfyClient
             _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
         }
 
-        WorkflowInputs inputs = new() { Positive = instruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
+        string renderedInstruction = PromptTemplates.Render(common.PromptTemplate, instruction, cfg.Id);
+        WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the resolution the workflow ACTUALLY renders at (a budget-scaling editor pins the source to a
         // fixed ~MP size, so recording raw srcW/srcH would credit a large upload work it never does), plus the

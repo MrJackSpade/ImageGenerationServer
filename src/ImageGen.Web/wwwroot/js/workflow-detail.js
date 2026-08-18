@@ -234,7 +234,11 @@
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ configId: id, key: `param.${key}`, value }),
     });
-    if (!r.ok) { toast("Couldn't save that"); return false; }
+    if (!r.ok) {
+      let message = "Couldn't save that";
+      try { const body = await r.json(); if (body && body.error) message = body.error; } catch (_) { /* non-JSON error */ }
+      toast(message); return false;
+    }
     toast(value === null || value === "" ? "Reset to the shipped value" : "Saved");
     await loadSettings();
     return true;
@@ -278,6 +282,14 @@
         input.appendChild(o);
       }
       input.addEventListener("change", () => saveSetting(s.key, input.value));
+    } else if (s.type === "multiline") {
+      input = document.createElement("textarea"); input.rows = 12; input.className = "fld-input wf-setting-multiline";
+      input.value = eff(s) == null ? "" : eff(s);
+      input.addEventListener("blur", () => {
+        const was = eff(s) == null ? "" : String(eff(s));
+        if (input.value === was) return;
+        saveSetting(s.key, input.value);
+      });
     } else {
       input = document.createElement("input");
       input.type = s.type === "int" || s.type === "double" ? "number" : "text";

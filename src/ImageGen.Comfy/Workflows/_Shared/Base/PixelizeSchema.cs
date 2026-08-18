@@ -6,6 +6,7 @@ internal static class PixelizeSchema
 {
     private static readonly ParamSpec[] Common =
     [
+        .. SeedParam.Schema,
         new() { Key = WorkflowParamKeys.VirtualResolution, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Virtual res", Help = "Sprite pixel count on its longest edge" },
         new() { Key = WorkflowParamKeys.GridW,       Type = ParamType.Int,    Min = 0, Max = 4096 },
         new() { Key = WorkflowParamKeys.GridH,       Type = ParamType.Int,    Min = 0, Max = 4096 },

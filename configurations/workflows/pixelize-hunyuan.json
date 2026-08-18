@@ -13,6 +13,10 @@
     "vae": "hunyuan-image-2-1-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "unet",
     "clip_type": "hunyuan_image",
     "dual": true,

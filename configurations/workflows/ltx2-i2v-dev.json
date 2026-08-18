@@ -12,6 +12,10 @@
     "vae": "ltx-2-19b-dev-video-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "ck_attention": {
       "value": false,
       "visibility": "exposed"

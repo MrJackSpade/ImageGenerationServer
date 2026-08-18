@@ -8,6 +8,10 @@
     "checkpoint": "lumina-2"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "loader": "checkpoint",
     "dual": false,
     "steps": {

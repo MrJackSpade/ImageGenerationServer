@@ -7,6 +7,10 @@
     "checkpoint": "v2-1-768-ema-pruned"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 0.56,
       "visibility": "hidden"

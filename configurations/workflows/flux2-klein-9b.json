@@ -11,6 +11,10 @@
     "vae": "flux2-vae"
   },
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "megapixels": {
       "value": 1.89,
       "visibility": "hidden"

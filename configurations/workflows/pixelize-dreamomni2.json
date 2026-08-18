@@ -5,6 +5,10 @@
   "friendly_name": "DreamOmni2 Pixel",
   "default": false,
   "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
     "base_model": {
       "value": "flux1-kontext-dev-diffusers",
       "visibility": "locked"
