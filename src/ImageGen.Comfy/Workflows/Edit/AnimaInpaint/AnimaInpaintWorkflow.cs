@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Comfy.Edit.AnimaInpaint;
 
 /// <summary>
@@ -38,6 +40,13 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         new() { Key = WorkflowParamKeys.MaskGrow,       Type = ParamType.Int, Min = 0, Max = 64, Label = "Mask grow (px)" },
     ];
 
+    protected override (int Width, int Height) EtaRenderSize(
+        AnimaInpaintParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight);
+
     protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -58,9 +67,6 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         g[Nodes.Positive] = new CLIPTextEncode { Text = prefix + inputs.Positive, Clip = clip0 };
         g[Nodes.Negative] = new CLIPTextEncode { Text = neg, Clip = clip0 };
 
-        // Source RGB (LoadImage IMAGE, node "10") stays PRISTINE → latent, so the region outside the mask is preserved
-        // and the masked region has the real pixels to partially-denoise from (identity kept, expression changed).
-        g[Nodes.Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(EditNodes.Source), Vae = vae0 };
         // Mask: a SEPARATE white-on-black image via LoadImageMask (red channel). Fallback to the source alpha only if
         // no mask image was supplied. SetLatentNoiseMask confines denoising to the masked (white) region.
         Output<Slot.Mask> maskSrc;
@@ -73,6 +79,26 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         {
             maskSrc = LoadImage.MaskOut(EditNodes.Source);
         }
+
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth),
+            Ensure.GreaterThanZero(inputs.SourceHeight));
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        Output<Slot.Image> image = LoadImage.ImageOut(EditNodes.Source);
+        EditWorkingResolution.ScalePair(
+            g,
+            Nodes.WorkingImage,
+            Nodes.WorkingMaskAsImage,
+            Nodes.WorkingMaskImage,
+            Nodes.WorkingMask,
+            current,
+            target,
+            ref image,
+            ref maskSrc);
+
+        // Source RGB and mask are normalized to the same native working grid before encoding/denoising. The masked
+        // region still starts from the real pixels, preserving identity while avoiding a tiny VAE latent grid.
+        g[Nodes.Encode] = new VAEEncode { Pixels = image, Vae = vae0 };
 
         int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)

@@ -100,6 +100,15 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         return (inputs.SourceWidth, inputs.SourceHeight);
     }
 
+    /// <summary>Inpaint renders the source canvas at the native edit budget. Outpaint overrides this with its padded
+    /// canvas before resolving the same budget.</summary>
+    protected override (int Width, int Height) EtaRenderSize(
+        TParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight, maxDimension: p.MaxDimension);
+
     /// <summary>
     /// The reference template's "Grow and Blur Mask" subgraph, node for node:
     /// <c>GrowMask → MaskToImage → ImageBlur[radius, σ] → ImageToMask</c> (σ = <see cref="MaskBlurSigma"/>).
@@ -147,49 +156,26 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         return MaskComposite.Out(Nodes.SoftenComposite);
     }
 
-    /// <summary>Emit the ceiling scale for the canvas AND its mask, or return them untouched. Both must be resized
-    /// together: the ControlNet apply and the sampler's noise mask resize a mismatched mask internally, but
-    /// <c>ImageCompositeMasked</c> does not, so a mask left at the original size would break the paste-back.</summary>
-    private static void ApplyCeiling(ComfyWorkflowGraph g, QwenInpaintParams p,
+    /// <summary>Normalize the canvas AND its mask to the native edit budget. Both must be resized together: the
+    /// ControlNet, latent mask, and paste-back must all describe the same pixel grid.</summary>
+    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, QwenInpaintParams p,
         (int W, int H) canvas, ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
-        int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
-        int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap == 0 || longEdge <= cap)
-        {
-            return;   // native: ceiling off, or under it (CanvasSize guarantees real dims)
-        }
-
-        // Preserve aspect, then snap DOWN to a multiple of 16 (Qwen: VAE /8 + patch /2) so the latent grid is exact.
-        double f = (double)cap / longEdge;
-        int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
-        int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
-
-        g[Nodes.CeilingImageScale] = new ImageScale
-        {
-            Image = image,
-            UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
-            Width = w,
-            Height = h,
-            Crop = ComfyWidgets.Crop.Disabled,
-        };
-        // The mask has to make the same trip; MASK has no scale node, so round-trip it through IMAGE.
-        g[Nodes.CeilingMaskImage] = new MaskToImage { Mask = rawMask };
-        // nearest-exact, NOT bilinear: the mask must stay binary. Bilinear resampling turns its edge into a ramp,
-        // which the composite then cross-fades across — reintroducing the seam fade through the back door on any
-        // canvas that trips the ceiling.
-        g[Nodes.CeilingMaskScale] = new ImageScale
-        {
-            Image = MaskToImage.Out(Nodes.CeilingMaskImage),
-            UpscaleMethod = ComfyWidgets.Upscale.NearestExact,
-            Width = w,
-            Height = h,
-            Crop = ComfyWidgets.Crop.Disabled,
-        };
-        g[Nodes.CeilingMaskBack] = new ImageToMask { Image = ImageScale.Out(Nodes.CeilingMaskScale), Channel = ComfyWidgets.MaskChannel.Red };
-
-        image = ImageScale.Out(Nodes.CeilingImageScale);
-        rawMask = ImageToMask.Out(Nodes.CeilingMaskBack);
+        (int Width, int Height) current = (canvas.W, canvas.H);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(
+            canvas.W,
+            canvas.H,
+            maxDimension: p.MaxDimension);
+        EditWorkingResolution.ScalePair(
+            g,
+            Nodes.WorkingImageScale,
+            Nodes.WorkingMaskImage,
+            Nodes.WorkingMaskScale,
+            Nodes.WorkingMaskBack,
+            current,
+            target,
+            ref image,
+            ref rawMask);
     }
 
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -198,7 +184,7 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
-        ApplyCeiling(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
+        ApplyWorkingResolution(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
 
         Output<Slot.Mask> softMask = QwenInstantXInpaintBase<TParams>.SoftenMask(g, p, rawMask);
 
@@ -297,10 +283,10 @@ file static class Nodes
     public const string SoftenBlur = "33";
     public const string SoftenMaskBack = "34";
     public const string SoftenComposite = "35";
-    public const string CeilingImageScale = "172";
-    public const string CeilingMaskImage = "173";
-    public const string CeilingMaskScale = "174";
-    public const string CeilingMaskBack = "175";
+    public const string WorkingImageScale = "172";
+    public const string WorkingMaskImage = "173";
+    public const string WorkingMaskScale = "174";
+    public const string WorkingMaskBack = "175";
     public const string Positive = "13";
     public const string Negative = "14";
     public const string ControlNet = "84";

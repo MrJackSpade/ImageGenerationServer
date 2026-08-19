@@ -315,14 +315,16 @@ Resolution:
 - Verify every correction through focused graph/configuration tests and the normal local test suite.
 - Reserve live binding/log inspection and fixed-seed GPU comparisons for follow-up only when a repository-level test cannot distinguish the behavior.
 
-### EDIT-013 — Several editors lack a compression-aware minimum working resolution
+### EDIT-013 — Remaining inpaint/outpaint editors lack a compression-aware working resolution
 
-- [ ] Open
+- [x] Closed by GitHub issue #309
 - Severity: critical for low-resolution inputs
 - Confidence: high
-- Affected workflows: generic `img2img-redraw`, Krea2 Redraw, Krea2 AnyPaint, Ideogram4 Refine, Anima inpaint/outpaint, FLUX Fill, and base-Qwen InstantX inpaint/outpaint
+- Affected workflows: Krea2 AnyPaint, Anima inpaint/outpaint, FLUX Fill, and base-Qwen InstantX inpaint/outpaint
 
 These workflows either pass the source directly to the VAE or apply only a maximum-size cap. They do not upscale a source that is below the model's useful working range. The problem is not an incorrect VAE file: it is too little spatial information entering a lossy codec. For example, a 512×512 source produces a 64×64 grid in a true 8× VAE, a 32×32 grid in a true 16× VAE, and a 16×16 grid in a true 32× VAE. At 256×256 those grids fall to 32×32, 16×16, and 8×8 respectively.
+
+Generic redraw, Krea2 Redraw, and Ideogram4 Refine have dedicated findings (EDIT-002, EDIT-004, and EDIT-005) and remain separate so each correction receives its own issue and commit.
 
 Compression terminology matters:
 
@@ -336,23 +338,14 @@ Compression terminology matters:
 
 Upscaling cannot recreate frequencies that are already absent from the uploaded source. It can, however, prevent the VAE and editing model from imposing *additional* loss by giving existing contours, colors, and structures more latent cells. This is especially relevant for preservation edits, where codec reconstruction changes can look like unwanted model modifications.
 
-Currently protected paths already normalize the source to a native pixel budget: Qwen-Image-Edit/FireRed/LongCat, FLUX.1 Kontext, FLUX.2 Klein Edit, Mage Edit, Boogu Edit, and ChronoEdit. The affected paths above do not consistently do so. Declared configuration minimums do not protect them because edit submission does not enforce those envelopes.
+Resolution:
 
-Evidence:
-
-- `src/ImageGen.Comfy/Workflows/Edit/Img2ImgRedraw/Img2ImgRedrawWorkflow.cs`, around lines 93–147: scales oversized inputs only; low-resolution inputs are unchanged.
-- `src/ImageGen.Comfy/Workflows/Edit/Krea2Redraw/Krea2RedrawWorkflow.cs`, around lines 62–79: raw source to `VAEEncode`.
-- `src/ImageGen.Comfy/Workflows/Edit/Ideogram4Refine/Ideogram4RefineWorkflow.cs`, around lines 39–40 and 73–87: raw source dimensions drive both encode and scheduler.
-- `src/ImageGen.Comfy/Workflows/Edit/Krea2AnyPaint/Krea2AnyPaintBase.cs`, around lines 25–27 and 65–86: source remains at its own resolution.
-- `src/ImageGen.Comfy/Workflows/_Shared/Base/FluxFillBase.cs`, around lines 129–150: maximum-dimension ceiling without a minimum floor.
-- `src/ImageGen.Comfy/Workflows/_Shared/Base/QwenInstantXInpaintBase.cs`, around lines 153–192 and 239: maximum-dimension ceiling without a minimum floor.
-
-Proposed work:
-
-- Add a shared, per-family working-resolution policy with a minimum latent-grid edge or equivalent minimum short edge, a maximum megapixel budget, aspect-ratio preservation, and model-appropriate dimension snapping.
-- Resize the image, mask, and spatial reference inputs together before encoding. Derive scheduler dimensions from the normalized image, not the original upload.
-- Preserve the requested output contract by decoding at working resolution and, where appropriate, resizing or compositing back to the original canvas.
-- Add an A/B diagnostic: direct VAE round trip versus upscale → VAE round trip → downscale, measured at several source sizes for preservation-sensitive crops.
+- Added `EditWorkingResolution`, which maps small, native, and oversized canvases to a shared aspect-preserving 1 MP native budget on a 16-pixel grid while retaining an optional long-edge safety cap.
+- FLUX Fill, base-Qwen InstantX, Anima, and Krea2 AnyPaint now scale the complete image/mask canvas to one resolved target before VAE/custom encoding.
+- Inpaint/outpaint grow, blur, ControlNet, latent-mask, and composite consumers remain aligned to the same resized mask.
+- ETA/effective render sizing uses the same resolver as each emitted graph.
+- Added low-resolution inpaint/outpaint graph regressions across all eight configurations plus independent budget/cap tests.
+- Output is produced at the selected working MP budget with the source/padded-canvas aspect ratio preserved. It is not silently resized back to the upload's original pixel dimensions.
 
 ### EDIT-014 — Add hidden, configurable edit-quality megapixel presets
 
@@ -373,7 +366,7 @@ Required behavior:
 - The workflow settings UI exposes all three numeric MP defaults and the selector's visibility. Machine-level overrides continue to fall back to the shipped values when reset.
 - A shared selection can fan out across multiple editors: for example, `High` resolves independently against each selected workflow's own `High` MP budget.
 - The selected budget scales the source image, mask, and all spatial reference inputs together before VAE encoding. It does not change aspect ratio.
-- Internal working resolution remains separate from the output-canvas contract. Unless a workflow explicitly produces an upscaled output, the result is resized/composited back to the expected source canvas.
+- The selected MP budget determines the output dimensions after aspect-preserving, model-step snapping; it does not revert to the upload's original pixel dimensions.
 - API callers may override the quality selection even when the control remains hidden, consistent with existing `hidden` parameter semantics.
 
 Suggested configuration shape:
@@ -400,7 +393,7 @@ Acceptance coverage:
 - Hidden-by-default and per-user reveal/hide behavior on the edit page.
 - Default-to-`Medium` behavior for UI and API requests that omit the selection.
 - Correct aspect preservation, dimension snapping, mask/reference alignment, and per-workflow resolution when one selection fans out to multiple editors.
-- Output dimensions remain unchanged unless the workflow explicitly declares an upscale output contract.
+- Output pixel count follows the selected MP budget while preserving the source or padded-canvas aspect ratio.
 
 ## VAE findings that are not currently issues
 

@@ -78,6 +78,15 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         return (inputs.SourceWidth, inputs.SourceHeight);
     }
 
+    /// <summary>Inpaint renders the source canvas at the native edit budget. Outpaint overrides this with its padded
+    /// canvas before resolving the same budget.</summary>
+    protected override (int Width, int Height) EtaRenderSize(
+        FluxFillParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight, maxDimension: p.MaxDimension);
+
     /// <summary>Gaussian sigma of the mask edge — the width of the crossfade band the composite blends over (and of
     /// the soft mask the model is conditioned on), so it wants to be several latent cells wide.</summary>
     private const double MaskBlurSigma = 8.0;
@@ -124,30 +133,26 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         return MaskComposite.Out(Nodes.SoftMask);
     }
 
-    /// <summary>Emit the ceiling scale for canvas AND mask, or leave both untouched. Both must travel together:
-    /// the composite does not resize a mismatched mask.</summary>
-    private static void ApplyCeiling(ComfyWorkflowGraph g, FluxFillParams p, (int W, int H) canvas,
+    /// <summary>Normalize canvas AND mask to the native edit budget. Both must travel together: the conditioning,
+    /// latent mask, and composite all describe the same pixel grid.</summary>
+    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, FluxFillParams p, (int W, int H) canvas,
         ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
-        int cap = p.MaxDimension;   // 0 = off (no ceiling); range enforced by the DTO's [Range]
-        int longEdge = Math.Max(canvas.W, canvas.H);
-        if (cap == 0 || longEdge <= cap)
-        {
-            return;   // ceiling off, or already under it (CanvasSize guarantees real dims)
-        }
-
-        double f = (double)cap / longEdge;
-        int w = Math.Max(16, (int)(canvas.W * f) / 16 * 16);
-        int h = Math.Max(16, (int)(canvas.H * f) / 16 * 16);
-
-        g[Nodes.CeilingImage] = new ImageScale { Image = image, UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
-        g[Nodes.CeilingMaskAsImage] = new MaskToImage { Mask = rawMask };
-        // nearest-exact keeps the mask binary; bilinear would ramp its edge and stack with SoftenMask.
-        g[Nodes.CeilingMaskImage] = new ImageScale { Image = MaskToImage.Out(Nodes.CeilingMaskAsImage), UpscaleMethod = ComfyWidgets.Upscale.NearestExact, Width = w, Height = h, Crop = ComfyWidgets.Crop.Disabled };
-        g[Nodes.CeilingMask] = new ImageToMask { Image = ImageScale.Out(Nodes.CeilingMaskImage), Channel = ComfyWidgets.MaskChannel.Red };
-
-        image = ImageScale.Out(Nodes.CeilingImage);
-        rawMask = ImageToMask.Out(Nodes.CeilingMask);
+        (int Width, int Height) current = (canvas.W, canvas.H);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(
+            canvas.W,
+            canvas.H,
+            maxDimension: p.MaxDimension);
+        EditWorkingResolution.ScalePair(
+            g,
+            Nodes.WorkingImage,
+            Nodes.WorkingMaskAsImage,
+            Nodes.WorkingMaskImage,
+            Nodes.WorkingMask,
+            current,
+            target,
+            ref image,
+            ref rawMask);
     }
 
     protected override ComfyWorkflowGraph Build(FluxFillParams p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -156,7 +161,7 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
-        ApplyCeiling(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
+        ApplyWorkingResolution(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
         Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.
@@ -230,10 +235,10 @@ file static class Nodes
     public const string BlurredMaskImage = "33";
     public const string BlurredMask = "34";
     public const string SoftMask = "35";
-    public const string CeilingImage = "172";
-    public const string CeilingMaskAsImage = "173";
-    public const string CeilingMaskImage = "174";
-    public const string CeilingMask = "175";
+    public const string WorkingImage = "172";
+    public const string WorkingMaskAsImage = "173";
+    public const string WorkingMaskImage = "174";
+    public const string WorkingMask = "175";
     public const string Positive = "13";
     public const string Guidance = "14";
     public const string Negative = "16";

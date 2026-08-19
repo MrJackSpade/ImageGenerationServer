@@ -194,6 +194,24 @@ public sealed class WorkflowGraphTests
         return JsonSerializer.Serialize(graph);
     }
 
+    private static (int Width, int Height) EtaSize(
+        string configId,
+        int sourceWidth,
+        int sourceHeight,
+        IReadOnlyDictionary<string, object?>? overrides = null)
+    {
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(configId));
+        IWorkflow wf = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+        Dictionary<string, object?> merged = new(Merge(catalog, wf, cfg), StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, object?> item in overrides ?? new Dictionary<string, object?>())
+        {
+            merged[item.Key] = item.Value;
+        }
+
+        return wf.EtaRenderSize(merged, catalog.Resolve(cfg), sourceWidth, sourceHeight);
+    }
+
     /// <summary>Krea 2 refine's polish pass (<c>polish_denoise</c>) has a floor of 0, and at 0 the whole Turbo stage is
     /// OMITTED — not emitted at strength 0 — the neutral-skip pattern (#104). At its normal strength both the refiner
     /// model (node 40) and the second sampler (node 30) are present and the decode reads the polished latent; at 0
@@ -736,6 +754,72 @@ public sealed class WorkflowGraphTests
         // The full prompt gets the quality prefix; the negative is the config default (no UI negative in EditMasked).
         Assert.Contains("masterpiece, best quality, score_7, make it red", json);
         Assert.Contains("worst quality", json);
+    }
+
+    [Theory]
+    [InlineData("anima-inpaint")]
+    [InlineData("flux1-fill-inpaint")]
+    [InlineData("qwen-image-inpaint")]
+    [InlineData("krea2-anypaint-inpaint")]
+    public void Vae_editors_upscale_a_low_resolution_source_and_mask_to_the_native_budget(string configId)
+    {
+        WorkflowInputs low = new()
+        {
+            Positive = "preserve the subject and change the expression",
+            SourceImageName = "src.png",
+            MaskImageName = "mask.png",
+            SourceWidth = 512,
+            SourceHeight = 512,
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson(configId, low));
+        JsonElement root = doc.RootElement;
+
+        JsonElement imageScale = root.GetProperty("172");
+        JsonElement maskScale = root.GetProperty("174");
+        Assert.Equal("ImageScale", imageScale.GetProperty("class_type").GetString());
+        Assert.Equal("ImageScale", maskScale.GetProperty("class_type").GetString());
+        Assert.Equal(1024, imageScale.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(1024, imageScale.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal(1024, maskScale.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(1024, maskScale.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal("nearest-exact", maskScale.GetProperty("inputs").GetProperty("upscale_method").GetString());
+        Assert.Equal((1024, 1024), EtaSize(configId, 512, 512));
+    }
+
+    [Theory]
+    [InlineData("anima-outpaint")]
+    [InlineData("flux1-fill-outpaint")]
+    [InlineData("qwen-image-outpaint")]
+    [InlineData("krea2-anypaint-outpaint")]
+    public void Vae_outpainters_normalize_the_complete_padded_canvas_and_mask(string configId)
+    {
+        WorkflowInputs low = new()
+        {
+            Positive = "continue the scene",
+            SourceImageName = "src.png",
+            SourceWidth = 512,
+            SourceHeight = 512,
+        };
+        Dictionary<string, object?> pads = new()
+        {
+            [WorkflowParamKeys.PadLeft] = 128,
+            [WorkflowParamKeys.PadRight] = 128,
+            [WorkflowParamKeys.PadTop] = 0,
+            [WorkflowParamKeys.PadBottom] = 0,
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson(configId, low, pads));
+        JsonElement root = doc.RootElement;
+
+        // The raw 768x512 canvas is normalized as one 3:2 unit to ~1 MP; the mask gets the exact same 1248x832 grid.
+        foreach (string id in new[] { "172", "174" })
+        {
+            JsonElement scale = root.GetProperty(id);
+            Assert.Equal("ImageScale", scale.GetProperty("class_type").GetString());
+            Assert.Equal(1248, scale.GetProperty("inputs").GetProperty("width").GetInt32());
+            Assert.Equal(832, scale.GetProperty("inputs").GetProperty("height").GetInt32());
+        }
+
+        Assert.Equal((1248, 832), EtaSize(configId, 512, 512, pads));
     }
 
     [Theory]
@@ -1414,8 +1498,12 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"ImageCompositeMaskedColorCorrected\"", json);
         // Unlike the ControlNet path, the pad's 0.5-grey needs NO engineering around it: InpaintModelConditioning
         // re-blanks the masked region to that same grey as the model's trained fill signal, and nothing ever
-        // alpha-blends the pad into the output. So there is no pre-fill scaffold here on purpose.
-        Assert.DoesNotContain("\"ImageScale\"", json);   // no stretch-and-blur prefill (that's the Qwen path's fix)
+        // alpha-blends the pad into the output. The canvas IS resized to the native edit budget, but there is no
+        // stretch/blur/paste pre-fill scaffold (that is the Qwen path's separate seam fix).
+        Assert.Contains("\"172\":{\"class_type\":\"ImageScale\"", json);
+        Assert.Contains("\"width\":1248", json);
+        Assert.Contains("\"height\":832", json);
+        Assert.DoesNotContain("\"ImageCompositeMaskedNoMask\"", json);
     }
 
     /// <summary>The masked Qwen-Image-EDIT editor: unlike the base-model InstantX inpaint, it keeps the Edit
@@ -1573,12 +1661,12 @@ public sealed class WorkflowGraphTests
         // The pad node must not ALSO feather, or the softening stacks into a wide partial-denoise band (mushy seam).
         Assert.Contains("\"feathering\":0", Node("20"));
 
-        // Every consumer of the CANVAS takes the pre-filled scene-tone one (node 23), never ImagePadForOutpaint's
-        // grey canvas (node 20 output 0, kept only for its mask): the VAE encode, the ControlNet apply's control
-        // image, and the composite's destination. Grey under any soft mask edge = the halo.
-        Assert.Contains("\"23\"", Node("12"));   // VAEEncode
-        Assert.Contains("\"23\"", Node("108"));  // ControlNet control image
-        Assert.Contains("\"23\"", Node("126")); // composite destination
+        // Every consumer of the CANVAS takes node 172: the native-budget resize of the pre-filled scene-tone canvas
+        // (node 23), never ImagePadForOutpaint's grey canvas (node 20 output 0).
+        Assert.Contains("\"172\"", Node("12"));   // VAEEncode
+        Assert.Contains("\"172\"", Node("108"));  // ControlNet control image
+        Assert.Contains("\"172\"", Node("126")); // composite destination
+        Assert.Contains("\"23\"", Node("172"));  // working resize starts from the pre-filled canvas
         // The scaffold: stretch to the padded size, blur, paste the original back at its pad offset.
         Assert.Equal("ImageScale", ClassType("21"));
         Assert.Equal("ImageBlur", ClassType("22"));
@@ -1600,7 +1688,7 @@ public sealed class WorkflowGraphTests
         string clamp = Node("35");
         Assert.Equal("MaskComposite", ClassType("35"));
         Assert.Contains("\"add\"", clamp);
-        Assert.Contains("\"20\"", clamp);                                   // clamped against the RAW pad mask
+        Assert.Contains("\"175\"", clamp);                    // clamped against the resized RAW pad mask
 
         // Every mask consumer takes the SAME softened+clamped mask: the ControlNet apply, SetLatentNoiseMask and the
         // composite. Splitting any of them off fails: a raw mask to the ControlNet dirties the seam; a raw mask to the
@@ -1616,14 +1704,14 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
-    public void QwenImageInpaint_leaves_a_source_under_the_ceiling_at_native_resolution()
+    public void QwenImageInpaint_normalizes_source_and_mask_to_the_native_budget()
     {
-        // 1216x832 is under the 1536 ceiling — nothing may be resized. Guards the standing rule that we never
-        // silently change a user's resolution, and the fact that Comfy's own node would have UPSCALED this to 1536.
         string json = BuildJson("qwen-image-inpaint", EditMasked);
-        // ImageScale is the only node that resizes; MaskToImage is NOT a proxy for scaling — the mask blur
-        // round-trips through IMAGE too, so it is present either way.
-        Assert.DoesNotContain("\"ImageScale\"", json);
+        // 1216x832 is just under 1 MP, so both sides are snapped up together to 1232x848 on the 16px grid.
+        Assert.Contains("\"172\":{\"class_type\":\"ImageScale\"", json);
+        Assert.Contains("\"174\":{\"class_type\":\"ImageScale\"", json);
+        Assert.Contains("\"width\":1232", json);
+        Assert.Contains("\"height\":848", json);
         Assert.DoesNotContain("ImageScaleToMaxDimension", json);
     }
 
@@ -1639,9 +1727,9 @@ public sealed class WorkflowGraphTests
             SourceHeight = 3000,
         };
         string json = BuildJson("qwen-image-inpaint", big);
-        // 4000x3000 -> long edge capped at 1536, aspect kept, both snapped down to a multiple of 16: 1536x1152.
-        Assert.Contains("\"width\":1536", json);
-        Assert.Contains("\"height\":1152", json);
+        // 4000x3000 -> the same native ~1 MP budget as a small input, snapped to 1184x880 on the 16px grid.
+        Assert.Contains("\"width\":1184", json);
+        Assert.Contains("\"height\":880", json);
         // The mask must make the SAME trip, or ImageCompositeMasked gets a mismatched mask and the paste-back breaks.
         Assert.Contains("\"MaskToImage\"", json);
         Assert.Contains("\"ImageToMask\"", json);

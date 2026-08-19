@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 
 /// <summary>
@@ -49,6 +51,15 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
     ];
 
+    protected override (int Width, int Height) EtaRenderSize(
+        AnimaOutpaintParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth + p.PadLeft + p.PadRight,
+            sourceHeight + p.PadTop + p.PadBottom);
+
     protected override ComfyWorkflowGraph Build(AnimaOutpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -79,6 +90,23 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
             Feathering = p.Feather,
         };
 
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth) + p.PadLeft + p.PadRight,
+            Ensure.GreaterThanZero(inputs.SourceHeight) + p.PadTop + p.PadBottom);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        Output<Slot.Image> image = ImagePadForOutpaint.ImageOut(Nodes.Pad);
+        Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Nodes.Pad);
+        EditWorkingResolution.ScalePair(
+            g,
+            Nodes.WorkingImage,
+            Nodes.WorkingMaskAsImage,
+            Nodes.WorkingMaskImage,
+            Nodes.WorkingMask,
+            current,
+            target,
+            ref image,
+            ref maskSrc);
+
         // The fill-conditioning that a base checkpoint lacks: patch the Anima model with the 4-channel inpainting
         // ControlNet-LLLite (kohya-ss Anima-LLLite). It takes the padded RGB + the border MASK (white = fill) and
         // conditions generation on the KNOWN pixels + hole, so the border CONTINUES the existing structure instead of
@@ -88,8 +116,8 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         {
             Model = model0,
             LlliteName = req.RequiredControlNet(),
-            Image = ImagePadForOutpaint.ImageOut(Nodes.Pad),
-            Mask = ImagePadForOutpaint.MaskOut(Nodes.Pad),
+            Image = image,
+            Mask = maskSrc,
             Strength = p.LlliteStrength,
             StartPercent = p.LlliteStart,
             EndPercent = p.LlliteEnd,
@@ -99,8 +127,7 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 
         // Encode the padded canvas; confine denoising to the padded (masked) border so the original region is kept.
         // GrowMask expands the border mask slightly into the original (mirrors AnimaInpaintWorkflow) so the seam blends.
-        g[Nodes.Encode] = new VAEEncode { Pixels = ImagePadForOutpaint.ImageOut(Nodes.Pad), Vae = vae0 };
-        Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Nodes.Pad);
+        g[Nodes.Encode] = new VAEEncode { Pixels = image, Vae = vae0 };
         int grow = p.MaskGrow;   // bound enforced by the DTO's [Range] at the ParamsCodec boundary
         if (grow > 0)
         {

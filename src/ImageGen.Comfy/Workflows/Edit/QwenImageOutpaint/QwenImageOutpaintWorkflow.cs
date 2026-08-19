@@ -30,6 +30,17 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
                 inputs.SourceHeight + p.PadTop + p.PadBottom);
     }
 
+    /// <summary>ETA follows the padded canvas after it is normalized to the same native MP budget as the graph.</summary>
+    protected override (int Width, int Height) EtaRenderSize(
+        QwenImageOutpaintParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth + p.PadLeft + p.PadRight,
+            sourceHeight + p.PadTop + p.PadBottom,
+            maxDimension: p.MaxDimension);
+
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;
     private static readonly IReadOnlyList<ParamSpec> OutpaintSchema =
     [

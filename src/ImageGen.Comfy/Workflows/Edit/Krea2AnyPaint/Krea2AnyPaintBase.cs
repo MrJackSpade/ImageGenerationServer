@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using ImageGen.Domain;
 
 namespace ImageGen.Comfy.Edit.Krea2AnyPaint;
 
@@ -23,8 +24,8 @@ namespace ImageGen.Comfy.Edit.Krea2AnyPaint;
 /// run). ModelPatch goes AFTER the LoRA loader and before the sampler.</para>
 ///
 /// <para>Krea 2 Turbo settings are its own: 8 steps, euler/simple, cfg 1 (distilled, no negative — the negative is
-/// wired only for graph symmetry), LoRA strength 1.0. The canvas is worked at the source's own resolution plus any
-/// padding; nothing is downscaled.</para>
+/// wired only for graph symmetry), LoRA strength 1.0. The prepared source-plus-padding canvas is normalized to the
+/// native edit MP budget before encoding; its keep mask takes the exact same resize.</para>
 /// </summary>
 public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
 {
@@ -50,6 +51,15 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
     protected abstract void ResolveRegion(ComfyWorkflowGraph g, Krea2AnyPaintParams p, WorkflowInputs inputs,
         out Output<Slot.Mask>? generatedMask, out int left, out int top, out int right, out int bottom);
 
+    protected override (int Width, int Height) EtaRenderSize(
+        Krea2AnyPaintParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth + p.PadLeft + p.PadRight,
+            sourceHeight + p.PadTop + p.PadBottom);
+
     protected override ComfyWorkflowGraph Build(Krea2AnyPaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -74,14 +84,31 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
             GeneratedMask = generatedMask,
         };
 
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth) + left + right,
+            Ensure.GreaterThanZero(inputs.SourceHeight) + top + bottom);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        Output<Slot.Image> knownImage = Krea2AnyPaintPrepare.KnownImageOut(Nodes.Prepare);
+        Output<Slot.Mask> keepMask = Krea2AnyPaintPrepare.KeepMaskOut(Nodes.Prepare);
+        EditWorkingResolution.ScalePair(
+            g,
+            Nodes.WorkingImage,
+            Nodes.WorkingMaskAsImage,
+            Nodes.WorkingMaskImage,
+            Nodes.WorkingMask,
+            current,
+            target,
+            ref knownImage,
+            ref keepMask);
+
         g[Nodes.Encode] = new Krea2AnyPaintEncode
         {
             Clip = clip0,
             Prompt = inputs.Positive,
             Vae = vae0,
             SemanticReference = Krea2AnyPaintPrepare.SemanticReferenceOut(Nodes.Prepare),
-            KnownImage = Krea2AnyPaintPrepare.KnownImageOut(Nodes.Prepare),
-            KeepMask = Krea2AnyPaintPrepare.KeepMaskOut(Nodes.Prepare),
+            KnownImage = knownImage,
+            KeepMask = keepMask,
             VlmReference = p.VlmReference,
         };
 
@@ -121,6 +148,10 @@ internal static class Nodes
     public const string ModelPatch = "91";
     public const string Rebalance = "15";
     public const string Prepare = "20";
+    public const string WorkingImage = "172";
+    public const string WorkingMaskAsImage = "173";
+    public const string WorkingMaskImage = "174";
+    public const string WorkingMask = "175";
     public const string Encode = "21";
     public const string Mask = "22";
     public const string Negative = "16";
