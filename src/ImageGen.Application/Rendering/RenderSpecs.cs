@@ -27,7 +27,7 @@ public sealed record LoraSelection(string Name, double Weight);
 /// </param>
 /// <param name="OriginalPrompt">
 /// The prompt as the user TYPED it, carried alongside <paramref name="Prompt"/> because that syntax is resolved before
-/// this slot renders — the orchestrator fans a <c>{a|b}</c> into one slot per combo and picks each <c>[a|b]</c> at
+/// this slot renders — the orchestrator fans a <c>{{a|b}}</c> into one slot per combo and picks each <c>{a|b}</c> at
 /// enqueue (so <paramref name="Prompt"/> is the RESOLVED text), and an artist page's locked artist is appended — none
 /// of it recoverable from the result. Purely a record: nothing renders from it. Null when the caller sent none.
 /// </param>
@@ -36,6 +36,7 @@ public sealed record LoraSelection(string Name, double Weight);
 /// chained through <c>LoraLoader</c> (model + CLIP) on top of any preset LoRA. Per-slot like <paramref name="Overrides"/>,
 /// so a queued batch keeps the LoRAs it was submitted under. Recorded with the image so Reload can reproduce it.
 /// </param>
+/// <param name="ResolvePromptSyntax">False only when <paramref name="Prompt"/> is already concrete replay text.</param>
 public sealed record GenerateSpec(
     string Workflow,
     string Prompt,
@@ -47,13 +48,15 @@ public sealed record GenerateSpec(
     Dictionary<string, JsonElement>? Overrides = null,
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
-    IReadOnlyList<LoraSelection>? Loras = null);
+    IReadOnlyList<LoraSelection>? Loras = null,
+    bool ResolvePromptSyntax = true);
 
 /// <summary>
 /// One image-edit request as the orchestrator renders and persists it. <see cref="Workflow"/> is the edit workflow
 /// configuration id; <see cref="ImageId"/> the source. In-memory only — the slot's spec is stored as typed columns,
 /// so these names are not a durable contract (see <see cref="GenerateSpec"/>).
 /// </summary>
+/// <param name="ResolvePromptSyntax">False only when <paramref name="Instruction"/> is already concrete replay text.</param>
 public sealed record EditSpec(
     string Workflow,
     string Instruction,
@@ -62,7 +65,8 @@ public sealed record EditSpec(
     List<string>? ReferenceIds = null,
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
-    string? LastFrameImageId = null);
+    string? LastFrameImageId = null,
+    bool ResolvePromptSyntax = true);
 
 /// <summary>
 /// One slot of an enqueue: exactly one of a generate spec or an edit spec. Use the factories, which enforce the XOR.

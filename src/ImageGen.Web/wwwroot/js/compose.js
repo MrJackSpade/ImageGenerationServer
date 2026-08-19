@@ -562,7 +562,7 @@ function buildComposerItems(n) {
   if (customActive && !customReady()) { setStatus("Enter a width and height for the custom size.", { error: true }); return []; }
   savePrefs();
   n = Math.max(1, n || 1);
-  // Explode: {a|b} sets fan the prompt into one variant per option, multiplying across sets, models, and the batch.
+  // Exhaustive: {{a|b}} sets fan the prompt into one variant per option, multiplying across sets, models, and the batch.
   // Warn before a genuinely multiplicative run (2+ sets) with the real total; a single set just makes one-of-each.
   const info = explodeInfo(prompt);
   if (info.groupCount >= 2) {
@@ -579,8 +579,8 @@ function buildComposerItems(n) {
 }
 
 // The slots for one model: n copies of the prompt, each rolling its own aspect from the picked set (so a batch comes
-// back mixed when several shapes are selected). The prompt is sent RAW — the SERVER resolves its `[a|b]`/`{a|b}` groups
-// now (one job slot per `{a|b}` combo, `[a|b]` picked per combo), so a `{a|b}` copy fans out server-side. `exact`
+// back mixed when several shapes are selected). The prompt is sent RAW — the SERVER resolves Comfy `{a|b}` random
+// choices and `{{a|b}}` exhaustive groups, so browser, API, generation, and editing all share one implementation. `exact`
 // (Reload) reproduces a picture verbatim — its own (already-resolved) prompt/negative/loras/shape, no re-roll.
 function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   // One submitted width/height pair by default (#209, from currentOverrides). With a multi-shape pick (#213) each
@@ -603,7 +603,7 @@ function buildBatchItems(prompt, model, n, exact, aspect, negative, loras) {
   let items;
   if (exact) {
     // `negative ?? null` keeps "no negative was submitted" distinct from an empty one; the image's OWN LoRA stack.
-    const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: loras || [] };
+    const one = { workflow: gwModel(model), prompt, originalPrompt: prompt, negativePrompt: negative ?? null, randomArtist: false, randomPrompt: false, temperature: null, overrides: ov, loras: loras || [], resolvePromptSyntax: false };
     items = Array.from({ length: n }, () => ({ ...one }));
   } else {
     const base = { workflow: gwModel(model), negativePrompt: negFor(model), randomArtist: wantsRandomArtist(model), randomPrompt: wantsRandomPrompt(model), temperature: promptTemp(), tagTypes: tagTypes(), loras: lorasPayload() };

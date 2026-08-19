@@ -874,8 +874,8 @@ async function buildChatItems(n) {
       // The effective descriptor when masked: the sibling workflow (if any), whose negative capability also applies.
       const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
       const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
-      // Re-roll [a|b|…] per slot so the model fan-out AND the copies can differ.
-      items.push({ workflow: wf, edit: true, instruction: expandRandomPrompt(instruction), negativePrompt: editNegFor(eff),
+      // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
+      items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
         imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides });
     }
   return items;
@@ -1047,8 +1047,8 @@ function renderOutpaintResult(id) {
   $outpaintResult.appendChild(c);
 }
 function showOutpaintBar(show) { $outpaintBar.classList.toggle("show", show); if (!show) $outpaintBar.querySelector("i").style.width = "0"; }
-// Build the outpaint items: n takes of the SAME base + pads + prompt, re-rolling [a|b|…] per slot (the server also
-// fills a fresh seed per slot). Pads plus an optionally revealed Quality selector are the only overrides; fill
+// Build the outpaint items: n takes of the same raw prompt; the server re-rolls {a|b} per slot and fills a fresh seed.
+// Pads plus an optionally revealed Quality selector are the only overrides; fill
 // strength, feather, mask grow, and model-specific controls stay at configuration defaults.
 //
 // Do NOT read the normal editParams panel here. The editor's param map (editParamPrefs) is flat and keyed by param NAME
@@ -1062,7 +1062,7 @@ function buildOutpaintItems(n) {
   const overrides = { ...readOverrides($outpaintParams), pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
   const items = [];
   for (let i = 0; i < n; i++)
-    items.push({ workflow: gwModel(model), edit: true, instruction: expandRandomPrompt(prompt), negativePrompt: outpaintNegFor(model),
+    items.push({ workflow: gwModel(model), edit: true, instruction: prompt, negativePrompt: outpaintNegFor(model),
       imageId: outpaintBase, referenceIds: [], overrides });
   return items;
 }

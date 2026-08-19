@@ -143,7 +143,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'RawNegativePrompt' AND Ob
 GO
 
 -- The prompt as the user TYPED it, which despite its name RawPrompt is NOT: two layers of resolution happen first.
--- The composer collapses [a|b] to the option it rolled, fans {a|b} into separate submitted variants, and appends an
+-- Enqueue collapses {a|b} to the option it rolled, fans {{a|b}} into separate variants, and appends an
 -- artist page's locked artist -- all in the browser, before the request is sent -- and the worker then appends its
 -- sampled tags/artist in the same marker dialect. Every one of those is one-directional, so the intent is not
 -- recoverable from the result. Encrypted at rest like the other prompt columns.

@@ -41,14 +41,14 @@ public sealed class HistoryEntry
     public string? RawNegativePrompt { get; init; }
 
     /// <summary>
-    /// The prompt exactly as the user TYPED it, before anything resolved it — <c>[a|b]</c> still a choice rather than
+    /// The prompt exactly as the user TYPED it, before anything resolved it — <c>{a|b}</c> still a choice rather than
     /// the option that was rolled, an artist page's locked artist not yet appended, and none of the worker's sampled
     /// tags or artist added. <see cref="RawPrompt"/> is post-resolution despite its name, so this is the only record
     /// of the intent as opposed to the result.
     ///
-    /// Null for every image made before this column existed, and it CANNOT be backfilled: the expansion happens in
-    /// the browser before the request is sent, so the original was never transmitted, let alone stored. Callers must
-    /// treat null as "not recorded" and say so, rather than substituting the resolved prompt for it.
+    /// Null for every image made before this column existed, and it cannot be backfilled because older requests did
+    /// not transmit the original separately. Callers must treat null as "not recorded" rather than substitute the
+    /// resolved prompt.
     /// </summary>
     public string? OriginalPrompt { get; init; }
 

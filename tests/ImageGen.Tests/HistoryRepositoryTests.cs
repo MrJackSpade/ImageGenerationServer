@@ -130,7 +130,7 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
 
     /// <summary>
     /// The prompt as TYPED is stored separately from the one that rendered, because it is the only record of the
-    /// intent: the composer resolves [a|b] to the option it rolled before submitting, and that is one-directional.
+    /// intent: enqueue resolves {a|b} to the option it rolled, and that is one-directional.
     /// Null must stay null too — an image made before this was recorded has no original, and reporting the resolved
     /// prompt as one would hand back a string the user never typed.
     /// </summary>

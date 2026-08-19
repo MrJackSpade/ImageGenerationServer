@@ -10,19 +10,21 @@ Put round brackets around something to make the picture lean into it more.
 - `((red dress))` — even more.
 - `(red dress:1.3)` — dial it in with a number: above `1` is stronger, below `1` is weaker, so `(red dress:0.7)` tones it down.
 
-## A random choice each time — [ ]
+## A random choice each time — { }
 
-Put a few options in square brackets, separated by `|`, and the app picks **one at random** for each picture.
+Put a few options in curly brackets, separated by `|`, and the app picks **one at random** for each picture. This is the same syntax ComfyUI uses.
 
-- `a [red|blue|green] hat` → each picture gets one of the colors.
-- Leave a choice blank to make it "sometimes": `[sunglasses|]` gives you sunglasses about half the time.
+- `a {red|blue|green} hat` → each picture gets one of the colors.
+- Leave a choice blank to make it "sometimes": `{sunglasses|}` gives you sunglasses about half the time.
+- Older `[red|blue]` choices still work.
+- To use curly brackets literally, escape them: `\{red|blue\}`.
 
-## One picture of every option — { }
+## One picture of every option — {{ }}
 
-Curly brackets work like the square ones, but instead of picking one, the app makes **one picture of each** option.
+Double curly brackets make **one picture of each** option.
 
-- `{cow|chicken|duck}` → three pictures, one of each. Ask for 10 and you get 10 of each.
-- Two sets combine: `{cow|chicken|duck} {fat|skinny}` → all 6 mixes.
+- `{{cow|chicken|duck}}` → three pictures, one of each. Ask for 10 and you get 10 of each.
+- Two sets combine: `{{cow|chicken|duck}} {{fat|skinny}}` → all 6 mixes.
 - If it's about to make a lot, the app shows you the total first.
 
 ## Tags, artists, quiet tags, and guide tags — # @ ! ~

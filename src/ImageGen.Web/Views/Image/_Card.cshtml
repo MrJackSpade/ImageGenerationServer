@@ -20,7 +20,7 @@
         // The negative this image was made with, verbatim. Reload resubmits it; null means none was submitted and the
         // model's default negative stood alone, which Reload must reproduce rather than flatten to "".
         negativePrompt = Model.MarkerNegativePrompt,
-        // What the user TYPED — before [a|b] was rolled, {a|b} was fanned out, the artist page's artist was appended
+        // What the user TYPED — before {a|b} was rolled, {{a|b}} was fanned out, the artist page's artist was appended
         // and the worker added its sampled tags. Null for images made before it was recorded, and unbackfillable
         // (the expansion happened in a browser and was never sent), so the long-press must say so, not substitute.
         originalPrompt = Model.OriginalPrompt,

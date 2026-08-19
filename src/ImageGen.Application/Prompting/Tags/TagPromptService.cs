@@ -7,7 +7,7 @@ namespace ImageGen.Application.Prompting.Tags;
 /// underscores). It joins the layers of issue #157:
 /// <list type="bullet">
 ///   <item><see cref="Compile"/> — parse groups + resolve them: one <see cref="GeneratedTagGroup"/> per explode-combo,
-///   choices picked. This is the ENQUEUE step (what the client used to do with <c>[a|b]</c>/<c>{a|b}</c>).</item>
+///   choices picked. This is the ENQUEUE step for Comfy <c>{a|b}</c> choices and <c>{{a|b}}</c> fan-out.</item>
 ///   <item><see cref="ImageModelPrompt"/> / <see cref="Marks"/> / <see cref="TagModelSeed"/> — render an already-resolved
 ///   (group-free) prompt for this model. This is the RENDER step, per slot.</item>
 /// </list>
@@ -22,7 +22,7 @@ public sealed class TagPromptService
     /// resolved text is rendered back byte-for-byte with no tag handling.</summary>
     public TagPromptService(WorkflowTagging? tagging) => _tagging = tagging;
 
-    /// <summary>Parse the prompt's <c>[a|b]</c>/<c>{a|b}</c> groups and resolve them into one <see cref="GeneratedTagGroup"/>
+    /// <summary>Parse the prompt's <c>{a|b}</c>/<c>{{a|b}}</c> groups and resolve them into one <see cref="GeneratedTagGroup"/>
     /// per explode-combo (choices picked via <paramref name="pick"/>, defaulting to a real RNG). Call once per copy so
     /// each copy re-rolls its choices, exactly as the client's per-slot expansion did.</summary>
     public static IReadOnlyList<GeneratedTagGroup> Compile(string? raw, Func<int, int>? pick = null) => TagGroup.Parse(raw).Generate(pick);

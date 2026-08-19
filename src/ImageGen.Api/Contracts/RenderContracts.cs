@@ -10,7 +10,8 @@ namespace ImageGen.Api.Contracts;
 /// <c>Workflow</c> is non-nullable and required for both item kinds; <c>ImageId</c> stays nullable because a generate
 /// item legitimately omits it — its presence is the discriminated-union concern validated by the <c>Edit == true</c>
 /// branch, not a missing-member check. Generate fields (prompt/aspect/random-*/tagTypes/loras) and edit fields
-/// (instruction/imageId/mask/refs/lastFrame) coexist; <c>ToRenderItem</c> reads the set that matches <c>Edit</c>.</summary>
+/// (instruction/imageId/mask/refs/lastFrame) coexist; <c>ToRenderItem</c> reads the set that matches <c>Edit</c>.
+/// <c>ResolvePromptSyntax=false</c> is reserved for exact replay/already-resolved API text.</summary>
 public sealed record EnqueueItem(
     string Workflow, bool Edit = false, string? Prompt = null, string? NegativePrompt = null, string? Aspect = null,
     string? Instruction = null, string? ImageId = null, List<string>? ReferenceIds = null,
@@ -23,7 +24,8 @@ public sealed record EnqueueItem(
     List<string>? TagTypes = null,
     string? OriginalPrompt = null,
     List<LoraSelection>? Loras = null,
-    bool Background = false);
+    bool Background = false,
+    bool ResolvePromptSyntax = true);
 
 /// <summary>Batch enqueue payload: a mixed list of generate and edit items.</summary>
 public sealed record EnqueueRequest(List<EnqueueItem>? Jobs = null);
@@ -47,7 +49,8 @@ public static class RenderContractMapping
             }
 
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
-                it.NegativePrompt, it.ReferenceIds, it.Overrides, it.MaskImageId, it.LastFrameImageId), it.Background);
+                it.NegativePrompt, it.ReferenceIds, it.Overrides, it.MaskImageId, it.LastFrameImageId,
+                it.ResolvePromptSyntax), it.Background);
         }
 
         if (string.IsNullOrWhiteSpace(it.Workflow))
@@ -56,6 +59,7 @@ public static class RenderContractMapping
         }
 
         return RenderItem.ForGenerate(new GenerateSpec(it.Workflow, it.Prompt ?? "", it.NegativePrompt, resolvedAspect ?? it.Aspect,
-            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras), it.Background);
+            it.RandomArtist, it.RandomPrompt, it.Temperature, it.Overrides, it.TagTypes, it.OriginalPrompt, it.Loras,
+            it.ResolvePromptSyntax), it.Background);
     }
 }

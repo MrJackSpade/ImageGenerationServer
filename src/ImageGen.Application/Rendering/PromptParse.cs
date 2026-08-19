@@ -7,7 +7,7 @@ namespace ImageGen.Application.Rendering;
 /// The full parse of an already-RESOLVED (group-free) raw prompt against a model's tagging config, in ONE call — the
 /// testable surface of issue #157: for any input it returns exactly what will be sent to the image model AND what will
 /// be sent to the tag model, both from the one parse, so they can be pinned together and never diverge. Group handling
-/// (<c>[a|b]</c>/<c>{a|b}</c>) happens earlier, at enqueue, via <see cref="TagPromptService.Compile"/>.
+/// (<c>{a|b}</c>/<c>{{a|b}}</c>) happens earlier, at enqueue, via <see cref="TagPromptService.Compile"/>.
 /// </summary>
 /// <param name="ImageModelPrompt">The finalized prompt the image model renders.</param>
 /// <param name="TagModelSeed">The seed handed to the tag predictor.</param>

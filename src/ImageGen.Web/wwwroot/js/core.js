@@ -96,81 +96,12 @@ function tagCategoryClass(type) {
   }
 }
 
-// A prompt like "a [red|blue|green] hat" is a randomization template: each [opt|opt|…] group is replaced by ONE
-// option chosen at random, INDEPENDENTLY per group and per call. Call it once per submitted job (never once before a
-// batch fan-out) so a batch of N draws N fresh rolls instead of N copies of the same one. A group with no '|' is left
-// untouched (so weighting syntax like "[a:b:0.5]" survives); nested groups collapse innermost-first.
-//
-// An option may be EMPTY, which is how you express "this appears only some of the time": each '|' adds one more
-// alternative, so "[#cow|]" is 1-in-2, "[#cow||]" 1-in-3, and so on — an empty option is a real draw, never skipped.
-// Picking one leaves a hole where the group was ("1girl, [#cow|], solo" -> "1girl, , solo"), so tidySeparators puts
-// the punctuation back in order. It runs ONLY when an empty option actually won: a prompt whose groups all resolved
-// to text must reach the model exactly as the user wrote it, untouched by cosmetic whitespace rewriting.
-function expandRandomPrompt(text) {
-  let s = String(text == null ? "" : text);
-  const group = /\[([^\[\]]*)\]/g;
-  let droppedEmpty = false;
-  for (let guard = 0; guard < 100; guard++) {
-    let changed = false;
-    s = s.replace(group, (m, body) => {
-      if (!body.includes("|")) return m;                       // not an alternation — leave it as-is
-      changed = true;
-      const opts = body.split("|").map(o => o.trim());
-      const pick = opts[Math.floor(Math.random() * opts.length)];
-      if (!pick) droppedEmpty = true;                          // an empty option won — the hole needs tidying
-      return pick;
-    });
-    if (!changed) break;                                        // no groups resolved this pass → done
-  }
-  return droppedEmpty ? tidySeparators(s) : s;
-}
-
-// Close the gap an empty alternation option left behind: collapse the run of spaces it split in two, fold the now-empty
-// comma segment(s) into one separator, and drop a comma stranded at either END of the prompt. Newlines are preserved
-// (only spaces and tabs collapse) so a multi-line prompt keeps its layout. A comma left at a LINE end/start stays —
-// there it is still separating the two segments it always separated, and a newline alone would silently fuse them.
-function tidySeparators(s) {
-  return s.replace(/[ \t]+/g, " ")
-    .replace(/\s*,(?:\s*,)+/g, ",")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/^\s*,\s*/, "")
-    .replace(/,[ \t]*$/, "")
-    .trim();
-}
-
-// A prompt like "{cow|chicken|duck} in a field" is an EXPLODE template. Unlike [a|b] (which picks ONE option at
-// random), each {opt|opt|…} group fans the prompt into one variant PER option, and multiple groups MULTIPLY
-// (cartesian): "{cow|chicken} {fat|skinny}" -> 4 variants. Returns the list of base prompts, each still containing any
-// [a|b] random groups (those are rolled per slot afterwards, so a "10 of each" batch still varies). Only a brace group
-// that contains a '|' is an explode set; a plain "{x}" is left literal (stray braces are safe), mirroring how "[x]"
-// with no '|' is left untouched. An empty option is a real variant ("{cow|}" -> "cow" and ""), and the hole it leaves
-// is tidied exactly like an empty random pick.
-function explodePrompts(text) {
-  let variants = [{ s: String(text == null ? "" : text), empty: false }];
-  const group = /\{([^{}]*\|[^{}]*)\}/;
-  for (let guard = 0; guard < 100; guard++) {
-    const next = [];
-    let changed = false;
-    for (const v of variants) {
-      const m = group.exec(v.s);
-      if (!m) { next.push(v); continue; }               // no explode set left in this variant
-      changed = true;
-      for (const raw of m[1].split("|")) {
-        const opt = raw.trim();
-        next.push({ s: v.s.slice(0, m.index) + opt + v.s.slice(m.index + m[0].length), empty: v.empty || !opt });
-      }
-    }
-    variants = next;
-    if (!changed) break;
-  }
-  return variants.map(v => v.empty ? tidySeparators(v.s) : v.s);
-}
-
-// How an explode template fans out, WITHOUT building the strings: the count of {…|…} sets and the product of their
+// How an exhaustive template fans out, WITHOUT building the strings: the count of {{…|…}} sets and the product of their
 // option counts (combos = 1 when there are none). Used to warn before a multiplicative batch and to route the fan-out.
+// Actual resolution is server-side for generation and edits; this is only the composer's pre-submit warning.
 function explodeInfo(text) {
-  const groups = String(text == null ? "" : text).match(/\{[^{}]*\|[^{}]*\}/g) || [];
-  const combos = groups.reduce((n, g) => n * g.slice(1, -1).split("|").length, 1);
+  const groups = String(text == null ? "" : text).match(/\{\{[^{}]*\|[^{}]*\}\}/g) || [];
+  const combos = groups.reduce((n, g) => n * g.slice(2, -2).split("|").length, 1);
   return { groupCount: groups.length, combos };
 }
 

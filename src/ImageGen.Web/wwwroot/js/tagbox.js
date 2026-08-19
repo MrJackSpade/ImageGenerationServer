@@ -52,7 +52,7 @@ function initTagBox(opts) {
   function token() {
     if (input.selectionStart !== input.selectionEnd) return null;
     const pos = input.selectionStart, text = input.value; let s = pos;
-    // '[' ']' '{' '}' '|' bound a token too, so '#'/'@'/'!'/'~' autocomplete fires inside a [a|b] random or {a|b} group.
+    // Group delimiters bound a token too, so marked-tag autocomplete works inside {a|b} choices and {{a|b}} fan-out.
     while (s > 0 && !/[\s,\[\]{}|]/.test(text[s - 1])) s--;
     const m = /^([#@!~])([^\s,\[\]{}|]*)$/.exec(text.slice(s, pos));
     return m ? { start: s, end: pos, marker: m[1], frag: m[2] } : null;
@@ -96,7 +96,7 @@ function initTagBox(opts) {
     if (!state) return; const it = state.items[i]; if (!it) return;
     const tok = state.tok, text = input.value; let wEnd = tok.end;
     while (wEnd < text.length && !/[\s,\[\]{}|]/.test(text[wEnd])) wEnd++;
-    // Inside a [a|b] random or {a|b} explode group the separator is '|', not comma — don't inject ", " there.
+    // Inside a {a|b} choice or {{a|b}} fan-out group the separator is '|', not comma — don't inject ", " there.
     const before = text.slice(0, tok.start);
     const inGroup = before.lastIndexOf("[") > before.lastIndexOf("]") || before.lastIndexOf("{") > before.lastIndexOf("}");
     const insert = tok.marker + it.name + (inGroup ? "" : ", ");
@@ -114,7 +114,7 @@ function initTagBox(opts) {
       // to steer suggestions, so it is exactly what should be here even though it never reaches the picture.
       // Note the asymmetry: typing '!foo' still ASKS for context-ranked suggestions (you want good completions), it
       // just never CONTRIBUTES itself — which the filter below gives for free.
-      // Split on '[' ']' '{' '}' '|' too so each alternative in a [#a|#b] or {#a|#b} group is its own context tag.
+      // Split on group delimiters too so each alternative is its own context tag.
       const tags = (text.slice(0, tok.start) + text.slice(wEnd)).split(/[,\[\]{}|]/)
         .map(x => x.trim()).filter(x => x.startsWith("#") || x.startsWith("~"))
         .map(x => x.slice(1).trim()).filter(Boolean);

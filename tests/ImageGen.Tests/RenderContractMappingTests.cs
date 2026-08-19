@@ -1,7 +1,9 @@
+using ImageGen.Api;
 using ImageGen.Api.Contracts;
 using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
 using ImageGen.Domain;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -61,6 +63,30 @@ public sealed class RenderContractMappingTests
 
         Assert.NotNull(spec);
         Assert.Equal("portrait", spec.Aspect);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Prompt_syntax_resolution_flag_reaches_generate_and_edit_specs(bool resolve)
+    {
+        RenderItem? generate = new EnqueueItem(
+            Workflow: "anima", Prompt: "{red|blue}", ResolvePromptSyntax: resolve).ToRenderItem();
+        RenderItem? edit = new EnqueueItem(
+            Workflow: "editor", Edit: true, Instruction: "{red|blue}", ImageId: "source", ResolvePromptSyntax: resolve)
+            .ToRenderItem();
+
+        Assert.Equal(resolve, Assert.IsType<GenerateSpec>(generate?.Gen).ResolvePromptSyntax);
+        Assert.Equal(resolve, Assert.IsType<EditSpec>(edit?.Edit).ResolvePromptSyntax);
+    }
+
+    [Fact]
+    public void Omitted_wire_flag_defaults_to_resolving_prompt_syntax()
+    {
+        EnqueueItem? item = JsonSerializer.Deserialize<EnqueueItem>(
+            """{"workflow":"anima","prompt":"{red|blue}"}""", Json.Options);
+
+        Assert.True(Assert.IsType<EnqueueItem>(item).ResolvePromptSyntax);
     }
 
     /// <summary>A submitted width/height IS a shape (#209): the recorded label follows the dims — wider is landscape,

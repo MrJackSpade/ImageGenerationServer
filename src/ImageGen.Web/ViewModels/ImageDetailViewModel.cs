@@ -28,11 +28,11 @@ public sealed class ImageDetailViewModel
 
     /// <summary>
     /// This image's prompt as the user TYPED it — <c>HistoryEntry.OriginalPrompt</c>, loaded as-is. Despite its name
-    /// <see cref="MarkerPrompt"/> is post-resolution: the composer collapses <c>[a|b]</c>, fans <c>{a|b}</c> into
-    /// separate images and appends an artist page's artist before submitting, and the worker then appends its sampled
+    /// <see cref="MarkerPrompt"/> is post-resolution: enqueue collapses <c>{a|b}</c>, fans <c>{{a|b}}</c> into
+    /// separate images, and the worker then appends its sampled
     /// tags. This is the only record of what was asked for.
     /// <para>Null for every image made before it was recorded, and it cannot be backfilled — the pre-expansion text
-    /// was discarded in the browser and never sent. Surfaces must say "not recorded", never substitute the resolved
+    /// was never sent separately. Surfaces must say "not recorded", never substitute the resolved
     /// prompt, or a copy would hand back a different string than the one requested.</para>
     /// </summary>
     public string? OriginalPrompt { get; init; }

@@ -64,7 +64,7 @@ function initDetail(root, opts) {
   // included, i.e. what you'd have to type to get this picture back. rec.markerPrompt is built server-side
   // (PromptMarkers) and is the SAME string Reload re-submits and the Edit page seeds its tag box with.
   //
-  // Hold: the ORIGINAL, as typed — before [a|b] was rolled to one option, {a|b} was fanned into separate images, an
+  // Hold: the ORIGINAL, as typed — before {a|b} was rolled to one option, {{a|b}} was fanned into separate images, an
   // artist page's artist was appended, and the worker added its sampled tags. Both outcomes toast, worded so you
   // know which one you got; that distinction is the whole point of having two.
   const copyBtn = root.querySelector("#detailCopy");
