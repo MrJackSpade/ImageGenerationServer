@@ -4,6 +4,7 @@ using ImageGen.Application.Snapshots;
 using ImageGen.Application.Workflows;
 using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
@@ -597,7 +598,8 @@ public sealed class ComfyClient : IComfyClient
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.
         EtaSignature eta = new(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
-        return new SubmitResult(await SubmitAsync(graph, ct), eta, pos, RenderModelManifestBuilder.Build(dict, resolved));
+        return new SubmitResult(await SubmitAsync(graph, ct), eta, pos, RenderModelManifestBuilder.Build(dict, resolved),
+            Dimensions(wf, null, null, ew, eh));
     }
 
     /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
@@ -667,7 +669,7 @@ public sealed class ComfyClient : IComfyClient
             // left unset; the frame count still drives the time.
             EtaSignature eta0 = new(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
             return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0, renderedInstruction0,
-                RenderModelManifestBuilder.Build(dict0, resolved0));
+                RenderModelManifestBuilder.Build(dict0, resolved0), Dimensions(wf, null, null, null, null));
         }
 
         // Distinct filename per role — a fixed name for every upload would make source and references clobber each
@@ -724,8 +726,15 @@ public sealed class ComfyClient : IComfyClient
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction,
-            RenderModelManifestBuilder.Build(dict, resolved));
+            RenderModelManifestBuilder.Build(dict, resolved), Dimensions(wf, srcW, srcH, etaW, etaH));
     }
+
+    private static RenderDimensions Dimensions(IWorkflow wf, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) => new()
+    {
+        Policy = wf.OutputSizePolicy,
+        Input = inputWidth > 0 && inputHeight > 0 ? new PixelDimensions(inputWidth.Value, inputHeight.Value) : null,
+        Working = workingWidth > 0 && workingHeight > 0 ? new PixelDimensions(workingWidth.Value, workingHeight.Value) : null,
+    };
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveGenerate(string? configId)
     {

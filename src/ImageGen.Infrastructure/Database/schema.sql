@@ -955,3 +955,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ModelManifestJson' AND Object_ID = Object_ID('dbo.JobSlot'))
     ALTER TABLE dbo.JobSlot ADD ModelManifestJson NVARCHAR(MAX) NULL;
 GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'RenderDimensionsJson' AND Object_ID = Object_ID('dbo.JobSlot'))
+    ALTER TABLE dbo.JobSlot ADD RenderDimensionsJson NVARCHAR(MAX) NULL;
+GO

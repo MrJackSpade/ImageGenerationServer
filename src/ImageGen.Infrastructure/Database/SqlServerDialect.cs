@@ -36,7 +36,7 @@ USING (SELECT @jobId AS JobId, @idx AS SlotIndex) AS s ON t.JobId = s.JobId AND 
 WHEN MATCHED THEN UPDATE SET
     IsEdit = @isEdit, IsBackground = @isBackground, State = @state, ComfyPromptId = @comfy, ImageId = @imageId, Width = @width, Height = @height,
     Changed = @changed, ChangeScore = @score, Error = @error, EffectivePrompt = @effective, ModelPrompt = @modelPrompt,
-    ModelManifestJson = @modelManifest, RawPrompt = @raw,
+    ModelManifestJson = @modelManifest, RenderDimensionsJson = @renderDimensions, RawPrompt = @raw,
     RawNegativePrompt = @rawNeg, GenStartedAtUtc = @started, ExpectedGenSeconds = @expected,
     Workflow = @workflow, Prompt = @specPrompt, NegativePrompt = @specNegative, Aspect = @aspect,
     RandomArtist = @randomArtist, RandomPrompt = @randomPrompt, Temperature = @temperature,
@@ -44,11 +44,11 @@ WHEN MATCHED THEN UPDATE SET
     LastFrameImageId = @lastFrame
 WHEN NOT MATCHED THEN
     INSERT (JobId, SlotIndex, IsEdit, IsBackground, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, Error,
-            EffectivePrompt, ModelPrompt, ModelManifestJson, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
+            EffectivePrompt, ModelPrompt, ModelManifestJson, RenderDimensionsJson, RawPrompt, RawNegativePrompt, GenStartedAtUtc, ExpectedGenSeconds,
             Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson,
             OverridesJson, LorasJson, SourceImageId, MaskImageId, LastFrameImageId)
     VALUES (@jobId, @idx, @isEdit, @isBackground, @state, @comfy, @imageId, @width, @height, @changed, @score, @error,
-            @effective, @modelPrompt, @modelManifest, @raw, @rawNeg, @started, @expected,
+            @effective, @modelPrompt, @modelManifest, @renderDimensions, @raw, @rawNeg, @started, @expected,
             @workflow, @specPrompt, @specNegative, @aspect, @randomArtist, @randomPrompt, @temperature, @tagTypes,
             @overrides, @loras, @source, @mask, @lastFrame);";
 }

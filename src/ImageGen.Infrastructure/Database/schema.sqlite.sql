@@ -642,3 +642,9 @@ ALTER TABLE dbo.JobSlot ADD COLUMN ModelPrompt TEXT NULL;
 -- Model-file/loader snapshot resolved when a render is submitted. Plain operational metadata; existing rows remain
 -- null, and later ModelBinding edits cannot rewrite the weights recorded for an existing image.
 ALTER TABLE dbo.JobSlot ADD COLUMN ModelManifestJson TEXT NULL;
+
+
+-- --- 0.17.3 -----------------------------------------------------------------------------------------------------
+
+-- Input, resolved working, and actual output dimensions captured across a render's lifecycle.
+ALTER TABLE dbo.JobSlot ADD COLUMN RenderDimensionsJson TEXT NULL;

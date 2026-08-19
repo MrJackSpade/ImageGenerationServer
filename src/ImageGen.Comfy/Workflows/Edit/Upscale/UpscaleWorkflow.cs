@@ -27,6 +27,7 @@ namespace ImageGen.Comfy.Edit.Upscale;
 public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override string OutputSizePolicy => OutputSizePolicies.ExplicitRequested;
     public override string Name => "upscale-model";
 
 

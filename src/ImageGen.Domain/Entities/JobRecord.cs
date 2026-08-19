@@ -90,6 +90,8 @@ public sealed class JobSlotRecord
     public string? ModelPrompt { get; set; }
     /// <summary>Plain JSON snapshot of the resolved model basenames and loader precision settings at submission.</summary>
     public string? ModelManifestJson { get; set; }
+    /// <summary>Plain JSON snapshot of input, working, and stored output pixel dimensions.</summary>
+    public string? RenderDimensionsJson { get; set; }
     /// <summary>The prompt verbatim in marker form (random injections included) — copied to the history row on
     /// completion, so a job resumed after a restart still records one.</summary>
     public string? RawPrompt { get; set; }

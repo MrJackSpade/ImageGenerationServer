@@ -10,6 +10,7 @@ namespace ImageGen.Comfy.Edit.QwenImageOutpaint;
 /// </summary>
 public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImageOutpaintParams>
 {
+    public override string OutputSizePolicy => OutputSizePolicies.ExpandedCanvas;
     public override string Name => "qwen-image-outpaint";
     public override WorkflowKind Kind => WorkflowKind.Outpaint;
 

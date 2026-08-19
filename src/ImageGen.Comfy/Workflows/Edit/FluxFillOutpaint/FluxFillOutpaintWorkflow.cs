@@ -12,6 +12,7 @@ namespace ImageGen.Comfy.Edit.FluxFillOutpaint;
 /// </summary>
 public sealed class FluxFillOutpaintWorkflow : FluxFillBase
 {
+    public override string OutputSizePolicy => OutputSizePolicies.ExpandedCanvas;
     public override string Name => "flux1-fill-outpaint";
     public override WorkflowKind Kind => WorkflowKind.Outpaint;
 

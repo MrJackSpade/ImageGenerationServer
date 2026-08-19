@@ -39,7 +39,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             "JobId, SlotIndex, IsEdit, State, ComfyPromptId, ImageId, Width, Height, Changed, ChangeScore, " +
             "Error, EffectivePrompt, GenStartedAtUtc, ExpectedGenSeconds, RawPrompt, RawNegativePrompt, " +
             "Workflow, Prompt, NegativePrompt, Aspect, RandomArtist, RandomPrompt, Temperature, TagTypesJson, " +
-            "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground, ModelPrompt, ModelManifestJson";
+            "OverridesJson, SourceImageId, MaskImageId, LastFrameImageId, LorasJson, IsBackground, ModelPrompt, ModelManifestJson, RenderDimensionsJson";
     }
 
     public async Task UpsertAsync(JobRecord job, CancellationToken ct)
@@ -89,6 +89,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@modelPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.ModelPrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@modelManifest", (object?)slot.ModelManifestJson ?? DBNull.Value);
+            _ = cmd.AddParam("@renderDimensions", (object?)slot.RenderDimensionsJson ?? DBNull.Value);
             _ = cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@started", (object?)slot.GenStartedAtUtc ?? DBNull.Value);
@@ -378,13 +379,13 @@ WHERE JobId = @jobId
         string jobId;
         int slotIndex;
         bool isEdit;
-        string? workflow, prompt, negative, aspect, tagTypes, overrides, loras, source, mask, lastFrame, modelPrompt, modelManifest;
+        string? workflow, prompt, negative, aspect, tagTypes, overrides, loras, source, mask, lastFrame, modelPrompt, modelManifest, renderDimensions;
         bool? randomArtist, randomPrompt;
         double? temperature;
         await using (DbCommand cmd = conn.Command(
             "SELECT j.UserId, s.JobId, s.SlotIndex, s.IsEdit, s.Workflow, s.Prompt, s.NegativePrompt, s.Aspect, " +
             "       s.RandomArtist, s.RandomPrompt, s.Temperature, s.TagTypesJson, s.OverridesJson, " +
-            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson, s.ModelPrompt, s.ModelManifestJson " +
+            "       s.SourceImageId, s.MaskImageId, s.LastFrameImageId, s.LorasJson, s.ModelPrompt, s.ModelManifestJson, s.RenderDimensionsJson " +
             "FROM dbo.JobSlot s JOIN dbo.Job j ON j.JobId = s.JobId WHERE s.ImageId = @id;"))
         {
             _ = cmd.AddParam("@id", imageId);
@@ -413,6 +414,7 @@ WHERE JobId = @jobId
             loras = reader.IsDBNull(16) ? null : reader.GetString(16);
             modelPrompt = reader.IsDBNull(17) ? null : reader.GetString(17);
             modelManifest = reader.IsDBNull(18) ? null : reader.GetString(18);
+            renderDimensions = reader.IsDBNull(19) ? null : reader.GetString(19);
         }
 
         if (workflow is null)
@@ -456,6 +458,7 @@ WHERE JobId = @jobId
             lastFrameImageId = lastFrame,
             referenceIds = references,
             models = Raw(modelManifest),
+            dimensions = Raw(renderDimensions),
         });
         return new ImageRequestRecord(userId, json);
 
@@ -617,6 +620,7 @@ WHERE JobId = @jobId
             IsBackground = r.AsBool(29),
             ModelPrompt = r.IsDBNull(30) ? null : r.GetString(30),
             ModelManifestJson = r.IsDBNull(31) ? null : r.GetString(31),
+            RenderDimensionsJson = r.IsDBNull(32) ? null : r.GetString(32),
             // Exactly one mode group is populated, by IsEdit — each field read from its own (unchanged) column.
             Generate = isEdit ? null : new GenerateSlotData
             {

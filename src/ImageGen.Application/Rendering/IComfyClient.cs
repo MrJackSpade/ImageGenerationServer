@@ -15,7 +15,8 @@ public readonly record struct SubmitResult(
     string PromptId,
     EtaSignature Eta,
     string ModelPrompt,
-    RenderModelManifest? ModelManifest = null);
+    RenderModelManifest? ModelManifest = null,
+    RenderDimensions? Dimensions = null);
 
 /// <summary>One reference the orchestrator resolved for an edit, ready to upload: the raw bytes, the media
 /// <see cref="Kind"/> derived from the stored blob's content type, and that <see cref="ContentType"/> itself. The

@@ -94,6 +94,8 @@ public sealed class RenderSlot
     public string? ModelPrompt;
     /// <summary>The exact model bindings and loader precision settings resolved when this prompt was submitted.</summary>
     public RenderModelManifest? ModelManifest;
+    /// <summary>Input/working/output pixel dimensions captured across the render lifecycle.</summary>
+    public RenderDimensions? RenderDimensions;
     /// <summary>The prompt VERBATIM in marker form ("#tag, @artist"), random injections included — the string that,
     /// resubmitted, remakes this image. Finalizing it yields <see cref="EffectivePrompt"/> and <see cref="Marks"/>.</summary>
     public string? RawPrompt;

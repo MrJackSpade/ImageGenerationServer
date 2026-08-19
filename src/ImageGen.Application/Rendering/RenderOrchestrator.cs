@@ -1215,6 +1215,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 slot.EtaSignature = editSubmit.Eta;
                 slot.ModelPrompt = editSubmit.ModelPrompt;
                 slot.ModelManifest = editSubmit.ModelManifest;
+                slot.RenderDimensions = editSubmit.Dimensions;
             }
             else
             {
@@ -1318,6 +1319,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 slot.EtaSignature = submit.Eta;
                 slot.ModelPrompt = submit.ModelPrompt;
                 slot.ModelManifest = submit.ModelManifest;
+                slot.RenderDimensions = submit.Dimensions;
             }
 
             if (!resuming)
@@ -1646,6 +1648,10 @@ public sealed class RenderOrchestrator : IStepProgressSink
             slot.ImageId = id;
             slot.Width = w;
             slot.Height = h;
+            if (slot.RenderDimensions is { } dimensions)
+            {
+                slot.RenderDimensions = dimensions with { Output = new PixelDimensions(w, h) };
+            }
             // Only an edit slot carries an outcome; a generate's default (changed, no score) has nowhere to go and needs none.
             if (slot.EditResult is { } outcome)
             {
@@ -1975,6 +1981,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 EffectivePrompt = s.EffectivePrompt,
                 ModelPrompt = s.ModelPrompt,
                 ModelManifestJson = s.ModelManifest is null ? null : JsonSerializer.Serialize(s.ModelManifest),
+                RenderDimensionsJson = s.RenderDimensions is null ? null : JsonSerializer.Serialize(s.RenderDimensions),
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
                 Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), s.GeneratedTokens?.Contains(kv.Key) == true))],
@@ -2241,6 +2248,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 EffectivePrompt = sr.EffectivePrompt,
                 ModelPrompt = sr.ModelPrompt,
                 ModelManifest = Deser<RenderModelManifest>(sr.ModelManifestJson),
+                RenderDimensions = Deser<RenderDimensions>(sr.RenderDimensionsJson),
                 RawPrompt = sr.RawPrompt,
                 RawNegativePrompt = sr.RawNegativePrompt,
                 Marks = marks,

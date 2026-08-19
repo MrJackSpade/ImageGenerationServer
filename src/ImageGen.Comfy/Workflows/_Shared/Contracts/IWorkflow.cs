@@ -90,6 +90,11 @@ public interface IWorkflow
     /// </summary>
     bool NormalizesSourceResolution => false;
 
+    /// <summary>The workflow's output-size contract, persisted with each render's measured dimensions.</summary>
+    string OutputSizePolicy => Kind == WorkflowKind.Generate
+        ? OutputSizePolicies.ExplicitRequested
+        : NormalizesSourceResolution ? OutputSizePolicies.NormalizedNative : OutputSizePolicies.ExactSource;
+
     /// <summary>Pre-build parameter validation/normalization — the single place input clamping lives. Runs TWICE:
     /// at ENQUEUE with <see cref="NormalizeContext.Empty"/> (params only — the frame-count snap, whose notice reaches
     /// the placeholder card before the render starts), and again at SUBMIT with the source dims + resolved

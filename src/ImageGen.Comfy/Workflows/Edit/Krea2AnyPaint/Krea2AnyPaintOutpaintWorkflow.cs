@@ -8,6 +8,7 @@ namespace ImageGen.Comfy.Edit.Krea2AnyPaint;
 /// </summary>
 public sealed class Krea2AnyPaintOutpaintWorkflow : Krea2AnyPaintBase
 {
+    public override string OutputSizePolicy => OutputSizePolicies.ExpandedCanvas;
     public override string Name => "krea2-anypaint-outpaint";
     public override WorkflowKind Kind => WorkflowKind.Outpaint;
 

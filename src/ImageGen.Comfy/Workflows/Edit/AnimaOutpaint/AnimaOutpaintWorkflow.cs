@@ -22,6 +22,7 @@ namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override string OutputSizePolicy => OutputSizePolicies.ExpandedCanvas;
     public override string Name => "anima-outpaint";
     public override WorkflowKind Kind => WorkflowKind.Outpaint;
 

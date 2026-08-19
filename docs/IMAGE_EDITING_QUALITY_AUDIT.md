@@ -330,7 +330,7 @@ Resolution:
 
 ### EDIT-009 — Output resolution behavior is inconsistent across editor families
 
-- [ ] Open
+- [x] Closed by GitHub issue #322
 - Severity: medium
 - Confidence: high
 - Affected area: cross-workflow API/UI behavior
@@ -354,6 +354,22 @@ Proposed work:
 - Define and document one output-size contract per workflow: exact source, normalized native, expanded canvas, or explicit requested output.
 - Return effective input, latent, and output dimensions in job metadata.
 - If exact source dimensions are required, perform a single documented final resize rather than changing latent sizing implicitly.
+
+Resolution:
+
+- Every workflow now publishes a stable output-size policy: `exact-source`, `normalized-native`, `expanded-canvas`,
+  or `explicit-requested`. The shared defaults cover generators and ordinary editors; outpaint and upscale families
+  override the default with their actual canvas contract.
+- Submission snapshots the uploaded source dimensions and the workflow's resolved working-pixel dimensions before
+  the graph is posted. Completion adds the dimensions of the actual stored result, so metadata reflects measured
+  output rather than an assumption made from the graph.
+- The immutable snapshot persists on each job slot and Generation Values returns it as `dimensions`, alongside the
+  model manifest. Existing rows remain valid with null dimension metadata, and later workflow-setting changes do not
+  rewrite prior render provenance.
+- No implicit resize-back was added. Workflows that intentionally normalize their VAE input continue to emit that
+  normalized size; exact-source workflows retain their source-sized contract, outpaint reports its expanded canvas,
+  and explicit upscale/generation requests report their requested result policy.
+- Tests cover all four policy families, durable/API round-tripping, and both fresh and upgraded SQLite schemas.
 
 ### EDIT-010 — No isolated VAE round-trip diagnostic exists
 

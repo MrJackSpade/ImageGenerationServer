@@ -89,6 +89,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             EffectivePrompt = displayed,
             ModelPrompt = submitted,
             ModelManifestJson = """{"checkpoint":"ideogram4-fp8.safetensors","loader":"unet","weightDtype":"default","quantization":"fp8","vae":"ae.safetensors","textEncoders":["gemma.safetensors"]}""",
+            RenderDimensionsJson = """{"policy":"explicit-requested","input":null,"working":{"width":1024,"height":1024},"output":{"width":1024,"height":1024}}""",
             Generate = new GenerateSlotData { Aspect = "square" },
         };
 
@@ -105,6 +106,10 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         JsonElement models = values.RootElement.GetProperty("models");
         Assert.Equal("ideogram4-fp8.safetensors", models.GetProperty("checkpoint").GetString());
         Assert.Equal("fp8", models.GetProperty("quantization").GetString());
+        JsonElement dimensions = values.RootElement.GetProperty("dimensions");
+        Assert.Equal("explicit-requested", dimensions.GetProperty("policy").GetString());
+        Assert.Equal(1024, dimensions.GetProperty("working").GetProperty("width").GetInt32());
+        Assert.Equal(1024, dimensions.GetProperty("output").GetProperty("height").GetInt32());
         Assert.False(values.RootElement.TryGetProperty("modelPrompt", out _));
     }
 

@@ -1254,6 +1254,20 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void Workflows_publish_their_output_size_policy()
+    {
+        Assert.Equal(OutputSizePolicies.NormalizedNative, new Img2ImgRedrawWorkflow().OutputSizePolicy);
+        Assert.Equal(OutputSizePolicies.ExactSource,
+            new global::ImageGen.Comfy.Edit.LineThickenControlNet.LineThickenControlNetWorkflow().OutputSizePolicy);
+        Assert.Equal(OutputSizePolicies.ExpandedCanvas, new AnimaOutpaintWorkflow().OutputSizePolicy);
+        Assert.Equal(OutputSizePolicies.ExpandedCanvas, new FluxFillOutpaintWorkflow().OutputSizePolicy);
+        Assert.Equal(OutputSizePolicies.ExplicitRequested,
+            new global::ImageGen.Comfy.Edit.Upscale.UpscaleWorkflow().OutputSizePolicy);
+        Assert.Equal(OutputSizePolicies.ExplicitRequested,
+            new global::ImageGen.Comfy.Edit.SeedVr2Upscale.SeedVr2UpscaleWorkflow().OutputSizePolicy);
+    }
+
+    [Fact]
     public void Redraw_configs_share_one_picker_section_and_drop_it_from_their_names()
     {
         // The "Redraw" header carries the category, so the names must not repeat it.
