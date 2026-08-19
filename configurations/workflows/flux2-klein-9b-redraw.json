@@ -40,7 +40,7 @@
       "visibility": "hidden"
     },
     "native_pixels": {
-      "value": 0,
+      "value": 1048576,
       "visibility": "hidden"
     },
     "denoise": {
@@ -60,7 +60,7 @@
       "format": "natural_language",
       "guidance": "Complex multi-clause prose is handled well by the Qwen3-8B encoder. Lower the redraw strength to stay close to the source composition; raise it to let Klein reinterpret more.",
       "example": "A bustling steampunk airship hangar with brass pipes and glowing dials, two engineers in leather aprons inspecting a propeller, dramatic volumetric light from high windows, intricate detail, cinematic wide shot",
-      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-Klein 9B follows natural-language prose.\n4 steps, euler/simple, distilled guidance 4 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts are inactive: the distilled weight runs at CFG 1."
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-Klein 9B follows natural-language prose.\n4 steps, euler/simple, distilled guidance 4 (real CFG stays 1).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is normalized to the configured ~1 MP working budget with its aspect ratio preserved, so low-resolution inputs gain a larger VAE grid and oversized inputs are reduced before sampling.\nNegative prompts are inactive: the distilled weight runs at CFG 1."
     },
     "negative": {
       "supported": false,

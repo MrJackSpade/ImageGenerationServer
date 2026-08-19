@@ -881,8 +881,8 @@ public sealed class WorkflowGraphTests
         // FLUX's split loaders: gguf unet + the CLIP-L/T5 pair + the ae VAE.
         Assert.Contains("\"UNETLoader\"", json);
         Assert.Contains("\"DualCLIPLoader\"", json);
-        // native_pixels 0 → the source is sampled at its OWN resolution; nothing is rescaled.
-        Assert.DoesNotContain("\"ImageScale\"", json);
+        // The shipped 1 MP budget normalizes this 1216×832 source before VAE encoding.
+        Assert.Contains("\"ImageScale\"", json);
         // Not a Chroma config, so neither Chroma node appears.
         Assert.DoesNotContain("ModelSamplingAuraFlow", json);
         Assert.DoesNotContain("T5TokenizerOptions", json);
@@ -960,24 +960,79 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
-    public void Redraw_downscales_to_each_configs_own_native_pixel_budget()
+    public void Every_generic_redraw_config_has_a_positive_native_pixel_budget()
     {
-        // The budget is a config param, not a constant baked into the graph. Proof: the SAME 1216x832 source (1.01 MP)
-        // is over Anima's 0.92 MP bucket (→ downscaled) but under Photanima's 1.04 MP bucket (→ left alone).
-        Assert.Contains("\"ImageScale\"", BuildJson("anima-redraw", Edit));
-        Assert.DoesNotContain("\"ImageScale\"", BuildJson("photanima-redraw", Edit));
+        string[] ids =
+        [
+            "anima-redraw",
+            "chroma1-base-redraw",
+            "chroma1-flash-redraw",
+            "chroma1-hd-redraw",
+            "chroma1-radiance-redraw",
+            "flux1-dev-redraw",
+            "flux1-krea-redraw",
+            "flux1-schnell-redraw",
+            "flux2-dev-redraw",
+            "flux2-klein-4b-base-redraw",
+            "flux2-klein-4b-redraw",
+            "flux2-klein-9b-redraw",
+            "photanima-redraw",
+        ];
+        (WorkflowCatalog catalog, _) = Build();
 
-        // Push well past Photanima's budget and it downscales too — to /16-snapped dims, aspect preserved.
-        WorkflowInputs big = new() { Positive = "make it red", SourceImageName = "src.png", SourceWidth = 2048, SourceHeight = 2048 };
-        (WorkflowCatalog? catalog, WorkflowRegistry? registry) = Build();
-        WorkflowConfiguration? cfg = catalog.FindConfig("photanima-redraw");
-        Assert.NotNull(cfg);
-        IWorkflow? wf = registry.Find(cfg.WorkflowName);
-        Assert.NotNull(wf);
-        string bigJson = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), big));
-        Assert.Contains("\"ImageScale\"", bigJson);
-        Assert.Contains("\"width\":1024", bigJson);    // sqrt(1044480/2048^2)*2048 = 1022 → snapped to 1024
-        Assert.Contains("\"height\":1024", bigJson);
+        foreach (string id in ids)
+        {
+            WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(id));
+            ConfigParam nativePixels = Assert.IsType<ConfigParam>(cfg.Params[WorkflowParamKeys.NativePixels]);
+            Assert.True(Convert.ToInt64(nativePixels.Value) > 0, $"{id} must declare a positive native pixel budget.");
+        }
+    }
+
+    [Fact]
+    public void Generic_redraw_rejects_the_old_zero_budget_bypass()
+    {
+        IReadOnlyDictionary<string, object?> overrides = new Dictionary<string, object?>
+        {
+            [WorkflowParamKeys.NativePixels] = 0,
+        };
+
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(
+            () => BuildJson("flux1-dev-redraw", Edit, overrides));
+        Assert.Contains(WorkflowParamKeys.NativePixels, ex.Message);
+    }
+
+    [Theory]
+    [InlineData("flux1-dev-redraw", 512, 512, 1024, 1024)]
+    [InlineData("flux1-dev-redraw", 3840, 2160, 1360, 768)]
+    [InlineData("flux1-dev-redraw", 512, 768, 832, 1248)]
+    [InlineData("anima-redraw", 1216, 832, 1168, 800)]
+    [InlineData("photanima-redraw", 1216, 832, 1232, 848)]
+    [InlineData("photanima-redraw", 2048, 2048, 1024, 1024)]
+    public void Generic_redraw_normalizes_every_source_to_its_configured_budget_and_reports_that_ETA_size(
+        string configId,
+        int sourceWidth,
+        int sourceHeight,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            SourceWidth = sourceWidth,
+            SourceHeight = sourceHeight,
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson(configId, inputs));
+        JsonElement root = doc.RootElement;
+        JsonElement scale = root.GetProperty("11");
+        JsonElement scaleInputs = scale.GetProperty("inputs");
+
+        Assert.Equal("ImageScale", scale.GetProperty("class_type").GetString());
+        Assert.Equal("lanczos", scaleInputs.GetProperty("upscale_method").GetString());
+        Assert.Equal(expectedWidth, scaleInputs.GetProperty("width").GetInt32());
+        Assert.Equal(expectedHeight, scaleInputs.GetProperty("height").GetInt32());
+        Assert.Equal("11", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+        Assert.Equal((expectedWidth, expectedHeight), EtaSize(configId, sourceWidth, sourceHeight));
     }
 
     [Theory]

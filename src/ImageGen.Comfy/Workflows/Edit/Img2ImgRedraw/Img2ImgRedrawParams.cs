@@ -31,6 +31,7 @@ public sealed record Img2ImgRedrawParams
     [JsonPropertyName(WorkflowParamKeys.Shift)]
     [AllowNullable("null = the config declares no flow shift; the ModelSamplingAuraFlow node is emitted only when set, distinct from a real 0")] public double? Shift { get; init; }
     [JsonPropertyName(WorkflowParamKeys.NativePixels)]
-    [AllowNullable("null = the config declares no native pixel budget (source sampled at its own resolution); distinct from a real 0")] public int? NativePixels { get; init; }
+    [Range(1, int.MaxValue)]
+    [AllowNullable("null = use the shared 1 MP native edit fallback")] public int? NativePixels { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

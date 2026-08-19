@@ -45,8 +45,23 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         new() { Key = WorkflowParamKeys.Negative,        Type = ParamType.String },
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Shift,           Type = ParamType.Double },
-        new() { Key = WorkflowParamKeys.NativePixels,   Type = ParamType.Int },
+        new() { Key = WorkflowParamKeys.NativePixels,   Type = ParamType.Int, Min = 1, Label = "Native pixel budget" },
     ];
+
+    private static double NativeMegapixels(Img2ImgRedrawParams p) =>
+        p.NativePixels is int pixels
+            ? pixels / (1024.0 * 1024.0)
+            : EditWorkingResolution.NativeMegapixels;
+
+    protected override (int Width, int Height) EtaRenderSize(
+        Img2ImgRedrawParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth,
+            sourceHeight,
+            NativeMegapixels(p));
 
     protected override ComfyWorkflowGraph Build(Img2ImgRedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -90,41 +105,23 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
             model0 = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
         }
 
-        // Run at the model's NATIVE resolution. The source pose comes from another editor at its own size (often over
-        // budget and off the model's aspect buckets); running a 2B anime/photo checkpoint far from its trained ~1 MP is
-        // what makes it pad the frame with repeated/decorative junk. So downscale the source to the model's native pixel
-        // budget (aspect preserved, snapped to /16) before the img2img — the same "render at a native bucket" the
-        // generate path does. The result is left at that native resolution (a redraw is already a destructive
-        // re-render; no point up-scaling it back). Only downscales. No budget declared → the source is sampled at its
-        // own resolution; a budget with a broken (zero-dimension) source is refused, not silently sampled at raw scale.
-        static int Snap16(int v)
-        {
-            return Math.Max(16, (int)Math.Round(v / 16.0) * 16);
-        }
-
-        long budget = p.NativePixels ?? 0;   // no budget declared → sample the source at its own resolution
-        int sw = inputs.SourceWidth, sh = inputs.SourceHeight;
-        Output<Slot.Image> encPixels = LoadImage.ImageOut(EditNodes.Source);
-        if (budget > 0)
-        {
-            // A budget is declared, so downscale to it. The source is a still with measured dims — refuse a zero
-            // rather than silently sampling the raw source at the wrong scale.
-            _ = Ensure.GreaterThanZero(sw);
-            _ = Ensure.GreaterThanZero(sh);
-            double f = Math.Sqrt(budget / ((double)sw * sh));
-            if (f < 0.98)   // meaningfully over budget → downscale to native
-            {
-                g[Nodes.SourceScale] = new ImageScale
-                {
-                    Image = LoadImage.ImageOut(EditNodes.Source),
-                    UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
-                    Width = Snap16((int)Math.Round(sw * f)),
-                    Height = Snap16((int)Math.Round(sh * f)),
-                    Crop = ComfyWidgets.Crop.Disabled,
-                };
-                encPixels = ImageScale.Out(Nodes.SourceScale);
-            }
-        }
+        // Normalize BOTH small and large sources to the model's native pixel budget before VAE encoding. Upscaling
+        // cannot invent missing source frequencies, but it prevents an already-small upload from being compressed
+        // into an unnecessarily tiny latent grid. A missing configuration value inherits the shared 1 MP fallback;
+        // zero/raw-resolution bypasses are deliberately unsupported.
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth),
+            Ensure.GreaterThanZero(inputs.SourceHeight));
+        (int Width, int Height) target = EditWorkingResolution.Resolve(
+            current.Width,
+            current.Height,
+            NativeMegapixels(p));
+        Output<Slot.Image> encPixels = EditWorkingResolution.ScaleImage(
+            g,
+            Nodes.SourceScale,
+            LoadImage.ImageOut(EditNodes.Source),
+            current,
+            target);
 
         // Encode the (native-res) source straight to a latent — NO mask, so the whole image is re-sampled. At denoise
         // < 1 the source's own structure survives; the prompt + the checkpoint's prior restyle it.

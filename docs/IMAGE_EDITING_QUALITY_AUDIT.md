@@ -47,7 +47,7 @@ Proposed work:
 
 ### EDIT-002 — Generic redraw defaults to raw source resolution
 
-- [ ] Open
+- [x] Closed by GitHub issue #310
 - Severity: high
 - Confidence: high
 - Affected workflows: FLUX.1 redraw, FLUX.2 redraw, Chroma redraw, and any other `img2img-redraw` configuration with `native_pixels: 0`
@@ -71,6 +71,18 @@ Proposed work:
 - Assign a native pixel budget to every redraw configuration.
 - Prefer model-specific budgets where known; use an explicit approximately 1 MP fallback otherwise.
 - Keep the existing aspect-preserving `/16` path and expose the effective render size in diagnostics/metadata.
+
+Resolution:
+
+- Every shipped `img2img-redraw` configuration now has a positive native pixel budget. Existing Anima/Photanima
+  model-specific budgets are retained; the former zero-budget FLUX.1, FLUX.2, and Chroma configurations use an
+  explicit 1 MP fallback.
+- Generic redraw now normalizes both undersized and oversized uploads to that budget, preserves source aspect ratio,
+  snaps both axes to the shared 16-pixel grid, and feeds the normalized image into `VAEEncode`.
+- A missing value inherits the shared 1 MP edit budget, while zero is rejected at both schema and typed-parameter
+  validation boundaries so raw-resolution behavior cannot silently return.
+- ETA sizing uses the same resolver as graph construction. Graph tests cover small square, 4K landscape, portrait,
+  Anima/Photanima model-specific budgets, the exact VAE input edge, and rejection of the old zero bypass.
 
 ### EDIT-003 — FLUX.2 redraw uses a generic, non-resolution-aware scheduler
 

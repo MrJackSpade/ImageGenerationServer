@@ -36,7 +36,7 @@
       "visibility": "hidden"
     },
     "native_pixels": {
-      "value": 0,
+      "value": 1048576,
       "visibility": "hidden"
     },
     "denoise": {
@@ -56,7 +56,7 @@
       "format": "natural_language",
       "guidance": "Long/complex prose is handled well by the Qwen3 encoder. Lower the redraw strength to stay close to the source composition; raise it to let Klein reinterpret more.",
       "example": "A cozy reading nook by a rain-streaked window, a tabby cat asleep on a stack of books, warm lamplight, autumn leaves outside, soft painterly style",
-      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-Klein 4B follows natural-language prose.\n20 steps, euler/simple, real CFG 5 on the non-distilled base (no distilled-guidance knob).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is sampled at its OWN resolution — no downscale, so the output keeps the input's size (FLUX-class models hold up to ~2K; a very large source is slow and can exhaust VRAM).\nNegative prompts DO apply here — this variant samples at real CFG."
+      "instructions": "Type the FULL description of the picture you want — this is a whole-frame re-render, not an edit instruction, and FLUX.2-Klein 4B follows natural-language prose.\n20 steps, euler/simple, real CFG 5 on the non-distilled base (no distilled-guidance knob).\n'Redraw strength' (denoise) controls how far the result drifts from the source: ~0.3-0.5 keeps the source's structure and mostly restyles it, ~0.7+ substantially reinvents it.\nThe source is normalized to the configured ~1 MP working budget with its aspect ratio preserved, so low-resolution inputs gain a larger VAE grid and oversized inputs are reduced before sampling.\nNegative prompts DO apply here — this variant samples at real CFG."
     },
     "negative": {
       "supported": true,
