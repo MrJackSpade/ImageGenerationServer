@@ -33,5 +33,6 @@ public sealed record Img2ImgRedrawParams
     [JsonPropertyName(WorkflowParamKeys.NativePixels)]
     [Range(1, int.MaxValue)]
     [AllowNullable("null = use the shared 1 MP native edit fallback")] public int? NativePixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Flux2SchedulerEnabled)] public bool Flux2SchedulerEnabled { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

@@ -870,6 +870,8 @@ public sealed class WorkflowGraphTests
     public void Flux1DevRedraw_puts_the_distilled_guidance_in_the_conditioning()
     {
         string json = BuildJson("flux1-dev-redraw", Edit);
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement;
         // Same whole-image img2img topology as the Anima redraw — one graph class, a FLUX config.
         Assert.Contains("\"VAEEncode\"", json);
         Assert.DoesNotContain("SetLatentNoiseMask", json);
@@ -883,6 +885,10 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"DualCLIPLoader\"", json);
         // The shipped 1 MP budget normalizes this 1216×832 source before VAE encoding.
         Assert.Contains("\"ImageScale\"", json);
+        Assert.Equal("KSampler", root.GetProperty("3").GetProperty("class_type").GetString());
+        Assert.DoesNotContain(
+            root.EnumerateObject(),
+            node => node.Value.GetProperty("class_type").GetString() == "Flux2Scheduler");
         // Not a Chroma config, so neither Chroma node appears.
         Assert.DoesNotContain("ModelSamplingAuraFlow", json);
         Assert.DoesNotContain("T5TokenizerOptions", json);
@@ -925,6 +931,63 @@ public sealed class WorkflowGraphTests
         // Flux.2 loads a single CLIP (Qwen3), not the FLUX.1 CLIP-L/T5 pair.
         Assert.Contains("\"CLIPLoader\"", json);
         Assert.DoesNotContain("DualCLIPLoader", json);
+    }
+
+    [Theory]
+    [InlineData("flux2-dev-redraw", 1.0, "15")]
+    [InlineData("flux2-klein-4b-base-redraw", 5.0, "13")]
+    [InlineData("flux2-klein-4b-redraw", 1.0, "15")]
+    [InlineData("flux2-klein-9b-redraw", 1.0, "15")]
+    public void Every_Flux2_redraw_uses_its_resolution_aware_denoise_tail(
+        string configId,
+        double expectedCfg,
+        string expectedPositiveNode)
+    {
+        using JsonDocument document = JsonDocument.Parse(BuildJson(configId, Edit));
+        JsonElement root = document.RootElement;
+
+        Assert.Equal("ImageScale", root.GetProperty("11").GetProperty("class_type").GetString());
+        Assert.Equal(1232, root.GetProperty("11").GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(848, root.GetProperty("11").GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal("11", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+
+        Assert.Equal("GetImageSize", root.GetProperty("20").GetProperty("class_type").GetString());
+        Assert.Equal("11", root.GetProperty("20").GetProperty("inputs").GetProperty("image")[0].GetString());
+
+        JsonElement guider = root.GetProperty("21");
+        Assert.Equal("CFGGuider", guider.GetProperty("class_type").GetString());
+        Assert.Equal(expectedCfg, guider.GetProperty("inputs").GetProperty("cfg").GetDouble());
+        Assert.Equal(expectedPositiveNode, guider.GetProperty("inputs").GetProperty("positive")[0].GetString());
+        Assert.Equal("14", guider.GetProperty("inputs").GetProperty("negative")[0].GetString());
+
+        JsonElement scheduler = root.GetProperty("22");
+        Assert.Equal("Flux2Scheduler", scheduler.GetProperty("class_type").GetString());
+        Assert.Equal("20", scheduler.GetProperty("inputs").GetProperty("width")[0].GetString());
+        Assert.Equal(0, scheduler.GetProperty("inputs").GetProperty("width")[1].GetInt32());
+        Assert.Equal("20", scheduler.GetProperty("inputs").GetProperty("height")[0].GetString());
+        Assert.Equal(1, scheduler.GetProperty("inputs").GetProperty("height")[1].GetInt32());
+
+        JsonElement split = root.GetProperty("23");
+        Assert.Equal("SplitSigmasDenoise", split.GetProperty("class_type").GetString());
+        Assert.Equal("22", split.GetProperty("inputs").GetProperty("sigmas")[0].GetString());
+        Assert.Equal(0.6, split.GetProperty("inputs").GetProperty("denoise").GetDouble());
+
+        Assert.Equal("KSamplerSelect", root.GetProperty("24").GetProperty("class_type").GetString());
+        Assert.Equal("RandomNoise", root.GetProperty("25").GetProperty("class_type").GetString());
+        JsonElement sampler = root.GetProperty("3");
+        Assert.Equal("SamplerCustomAdvanced", sampler.GetProperty("class_type").GetString());
+        Assert.Equal("12", sampler.GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+        Assert.Equal("23", sampler.GetProperty("inputs").GetProperty("sigmas")[0].GetString());
+        Assert.Equal(1, sampler.GetProperty("inputs").GetProperty("sigmas")[1].GetInt32());
+        Assert.DoesNotContain(
+            root.EnumerateObject(),
+            node => node.Value.GetProperty("class_type").GetString() == "KSampler");
+
+        (WorkflowCatalog catalog, _) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(configId));
+        Assert.Equal(
+            ParamVisibility.Locked,
+            cfg.Params[WorkflowParamKeys.Flux2SchedulerEnabled].Visibility);
     }
 
     /// <summary>No redraw config may emit the text-encoder eviction node — including the one it was built for. Kept as

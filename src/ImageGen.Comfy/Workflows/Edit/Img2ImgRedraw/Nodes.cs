@@ -11,6 +11,12 @@ internal static class Nodes
     public const string ModelSampling = "16";
     public const string SourceScale = "11";
     public const string Encode = "12";
+    public const string SourceSize = "20";
+    public const string Guider = "21";
+    public const string Flux2Scheduler = "22";
+    public const string SplitSigmas = "23";
+    public const string SamplerSelect = "24";
+    public const string Noise = "25";
     public const string Sampler = "3";
     public const string Decode = "8";
     public const string Save = "9";

@@ -47,6 +47,7 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         new() { Key = WorkflowParamKeys.ClipSkip,       Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.Shift,           Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.NativePixels,   Type = ParamType.Int, Min = 1, Label = "Native pixel budget" },
+        new() { Key = WorkflowParamKeys.Flux2SchedulerEnabled, Type = ParamType.Bool },
     ];
 
     private static double NativeMegapixels(Img2ImgRedrawParams p) =>
@@ -129,20 +130,61 @@ public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
         g[Nodes.Encode] = new VAEEncode { Pixels = encPixels, Vae = vae0 };
 
         double dn = p.Denoise;
-        g[Nodes.Sampler] = new KSampler
+        Output<Slot.Latent> sampled;
+        if (p.Flux2SchedulerEnabled)
         {
-            Seed = ComfyGraph.Seed(p.Seed),
-            Steps = p.Steps,
-            Cfg = p.Cfg,
-            SamplerName = ComfyGraph.MapSampler(p.Sampler),
-            Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
-            Denoise = dn,
-            Model = model0,
-            Positive = posSrc,
-            Negative = CLIPTextEncode.Out(Nodes.Negative),
-            LatentImage = VAEEncode.Out(Nodes.Encode),
-        };
-        g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
+            // FLUX.2's sigma schedule is resolution-aware. Read the exact normalized image dimensions, split that
+            // schedule to the requested redraw tail, and retain real CFG support for the non-distilled base variant.
+            g[Nodes.SourceSize] = new GetImageSize { Image = encPixels };
+            g[Nodes.Guider] = new CFGGuider
+            {
+                Model = model0,
+                Positive = posSrc,
+                Negative = CLIPTextEncode.Out(Nodes.Negative),
+                Cfg = p.Cfg,
+            };
+            g[Nodes.Flux2Scheduler] = new Flux2Scheduler
+            {
+                Steps = p.Steps,
+                Width = GetImageSize.WidthOut(Nodes.SourceSize),
+                Height = GetImageSize.HeightOut(Nodes.SourceSize),
+            };
+            g[Nodes.SplitSigmas] = new SplitSigmasDenoise
+            {
+                Sigmas = Flux2Scheduler.Out(Nodes.Flux2Scheduler),
+                Denoise = dn,
+            };
+            g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
+            g[Nodes.Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };
+            g[Nodes.Sampler] = new SamplerCustomAdvanced
+            {
+                Noise = RandomNoise.Out(Nodes.Noise),
+                Guider = CFGGuider.Out(Nodes.Guider),
+                Sampler = KSamplerSelect.Out(Nodes.SamplerSelect),
+                Sigmas = SplitSigmasDenoise.LowOut(Nodes.SplitSigmas),
+                LatentImage = VAEEncode.Out(Nodes.Encode),
+            };
+            sampled = SamplerCustomAdvanced.Out(Nodes.Sampler);
+        }
+        else
+        {
+            g[Nodes.Sampler] = new KSampler
+            {
+                Seed = ComfyGraph.Seed(p.Seed),
+                Steps = p.Steps,
+                Cfg = p.Cfg,
+                SamplerName = ComfyGraph.MapSampler(p.Sampler),
+                Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
+                Denoise = dn,
+                Model = model0,
+                Positive = posSrc,
+                Negative = CLIPTextEncode.Out(Nodes.Negative),
+                LatentImage = VAEEncode.Out(Nodes.Encode),
+            };
+            sampled = KSampler.Out(Nodes.Sampler);
+        }
+
+        g[Nodes.Decode] = new VAEDecode { Samples = sampled, Vae = vae0 };
         g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }

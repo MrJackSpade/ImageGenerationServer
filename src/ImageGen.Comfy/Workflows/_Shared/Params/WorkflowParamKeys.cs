@@ -54,6 +54,7 @@ internal static class WorkflowParamKeys
     public const string FpFrequencies = "fp_frequencies";
     public const string FpPalette = "fp_palette";
     public const string Fps = "fps";
+    public const string Flux2SchedulerEnabled = "flux2_scheduler";
     public const string GridH = "grid_h";
     public const string GridW = "grid_w";
     public const string Guidance = "guidance";

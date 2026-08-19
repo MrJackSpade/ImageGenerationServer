@@ -102,7 +102,7 @@ Resolution:
 
 ### EDIT-003 — FLUX.2 redraw uses a generic, non-resolution-aware scheduler
 
-- [ ] Open
+- [x] Closed by GitHub issue #315
 - Severity: high
 - Confidence: high
 - Affected workflows: `flux2-dev-redraw`, `flux2-klein-4b-base-redraw`, `flux2-klein-4b-redraw`, and `flux2-klein-9b-redraw`
@@ -128,6 +128,19 @@ Proposed work:
 - Use `Flux2Scheduler`, `SplitSigmasDenoise`, `KSamplerSelect`, and `SamplerCustomAdvanced` with the encoded source latent.
 - Feed the exact normalized render width and height into the scheduler.
 - Add graph tests that reject `KSampler`/`simple` for FLUX.2 redraw configurations.
+
+Resolution:
+
+- The four FLUX.2 redraw configurations now carry a locked `flux2_scheduler` structural contract. The shared redraw
+  workflow branches on that typed setting rather than inferring architecture from a filename or display name.
+- FLUX.2 redraw reads `GetImageSize` from the normalized source created by EDIT-002 and wires those exact dimensions
+  into `Flux2Scheduler`.
+- The graph uses `CFGGuider`, `KSamplerSelect`, `RandomNoise`, `SplitSigmasDenoise`, and
+  `SamplerCustomAdvanced` over the encoded source latent. This preserves distilled guidance at CFG 1 and the
+  non-distilled 4B Base configuration's real CFG 5/negative conditioning.
+- FLUX.1, Chroma, Anima, and Photanima retain the generic `KSampler` path.
+- Tests cover all four FLUX.2 configs, exact normalized-image size wiring, denoise-tail output selection, sampler/
+  latent/conditioning edges, locked configuration state, absence of `KSampler`, and non-FLUX.2 isolation.
 
 ### EDIT-004 — Krea2 redraw bypasses its declared native resolution range
 
