@@ -25,6 +25,7 @@ namespace ImageGen.Comfy.Edit.QwenImageEditInpaint;
 /// </summary>
 public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInpaintParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "qwen-image-edit-inpaint";
     public override WorkflowKind Kind => WorkflowKind.Inpaint;
 

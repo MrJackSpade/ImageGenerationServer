@@ -3,6 +3,7 @@ namespace ImageGen.Comfy.Edit.AnimateDiffSd15;
 /// <summary>SD1.5 AnimateDiff + SparseCtrl-RGB: the source conditions frame 0 (faithful anime i2v).</summary>
 public sealed class AnimateDiffSd15Workflow : EditWorkflow<AnimateDiffSd15Params>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "animatediff-sd15";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>

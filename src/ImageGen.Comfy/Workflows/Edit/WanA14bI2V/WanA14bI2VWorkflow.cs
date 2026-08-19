@@ -7,6 +7,7 @@ namespace ImageGen.Comfy.Edit.WanA14bI2V;
 /// WanImageToVideo emits the (pos,neg,latent) triple consumed by the two KSamplerAdvanced stages.</summary>
 public sealed class WanA14bI2VWorkflow : EditWorkflow<WanA14bI2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "wan22-i2v-a14b";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>Supports an optional last frame (WanFirstLastFrameToVideo) — the source is the first frame.</summary>

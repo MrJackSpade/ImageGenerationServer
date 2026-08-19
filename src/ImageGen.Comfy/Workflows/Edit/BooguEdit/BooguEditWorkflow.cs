@@ -15,6 +15,7 @@ namespace ImageGen.Comfy.Edit.BooguEdit;
 /// </summary>
 public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "boogu-edit";
 
     /// <summary>Boogu runs real CFG with an (optionally empty) negative; expose it like the inpaint editor does.</summary>

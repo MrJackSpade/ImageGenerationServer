@@ -12,6 +12,7 @@ namespace ImageGen.Comfy.Edit.QwenPixelize;
 /// </summary>
 public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "pixelize-qwen";
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => QwenPixelizeSchema;

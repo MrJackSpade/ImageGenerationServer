@@ -10,6 +10,7 @@ namespace ImageGen.Comfy;
 /// base.</summary>
 public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
 {
+    public override bool NormalizesSourceResolution => true;
     /// <summary>Flux.2 Klein's ~1&#160;MP edit budget (source + references scaled to it on a 64-px grid) — single
     /// source for both the graph's scale nodes and the ETA render-size.</summary>
     private const double BudgetMp = 1.0;

@@ -1078,6 +1078,21 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void Edit_resolution_contract_distinguishes_normalized_and_source_sized_workflows()
+    {
+        Assert.True(new Img2ImgRedrawWorkflow().NormalizesSourceResolution);
+        Assert.True(new Krea2RedrawWorkflow().NormalizesSourceResolution);
+        Assert.True(new Ideogram4RefineWorkflow().NormalizesSourceResolution);
+        Assert.True(new FluxFillInpaintWorkflow().NormalizesSourceResolution);
+        Assert.True(new QwenImageEditWorkflow().NormalizesSourceResolution);
+        Assert.True(new FluxKontextEditWorkflow().NormalizesSourceResolution);
+
+        Assert.False(
+            new global::ImageGen.Comfy.Edit.LineThickenControlNet.LineThickenControlNetWorkflow()
+                .NormalizesSourceResolution);
+    }
+
+    [Fact]
     public void Redraw_configs_share_one_picker_section_and_drop_it_from_their_names()
     {
         // The "Redraw" header carries the category, so the names must not repeat it.

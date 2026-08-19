@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.WanI2V;
 /// text prompt drives the motion/scene.</summary>
 public sealed class WanI2VWorkflow : EditWorkflow<WanI2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "wan22-ti2v-5b";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>Wan VAE: 4× temporal compression → valid clip lengths are 4n+1 (mirrors the node's length step=4).</summary>

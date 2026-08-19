@@ -9,7 +9,8 @@ This document records the issues found during the initial audit. It deliberately
 ## Executive summary
 
 - No global wrong-VAE-family problem was found. The installed FLUX.1, FLUX.2, Qwen, Mage, Wan, and pixel-space VAE files match their expected architectures, and each inspected graph uses the same VAE for encode and decode.
-- Source resolution policy is inconsistent across editors. Generation requests are guarded against the declared model resolution envelope, while edit submissions generally are not.
+- Source resolution policy is now explicit: source-sized editors enforce the declared model envelope at submission,
+  while MP/bucket/snap editors declare and own their normalization of arbitrary uploads.
 - Several edit paths have no minimum working resolution before lossy VAE encoding. A small source can therefore collapse to a very small latent grid before sampling, causing fine identity, texture, text, and edge information to be reconstructed differently even when the requested edit should preserve it.
 - FLUX.2 redraw workflows use the generic `KSampler`/`simple` scheduler instead of FLUX.2's resolution-aware scheduler.
 - The installed edit checkpoints are predominantly INT8, FP8, Q5, or Q8 variants. This is a more plausible cross-model quality factor than the VAE files.
@@ -19,7 +20,7 @@ This document records the issues found during the initial audit. It deliberately
 
 ### EDIT-001 — Edit submissions do not enforce the model resolution envelope
 
-- [ ] Open
+- [x] Closed by GitHub issue #313
 - Severity: high
 - Confidence: high
 - Affected area: all edit workflows that do not perform their own source normalization
@@ -44,6 +45,21 @@ Proposed work:
 - Preserve aspect ratio, clamp to the resolved model envelope, and snap to the required spatial multiple.
 - Make output-size behavior explicit: native-sized output, source-sized output, or an optional post-resize.
 - Add submission tests for undersized, oversized, odd-sized, landscape, and portrait edit sources.
+
+Resolution:
+
+- `IWorkflow.NormalizesSourceResolution` now explicitly separates source-sized editors from workflows that own an
+  MP, model-bucket, or pixel-snap normalization step. Shared normalizing bases declare the contract once, while
+  standalone normalizers and the pixel-video decorator declare/forward it directly.
+- Still-image edit submission resolves `EtaRenderSize` before graph submission. Source-sized workflows apply the
+  same full model-envelope guard as generation, so undersized, oversized, and off-grid uploads fail with the model's
+  supported dimensions before a prompt is posted.
+- Workflow-normalized editors accept arbitrary raw upload dimensions. Their typed resolver remains authoritative,
+  which avoids incorrectly applying generation's rectangular minimum-side rules to an aspect-preserving MP budget;
+  the submission boundary still requires the resolver to report positive working dimensions.
+- CPU-only coverage includes undersized, oversized, off-grid, landscape, portrait, normalized square/landscape/
+  portrait sizes, invalid resolver output, a fake-Comfy end-to-end refusal with no `/prompt` post, and a 1×1
+  Ideogram upload that is accepted because the workflow normalizes it before VAE encoding.
 
 ### EDIT-002 — Generic redraw defaults to raw source resolution
 

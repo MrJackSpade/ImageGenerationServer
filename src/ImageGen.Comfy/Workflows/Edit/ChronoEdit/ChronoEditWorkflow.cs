@@ -9,6 +9,7 @@ namespace ImageGen.Comfy.Edit.ChronoEdit;
 /// </summary>
 public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "chronoedit";
 
     /// <summary>ChronoEdit's native ~0.5&#160;MP budget (source scaled to it on a 32-px grid) — single source for both

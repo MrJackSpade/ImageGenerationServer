@@ -25,6 +25,7 @@ namespace ImageGen.Comfy.Edit.SeedVr2Upscale;
 /// </summary>
 public sealed class SeedVr2UpscaleWorkflow : EditWorkflow<SeedVr2Params>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "seedvr2-upscale";
 
     /// <summary>The upstream node declares <c>seed</c> as an INT capped at 2^32-1, unlike ComfyUI's samplers.</summary>

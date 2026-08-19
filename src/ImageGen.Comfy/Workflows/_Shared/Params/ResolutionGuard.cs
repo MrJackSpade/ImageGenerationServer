@@ -78,4 +78,25 @@ internal static class ResolutionGuard
             throw new RenderValidationException(msg + ".");
         }
     }
+
+    /// <summary>
+    /// Validate the actual working size of a still-image edit. A source-sized workflow gets the full generation
+    /// envelope check because its upload dimensions are its VAE/sampler dimensions. A workflow-owned normalizer is
+    /// authoritative: calling <see cref="IWorkflow.EtaRenderSize"/> has already executed its typed resolver and
+    /// parameter validation, and only positive output dimensions are universal. In particular, an aspect-preserving
+    /// MP budget may legitimately put the short side below a generation aspect map's rectangular minimum.
+    /// </summary>
+    public static void EnsureEditWithin(
+        ModelResolution? env,
+        int renderWidth,
+        int renderHeight,
+        bool workflowNormalizesSource)
+    {
+        _ = Ensure.GreaterThanZero(renderWidth);
+        _ = Ensure.GreaterThanZero(renderHeight);
+        if (!workflowNormalizesSource)
+        {
+            EnsureWithin(env, renderWidth, renderHeight);
+        }
+    }
 }

@@ -26,6 +26,7 @@ public abstract class Workflow<TParams> : IWorkflow
     public virtual bool TakesPrompt => true;
     public virtual FrameRule? FrameRule => null;
     public virtual ModelResolution? ResolutionEnvelope => null;
+    public virtual bool NormalizesSourceResolution => false;
 
     /// <summary>Pre-build parameter normalization — the seconds→frames conversion and frame-count snap (enqueue +
     /// submit). Bag-based because it runs BEFORE the DTO is deserialized (it mutates the values that then feed the

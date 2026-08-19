@@ -6,6 +6,7 @@ namespace ImageGen.Comfy.Edit.FluxKontextEdit;
 /// (stitch source+refs into one image, encode as the single reference latent; output stays source-sized).</summary>
 public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "flux1-kontext";
 
     protected override ComfyWorkflowGraph Build(FluxKontextParams p, ResolvedRequirements req, WorkflowInputs inputs)

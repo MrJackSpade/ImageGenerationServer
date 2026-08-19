@@ -82,6 +82,14 @@ public interface IWorkflow
     /// DreamOmni2 pipeline. Null (default) means "use the resolved checkpoint's resolution"; only such pipelines set it.</summary>
     ModelResolution? ResolutionEnvelope => null;
 
+    /// <summary>
+    /// True when this workflow deliberately resolves arbitrary upload dimensions to its own working canvas before
+    /// sampling. The edit submit guard then validates that resolver instead of applying generation's rectangular
+    /// minimum-side envelope to the raw upload. False means the graph renders at source size and the full model
+    /// envelope must be enforced before submission.
+    /// </summary>
+    bool NormalizesSourceResolution => false;
+
     /// <summary>Pre-build parameter validation/normalization — the single place input clamping lives. Runs TWICE:
     /// at ENQUEUE with <see cref="NormalizeContext.Empty"/> (params only — the frame-count snap, whose notice reaches
     /// the placeholder card before the render starts), and again at SUBMIT with the source dims + resolved

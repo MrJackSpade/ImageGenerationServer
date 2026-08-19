@@ -7,6 +7,7 @@ namespace ImageGen.Comfy.Edit.Flux2Klein4bPixelize;
 /// </summary>
 public sealed class Flux2Klein4bPixelizeWorkflow : EditWorkflow<Flux2Klein4bPixelizeParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "pixelize-klein4b";
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KleinLike();

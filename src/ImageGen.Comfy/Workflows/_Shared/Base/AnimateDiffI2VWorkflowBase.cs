@@ -18,6 +18,7 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class AnimateDiffI2VWorkflowBase : EditWorkflow<AnimateDiffI2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>AnimateDiff: prompt is a scene hint, motion is generic.</summary>
     public override bool PromptDirectsMotion => false;

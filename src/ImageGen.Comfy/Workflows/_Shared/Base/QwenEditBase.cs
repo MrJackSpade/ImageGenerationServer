@@ -14,6 +14,7 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 {
+    public override bool NormalizesSourceResolution => true;
     /// <summary>True for the all-in-one rapid checkpoint (skips the standard 2511 sampling-fix nodes).</summary>
     protected abstract bool Aio { get; }
 

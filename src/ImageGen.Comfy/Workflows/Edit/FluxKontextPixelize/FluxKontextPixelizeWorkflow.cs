@@ -9,6 +9,7 @@ namespace ImageGen.Comfy.Edit.FluxKontextPixelize;
 /// </summary>
 public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixelizeParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "pixelize-kontext";
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KontextLike();

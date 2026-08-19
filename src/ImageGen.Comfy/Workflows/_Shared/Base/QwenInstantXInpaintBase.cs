@@ -53,6 +53,7 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> where TParams : QwenInpaintParams
 {
+    public override bool NormalizesSourceResolution => true;
     /// <summary>Prompt describes the whole resulting picture (a generation-style prompt), not an edit instruction —
     /// base Qwen-Image is a txt2img model with a plain CLIPTextEncode, not an instruction editor.</summary>
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;

@@ -14,6 +14,7 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class MageFlowEditBase : EditWorkflow<MageFlowEditParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override ModelResolution? ResolutionEnvelope => new() { MinW = 512, MinH = 512, MaxW = 2048, MaxH = 2048, Step = 16 };
 
     /// <summary>Mage's native ~1&#160;MP range (source + references scaled to it on a 16-px grid) — single source for

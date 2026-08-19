@@ -12,6 +12,7 @@ namespace ImageGen.Comfy.Edit.DreamOmni2Pixelize;
 /// </summary>
 public sealed class DreamOmni2PixelizeWorkflow : EditWorkflow<DreamOmni2PixelizeParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "pixelize-dreamomni2";
     public override bool PreservesComposition => true;
     public override bool RequiresModel => false;

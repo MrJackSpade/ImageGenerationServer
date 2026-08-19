@@ -162,6 +162,43 @@ public sealed class PromptTemplateTests
             .GetProperty("elements")[0].GetProperty("desc").GetString());
     }
 
+    [Fact]
+    public async Task A_raw_resolution_editor_refuses_an_out_of_envelope_upload_before_posting_a_prompt()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
+            .GetRequiredService<WorkflowRegistry>();
+        CapturePromptHandler handler = new();
+        ComfyClient client = new(
+            new FixedHttpClientFactory(new HttpClient(handler)),
+            new FixedEndpoint(),
+            catalog,
+            registry,
+            new MediaProcessor(new MediaOptions()),
+            new FixedSnapshot<ComfyFilesByKind>(new ComfyFilesByKind(
+                new Dictionary<RequirementKind, IReadOnlyList<string>>())),
+            NullLogger<ComfyClient>.Instance);
+        byte[] onePixelSource = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+
+        RenderValidationException ex = await Assert.ThrowsAsync<RenderValidationException>(
+            () => client.SubmitEditAsync(
+                onePixelSource,
+                "make the outlines heavier",
+                null,
+                "line-thicken-controlnet",
+                null,
+                null,
+                ct: CancellationToken.None));
+
+        Assert.Contains("1x1", ex.Message);
+        Assert.Contains("512", ex.Message);
+        Assert.Null(handler.Body);
+    }
+
     private static string RepoRoot()
     {
         string? directory = AppContext.BaseDirectory;

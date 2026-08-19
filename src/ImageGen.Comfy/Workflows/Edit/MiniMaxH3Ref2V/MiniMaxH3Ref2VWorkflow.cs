@@ -9,6 +9,7 @@ namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 /// Buckets into the Animate section (<c>media:video</c>).</summary>
 public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "minimax-h3-ref2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>

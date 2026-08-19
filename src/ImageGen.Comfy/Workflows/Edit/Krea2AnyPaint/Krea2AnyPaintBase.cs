@@ -29,6 +29,7 @@ namespace ImageGen.Comfy.Edit.Krea2AnyPaint;
 /// </summary>
 public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
 {
+    public override bool NormalizesSourceResolution => true;
     /// <summary>Only the painted region and/or the added padding change; every other pixel is pinned each step.</summary>
     public override bool PreservesComposition => true;
 

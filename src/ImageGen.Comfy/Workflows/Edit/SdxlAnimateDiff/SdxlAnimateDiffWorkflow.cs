@@ -5,6 +5,7 @@ namespace ImageGen.Comfy.Edit.SdxlAnimateDiff;
 /// (Pony/AutismMix lineage) run but produce color-noise instead of motion.</summary>
 public sealed class SdxlAnimateDiffWorkflow : EditWorkflow<SdxlAnimateDiffParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "sdxl-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>AnimateDiff: prompt sets the scene, motion is generic.</summary>

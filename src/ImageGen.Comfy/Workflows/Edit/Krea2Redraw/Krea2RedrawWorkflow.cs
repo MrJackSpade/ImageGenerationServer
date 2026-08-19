@@ -26,6 +26,7 @@ namespace ImageGen.Comfy.Edit.Krea2Redraw;
 /// </summary>
 public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "krea2-redraw";
 
     /// <summary>A polish pass is meant to land close to the source at low denoise — exempt from the no-change gate.</summary>

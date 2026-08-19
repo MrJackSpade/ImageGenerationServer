@@ -30,7 +30,15 @@ public sealed class PixelVideoWorkflow : IWorkflow
     /// <summary>The pixel decorator inherits its base i2v model's frame rule (LTX/Wan), so a snapped length applies.</summary>
     public FrameRule? FrameRule => _inner.FrameRule;
     public ModelResolution? ResolutionEnvelope => _inner.ResolutionEnvelope;
+    public bool NormalizesSourceResolution => _inner.NormalizesSourceResolution;
     public IReadOnlyList<ParamSpec> Schema { get; }
+
+    public (int Width, int Height) EtaRenderSize(
+        IReadOnlyDictionary<string, object?> p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        _inner.EtaRenderSize(p, req, sourceWidth, sourceHeight);
 
     public ComfyWorkflowGraph Build(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, WorkflowInputs inputs)
     {

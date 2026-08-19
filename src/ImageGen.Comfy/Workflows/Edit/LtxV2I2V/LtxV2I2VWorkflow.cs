@@ -7,6 +7,7 @@ namespace ImageGen.Comfy.Edit.LtxV2I2V;
 /// cfg 1. Animates anime natively without a LoRA.</summary>
 public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "ltx2-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>LTX VAE: 8× temporal compression → valid clip lengths are 8n+1 (mirrors the node's length step=8).</summary>

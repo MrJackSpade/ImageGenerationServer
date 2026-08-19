@@ -13,6 +13,7 @@ namespace ImageGen.Comfy.Edit.Pixelize;
 /// </summary>
 public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "pixelize";
     /// <summary>Restyle to grid+palette — exempt from the no-change gate.</summary>
     public override bool PreservesComposition => true;

@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.MiniMaxH3I2V;
 /// (<see cref="SupportsEndFrame"/>) pins the ending. Same fl2va model as the T2V sibling.</summary>
 public sealed class MiniMaxH3I2VWorkflow : EditWorkflow<MiniMaxH3I2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "minimax-h3-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     public override bool SupportsEndFrame => true;

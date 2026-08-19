@@ -13,6 +13,7 @@ namespace ImageGen.Comfy.Edit.Ideogram4Refine;
 /// </summary>
 public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "ideogram4-refine";
     public override bool PreservesComposition => true;
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;

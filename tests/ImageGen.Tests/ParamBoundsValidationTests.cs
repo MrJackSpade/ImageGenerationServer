@@ -155,6 +155,34 @@ public sealed class ParamBoundsValidationTests
         Assert.Contains("1536", msg);   // the model's own max, named in the refusal
     }
 
+    [Theory]
+    [InlineData(256, 1024)]
+    [InlineData(2048, 1024)]
+    [InlineData(1000, 1024)]
+    public void A_source_sized_edit_refuses_undersized_oversized_and_off_grid_working_sizes(int width, int height) =>
+        Assert.Throws<RenderValidationException>(
+            () => ResolutionGuard.EnsureEditWithin(Env, width, height, workflowNormalizesSource: false));
+
+    [Theory]
+    [InlineData(1024, 768)]
+    [InlineData(768, 1024)]
+    public void A_source_sized_edit_accepts_valid_landscape_and_portrait_working_sizes(int width, int height) =>
+        ResolutionGuard.EnsureEditWithin(Env, width, height, workflowNormalizesSource: false);
+
+    [Theory]
+    [InlineData(1024, 1024)]
+    [InlineData(832, 1248)]
+    [InlineData(1360, 768)]
+    public void A_workflow_normalized_edit_accepts_its_positive_aspect_preserving_working_size(int width, int height) =>
+        ResolutionGuard.EnsureEditWithin(Env, width, height, workflowNormalizesSource: true);
+
+    [Theory]
+    [InlineData(0, 1024)]
+    [InlineData(1024, 0)]
+    public void A_workflow_normalizer_must_still_report_positive_working_dimensions(int width, int height) =>
+        Assert.ThrowsAny<ArgumentOutOfRangeException>(
+            () => ResolutionGuard.EnsureEditWithin(Env, width, height, workflowNormalizesSource: true));
+
 
     [Fact]
     public void No_configuration_declares_a_bounded_param_outside_its_workflow_schema()

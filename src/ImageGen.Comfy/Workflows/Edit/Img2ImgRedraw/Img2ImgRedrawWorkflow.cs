@@ -24,6 +24,7 @@ namespace ImageGen.Comfy.Edit.Img2ImgRedraw;
 /// </summary>
 public sealed class Img2ImgRedrawWorkflow : EditWorkflow<Img2ImgRedrawParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "img2img-redraw";
 
     /// <summary>An img2img redraw can land close to the source at low denoise — exempt from the no-change gate.</summary>

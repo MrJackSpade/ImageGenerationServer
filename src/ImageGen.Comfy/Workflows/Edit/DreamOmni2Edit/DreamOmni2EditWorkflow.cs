@@ -13,6 +13,7 @@ namespace ImageGen.Comfy.Edit.DreamOmni2Edit;
 /// </summary>
 public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "dreamomni2-edit";
     /// <summary>Self-contained pipeline node (int8 + cpu offload internally) — no ComfyUI model loaders to presence-gate.
     /// The one thing it DOES take is which diffusers base drives it (<see cref="WorkflowParamKeys.BaseModel"/>), a

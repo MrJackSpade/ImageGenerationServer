@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Edit.LtxvI2V;
 /// checkpoint — it loads an external T5.</summary>
 public sealed class LtxvI2VWorkflow : EditWorkflow<LtxvI2VParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "ltxv-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>LTX VAE: 8× temporal compression → valid clip lengths are 8n+1 (mirrors the node's length step=8).</summary>

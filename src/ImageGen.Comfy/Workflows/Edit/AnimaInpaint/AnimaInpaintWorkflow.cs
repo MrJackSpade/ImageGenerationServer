@@ -17,6 +17,7 @@ namespace ImageGen.Comfy.Edit.AnimaInpaint;
 /// </summary>
 public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "anima-inpaint";
     public override WorkflowKind Kind => WorkflowKind.Inpaint;
 

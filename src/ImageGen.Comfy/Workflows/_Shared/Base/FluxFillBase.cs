@@ -52,6 +52,7 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 {
+    public override bool NormalizesSourceResolution => true;
     /// <summary>Only the masked region changes, and the composite enforces it.</summary>
     public override bool PreservesComposition => true;
 

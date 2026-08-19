@@ -12,6 +12,7 @@ namespace ImageGen.Comfy.Edit.Step1XEdit;
 /// </summary>
 public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
 {
+    public override bool NormalizesSourceResolution => true;
     public override string Name => "step1x-edit-i1258";
     /// <summary>Self-contained loader node (manages its own VRAM: int8 + offload) — no ComfyUI loaders to presence-gate.</summary>
     public override bool RequiresModel => false;
