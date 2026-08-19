@@ -2037,6 +2037,26 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"SaveImage\"", json);
     }
 
+    [Fact]
+    public void VaeRoundTrip_is_an_exact_sampler_free_encode_decode_control()
+    {
+        string json = BuildJson("vae-roundtrip-qwen", Edit);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+
+        Assert.Equal(5, root.EnumerateObject().Count());
+        Assert.Equal("LoadImage", root.GetProperty("10").GetProperty("class_type").GetString());
+        Assert.Equal("VAELoader", root.GetProperty("20").GetProperty("class_type").GetString());
+        Assert.Equal("qwen-image-vae.safetensors", root.GetProperty("20").GetProperty("inputs").GetProperty("vae_name").GetString());
+        Assert.Equal("VAEEncode", root.GetProperty("21").GetProperty("class_type").GetString());
+        Assert.Equal("10", root.GetProperty("21").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+        Assert.Equal("VAEDecode", root.GetProperty("22").GetProperty("class_type").GetString());
+        Assert.Equal("21", root.GetProperty("22").GetProperty("inputs").GetProperty("samples")[0].GetString());
+        Assert.Equal("SaveImage", root.GetProperty("9").GetProperty("class_type").GetString());
+        Assert.DoesNotContain(root.EnumerateObject(), n => n.Value.GetProperty("class_type").GetString() is
+            "KSampler" or "SamplerCustom" or "SamplerCustomAdvanced" or "ImageScale" or "ImageScaleToTotalPixels");
+    }
+
     [Theory]
     [InlineData("qwen-image-edit")]
     [InlineData("qwen-image-edit-inpaint")]

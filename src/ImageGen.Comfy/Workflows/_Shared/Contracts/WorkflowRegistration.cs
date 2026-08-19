@@ -48,6 +48,7 @@ using ImageGen.Comfy.Edit.SdxlAnimateDiff;
 using ImageGen.Comfy.Edit.SeedVr2Upscale;
 using ImageGen.Comfy.Edit.Step1XEdit;
 using ImageGen.Comfy.Edit.Upscale;
+using ImageGen.Comfy.Edit.VaeRoundTrip;
 using ImageGen.Comfy.Edit.WanA14bI2V;
 using ImageGen.Comfy.Edit.WanI2V;
 using ImageGen.Comfy.Generation.Anima;
@@ -151,6 +152,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, Ideogram4RefineWorkflow>(); // whole-image partial-denoise refine on Ideogram 4's native dual-model graph
         _ = services.AddSingleton<IWorkflow, Krea2RedrawWorkflow>();    // whole-image partial-denoise polish on Krea 2 Turbo
         _ = services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)
+        _ = services.AddSingleton<IWorkflow, VaeRoundTripWorkflow>();   // API-oriented source -> VAE encode/decode diagnostic control
         _ = services.AddSingleton<IWorkflow, SeedVr2UpscaleWorkflow>(); // one-step diffusion upscale/restore (SeedVR2 3B)
         _ = services.AddSingleton<IWorkflow, WanI2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, AnimateDiffSd15Workflow>();

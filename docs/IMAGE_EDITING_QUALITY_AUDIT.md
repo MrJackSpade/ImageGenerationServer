@@ -348,7 +348,7 @@ Proposed work:
 
 ### EDIT-010 — No isolated VAE round-trip diagnostic exists
 
-- [ ] Open
+- [x] Closed by GitHub issue #319
 - Severity: medium
 - Confidence: high
 - Affected area: diagnostics
@@ -366,6 +366,18 @@ Proposed work:
 - Record source/output dimensions and compute PSNR, SSIM, and a perceptual metric where practical.
 - Test each installed VAE at representative square, landscape, portrait, odd, and oversized inputs.
 - Use the pixel-space identity VAE as a control. If the associated workflow is also poor, the VAE is not the cause.
+
+Resolution:
+
+- Added a reusable `vae-roundtrip` edit workflow whose complete graph is `LoadImage -> VAELoader -> VAEEncode ->
+  VAEDecode -> SaveImage`. It has no resize, checkpoint, text encoder, conditioning, noise, or sampler.
+- Shipped `vae-roundtrip-qwen` as the first API-oriented diagnostic configuration. Additional VAE controls can reuse
+  the same workflow by binding a different VAE requirement in configuration.
+- The workflow takes no prompt and opts out of the semantic-edit no-change gate, so a near-identical reconstruction
+  is retained for comparison. The render manifest records the bound VAE basename and normal job metadata records
+  source/output identity and output dimensions.
+- Tests pin the exact five-node topology and absence of sampling/resizing. GPU execution and image-quality metrics
+  remain manual validation in the environment that has the installed VAE and renderer.
 
 ### EDIT-011 — Existing tests validate graph intent, not rendered quality
 
