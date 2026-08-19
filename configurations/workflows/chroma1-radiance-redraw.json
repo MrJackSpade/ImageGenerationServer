@@ -12,6 +12,10 @@
     "vae": "pixel-space-vae"
   },
   "params": {
+    "edit_quality": { "value": "Medium", "visibility": "hidden" },
+    "edit_quality_low_mp": { "value": 0.5, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
+    "edit_quality_medium_mp": { "value": 1, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
+    "edit_quality_high_mp": { "value": 2, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
     "seed": {
       "value": 0,
       "visibility": "hidden"

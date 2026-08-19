@@ -24,7 +24,7 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $maskModal = $("maskModal"), $maskModalStage = $("maskModalStage"), $brushSize = $("brushSize"),
       // outpaint
       $outpaintModelSelect = $("outpaintModelSelect"), $outpaintModelToggle = $("outpaintModelToggle"), $outpaintModelMenu = $("outpaintModelMenu"),
-      $outpaintComposer = $("outpaintComposer"), $outpaintPrompt = $("outpaintPrompt"), $outpaintTagPop = $("outpaintTagPop"),
+      $outpaintComposer = $("outpaintComposer"), $outpaintPrompt = $("outpaintPrompt"), $outpaintTagPop = $("outpaintTagPop"), $outpaintParams = $("outpaintParams"),
       $outpaintGo = $("outpaintGo"), $outpaintResult = $("outpaintResult"),
       $outpaintBar = $("outpaintBar"), $outpaintEta = $("outpaintEta"), $cancelOutpaint = $("cancelOutpaint"),
       $outpaintStage = $("outpaintStage"), $outPads = $("outPads"), $outSize = $("outSize"), $outPresets = $("outPresets"),
@@ -930,10 +930,19 @@ function populateOutpaintMenu() {
     selectedOutpaintId = (models.find(m => m.id === savedOutpaintWorkflowId) || models.find(m => m.edit && m.edit.default) || models[0]).id;
   }
   buildMenu($outpaintModelMenu, models, selectedOutpaintId);
-  syncOutpaintLabel(); updateOutpaintNeg();
+  syncOutpaintLabel(); updateOutpaintNeg(); updateOutpaintParams();
 }
 function syncOutpaintLabel() { const m = outpaintModel(); $outpaintModelToggle.innerHTML = ""; const s = document.createElement("span"); s.textContent = m ? cleanName(m) : "Pick a workflow…"; $outpaintModelToggle.appendChild(s); }
-function selectOutpaint(id) { selectedOutpaintId = id; savePrefs(); $outpaintModelMenu.querySelectorAll(".model-opt").forEach(o => o.classList.toggle("selected", o.dataset.id === id)); syncOutpaintLabel(); updateOutpaintNeg(); }
+function updateOutpaintParams() {
+  const m = outpaintModel();
+  const qualityOnly = m && { ...m,
+    exposedParams: (m.exposedParams || []).filter(p => p.key === "edit_quality"),
+    hiddenParams: (m.hiddenParams || []).filter(p => p.key === "edit_quality") };
+  renderParamFields($outpaintParams, qualityOnly);
+  restoreParams($outpaintParams);
+}
+function selectOutpaint(id) { selectedOutpaintId = id; savePrefs(); $outpaintModelMenu.querySelectorAll(".model-opt").forEach(o => o.classList.toggle("selected", o.dataset.id === id)); syncOutpaintLabel(); updateOutpaintNeg(); updateOutpaintParams(); }
+$outpaintParams.addEventListener("change", () => persistParams($outpaintParams));
 $outpaintModelToggle.addEventListener("click", () => openMenu($outpaintModelMenu, $outpaintModelToggle, $outpaintModelMenu.hidden));
 $outpaintModelMenu.addEventListener("click", e => { const opt = e.target.closest(".model-opt"); if (!opt) return; selectOutpaint(opt.dataset.id); openMenu($outpaintModelMenu, $outpaintModelToggle, false); });
 document.addEventListener("pointerdown", e => { if (!$outpaintModelMenu.hidden && !$outpaintModelSelect.contains(e.target)) openMenu($outpaintModelMenu, $outpaintModelToggle, false); }, true);
@@ -1039,10 +1048,10 @@ function renderOutpaintResult(id) {
 }
 function showOutpaintBar(show) { $outpaintBar.classList.toggle("show", show); if (!show) $outpaintBar.querySelector("i").style.width = "0"; }
 // Build the outpaint items: n takes of the SAME base + pads + prompt, re-rolling [a|b|…] per slot (the server also
-// fills a fresh seed per slot). The pads are the ONLY override — everything else (fill strength, feather, mask grow,
-// LLLite) stays at the configuration's defaults, exactly as a bare API call gets them.
+// fills a fresh seed per slot). Pads plus an optionally revealed Quality selector are the only overrides; fill
+// strength, feather, mask grow, and model-specific controls stay at configuration defaults.
 //
-// Do NOT reintroduce readOverrides() here. The editor's param map (editParamPrefs) is flat and keyed by param NAME
+// Do NOT read the normal editParams panel here. The editor's param map (editParamPrefs) is flat and keyed by param NAME
 // across every panel, and `denoise` is "Change amount" (default 0.6, min 0.2) to anima-inpaint but "Fill strength"
 // (default 1.0, min 0.5) to anima-outpaint. Feeding inpaint's denoise in would half-denoise the grey padding that
 // ImagePadForOutpaint lays down, so the border would come back grey instead of painted.
@@ -1050,7 +1059,7 @@ function buildOutpaintItems(n) {
   const model = outpaintModel();
   if (!model || !outpaintBase || !padsTotal()) return [];
   const prompt = $outpaintPrompt.value.trim();
-  const overrides = { pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
+  const overrides = { ...readOverrides($outpaintParams), pad_left: pads.left, pad_top: pads.top, pad_right: pads.right, pad_bottom: pads.bottom };
   const items = [];
   for (let i = 0; i < n; i++)
     items.push({ workflow: gwModel(model), edit: true, instruction: expandRandomPrompt(prompt), negativePrompt: outpaintNegFor(model),

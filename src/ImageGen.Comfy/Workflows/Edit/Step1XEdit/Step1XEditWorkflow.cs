@@ -13,6 +13,7 @@ namespace ImageGen.Comfy.Edit.Step1XEdit;
 public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "step1x-edit-i1258";
     /// <summary>Self-contained loader node (manages its own VRAM: int8 + offload) — no ComfyUI loaders to presence-gate.</summary>
     public override bool RequiresModel => false;
@@ -24,6 +25,13 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
         new() { Key = WorkflowParamKeys.DiffusionModel, Type = ParamType.String, IsModelRef = true },
         new() { Key = WorkflowParamKeys.Step1xVae,      Type = ParamType.String, IsModelRef = true },
     ];
+
+    protected override (int Width, int Height) EtaRenderSize(Step1XParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels,
+            req.Resolution?.Step ?? EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
 
     protected override ComfyWorkflowGraph Build(Step1XParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -40,10 +48,17 @@ public sealed class Step1XEditWorkflow : EditWorkflow<Step1XParams>
                 Offload = true,
             },
         };
+        (int targetWidth, int targetHeight) = EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
+            inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels,
+            req.Resolution?.Step ?? EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
+        g[Nodes.SourceScale] = new ImageScale { Image = LoadImage.ImageOut(EditNodes.Source),
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = targetWidth, Height = targetHeight,
+            Crop = ComfyWidgets.Crop.Disabled };
         g[Nodes.Generate] = new Step1XEditGenerate
         {
             Model = Step1XEditModelLoader.Out(Nodes.ModelLoader),
-            InputImage = LoadImage.ImageOut(EditNodes.Source),
+            InputImage = ImageScale.Out(Nodes.SourceScale),
             Prompt = inputs.Positive,
             NegativePrompt = string.Empty,
             NumSteps = p.Steps,

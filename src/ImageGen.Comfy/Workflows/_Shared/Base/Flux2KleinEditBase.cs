@@ -11,12 +11,17 @@ namespace ImageGen.Comfy;
 public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     /// <summary>Flux.2 Klein's ~1&#160;MP edit budget (source + references scaled to the model/VAE's 16-px grid) — single
     /// source for both the graph's scale nodes and the ETA render-size.</summary>
     private const double BudgetMp = 1.0;
     private const int BudgetSteps = 16;
 
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(Flux2KleinEditParams p) => (BudgetMp, BudgetSteps);
+
+    protected override (int Width, int Height) EtaRenderSize(Flux2KleinEditParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        BudgetScale.Snap(sourceWidth, sourceHeight, editMegapixels ?? BudgetMp, BudgetSteps);
 
     protected override ComfyWorkflowGraph Build(Flux2KleinEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -26,7 +31,8 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         IReadOnlyList<string> refNames = inputs.ImageReferences;
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = BudgetMp, ResolutionSteps = BudgetSteps };
+        double budgetMp = inputs.EditMegapixels ?? BudgetMp;
+        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
         g[Nodes.Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Vae = vae0 };
         g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
         g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = p.Guidance };
@@ -45,7 +51,7 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         {
             string load = $"{40 + i}", scale = $"{50 + i}", enc = $"{60 + i}", rl = $"{70 + i}";
             g[load] = new LoadImage { Image = refNames[i] };
-            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = BudgetMp, ResolutionSteps = BudgetSteps };
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
             g[enc] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(scale), Vae = vae0 };
             g[rl] = new ReferenceLatent { Conditioning = cond, Latent = VAEEncode.Out(enc) };
             cond = ReferenceLatent.Out(rl);

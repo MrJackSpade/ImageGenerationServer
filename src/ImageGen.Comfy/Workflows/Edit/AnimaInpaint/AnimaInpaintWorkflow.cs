@@ -18,6 +18,7 @@ namespace ImageGen.Comfy.Edit.AnimaInpaint;
 public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "anima-inpaint";
     public override WorkflowKind Kind => WorkflowKind.Inpaint;
 
@@ -45,8 +46,9 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         AnimaInpaintParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
-        EditWorkingResolution.Resolve(sourceWidth, sourceHeight);
+        int sourceHeight,
+        double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight, editMegapixels ?? EditWorkingResolution.NativeMegapixels);
 
     protected override ComfyWorkflowGraph Build(AnimaInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -84,7 +86,8 @@ public sealed class AnimaInpaintWorkflow : EditWorkflow<AnimaInpaintParams>
         (int Width, int Height) current = (
             Ensure.GreaterThanZero(inputs.SourceWidth),
             Ensure.GreaterThanZero(inputs.SourceHeight));
-        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height,
+            inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels);
         Output<Slot.Image> image = LoadImage.ImageOut(EditNodes.Source);
         EditWorkingResolution.ScalePair(
             g,

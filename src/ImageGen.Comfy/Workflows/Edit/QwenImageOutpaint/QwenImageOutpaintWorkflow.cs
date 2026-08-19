@@ -36,10 +36,12 @@ public sealed class QwenImageOutpaintWorkflow : QwenInstantXInpaintBase<QwenImag
         QwenImageOutpaintParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
+        int sourceHeight,
+        double? editMegapixels) =>
         EditWorkingResolution.Resolve(
             sourceWidth + p.PadLeft + p.PadRight,
             sourceHeight + p.PadTop + p.PadBottom,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels,
             maxDimension: p.MaxDimension);
 
     public override IReadOnlyList<ParamSpec> Schema => OutpaintSchema;

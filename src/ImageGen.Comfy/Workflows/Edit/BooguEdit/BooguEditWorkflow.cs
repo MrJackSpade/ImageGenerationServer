@@ -16,6 +16,7 @@ namespace ImageGen.Comfy.Edit.BooguEdit;
 public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "boogu-edit";
 
     /// <summary>Boogu runs real CFG with an (optionally empty) negative; expose it like the inpaint editor does.</summary>
@@ -34,6 +35,10 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
 
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(BooguParams p) => (p.Megapixels, BudgetSteps);
 
+    protected override (int Width, int Height) EtaRenderSize(BooguParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        BudgetScale.Snap(sourceWidth, sourceHeight, editMegapixels ?? p.Megapixels, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(BooguParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -42,7 +47,7 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // Lift of the official Comfy-Org image_boogu_image_0_1_edit template. Resize the source to ~1 MP (lanczos) —
         // 1 MP is what the template uses; rendering bigger than the model's ~1 MP reference just soft-upscales. The
         // "megapixels" param stays for tuning but defaults to 1.0.
-        double mp = p.Megapixels;
+        double mp = inputs.EditMegapixels ?? p.Megapixels;
         g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = mp, ResolutionSteps = BudgetSteps };
 
         // Apply the flow-matching shift EXPLICITLY (the template does this even though Boogu's model class also carries

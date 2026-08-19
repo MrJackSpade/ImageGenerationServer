@@ -14,6 +14,7 @@ namespace ImageGen.Comfy.Edit.Ideogram4Refine;
 public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "ideogram4-refine";
     public override bool PreservesComposition => true;
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;
@@ -43,11 +44,12 @@ public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams
         Ideogram4RefineParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
+        int sourceHeight,
+        double? editMegapixels) =>
         EditWorkingResolution.Resolve(
             sourceWidth,
             sourceHeight,
-            NativeMegapixels(p),
+            editMegapixels ?? NativeMegapixels(p),
             maxDimension: p.MaxDimension);
 
     protected override ComfyWorkflowGraph Build(Ideogram4RefineParams p, ResolvedRequirements req, WorkflowInputs inputs)
@@ -58,7 +60,7 @@ public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams
         (int Width, int Height) target = EditWorkingResolution.Resolve(
             current.Width,
             current.Height,
-            NativeMegapixels(p),
+            inputs.EditMegapixels ?? NativeMegapixels(p),
             maxDimension: p.MaxDimension);
         ComfyWorkflowGraph g = new();
 

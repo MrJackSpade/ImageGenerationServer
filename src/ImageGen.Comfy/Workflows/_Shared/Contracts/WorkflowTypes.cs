@@ -379,6 +379,9 @@ public sealed class WorkflowInputs
     /// derive the target aspect from the source without a UI width/height field.</summary>
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
+    /// <summary>The selected per-configuration edit-quality working budget, in megapixels.</summary>
+    [AllowNullable("null = this workflow does not support the edit-quality MP selector")]
+    public double? EditMegapixels { get; init; }
     /// <summary>The uploaded reference inputs, in order, EACH carrying its media kind (image/audio/video) so a workflow
     /// routes it to the correct graph input. Most editors take only images — <see cref="ImageReferences"/> is the
     /// convenience for them; a multi-modal workflow (e.g. one taking a driving audio/video reference) reads this and

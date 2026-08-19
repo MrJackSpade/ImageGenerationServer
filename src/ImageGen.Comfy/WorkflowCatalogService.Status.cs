@@ -2,6 +2,7 @@
 using ImageGen.Comfy.Snapshots;
 using ImageGen.Application.Rendering;
 using ImageGen.Domain.Repositories;
+using System.Globalization;
 using System.Text.Json;
 
 namespace ImageGen.Comfy;
@@ -259,6 +260,12 @@ public sealed partial class WorkflowCatalogService
     /// <inheritdoc/>
     public async Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct)
     {
+        if (settingKey.StartsWith(SettingKeys.EditQualityPrefix, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(settingValue))
+        {
+            ValidateEditQualityOverride(configId, settingKey[SettingKeys.ParamPrefix.Length..], settingValue);
+        }
+
         // A render size outside what the model documents is refused here, with the model's own numbers in the
         // message. The browser's min/max is advisory — this is the write path — and storing 4096 for a model whose
         // envelope stops at 1920 buys a failed render minutes later instead of an answer now.
@@ -287,5 +294,38 @@ public sealed partial class WorkflowCatalogService
         // the merge sees the new value immediately (replaces the old inline re-push).
         _snapshots.ParamOverrides.Invalidate();
         _ = await _snapshots.ParamOverrides.GetAsync(ct);
+    }
+
+    private void ValidateEditQualityOverride(string configId, string key, string value)
+    {
+        WorkflowConfiguration cfg = _catalog.FindConfig(configId)
+            ?? throw new ArgumentException($"Unknown workflow '{configId}'.", nameof(configId));
+        IWorkflow wf = _registry.Find(cfg.WorkflowName)
+            ?? throw new ArgumentException($"Workflow '{cfg.WorkflowName}' is not registered.", nameof(configId));
+        if (!wf.SupportsEditQuality || EditQuality.Spec(key) is null)
+        {
+            throw new ArgumentException($"Workflow '{configId}' does not define edit-quality setting '{key}'.", nameof(key));
+        }
+
+        Dictionary<string, object?> effective = cfg.Params.ToDictionary(kv => kv.Key, kv => kv.Value.Value,
+            StringComparer.OrdinalIgnoreCase);
+        foreach ((string existingKey, JsonElement existingValue) in _catalog.ParamOverridesFor(cfg.Id))
+        {
+            effective[existingKey] = existingValue;
+        }
+
+        effective[key] = string.Equals(key, WorkflowParamKeys.EditQuality, StringComparison.OrdinalIgnoreCase)
+            ? value
+            : double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double mp)
+                ? mp
+                : throw new ArgumentException($"'{value}' is not a megapixel number.", nameof(value));
+        try
+        {
+            _ = EditQuality.Resolve(wf, effective);
+        }
+        catch (RenderValidationException ex)
+        {
+            throw new ArgumentException(ex.Message, nameof(value), ex);
+        }
     }
 }

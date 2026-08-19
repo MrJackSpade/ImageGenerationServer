@@ -22,6 +22,7 @@ namespace ImageGen.Comfy.Edit.AnimaOutpaint;
 public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string OutputSizePolicy => OutputSizePolicies.ExpandedCanvas;
     public override string Name => "anima-outpaint";
     public override WorkflowKind Kind => WorkflowKind.Outpaint;
@@ -57,10 +58,12 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         AnimaOutpaintParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
+        int sourceHeight,
+        double? editMegapixels) =>
         EditWorkingResolution.Resolve(
             sourceWidth + p.PadLeft + p.PadRight,
-            sourceHeight + p.PadTop + p.PadBottom);
+            sourceHeight + p.PadTop + p.PadBottom,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels);
 
     protected override ComfyWorkflowGraph Build(AnimaOutpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -95,7 +98,8 @@ public sealed class AnimaOutpaintWorkflow : EditWorkflow<AnimaOutpaintParams>
         (int Width, int Height) current = (
             Ensure.GreaterThanZero(inputs.SourceWidth) + p.PadLeft + p.PadRight,
             Ensure.GreaterThanZero(inputs.SourceHeight) + p.PadTop + p.PadBottom);
-        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height,
+            inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels);
         Output<Slot.Image> image = ImagePadForOutpaint.ImageOut(Nodes.Pad);
         Output<Slot.Mask> maskSrc = ImagePadForOutpaint.MaskOut(Nodes.Pad);
         EditWorkingResolution.ScalePair(

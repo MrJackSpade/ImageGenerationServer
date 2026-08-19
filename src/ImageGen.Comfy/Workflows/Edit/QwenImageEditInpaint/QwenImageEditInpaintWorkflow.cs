@@ -26,6 +26,7 @@ namespace ImageGen.Comfy.Edit.QwenImageEditInpaint;
 public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInpaintParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "qwen-image-edit-inpaint";
     public override WorkflowKind Kind => WorkflowKind.Inpaint;
 
@@ -44,6 +45,12 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
     /// composite's crossfade band spans more than one cell and does not decode as a hard 1px line at the join.</summary>
     private const double MaskBlurSigma = 8.0;
 
+    protected override (int Width, int Height) EtaRenderSize(QwenImageEditInpaintParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
+
     protected override ComfyWorkflowGraph Build(QwenImageEditInpaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -52,7 +59,12 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
         // Shared reference-encode head: Kontext-scale the source (image1 + the fill pixels), load references into
         // image2/image3, emit the positive/negative Qwen edit encodes + the 2511 sampling fix. aio:false — this is the
         // standard split model, never the all-in-one rapid checkpoint.
-        QwenRefHeadOut head = QwenReferenceHead.Emit(g, aio: false, model0, clip0, vae0, inputs, p.ReferenceInputs, p.ReferenceMax, p.ReferenceLatentsMethod);
+        double editMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
+        (int sourceWidth, int sourceHeight) = EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
+            editMp, EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
+        QwenRefHeadOut head = QwenReferenceHead.Emit(g, aio: false, model0, clip0, vae0, inputs, p.ReferenceInputs,
+            p.ReferenceMax, p.ReferenceLatentsMethod, editMp, sourceWidth, sourceHeight);
 
         // The painted mask (white-on-black upload, or the source alpha as a fallback) at SOURCE resolution, resampled
         // to the Kontext bucket so it lines up with the head's image1/fill pixels. nearest-exact keeps it binary; a

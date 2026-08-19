@@ -334,10 +334,10 @@ public sealed partial class WorkflowCatalogService(
             // A model-ref param is a foreign key into the requirements/slot table — a VAE, a LoRA, an extra expert. It
             // is not a free value this page may edit; the model it points at is chosen with the slot picker in "Models
             // for this machine", not by typing a filename. Surface none of them here (issue: editable VAE/LoRA fields).
-            .Where(kv => wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase)) is not { IsModelRef: true })
+            .Where(kv => ParamSpecFor(wf, kv.Key) is not { IsModelRef: true })
             .Select(kv =>
             {
-                ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase))
+                ParamSpec? spec = ParamSpecFor(wf, kv.Key)
                     ?? (string.Equals(kv.Key, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
                         ? PromptTemplates.Schema
                         : null);
@@ -586,7 +586,7 @@ public sealed partial class WorkflowCatalogService(
         KeyValuePair<string, ConfigParam> kv, IWorkflow wf, WorkflowConfiguration cfg,
         IReadOnlyDictionary<string, JsonElement> machine)
     {
-        ParamSpec? spec = wf.Schema.FirstOrDefault(s => string.Equals(s.Key, kv.Key, StringComparison.OrdinalIgnoreCase))
+        ParamSpec? spec = ParamSpecFor(wf, kv.Key)
             ?? (string.Equals(kv.Key, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
                 ? PromptTemplates.Schema
                 : null);
@@ -626,6 +626,11 @@ public sealed partial class WorkflowCatalogService(
             spec?.Choices);
     }
 
+    /// <summary>Ordinary workflow schema plus the four shared quality settings for workflows that opt in.</summary>
+    private static ParamSpec? ParamSpecFor(IWorkflow wf, string key) =>
+        wf.Schema.FirstOrDefault(s => string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase))
+        ?? (wf.SupportsEditQuality ? EditQuality.Spec(key) : null);
+
     /// <summary>This machine's effective frames-per-second for a config (machine override, else the config's scalar),
     /// or false when none is declared — a video model without an fps can't have its length shown in seconds.</summary>
     private static bool TryFps(
@@ -653,6 +658,8 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>Settings-page override keys (persisted per machine).</summary>
     private static class SettingKeys
     {
+        public const string ParamPrefix = "param.";
+        public const string EditQualityPrefix = "param.edit_quality";
         /// <summary>The per-machine setting key for a workflow's default LoRA folder (a plain string override, not a graph
         /// parameter — no workflow reads it; the composer's picker does).</summary>
         public const string TargetLoraFolder = "targetLoraFolder";

@@ -130,11 +130,10 @@
                     <div id="outpaintNegTagPop" class="tag-pop hidden" role="listbox" aria-label="Negative tag suggestions"></div>
                 </div>
             </div>
-            @* No exposed-param panel here, deliberately. The editor's own controls (the pad amounts) are the only
-               per-request knobs; the rest — fill strength, seam feather, mask grow, the LLLite weights — stay at the
-               configuration's defaults. Rendering them here also fed them back as overrides through the SHARED flat
-               param map, where `denoise` means "Change amount" to inpaint but "Fill strength" to outpaint: an inpaint
-               value of 0.5 half-denoised the grey border and returned a grey box. *@
+            @* Outpaint intentionally renders only the shared Quality selector when a user reveals it. Its other
+               parameters remain configuration defaults: the shared flat preference map cannot safely carry an
+               inpaint `denoise` (Change amount) into an outpaint `denoise` (Fill strength). *@
+            <div id="outpaintParams" class="edit-params hidden"></div>
             <div class="outpaint-foot">
                 <button id="outpaintGo" class="primary-btn" type="submit">Generate</button>
             </div>

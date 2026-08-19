@@ -484,7 +484,7 @@ Resolution:
 
 ### EDIT-014 — Add hidden, configurable edit-quality megapixel presets
 
-- [ ] Open
+- [x] Closed by GitHub issue #323
 - Severity: feature / final rollout item
 - Confidence: high
 - Dependency: implement after the workflow-specific quality defects above are corrected

@@ -53,6 +53,7 @@ namespace ImageGen.Comfy;
 public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     /// <summary>Only the masked region changes, and the composite enforces it.</summary>
     public override bool PreservesComposition => true;
 
@@ -85,8 +86,10 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         FluxFillParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
-        EditWorkingResolution.Resolve(sourceWidth, sourceHeight, maxDimension: p.MaxDimension);
+        int sourceHeight,
+        double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, maxDimension: p.MaxDimension);
 
     /// <summary>Gaussian sigma of the mask edge — the width of the crossfade band the composite blends over (and of
     /// the soft mask the model is conditioned on), so it wants to be several latent cells wide.</summary>
@@ -136,13 +139,14 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
 
     /// <summary>Normalize canvas AND mask to the native edit budget. Both must travel together: the conditioning,
     /// latent mask, and composite all describe the same pixel grid.</summary>
-    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, FluxFillParams p, (int W, int H) canvas,
+    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, FluxFillParams p, double megapixels, (int W, int H) canvas,
         ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
         (int Width, int Height) current = (canvas.W, canvas.H);
         (int Width, int Height) target = EditWorkingResolution.Resolve(
             canvas.W,
             canvas.H,
+            megapixels,
             maxDimension: p.MaxDimension);
         EditWorkingResolution.ScalePair(
             g,
@@ -162,7 +166,8 @@ public abstract class FluxFillBase : EditWorkflow<FluxFillParams>
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
-        ApplyWorkingResolution(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
+        ApplyWorkingResolution(g, p, inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels,
+            CanvasSize(p, inputs), ref image, ref rawMask);
         Output<Slot.Mask> softMask = SoftenMask(g, p, rawMask);
 
         // Flux is a single-conditioning model: the "negative" is the positive zeroed out, and real CFG stays 1.

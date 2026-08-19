@@ -27,6 +27,7 @@ public abstract class Workflow<TParams> : IWorkflow
     public virtual FrameRule? FrameRule => null;
     public virtual ModelResolution? ResolutionEnvelope => null;
     public virtual bool NormalizesSourceResolution => false;
+    public virtual bool SupportsEditQuality => false;
     public virtual string OutputSizePolicy => Kind == WorkflowKind.Generate
         ? OutputSizePolicies.ExplicitRequested
         : NormalizesSourceResolution ? OutputSizePolicies.NormalizedNative : OutputSizePolicies.ExactSource;
@@ -50,8 +51,14 @@ public abstract class Workflow<TParams> : IWorkflow
     /// <summary>The bag-based <see cref="IWorkflow.EtaRenderSize"/> seam: deserialize the merged bag into
     /// <typeparamref name="TParams"/> (same <see cref="ParamsCodec"/> pass as <see cref="Build"/>) and hand off to the
     /// typed overload, so a workflow never touches a string key here either.</summary>
-    (int Width, int Height) IWorkflow.EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
-        => EtaRenderSize(ParamsCodec.Deserialize<TParams>(p), req, sourceWidth, sourceHeight);
+    (int Width, int Height) IWorkflow.EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight, double? editMegapixels)
+        => EtaRenderSize(ParamsCodec.Deserialize<TParams>(p), req, sourceWidth, sourceHeight,
+            editMegapixels ?? EditQuality.Resolve(this, p));
+
+    /// <summary>Quality-aware ETA seam. Workflows supporting the shared selector override this; all others retain
+    /// their existing typed resolver unchanged.</summary>
+    protected virtual (int Width, int Height) EtaRenderSize(TParams p, ResolvedRequirements req, int sourceWidth, int sourceHeight, double? editMegapixels)
+        => EtaRenderSize(p, req, sourceWidth, sourceHeight);
 
     /// <summary>The resolution this workflow actually renders at for a source of the given dims — typed params in.
     /// Default: the source dims unchanged. A budget-scaling workflow overrides this to return

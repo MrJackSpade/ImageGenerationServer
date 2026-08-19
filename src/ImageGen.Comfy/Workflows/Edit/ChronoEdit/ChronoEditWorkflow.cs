@@ -10,6 +10,7 @@ namespace ImageGen.Comfy.Edit.ChronoEdit;
 public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "chronoedit";
 
     /// <summary>ChronoEdit's native ~0.5&#160;MP budget (source scaled to it on a 32-px grid) — single source for both
@@ -19,6 +20,10 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
 
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(ChronoEditParams p) => (BudgetMp, BudgetSteps);
 
+    protected override (int Width, int Height) EtaRenderSize(ChronoEditParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        BudgetScale.Snap(sourceWidth, sourceHeight, editMegapixels ?? BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(ChronoEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
@@ -26,7 +31,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);               // distilled LoRA (fast 20-step path)
         long seed = ComfyGraph.Seed(p.Seed);
         int len = p.Length;                                                            // ChronoEdit's short trajectory
-        double budgetMp = BudgetMp;   // ChronoEdit's native ~0.5MP budget (720² ≈ 0.52MP) — always applied (the source is scaled to it)
+        double budgetMp = inputs.EditMegapixels ?? BudgetMp;
 
         // Sampling fix-ups the template applies to the Wan model for ChronoEdit.
         g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = 5.0 };

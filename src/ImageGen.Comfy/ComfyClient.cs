@@ -713,11 +713,12 @@ public sealed class ComfyClient : IComfyClient
         }
 
         string renderedInstruction = PromptTemplates.Render(common.PromptTemplate, instruction, cfg.Id);
-        WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
+        double? editMegapixels = EditQuality.Resolve(wf, dict);
+        WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, EditMegapixels = editMegapixels, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         // ETA signature: the resolution the workflow ACTUALLY renders at (a budget-scaling editor pins the source to a
         // fixed ~MP size, so recording raw srcW/srcH would credit a large upload work it never does), plus the
         // EtaVariable time drivers — Frames (length) dominates for i2v.
-        (int etaW, int etaH) = wf.EtaRenderSize(dict, resolved, srcW, srcH);
+        (int etaW, int etaH) = wf.EtaRenderSize(dict, resolved, srcW, srcH, editMegapixels);
         // Raw-source editors have no graph-level sizing safety net: enforce the model's full declared envelope before
         // posting. Explicit normalizers accept arbitrary uploads and validate their own aspect-preserving working
         // canvas; generation-only minimum-side rectangles must not reject those source images.

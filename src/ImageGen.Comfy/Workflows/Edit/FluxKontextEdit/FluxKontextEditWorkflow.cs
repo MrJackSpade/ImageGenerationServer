@@ -7,7 +7,13 @@ namespace ImageGen.Comfy.Edit.FluxKontextEdit;
 public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "flux1-kontext";
+
+    protected override (int Width, int Height) EtaRenderSize(FluxKontextParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        BudgetScale.Snap(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, EditWorkingResolution.NativeStep);
 
     protected override ComfyWorkflowGraph Build(FluxKontextParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -17,8 +23,10 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         IReadOnlyList<string> refNames = inputs.ImageReferences;
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Nodes.SourceScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
-        g[Nodes.SourceEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.SourceScale), Vae = vae0 };
+        double budgetMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
+        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source),
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
+        g[Nodes.SourceEncode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(Nodes.SourceScale), Vae = vae0 };
         // No reference_max declared → this editor takes no refs (capacity 0). Supplying references anyway is REFUSED,
         // not silently ignored.
         int rm = p.ReferenceMax ?? 0;
@@ -31,17 +39,18 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         Output<Slot.Latent> refLatent;
         if (fn > 0)
         {
-            Output<Slot.Image> stitched = LoadImage.ImageOut(EditNodes.Source);
+            Output<Slot.Image> stitched = ImageScaleToTotalPixels.Out(Nodes.SourceScale);
             for (int i = 0; i < fn; i++)
             {
-                string load = $"{40 + i}", stitch = $"{50 + i}";
+                string load = $"{40 + i}", stitch = $"{50 + i}", scale = $"{60 + i}";
                 g[load] = new LoadImage { Image = refNames[i] };
-                g[stitch] = new ImageStitch { Image1 = stitched, Image2 = LoadImage.ImageOut(load), Direction = ComfyWidgets.Stitch.Right, MatchImageSize = true, SpacingWidth = 0, SpacingColor = ComfyWidgets.Spacing.White };
+                g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load), UpscaleMethod = ComfyWidgets.Upscale.Lanczos,
+                    Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
+                g[stitch] = new ImageStitch { Image1 = stitched, Image2 = ImageScaleToTotalPixels.Out(scale), Direction = ComfyWidgets.Stitch.Right, MatchImageSize = true, SpacingWidth = 0, SpacingColor = ComfyWidgets.Spacing.White };
                 stitched = ImageStitch.Out(stitch);
             }
 
-            g[Nodes.StitchScale] = new FluxKontextImageScale { Image = stitched };
-            g[Nodes.StitchEncode] = new VAEEncode { Pixels = FluxKontextImageScale.Out(Nodes.StitchScale), Vae = vae0 };
+            g[Nodes.StitchEncode] = new VAEEncode { Pixels = stitched, Vae = vae0 };
             refLatent = VAEEncode.Out(Nodes.StitchEncode);
         }
         else

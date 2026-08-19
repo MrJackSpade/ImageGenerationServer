@@ -15,8 +15,15 @@ namespace ImageGen.Comfy;
 public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     /// <summary>True for the all-in-one rapid checkpoint (skips the standard 2511 sampling-fix nodes).</summary>
     protected abstract bool Aio { get; }
+
+    protected override (int Width, int Height) EtaRenderSize(QwenEditParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
 
     /// <summary>
     /// Adds four <c>mask_*_pct</c> params on top of the shared edit schema: the <b>canvas mask</b>, i.e. how much of
@@ -100,7 +107,12 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // The shared reference-encode head: Kontext-scale the source, load the references into image2/image3, and emit
         // the positive/negative TextEncodeQwenImageEditPlus encodes with their reference-latent stitch (+ the standard
         // 2511 ModelSamplingAuraFlow/CFGNorm sampling fix unless AIO). Everything below is this editor's own tail.
-        QwenRefHeadOut head = QwenReferenceHead.Emit(g, Aio, model0, clip0, vae0, inputs, p.ReferenceInputs, p.ReferenceMax, p.ReferenceLatentsMethod);
+        double editMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
+        (int sourceWidth, int sourceHeight) = EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
+            editMp, EditWorkingResolution.NativeStep,
+            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
+        QwenRefHeadOut head = QwenReferenceHead.Emit(g, Aio, model0, clip0, vae0, inputs, p.ReferenceInputs,
+            p.ReferenceMax, p.ReferenceLatentsMethod, editMp, sourceWidth, sourceHeight);
         Output<Slot.Conditioning> cond = head.Cond;
         Output<Slot.Conditioning> negCond = head.NegCond;
         Output<Slot.Model> ksModel = head.KsModel;

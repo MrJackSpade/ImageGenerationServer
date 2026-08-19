@@ -54,6 +54,7 @@ namespace ImageGen.Comfy;
 public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> where TParams : QwenInpaintParams
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     /// <summary>Prompt describes the whole resulting picture (a generation-style prompt), not an edit instruction —
     /// base Qwen-Image is a txt2img model with a plain CLIPTextEncode, not an instruction editor.</summary>
     public override PromptSemantics PromptSemantics => PromptSemantics.WholeImage;
@@ -107,8 +108,10 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         TParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
-        EditWorkingResolution.Resolve(sourceWidth, sourceHeight, maxDimension: p.MaxDimension);
+        int sourceHeight,
+        double? editMegapixels) =>
+        EditWorkingResolution.Resolve(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, maxDimension: p.MaxDimension);
 
     /// <summary>
     /// The reference template's "Grow and Blur Mask" subgraph, node for node:
@@ -159,13 +162,14 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
 
     /// <summary>Normalize the canvas AND its mask to the native edit budget. Both must be resized together: the
     /// ControlNet, latent mask, and paste-back must all describe the same pixel grid.</summary>
-    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, QwenInpaintParams p,
+    private static void ApplyWorkingResolution(ComfyWorkflowGraph g, QwenInpaintParams p, double megapixels,
         (int W, int H) canvas, ref Output<Slot.Image> image, ref Output<Slot.Mask> rawMask)
     {
         (int Width, int Height) current = (canvas.W, canvas.H);
         (int Width, int Height) target = EditWorkingResolution.Resolve(
             canvas.W,
             canvas.H,
+            megapixels,
             maxDimension: p.MaxDimension);
         EditWorkingResolution.ScalePair(
             g,
@@ -185,7 +189,8 @@ public abstract class QwenInstantXInpaintBase<TParams> : EditWorkflow<TParams> w
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);   // nodes 4/5/6 + LoadImage "10"
 
         ResolveCanvas(g, p, inputs, out Output<Slot.Image> image, out Output<Slot.Mask> rawMask);
-        ApplyWorkingResolution(g, p, CanvasSize(p, inputs), ref image, ref rawMask);
+        ApplyWorkingResolution(g, p, inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels,
+            CanvasSize(p, inputs), ref image, ref rawMask);
 
         Output<Slot.Mask> softMask = QwenInstantXInpaintBase<TParams>.SoftenMask(g, p, rawMask);
 

@@ -31,14 +31,16 @@ public sealed class PixelVideoWorkflow : IWorkflow
     public FrameRule? FrameRule => _inner.FrameRule;
     public ModelResolution? ResolutionEnvelope => _inner.ResolutionEnvelope;
     public bool NormalizesSourceResolution => _inner.NormalizesSourceResolution;
+    public bool SupportsEditQuality => false;
     public IReadOnlyList<ParamSpec> Schema { get; }
 
     public (int Width, int Height) EtaRenderSize(
         IReadOnlyDictionary<string, object?> p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
-        _inner.EtaRenderSize(p, req, sourceWidth, sourceHeight);
+        int sourceHeight,
+        double? editMegapixels = null) =>
+        _inner.EtaRenderSize(p, req, sourceWidth, sourceHeight, editMegapixels);
 
     public ComfyWorkflowGraph Build(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, WorkflowInputs inputs)
     {

@@ -43,14 +43,16 @@ internal static class QwenReferenceHead
     /// is true for the all-in-one rapid checkpoint (skips the standard 2511 <c>ModelSamplingAuraFlow</c>+<c>CFGNorm</c>).</summary>
     public static QwenRefHeadOut Emit(ComfyWorkflowGraph g, bool aio,
         Output<Slot.Model> model0, Output<Slot.Clip> clip0, Output<Slot.Vae> vae0,
-        WorkflowInputs inputs, string[]? referenceInputs, int? referenceMax, string referenceLatentsMethod)
+        WorkflowInputs inputs, string[]? referenceInputs, int? referenceMax, string referenceLatentsMethod,
+        double editMegapixels, int sourceWidth, int sourceHeight)
     {
-        // Default resolution normalisation (FluxKontextImageScale snaps to a Qwen-trained bucket) + the danamir blur
-        // fix. The text-encode image and the VAEEncode both come from that scaled image, and we build the ref latent
-        // ourselves (VAE off the text-encode so it can't force-rescale) -> ref latent matches sample latent, no
-        // per-turn resample -> no compounding blur over a multi-turn conversation.
-        g[Nodes.KontextScale] = new FluxKontextImageScale { Image = LoadImage.ImageOut(EditNodes.Source) };
-        Output<Slot.Image> kontext = FluxKontextImageScale.Out(Nodes.KontextScale);
+        // Scale the source once to the selected quality budget + apply the danamir blur fix. The text-encode image and
+        // VAEEncode both come from that same image, and we build the ref latent ourselves (VAE off the text encoder so
+        // it cannot force-rescale) -> ref latent matches sample latent with no per-turn compounding blur.
+        g[Nodes.KontextScale] = new ImageScale { Image = LoadImage.ImageOut(EditNodes.Source),
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = sourceWidth, Height = sourceHeight,
+            Crop = ComfyWidgets.Crop.Disabled };
+        Output<Slot.Image> kontext = ImageScale.Out(Nodes.KontextScale);
 
         string[] qInputs = referenceInputs ?? [];
         IReadOnlyList<string> refNames = inputs.ImageReferences;
@@ -64,14 +66,13 @@ internal static class QwenReferenceHead
 
         int qn = refNames.Count;
         Dictionary<string, object> encRefs = [];
-        for (int i = 0; i < qn; i++)                          // each reference: load RAW into image2/image3
+        for (int i = 0; i < qn; i++)
         {
-            // The official 2511 blueprint feeds references into the encode node unscaled — the node does its own
-            // ~1MP area snap for the ref latent and 384² resample for the vision tokens. Pre-bucketing here resampled
-            // every reference twice for no benefit (#218).
-            string load = $"{40 + (i * 2)}";
+            string load = $"{40 + (i * 2)}", scale = $"{41 + (i * 2)}";
             g[load] = new LoadImage { Image = refNames[i] };
-            encRefs[qInputs[i]] = LoadImage.ImageOut(load);
+            g[scale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(load),
+                UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = editMegapixels, ResolutionSteps = EditWorkingResolution.NativeStep };
+            encRefs[qInputs[i]] = ImageScaleToTotalPixels.Out(scale);
         }
 
         g[Nodes.SourceEncode] = new VAEEncode { Pixels = kontext, Vae = vae0 };

@@ -14,6 +14,7 @@ namespace ImageGen.Comfy.Edit.DreamOmni2Edit;
 public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     public override string Name => "dreamomni2-edit";
     /// <summary>Self-contained pipeline node (int8 + cpu offload internally) — no ComfyUI model loaders to presence-gate.
     /// The one thing it DOES take is which diffusers base drives it (<see cref="WorkflowParamKeys.BaseModel"/>), a
@@ -29,12 +30,21 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
         .. EditWorkflowBase.SharedSchema,
     ];
 
+    protected override (int Width, int Height) EtaRenderSize(DreamOmni2Params p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight, double? editMegapixels) =>
+        BudgetScale.Snap(sourceWidth, sourceHeight,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels, EditWorkingResolution.NativeStep);
+
     protected override ComfyWorkflowGraph Build(DreamOmni2Params p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new()
         {
             [EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("DreamOmni2 edit needs a source image, but none was provided.") },
         };
+        double budgetMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
+        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source),
+            UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
+        Output<Slot.Image> source = ImageScaleToTotalPixels.Out(Nodes.SourceScale);
         // The Editor wires exactly one reference image (its single ref_image slot). Refuse an over-supply rather than
         // silently dropping the extras, so a config that widens the ＋ ref affordance past what this graph consumes
         // surfaces at submit instead of losing the user's uploads without a word.
@@ -49,18 +59,20 @@ public sealed class DreamOmni2EditWorkflow : EditWorkflow<DreamOmni2Params>
         if (refNames.Count > 0)
         {
             g[Nodes.Reference] = new LoadImage { Image = refNames[0] };
-            refImg = LoadImage.ImageOut(Nodes.Reference);
+            g[Nodes.ReferenceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(Nodes.Reference),
+                UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
+            refImg = ImageScaleToTotalPixels.Out(Nodes.ReferenceScale);
         }
         else
         {
-            refImg = LoadImage.ImageOut(EditNodes.Source);
+            refImg = source;
         }
 
         g[Nodes.Pipeline] = new RunningHubDreamOmni2EditPipeline { BaseModel = p.BaseModel };
         g[Nodes.Editor] = new RunningHubDreamOmni2Editor
         {
             Pipeline = RunningHubDreamOmni2EditPipeline.Out(Nodes.Pipeline),
-            SrcImage = LoadImage.ImageOut(EditNodes.Source),
+            SrcImage = source,
             RefImage = refImg,
             Prompt = inputs.Positive,
             NumInferenceSteps = p.Steps,

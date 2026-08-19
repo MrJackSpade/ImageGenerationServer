@@ -30,6 +30,7 @@ namespace ImageGen.Comfy.Edit.Krea2AnyPaint;
 public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsEditQuality => true;
     /// <summary>Only the painted region and/or the added padding change; every other pixel is pinned each step.</summary>
     public override bool PreservesComposition => true;
 
@@ -56,10 +57,12 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
         Krea2AnyPaintParams p,
         ResolvedRequirements req,
         int sourceWidth,
-        int sourceHeight) =>
+        int sourceHeight,
+        double? editMegapixels) =>
         EditWorkingResolution.Resolve(
             sourceWidth + p.PadLeft + p.PadRight,
-            sourceHeight + p.PadTop + p.PadBottom);
+            sourceHeight + p.PadTop + p.PadBottom,
+            editMegapixels ?? EditWorkingResolution.NativeMegapixels);
 
     protected override ComfyWorkflowGraph Build(Krea2AnyPaintParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -88,7 +91,8 @@ public abstract class Krea2AnyPaintBase : EditWorkflow<Krea2AnyPaintParams>
         (int Width, int Height) current = (
             Ensure.GreaterThanZero(inputs.SourceWidth) + left + right,
             Ensure.GreaterThanZero(inputs.SourceHeight) + top + bottom);
-        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height);
+        (int Width, int Height) target = EditWorkingResolution.Resolve(current.Width, current.Height,
+            inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels);
         Output<Slot.Image> knownImage = Krea2AnyPaintPrepare.KnownImageOut(Nodes.Prepare);
         Output<Slot.Mask> keepMask = Krea2AnyPaintPrepare.KeepMaskOut(Nodes.Prepare);
         EditWorkingResolution.ScalePair(

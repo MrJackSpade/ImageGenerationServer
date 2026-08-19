@@ -47,6 +47,10 @@ internal static class WorkflowParamKeys
     public const string EndPadRightPct = "end_pad_right_pct";
     public const string EndPadTopPct = "end_pad_top_pct";
     public const string EndPercent = "end_percent";
+    public const string EditQuality = "edit_quality";
+    public const string EditQualityLowMp = "edit_quality_low_mp";
+    public const string EditQualityMediumMp = "edit_quality_medium_mp";
+    public const string EditQualityHighMp = "edit_quality_high_mp";
     public const string Engine = "engine";
     public const string Epsilon = "epsilon";
     public const string Feather = "feather";

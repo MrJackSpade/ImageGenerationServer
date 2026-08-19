@@ -9,6 +9,7 @@ internal static class Nodes
 {
     public const string TextEncoder = "Qwen2.5-VL-7B-Instruct";
     public const string ModelLoader = "1";
+    public const string SourceScale = "11";
     public const string Generate = "2";
     public const string Save = "9";
 }

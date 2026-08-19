@@ -90,6 +90,9 @@ public interface IWorkflow
     /// </summary>
     bool NormalizesSourceResolution => false;
 
+    /// <summary>Whether this still-image editor consumes the shared Low/Medium/High MP quality contract.</summary>
+    bool SupportsEditQuality => false;
+
     /// <summary>The workflow's output-size contract, persisted with each render's measured dimensions.</summary>
     string OutputSizePolicy => Kind == WorkflowKind.Generate
         ? OutputSizePolicies.ExplicitRequested
@@ -116,7 +119,7 @@ public interface IWorkflow
     /// render-size snap keyed to the model's resolution reads it) — the same context <see cref="Build"/> gets, so the
     /// reported size can't drift from the built graph. Only meaningful for edit workflows (they take a source image);
     /// generate workflows use the resolved aspect dims directly and never call this.</summary>
-    (int Width, int Height) EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight)
+    (int Width, int Height) EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight, double? editMegapixels = null)
         => (sourceWidth, sourceHeight);
 
     /// <summary>Build the ComfyUI graph as a typed <see cref="ComfyWorkflowGraph"/> (node-id → typed node). It stays
