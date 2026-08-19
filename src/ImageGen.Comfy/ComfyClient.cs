@@ -597,7 +597,7 @@ public sealed class ComfyClient : IComfyClient
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.
         EtaSignature eta = new(ew, eh, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
-        return new SubmitResult(await SubmitAsync(graph, ct), eta, pos);
+        return new SubmitResult(await SubmitAsync(graph, ct), eta, pos, RenderModelManifestBuilder.Build(dict, resolved));
     }
 
     /// <summary>The value of an EtaVariable-marked int param (a render-time driver) for the ETA signature, or null when
@@ -666,7 +666,8 @@ public sealed class ComfyClient : IComfyClient
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
             // left unset; the frame count still drives the time.
             EtaSignature eta0 = new(0, 0, EtaInt(wf, common0.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common0.Length, WorkflowParamKeys.Length));
-            return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0, renderedInstruction0);
+            return new SubmitResult(await SubmitAsync(wf.Build(dict0, resolved0, inputs0), ct), eta0, renderedInstruction0,
+                RenderModelManifestBuilder.Build(dict0, resolved0));
         }
 
         // Distinct filename per role — a fixed name for every upload would make source and references clobber each
@@ -722,7 +723,8 @@ public sealed class ComfyClient : IComfyClient
         ResolutionGuard.EnsureEditWithin(env, etaW, etaH, wf.NormalizesSourceResolution);
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
-        return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction);
+        return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction,
+            RenderModelManifestBuilder.Build(dict, resolved));
     }
 
     private (WorkflowConfiguration cfg, IWorkflow wf) ResolveGenerate(string? configId)

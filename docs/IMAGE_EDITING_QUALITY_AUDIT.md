@@ -218,7 +218,7 @@ Resolution:
 
 ### EDIT-006 — Checkpoint precision and catalog metadata are inconsistent
 
-- [ ] Open
+- [x] Closed by GitHub issue #316
 - Severity: high
 - Confidence: medium-high
 - Affected workflows: potentially most large image editors
@@ -244,6 +244,22 @@ Proposed work:
 - Correct model match expressions and catalog precision descriptions.
 - Record checkpoint basename, loader, file dtype/quantization, VAE, and text encoder in render metadata.
 - Run fixed-seed A/B comparisons for BF16/FP8 versus the installed quantized variant where hardware permits.
+
+Resolution:
+
+- The Qwen Image Edit 2511 model slot now recognizes BF16, FP16, FP8, INT8/ConvRot, and Q2-Q8 published-name
+  variants. Matching remains suggestion-only: one unambiguous file may fill an empty slot, multiple installed
+  precisions require a user choice, and an existing `dbo.ModelBinding` is never overwritten.
+- The Qwen workflow card no longer asserts that every machine is running FP8. It identifies checkpoint precision as
+  machine-bound and scopes the existing timing measurement to the observed INT8 ConvRot binding.
+- Every submitted render now snapshots a model manifest containing portable checkpoint/VAE/text-encoder basenames,
+  loader mode, requested weight dtype, and a conservative filename-derived quantization hint. The snapshot persists
+  on `dbo.JobSlot` and is returned as `models` by Generation Values, so later binding changes cannot rewrite an
+  image's provenance.
+- SQLite and SQL Server migrations add the nullable manifest column without changing existing rows. Tests cover
+  variant recognition, multi-precision ambiguity, manifest inference, persistence, migration, and API projection.
+- No active binding was changed and no hardware-dependent A/B render was run; those remain manual validation steps
+  for the operator who has the relevant checkpoints and GPU.
 
 ### EDIT-007 — Qwen-Image-Edit is fixed at the 20-step speed preset
 

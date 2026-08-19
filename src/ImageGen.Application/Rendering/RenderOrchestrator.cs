@@ -1214,6 +1214,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 promptId = editSubmit.PromptId;
                 slot.EtaSignature = editSubmit.Eta;
                 slot.ModelPrompt = editSubmit.ModelPrompt;
+                slot.ModelManifest = editSubmit.ModelManifest;
             }
             else
             {
@@ -1316,6 +1317,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 promptId = submit.PromptId;
                 slot.EtaSignature = submit.Eta;
                 slot.ModelPrompt = submit.ModelPrompt;
+                slot.ModelManifest = submit.ModelManifest;
             }
 
             if (!resuming)
@@ -1972,6 +1974,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 Error = s.Error,
                 EffectivePrompt = s.EffectivePrompt,
                 ModelPrompt = s.ModelPrompt,
+                ModelManifestJson = s.ModelManifest is null ? null : JsonSerializer.Serialize(s.ModelManifest),
                 RawPrompt = s.RawPrompt,
                 RawNegativePrompt = s.RawNegativePrompt,
                 Marks = s.Marks is null ? [] : [.. s.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), s.GeneratedTokens?.Contains(kv.Key) == true))],
@@ -2237,6 +2240,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 Error = parseError ?? sr.Error,
                 EffectivePrompt = sr.EffectivePrompt,
                 ModelPrompt = sr.ModelPrompt,
+                ModelManifest = Deser<RenderModelManifest>(sr.ModelManifestJson),
                 RawPrompt = sr.RawPrompt,
                 RawNegativePrompt = sr.RawNegativePrompt,
                 Marks = marks,

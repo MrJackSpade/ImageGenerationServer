@@ -1,4 +1,5 @@
 using ImageGen.Domain.CodeAnalysis;
+using ImageGen.Domain.Entities;
 
 namespace ImageGen.Application.Rendering;
 
@@ -91,6 +92,8 @@ public sealed class RenderSlot
     /// rendered. Kept separate from <see cref="EffectivePrompt"/> because the existing image display intentionally
     /// shows the concise, template-free prompt while Generation Values shows exactly what the model received.</summary>
     public string? ModelPrompt;
+    /// <summary>The exact model bindings and loader precision settings resolved when this prompt was submitted.</summary>
+    public RenderModelManifest? ModelManifest;
     /// <summary>The prompt VERBATIM in marker form ("#tag, @artist"), random injections included — the string that,
     /// resubmitted, remakes this image. Finalizing it yields <see cref="EffectivePrompt"/> and <see cref="Marks"/>.</summary>
     public string? RawPrompt;

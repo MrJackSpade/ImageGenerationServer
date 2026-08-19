@@ -635,3 +635,10 @@ CREATE INDEX IF NOT EXISTS dbo.IX_JobSlot_Image ON JobSlot (ImageId);
 -- EffectivePrompt because the established image display shows the concise prompt while Generation Values shows what
 -- the model actually received. User content: randomized-encrypted by the repository. Existing rows remain null.
 ALTER TABLE dbo.JobSlot ADD COLUMN ModelPrompt TEXT NULL;
+
+
+-- --- 0.17.2 -----------------------------------------------------------------------------------------------------
+
+-- Model-file/loader snapshot resolved when a render is submitted. Plain operational metadata; existing rows remain
+-- null, and later ModelBinding edits cannot rewrite the weights recorded for an existing image.
+ALTER TABLE dbo.JobSlot ADD COLUMN ModelManifestJson TEXT NULL;

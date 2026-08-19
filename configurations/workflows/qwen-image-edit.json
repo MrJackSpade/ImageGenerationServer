@@ -46,8 +46,8 @@
     ]
   },
   "card": {
-    "architecture": "Qwen-Image 20B MMDiT edit model (Qwen2.5-VL encoder; dual semantic + appearance path)",
-    "summary": "Clean instruction editor on the 20B Qwen-Image base, fp8 for near-bf16 quality. Strong character/scene consistency and text rendering. Offloads to RAM on 8GB (slow); declines explicit edits.",
+    "architecture": "Qwen-Image 20B MMDiT edit model (Qwen2.5-VL encoder; dual semantic + appearance path; checkpoint precision is machine-bound)",
+    "summary": "Clean instruction editor on the 20B Qwen-Image base. Strong character/scene consistency and text rendering. Quality, memory use, and speed depend on whether this machine binds BF16, FP8, INT8 ConvRot, or another quantized checkpoint; declines explicit edits.",
     "use_cases": [
       "high-quality SFW instruction editing",
       "add/remove/replace objects, change clothing/colour",
@@ -89,8 +89,8 @@
     },
     "speed": {
       "class": "slow",
-      "note": "fp8 20B with RAM offload on 8GB.",
-      "measured_note": "Qwen edit measured ~6.7-7.0GB VRAM peak; ~140s at 8 steps."
+      "note": "20B; speed and offload behavior depend on the machine-bound checkpoint precision.",
+      "measured_note": "An INT8 ConvRot binding measured ~6.7-7.0GB VRAM peak and ~140s at 8 steps; other precisions are not directly comparable."
     },
     "ui_help": {
       "note": "Edits an existing image from an instruction; not used for from-scratch generation here.",

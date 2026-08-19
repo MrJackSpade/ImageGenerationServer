@@ -949,3 +949,9 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ModelPrompt' AND Object_ID = Object_ID('dbo.JobSlot'))
     ALTER TABLE dbo.JobSlot ADD ModelPrompt NVARCHAR(MAX) NULL;
 GO
+
+-- Model-file/loader snapshot resolved when a render is submitted. Plain operational metadata; existing rows remain
+-- null, and later ModelBinding edits cannot rewrite the weights recorded for an existing image.
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ModelManifestJson' AND Object_ID = Object_ID('dbo.JobSlot'))
+    ALTER TABLE dbo.JobSlot ADD ModelManifestJson NVARCHAR(MAX) NULL;
+GO

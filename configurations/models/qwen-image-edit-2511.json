@@ -3,7 +3,7 @@
   "kind": "unet",
   "label": "Qwen-Image-Edit 2511",
   "match": [
-    "qwen[-_. ]?image[-_. ]?edit[-_. ]?2511[-_. ]?q6"
+    "qwen[-_. ]?image[-_. ]?edit[-_. ]?2511(?:[-_. ]?(?:bf16|fp16|fp8(?:[-_. ]?e4m3fn)?|int8(?:[-_. ]?convrot)?|q[2-8](?:[-_. ]?[a-z0-9]+)*))?$"
   ],
   "page": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI"
 }

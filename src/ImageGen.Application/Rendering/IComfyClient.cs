@@ -1,4 +1,5 @@
 using ImageGen.Domain;
+using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 using System.Net.WebSockets;
 using System.Text.Json;
@@ -7,9 +8,14 @@ namespace ImageGen.Application.Rendering;
 
 /// <summary>A submitted prompt: the backend id to poll, plus the ETA signature captured from the merged render
 /// params (resolved resolution / steps / frames) so the orchestrator can param-match its ETA and store it with the
-/// timing sample, plus the exact positive prompt embedded in the submitted graph. Both are built where the merged
-/// params and workflow prompt template live (the Comfy adapter), not re-derived in core.</summary>
-public readonly record struct SubmitResult(string PromptId, EtaSignature Eta, string ModelPrompt);
+/// timing sample, the exact positive prompt embedded in the submitted graph, and the resolved model-file manifest.
+/// All are built where the merged params, bindings, and workflow prompt template live (the Comfy adapter), not
+/// re-derived in core.</summary>
+public readonly record struct SubmitResult(
+    string PromptId,
+    EtaSignature Eta,
+    string ModelPrompt,
+    RenderModelManifest? ModelManifest = null);
 
 /// <summary>One reference the orchestrator resolved for an edit, ready to upload: the raw bytes, the media
 /// <see cref="Kind"/> derived from the stored blob's content type, and that <see cref="ContentType"/> itself. The

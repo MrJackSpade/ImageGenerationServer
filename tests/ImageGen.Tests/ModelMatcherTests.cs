@@ -139,6 +139,42 @@ public sealed class ModelMatcherTests
         Assert.Equal("Wan2.2-TI2V-5B-Q4_K_M.gguf", Assert.Single(result).AutoBind);
     }
 
+    [Theory]
+    [InlineData("qwen_image_edit_2511_bf16.safetensors")]
+    [InlineData("qwen-image-edit-2511-fp8-e4m3fn.safetensors")]
+    [InlineData("qwen_image_edit_2511_int8_convrot.safetensors")]
+    [InlineData("Qwen-Image-Edit-2511-Q6_K.safetensors")]
+    public void Shipped_qwen_2511_slot_recognises_supported_precision_variants(string file)
+    {
+        MatchableSlot slot = ShippedSlots().Single(s => s.Id == "qwen-image-edit-2511");
+
+        SlotMatch match = Assert.Single(ModelMatcher.Match([slot], Files(RequirementKind.Unet, file)));
+
+        Assert.Equal(file, match.AutoBind);
+    }
+
+    [Fact]
+    public void Several_qwen_2511_precisions_are_never_silently_chosen_between()
+    {
+        MatchableSlot slot = ShippedSlots().Single(s => s.Id == "qwen-image-edit-2511");
+        IReadOnlyList<SlotMatch> result = ModelMatcher.Match([slot], Files(RequirementKind.Unet,
+            "qwen_image_edit_2511_bf16.safetensors",
+            "qwen_image_edit_2511_int8_convrot.safetensors"));
+
+        SlotMatch match = Assert.Single(result);
+        Assert.Null(match.AutoBind);
+        Assert.Equal(2, match.Candidates.Count);
+    }
+
+    [Fact]
+    public void Qwen_2511_slot_does_not_claim_an_unlisted_suffix()
+    {
+        MatchableSlot slot = ShippedSlots().Single(s => s.Id == "qwen-image-edit-2511");
+
+        Assert.Empty(ModelMatcher.Match([slot], Files(RequirementKind.Unet,
+            "qwen_image_edit_2511_unrelated.safetensors")));
+    }
+
     /// <summary>
     /// Patterns can come from a file a user wrote. Compiling without backtracking makes a pathological pattern
     /// impossible rather than slow, at the price of rejecting lookarounds — so the rejection has to name the slot

@@ -36,6 +36,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             NegativePrompt = "worst quality",
             OverridesJson = """{"seed":1234,"steps":28}""",
             LorasJson = """[{"Name":"anime/foo.safetensors","Weight":0.8}]""",
+            ModelManifestJson = """{"checkpoint":"anima.safetensors","loader":"checkpoint","weightDtype":"default","quantization":"unknown","vae":null,"textEncoders":[]}""",
             Generate = new GenerateSlotData
             {
                 Aspect = "portrait",
@@ -56,6 +57,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Equal("worst quality", back.NegativePrompt);
         Assert.Equal("""{"seed":1234,"steps":28}""", back.OverridesJson);
         Assert.Equal("""[{"Name":"anime/foo.safetensors","Weight":0.8}]""", back.LorasJson);
+        Assert.Contains("anima.safetensors", back.ModelManifestJson);
         Assert.Null(back.Edit);                        // a generate carries no edit data
         Assert.NotNull(back.Generate);
         Assert.Equal("portrait", back.Generate.Aspect);
@@ -86,6 +88,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             Prompt = requested,
             EffectivePrompt = displayed,
             ModelPrompt = submitted,
+            ModelManifestJson = """{"checkpoint":"ideogram4-fp8.safetensors","loader":"unet","weightDtype":"default","quantization":"fp8","vae":"ae.safetensors","textEncoders":["gemma.safetensors"]}""",
             Generate = new GenerateSlotData { Aspect = "square" },
         };
 
@@ -99,6 +102,9 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.NotNull(record);
         using JsonDocument values = JsonDocument.Parse(record.RequestJson);
         Assert.Equal(submitted, values.RootElement.GetProperty("prompt").GetString());
+        JsonElement models = values.RootElement.GetProperty("models");
+        Assert.Equal("ideogram4-fp8.safetensors", models.GetProperty("checkpoint").GetString());
+        Assert.Equal("fp8", models.GetProperty("quantization").GetString());
         Assert.False(values.RootElement.TryGetProperty("modelPrompt", out _));
     }
 
