@@ -40,7 +40,7 @@
   },
   "card": {
     "architecture": "Deterministic OKLab palette + grid quantizer applied per frame (no model) — LoadVideo → GetVideoComponents → PixelQuantize → SaveAnimatedWEBP",
-    "summary": "Pixel-quantizes every frame of a source clip onto a fixed grid + palette and re-encodes the clip at its own frame rate. No model, no VRAM. A locked (named) palette is the default so the colors are identical every frame — temporally consistent, no flicker. This is the only editor offered when the source is a video.",
+    "summary": "Pixel-quantizes every frame of a source clip onto a fixed grid + palette and re-encodes the clip at its own frame rate. No model, no VRAM. A locked (named) palette is the default so the colors are identical every frame — temporally consistent, no flicker.",
     "use_cases": [
       "turn a generated or uploaded clip into pixel-art video",
       "deterministic frame-by-frame quantization with no diffusion redraw"

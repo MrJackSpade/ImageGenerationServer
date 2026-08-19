@@ -154,6 +154,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, UpscaleWorkflow>();        // feed-forward ESRGAN-family upscale (anime PLKSR / photo DAT2)
         _ = services.AddSingleton<IWorkflow, VaeRoundTripWorkflow>();   // API-oriented source -> VAE encode/decode diagnostic control
         _ = services.AddSingleton<IWorkflow, SeedVr2UpscaleWorkflow>(); // one-step diffusion upscale/restore (SeedVR2 3B)
+        _ = services.AddSingleton<IWorkflow, SeedVr2VideoUpscaleWorkflow>(); // temporal V2V restore/upscale; preserves source media
         _ = services.AddSingleton<IWorkflow, WanI2VWorkflow>();
         _ = services.AddSingleton<IWorkflow, AnimateDiffSd15Workflow>();
         _ = services.AddSingleton<IWorkflow, SdxlAnimateDiffWorkflow>();

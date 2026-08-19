@@ -4,6 +4,7 @@
 
 # generated test-output images / scratch results from validation runs
 model-test/
+/tools/debanner/
 
 # local copy of the Gelbooru dump (id,type,count,name) that build-tags-json.py converts into tags.json
 # (tags.json itself IS committed as a temporary placeholder — to be overwritten with the real dump later)

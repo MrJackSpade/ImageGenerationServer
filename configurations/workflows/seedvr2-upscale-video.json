@@ -1,0 +1,158 @@
+{
+  "id": "seedvr2-upscale-video",
+  "workflow": "seedvr2-upscale-video",
+  "friendly_name": "SeedVR2",
+  "edit_group": "Upscale",
+  "default": false,
+  "requirements": {
+    "extra": [
+      "seedvr2-3b",
+      "seedvr2-vae",
+      "comfyui-seedvr2-node"
+    ]
+  },
+  "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "dit_model": {
+      "value": "seedvr2-3b",
+      "visibility": "locked"
+    },
+    "vae_model": {
+      "value": "seedvr2-vae",
+      "visibility": "locked"
+    },
+    "resolution": {
+      "value": 1536,
+      "visibility": "exposed",
+      "min": 512,
+      "max": 2160,
+      "step": 2
+    },
+    "max_resolution": {
+      "value": 0,
+      "visibility": "locked"
+    },
+    "batch_size": {
+      "value": 5,
+      "visibility": "exposed",
+      "min": 1,
+      "max": 21,
+      "step": 4
+    },
+    "uniform_batch_size": {
+      "value": true,
+      "visibility": "locked"
+    },
+    "temporal_overlap": {
+      "value": 3,
+      "visibility": "exposed",
+      "min": 0,
+      "max": 4,
+      "step": 1
+    },
+    "prepend_frames": {
+      "value": 0,
+      "visibility": "locked"
+    },
+    "color_correction": {
+      "value": "lab",
+      "visibility": "exposed"
+    },
+    "input_noise_scale": {
+      "value": 0.0,
+      "visibility": "locked"
+    },
+    "latent_noise_scale": {
+      "value": 0.0,
+      "visibility": "locked"
+    },
+    "device": {
+      "value": "cuda:0",
+      "visibility": "locked"
+    },
+    "offload_device": {
+      "value": "cpu",
+      "visibility": "locked"
+    },
+    "attention_mode": {
+      "value": "sdpa",
+      "visibility": "locked"
+    },
+    "blocks_to_swap": {
+      "value": 32,
+      "visibility": "locked"
+    },
+    "swap_io_components": {
+      "value": true,
+      "visibility": "locked"
+    },
+    "cache_model": {
+      "value": false,
+      "visibility": "locked"
+    },
+    "vae_tiled": {
+      "value": true,
+      "visibility": "locked"
+    },
+    "vae_tile_size": {
+      "value": 512,
+      "visibility": "locked"
+    },
+    "vae_tile_overlap": {
+      "value": 64,
+      "visibility": "locked"
+    },
+    "enable_debug": {
+      "value": false,
+      "visibility": "locked"
+    }
+  },
+  "card": {
+    "architecture": "SeedVR2 3B temporal video restoration — LoadVideo → GetVideoComponents → SeedVR2VideoUpscaler → CreateVideo → SaveVideo",
+    "summary": "Restores and upscales a source video with SeedVR2's temporal diffusion model. Frames are processed in overlapping batches, then remuxed at the original frame rate with the source audio and bit depth preserved. The 1536px short-edge default is a 2x pass for H3's 768p output.",
+    "use_cases": [
+      "reconstruct detail in soft or compressed H3 output",
+      "upscale a generated 768p clip to a 1536px short edge",
+      "restore neighboring frames together instead of independently"
+    ],
+    "nsfw_capable": "yes - no text conditioning and no content model",
+    "commercial_use": "open weights - verify the SeedVR2 license for your use",
+    "pick_when": "A generated clip has the right motion and composition but looks soft, smeared, or compressed. This is the slow, detail-reconstructing option rather than a simple sharpening pass.",
+    "prompt": {
+      "format": "none",
+      "guidance": "This video editor takes no prompt. SeedVR2 restores the decoded frame batch directly.",
+      "instructions": "Target short edge controls the output size. The 1536 default is 2x for H3's 768p output. Temporal batch controls how many neighboring frames are processed together; 5 is the memory-conscious default for this 8 GB configuration. Temporal overlap blends adjacent batches.",
+      "do": [
+        "Keep the temporal batch at 5 initially on an 8 GB GPU",
+        "Use LAB colour matching when fidelity to the original grading matters",
+        "Lower the target short edge before lowering temporal batch if memory is exhausted"
+      ],
+      "dont": [
+        "Expect literal recovery of detail that was never present - SeedVR2 reconstructs plausible detail",
+        "Increase temporal batch without expecting substantially higher VRAM use",
+        "Add noise unless a specific high-resolution artifact calls for it"
+      ],
+      "negative_guidance": "Not supported - no text encoder.",
+      "source": "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler"
+    },
+    "negative": {
+      "supported": false,
+      "note": "One-step diffusion restorer; there is no text conditioning."
+    },
+    "speed": {
+      "class": "very slow",
+      "note": "The 3B Q8 model is heavily CPU-offloaded and its VAE is tiled to fit an 8 GB card. Video multiplies that work across every frame.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Send a source clip. Its FPS and audio are preserved; only its decoded frames are restored and enlarged.",
+      "good_for": "a final-quality temporal restoration pass after H3"
+    },
+    "edit_use_cases": [
+      "temporal diffusion restore/upscale of a generated video"
+    ]
+  }
+}

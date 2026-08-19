@@ -653,7 +653,7 @@ public sealed class ComfyClient : IComfyClient
         // An empty instruction is valid: pixel-quantize ignores the prompt entirely, the pixelize workflows fall
         // back to their own style_prompt, and editors with a non-blank conditioning default handle it too.
 
-        // Video-to-video (the pixel-quantize V2V pass): the source is a CLIP, not a still. Upload it as a real video
+        // Video-to-video: the source is a CLIP, not a still. Upload it as a real video
         // file ComfyUI's LoadVideo can decode — transcoding our animated-webp clips to mp4 first (PyAV/ffmpeg can't
         // multi-frame-decode animated webp) and passing mp4/webm uploads through as-is — and build with SourceVideoName.
         if (wf.SourceMedia == WorkflowMedia.Video)

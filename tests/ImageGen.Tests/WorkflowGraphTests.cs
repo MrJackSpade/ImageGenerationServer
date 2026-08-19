@@ -1287,7 +1287,7 @@ public sealed class WorkflowGraphTests
     {
         // The "Upscale" header carries the category, so the names must not repeat it.
         (WorkflowCatalog? catalog, WorkflowRegistry _) = Build();
-        foreach (string? id in new[] { "upscale-anime", "upscale-photo", "seedvr2-upscale" })
+        foreach (string? id in new[] { "upscale-anime", "upscale-photo", "seedvr2-upscale", "seedvr2-upscale-video" })
         {
             WorkflowConfiguration? cfg = catalog.FindConfig(id);
             Assert.NotNull(cfg);
@@ -1324,6 +1324,66 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("CLIPTextEncode", json);
         Assert.DoesNotContain("make it red", json);
         Assert.Contains("forgemcp_edit", json);
+    }
+
+    [Fact]
+    public void SeedVr2_video_restores_temporal_batches_and_preserves_source_media_components()
+    {
+        string json = BuildJson("seedvr2-upscale-video", new WorkflowInputs { SourceVideoName = "h3-source.mp4" });
+        using JsonDocument doc = JsonDocument.Parse(json);
+
+        JsonElement source = doc.RootElement.GetProperty("10");
+        Assert.Equal("LoadVideo", source.GetProperty("class_type").GetString());
+        Assert.Equal("h3-source.mp4", source.GetProperty("inputs").GetProperty("file").GetString());
+
+        JsonElement upscale = doc.RootElement.GetProperty("32");
+        Assert.Equal("SeedVR2VideoUpscaler", upscale.GetProperty("class_type").GetString());
+        JsonElement up = upscale.GetProperty("inputs");
+        Assert.Equal("[\"11\",0]", up.GetProperty("image").GetRawText());
+        Assert.Equal(1536, up.GetProperty("resolution").GetInt32());
+        Assert.Equal(5, up.GetProperty("batch_size").GetInt32());
+        Assert.True(up.GetProperty("uniform_batch_size").GetBoolean());
+        Assert.Equal(3, up.GetProperty("temporal_overlap").GetInt32());
+        Assert.Equal(0, up.GetProperty("prepend_frames").GetInt32());
+        Assert.Equal(0, up.GetProperty("input_noise_scale").GetDouble());
+        Assert.Equal(0, up.GetProperty("latent_noise_scale").GetDouble());
+        Assert.Equal("lab", up.GetProperty("color_correction").GetString());
+
+        // Rebuild the transformed frames as a real video while carrying every source timing/media component through.
+        JsonElement create = doc.RootElement.GetProperty("40");
+        Assert.Equal("CreateVideo", create.GetProperty("class_type").GetString());
+        JsonElement mux = create.GetProperty("inputs");
+        Assert.Equal("[\"32\",0]", mux.GetProperty("images").GetRawText());
+        Assert.Equal("[\"11\",2]", mux.GetProperty("fps").GetRawText());
+        Assert.Equal("[\"11\",1]", mux.GetProperty("audio").GetRawText());
+        Assert.Equal("[\"11\",3]", mux.GetProperty("bit_depth").GetRawText());
+        Assert.Equal("SaveVideo", doc.RootElement.GetProperty("9").GetProperty("class_type").GetString());
+    }
+
+    [Fact]
+    public void SeedVr2_video_declares_video_input_output_and_rejects_invalid_temporal_shapes()
+    {
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("seedvr2-upscale-video"));
+        IWorkflow wf = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+        Assert.Equal(WorkflowMedia.Video, wf.SourceMedia);
+        Assert.Equal(WorkflowMedia.Video, wf.Media);
+        Assert.True(wf.HasAudio);
+        Assert.False(wf.TakesPrompt);
+        Assert.Equal(OutputSizePolicies.ExplicitRequested, wf.OutputSizePolicy);
+
+        Dictionary<string, object?> values = Merge(catalog, wf, cfg);
+        WorkflowInputs input = new() { SourceVideoName = "clip.mp4" };
+        values[WorkflowParamKeys.BatchSize] = 6;
+        _ = Assert.Throws<RenderValidationException>(() => wf.Build(values, catalog.Resolve(cfg), input));
+
+        values[WorkflowParamKeys.BatchSize] = 5;
+        values[WorkflowParamKeys.TemporalOverlap] = 5;
+        _ = Assert.Throws<RenderValidationException>(() => wf.Build(values, catalog.Resolve(cfg), input));
+
+        values[WorkflowParamKeys.TemporalOverlap] = 3;
+        values[WorkflowParamKeys.Resolution] = 1535;
+        _ = Assert.Throws<RenderValidationException>(() => wf.Build(values, catalog.Resolve(cfg), input));
     }
 
     [Fact]

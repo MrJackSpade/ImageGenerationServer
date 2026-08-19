@@ -42,6 +42,7 @@ internal static class WorkflowParamKeys
     public const string DitModel = "dit_model";
     public const string Dual = "dual";
     public const string DurationSeconds = "duration_seconds";
+    public const string EnableDebug = "enable_debug";
     public const string EndPadBottomPct = "end_pad_bottom_pct";
     public const string EndPadLeftPct = "end_pad_left_pct";
     public const string EndPadRightPct = "end_pad_right_pct";
@@ -66,11 +67,13 @@ internal static class WorkflowParamKeys
     public const string Height = "height";
     public const string IpadapterPreset = "ipadapter_preset";
     public const string IpadapterWeight = "ipadapter_weight";
+    public const string InputNoiseScale = "input_noise_scale";
     public const string K = "k";
     public const string KeyBackground = "key_background";
     public const string KvCache = "kv_cache";
     public const string Lam = "lam";
     public const string Latent = "latent";
+    public const string LatentNoiseScale = "latent_noise_scale";
     public const string LcmLora = "lcm_lora";
     public const string Length = "length";
     public const string LlliteEnd = "lllite_end";
@@ -113,6 +116,7 @@ internal static class WorkflowParamKeys
     public const string Phi = "phi";
     public const string PolishDenoise = "polish_denoise";
     public const string PromptTemplate = "prompt_template";
+    public const string PrependFrames = "prepend_frames";
     public const string ProjMethod = "proj_method";
     public const string ProjectEvery = "project_every";
     public const string RebalanceMultiplier = "rebalance_multiplier";
@@ -157,11 +161,13 @@ internal static class WorkflowParamKeys
     public const string StylePrompt = "style_prompt";
     public const string SwapIoComponents = "swap_io_components";
     public const string Tau = "tau";
+    public const string TemporalOverlap = "temporal_overlap";
     public const string Thicken = "thicken";
     public const string Thickness = "thickness";
     public const string Threshold = "threshold";
     public const string TimeSigma = "time_sigma";
     public const string UnetLow = "unet_low";
+    public const string UniformBatchSize = "uniform_batch_size";
     public const string UpscaleModel = "upscale_model";
     public const string VaeModel = "vae_model";
     public const string VaeTileOverlap = "vae_tile_overlap";

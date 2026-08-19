@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace ImageGen.Comfy;
 
 /// <summary>Output-slot marker for a decoded AUDIO waveform (the <see cref="VAEDecodeAudio"/> → <see cref="CreateVideo"/>
-/// <c>audio</c> edge). MiniMax-H3 is the only audio-carrying graph and <see cref="Slot"/> (in the shared
-/// ComfyGraphTypes) declares no audio kind, so this phantom marker lives beside the only nodes that use it. Never
+/// <c>audio</c> edge). H3 generates audio, while video-to-video transforms can pass source audio through. <see cref="Slot"/>
+/// (in the shared ComfyGraphTypes) declares no audio kind, so this phantom marker lives beside those nodes. Never
 /// instantiated — it only types an <see cref="Output{TSlot}"/> edge so an audio wire cannot be plugged into an image
 /// socket at compile time.</summary>
 public sealed class AudioSlot { private AudioSlot() { } }

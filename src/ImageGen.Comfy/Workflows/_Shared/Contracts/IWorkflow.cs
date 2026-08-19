@@ -20,8 +20,8 @@ public interface IWorkflow
     WorkflowMedia Media { get; }
 
     /// <summary>What this workflow CONSUMES as its source — a still image (the default for every editor) or a video
-    /// clip (video-to-video). Almost every edit workflow edits an image; only the deterministic pixel-quantize V2V
-    /// pass takes a clip. The edit UI reads this to offer a video-source workflow ONLY when the source is a clip, and
+    /// clip (video-to-video). Most edit workflows edit an image; temporal restoration and deterministic frame effects
+    /// take a clip. The edit UI reads this to offer a video-source workflow ONLY when the source is a clip, and
     /// to keep image editors off a video source. <see cref="ComfyClient.SubmitEditAsync"/> reads it to upload the
     /// source as a real video file (transcoding an animated webp to mp4) and load it with <c>LoadVideo</c> rather than
     /// <c>LoadImage</c>. Irrelevant for generate workflows.</summary>

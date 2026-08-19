@@ -443,7 +443,7 @@ public sealed partial class WorkflowCatalogService(
     {
         if (wf.SourceMedia == WorkflowMedia.Video)
         {
-            return WorkflowKind.VideoEdit;   // consumes a clip (the pixel-quantize V2V pass)
+            return WorkflowKind.VideoEdit;   // consumes a clip (temporal restoration or a deterministic frame effect)
         }
 
         if (wf.Media == WorkflowMedia.Video)

@@ -10,8 +10,7 @@ namespace ImageGen.Comfy.Edit.PixelQuantizeVideo;
 /// LOCKED (named) palette is the default so the palette is identical every frame — temporally consistent, no
 /// frame-to-frame flicker. No diffusion, no checkpoint: a quantize costs effectively nothing and never blocks a real
 /// generation. <see cref="SourceMedia"/> = Video tells <see cref="ComfyClient.SubmitEditAsync"/> to upload the source
-/// as a real video file (an animated-webp clip is transcoded to mp4 first) instead of a PNG. This is the only editor
-/// the UI offers when the source is a clip.
+/// as a real video file (an animated-webp clip is transcoded to mp4 first) instead of a PNG.
 /// </summary>
 public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoParams>
 {
@@ -19,7 +18,7 @@ public sealed class PixelQuantizeVideoWorkflow : Workflow<PixelQuantizeVideoPara
     public override WorkflowKind Kind => WorkflowKind.Edit;
     /// <summary>Outputs an animated WEBP clip.</summary>
     public override WorkflowMedia Media => WorkflowMedia.Video;
-    /// <summary>Consumes a video clip (video-to-video) — the one editor that does.</summary>
+    /// <summary>Consumes a video clip (video-to-video).</summary>
     public override WorkflowMedia SourceMedia => WorkflowMedia.Video;
     /// <summary>No prompt at all — the quantize is purely deterministic.</summary>
     public override bool PromptDirectsMotion => false;

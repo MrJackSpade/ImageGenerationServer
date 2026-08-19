@@ -20,6 +20,20 @@ public sealed record GetVideoComponents : ComfyNode
     public static Output<Slot.Image> ImagesOut(string id) => new(id, 0);
     public static Output<AudioSlot> AudioOut(string id) => new(id, 1);
     public static Output<Slot.Float> FpsOut(string id) => new(id, 2);
+    public static Output<Slot.Int> BitDepthOut(string id) => new(id, 3);
+}
+
+/// <summary>Rebuilds a decoded source clip after a frame transform, preserving the source frame rate, optional audio,
+/// and bit depth through typed links from <see cref="GetVideoComponents"/>. This is the linked-input sibling of
+/// <see cref="CreateVideo"/>, whose H3 generation graph uses a literal frame rate and generated audio.</summary>
+public sealed record CreateVideoFromComponents : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.CreateVideo;
+    [JsonPropertyName("images")] public required Output<Slot.Image> Images { get; init; }
+    [JsonPropertyName("fps")] public required Output<Slot.Float> Fps { get; init; }
+    [JsonPropertyName("audio")] public required Output<AudioSlot> Audio { get; init; }
+    [JsonPropertyName("bit_depth")] public required Output<Slot.Int> BitDepth { get; init; }
+    public static Output<Slot.Video> Out(string id) => new(id, 0);
 }
 
 /// <summary>Loads an audio clip from ComfyUI's input folder (core ComfyUI). Output 0 is the AUDIO waveform.</summary>
