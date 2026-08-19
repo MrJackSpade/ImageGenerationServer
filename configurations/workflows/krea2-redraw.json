@@ -39,6 +39,14 @@
       "visibility": "hidden"
     },
     "negative_supported": false,
+    "native_pixels": {
+      "value": 1048576,
+      "visibility": "hidden"
+    },
+    "max_dimension": {
+      "value": 2048,
+      "visibility": "hidden"
+    },
     "denoise": {
       "value": 0.35,
       "visibility": "hidden",
@@ -69,7 +77,7 @@
       "format": "natural_language",
       "guidance": "Describe the image you are polishing in natural language \u2014 style, lighting, and mood words carry the most weight. Lower 'Polish strength' to stay close to the source; raise it to let Turbo redraw more (and drift toward the prompt).",
       "example": "an editorial photograph of a ceramic vase on a sunlit table, soft film grain, muted earth tones, shallow depth of field",
-      "instructions": "Write natural language describing the target look. Distilled Turbo: 8 steps, no CFG (cfg 1), euler/simple. 'Polish strength' (denoise) ~0.25-0.4 polishes texture while keeping the source composition; higher redraws more. No negative prompts (cfg 1). The source is sampled at its own resolution \u2014 Krea 2 is native at ~1K and holds up to 2K.",
+      "instructions": "Write natural language describing the target look. Distilled Turbo: 8 steps, no CFG (cfg 1), euler/simple. 'Polish strength' (denoise) ~0.25-0.4 polishes texture while keeping the source composition; higher redraws more. No negative prompts (cfg 1). The source is normalized to the configured 1 MP working budget with its aspect ratio preserved and a 2048 px long-edge cap.",
       "do": [
         "Describe style, lighting, and mood",
         "Keep Polish strength low (~0.25-0.4) to preserve the source",

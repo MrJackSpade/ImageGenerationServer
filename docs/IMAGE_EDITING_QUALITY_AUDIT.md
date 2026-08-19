@@ -115,7 +115,7 @@ Proposed work:
 
 ### EDIT-004 — Krea2 redraw bypasses its declared native resolution range
 
-- [ ] Open
+- [x] Closed by GitHub issue #311
 - Severity: high
 - Confidence: high
 - Affected workflow: `krea2-redraw`
@@ -137,6 +137,18 @@ Proposed work:
 - Normalize the source into the Krea2 envelope before VAE encoding.
 - Decide whether Krea2 should always target a fixed pixel budget or only downscale oversized sources.
 - Add size assertions to graph tests and record the effective render dimensions.
+
+Resolution:
+
+- Krea2 Redraw now always targets a configurable 1 MP working budget, preserving source aspect ratio and snapping to
+  the shared 16-pixel grid before `VAEEncode`. This intentionally normalizes both undersized and oversized sources
+  instead of retaining the former raw-resolution path.
+- The workflow applies its configured 2048 px maximum as a long-edge ceiling after MP normalization, so extremely
+  wide or tall inputs stay within the declared upper envelope without changing aspect ratio.
+- `native_pixels` and `max_dimension` ship hidden in the Krea2 Redraw settings layer, retaining an explicit
+  per-workflow contract that can be adjusted without graph-code changes.
+- ETA sizing and graph construction use the same resolver. Tests cover a low-resolution square, 4K landscape,
+  portrait, extreme-aspect long-edge cap, Lanczos scaling, and the exact scaled input passed to `VAEEncode`.
 
 ### EDIT-005 — Ideogram4 refine uses raw dimensions for both VAE and scheduler
 

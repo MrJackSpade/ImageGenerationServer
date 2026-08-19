@@ -1379,8 +1379,8 @@ public sealed class WorkflowGraphTests
         Assert.Contains("krea2-turbo.safetensors", json);
         Assert.DoesNotContain("krea2_raw", json);
         _ = Assert.Single(System.Text.RegularExpressions.Regex.Matches(json, "\"UNETLoader\""));
-        // Unlike anima-redraw, the source is NOT rescaled — Krea 2 is native at ~1K and this is a polish pass.
-        Assert.DoesNotContain("\"ImageScale\"", json);
+        // The source is normalized to Krea's 1 MP working budget before the lossy VAE boundary.
+        Assert.Contains("\"ImageScale\"", json);
         // Distilled: partial denoise at the config's 8 steps / cfg 1.
         Assert.Contains("\"denoise\":0.35", json);
         Assert.Contains("\"steps\":8", json);
@@ -1388,6 +1388,37 @@ public sealed class WorkflowGraphTests
         // The config bakes the uncensor preset on, so the rebalance node splices in (at "15", clear of the encodes).
         Assert.Contains("\"ConditioningKrea2Rebalance\"", json);
         Assert.Contains("\"multiplier\":4", json);
+    }
+
+    [Theory]
+    [InlineData(512, 512, 1024, 1024)]
+    [InlineData(3840, 2160, 1360, 768)]
+    [InlineData(512, 768, 832, 1248)]
+    [InlineData(4096, 256, 2048, 128)]
+    public void Krea2Redraw_normalizes_to_its_budget_and_long_edge_cap_before_VAE_encoding(
+        int sourceWidth,
+        int sourceHeight,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "polish the image",
+            SourceImageName = "src.png",
+            SourceWidth = sourceWidth,
+            SourceHeight = sourceHeight,
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("krea2-redraw", inputs));
+        JsonElement root = doc.RootElement;
+        JsonElement scale = root.GetProperty("11");
+        JsonElement scaleInputs = scale.GetProperty("inputs");
+
+        Assert.Equal("ImageScale", scale.GetProperty("class_type").GetString());
+        Assert.Equal("lanczos", scaleInputs.GetProperty("upscale_method").GetString());
+        Assert.Equal(expectedWidth, scaleInputs.GetProperty("width").GetInt32());
+        Assert.Equal(expectedHeight, scaleInputs.GetProperty("height").GetInt32());
+        Assert.Equal("11", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+        Assert.Equal((expectedWidth, expectedHeight), EtaSize("krea2-redraw", sourceWidth, sourceHeight));
     }
 
     [Fact]

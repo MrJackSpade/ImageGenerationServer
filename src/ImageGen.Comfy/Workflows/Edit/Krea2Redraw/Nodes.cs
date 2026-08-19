@@ -3,6 +3,7 @@ namespace ImageGen.Comfy.Edit.Krea2Redraw;
 /// <summary>This workflow's own nodes; the model/CLIP/VAE/source head reuses <see cref="EditWorkflow{TParams}.Nodes"/>.</summary>
 internal static class Nodes
 {
+    public const string SourceScale = "11";
     public const string Encode = "12";
     public const string Positive = "13";
     public const string Negative = "14";

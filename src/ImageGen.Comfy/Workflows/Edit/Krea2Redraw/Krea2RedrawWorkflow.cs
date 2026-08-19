@@ -1,3 +1,5 @@
+using ImageGen.Domain;
+
 namespace ImageGen.Comfy.Edit.Krea2Redraw;
 
 /// <summary>
@@ -18,10 +20,9 @@ namespace ImageGen.Comfy.Edit.Krea2Redraw;
 /// <c>negative_supported: false</c>. Inherits Krea 2's per-layer conditioning rebalance (<see cref="Krea2Rebalance"/>)
 /// so the baked "uncensor" applies exactly as it does for the plain krea2 / krea2-turbo configs.
 ///
-/// The source is sampled at its OWN resolution — no rescale. Unlike <see cref="Img2ImgRedrawWorkflow"/> (whose 2B
-/// checkpoints must be downscaled to their ~1 MP bucket or they pad the frame with junk), Krea 2 is native at ~1K and
-/// holds up to 2K, and a polish pass whose whole purpose is to preserve the incoming image has no business resampling
-/// it. Equivalently: that workflow's <c>native_pixels</c> budget is 0 here.
+/// The source is normalized to Krea's configured native pixel budget before VAE encoding. This gives a small upload a
+/// useful latent grid, reduces an oversized upload before sampling, preserves aspect ratio, and caps extreme aspect
+/// ratios at Krea's configured maximum long edge.
 /// </summary>
 public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
 {
@@ -46,7 +47,22 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
                      + "the source's composition; higher redraws more of the image (and drifts toward the prompt rather "
                      + "than the source)." },
         .. Krea2Rebalance.Schema,
+        new() { Key = WorkflowParamKeys.NativePixels, Type = ParamType.Int, Min = 1, Label = "Native pixel budget" },
+        new() { Key = WorkflowParamKeys.MaxDimension, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Max long edge (px)" },
     ];
+
+    private static double NativeMegapixels(Krea2RedrawParams p) => p.NativePixels / (1024.0 * 1024.0);
+
+    protected override (int Width, int Height) EtaRenderSize(
+        Krea2RedrawParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth,
+            sourceHeight,
+            NativeMegapixels(p),
+            maxDimension: p.MaxDimension);
 
     protected override ComfyWorkflowGraph Build(Krea2RedrawParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
@@ -59,9 +75,23 @@ public sealed class Krea2RedrawWorkflow : EditWorkflow<Krea2RedrawParams>
         // Node ids 13/14 are the text-encodes on the edit rails, so the rebalance splices in at "15".
         Output<Slot.Conditioning> posSrc = Krea2Rebalance.Apply(g, CLIPTextEncode.Out(Nodes.Positive), p.Multiplier, p.PerLayerWeights, Nodes.Rebalance);
 
-        // Source RGB → latent at its native resolution. NO mask, so the whole frame is re-sampled; at denoise < 1 the
-        // source's own structure survives and Turbo reworks the texture over it.
-        g[Nodes.Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(EditNodes.Source), Vae = vae0 };
+        // Normalize source RGB before the lossy VAE boundary. NO mask, so the whole frame is re-sampled; at denoise
+        // < 1 the source's own structure survives and Turbo reworks the texture over it.
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth),
+            Ensure.GreaterThanZero(inputs.SourceHeight));
+        (int Width, int Height) target = EditWorkingResolution.Resolve(
+            current.Width,
+            current.Height,
+            NativeMegapixels(p),
+            maxDimension: p.MaxDimension);
+        Output<Slot.Image> encPixels = EditWorkingResolution.ScaleImage(
+            g,
+            Nodes.SourceScale,
+            LoadImage.ImageOut(EditNodes.Source),
+            current,
+            target);
+        g[Nodes.Encode] = new VAEEncode { Pixels = encPixels, Vae = vae0 };
 
         g[Nodes.Sampler] = new KSampler
         {

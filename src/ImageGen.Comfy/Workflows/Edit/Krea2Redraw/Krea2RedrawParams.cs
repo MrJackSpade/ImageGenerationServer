@@ -26,5 +26,9 @@ public sealed record Krea2RedrawParams
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.NativePixels)]
+    [Range(1, int.MaxValue)] public required int NativePixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
+    [Range(0, 4096)] public required int MaxDimension { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }
