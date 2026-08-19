@@ -22,5 +22,9 @@ public sealed record Ideogram4RefineParams
     [Range(ParamBounds.DenoiseMin, ParamBounds.DenoiseMax)] public required double Denoise { get; init; }
     [JsonPropertyName(WorkflowParamKeys.DebannerStrength)]
     [Range(0.0, 2.0)] public required double DebannerStrength { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.NativePixels)]
+    [Range(1, int.MaxValue)] public required int NativePixels { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.MaxDimension)]
+    [Range(0, 4096)] public required int MaxDimension { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

@@ -32,12 +32,33 @@ public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams
         .. SeedParam.Schema,
         PromptTemplates.Schema,
         new() { Key = WorkflowParamKeys.NegativeSupported, Type = ParamType.Bool },
+        new() { Key = WorkflowParamKeys.NativePixels, Type = ParamType.Int, Min = 1, Label = "Native pixel budget" },
+        new() { Key = WorkflowParamKeys.MaxDimension, Type = ParamType.Int, Min = 0, Max = 4096, Label = "Max long edge (px)" },
     ];
+
+    private static double NativeMegapixels(Ideogram4RefineParams p) => p.NativePixels / (1024.0 * 1024.0);
+
+    protected override (int Width, int Height) EtaRenderSize(
+        Ideogram4RefineParams p,
+        ResolvedRequirements req,
+        int sourceWidth,
+        int sourceHeight) =>
+        EditWorkingResolution.Resolve(
+            sourceWidth,
+            sourceHeight,
+            NativeMegapixels(p),
+            maxDimension: p.MaxDimension);
 
     protected override ComfyWorkflowGraph Build(Ideogram4RefineParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
-        int width = Ensure.GreaterThanZero(inputs.SourceWidth);
-        int height = Ensure.GreaterThanZero(inputs.SourceHeight);
+        (int Width, int Height) current = (
+            Ensure.GreaterThanZero(inputs.SourceWidth),
+            Ensure.GreaterThanZero(inputs.SourceHeight));
+        (int Width, int Height) target = EditWorkingResolution.Resolve(
+            current.Width,
+            current.Height,
+            NativeMegapixels(p),
+            maxDimension: p.MaxDimension);
         ComfyWorkflowGraph g = new();
 
         g[EditNodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());
@@ -70,8 +91,23 @@ public sealed class Ideogram4RefineWorkflow : EditWorkflow<Ideogram4RefineParams
             Cfg = p.Cfg,
         };
 
-        g[Nodes.Encode] = new VAEEncode { Pixels = LoadImage.ImageOut(EditNodes.Source), Vae = VAELoader.VaeOut(EditNodes.Vae) };
-        g[Nodes.Sigmas] = new Ideogram4Scheduler { Steps = p.Steps, Width = width, Height = height, Mu = p.Mu, Std = p.Std };
+        Output<Slot.Image> encPixels = EditWorkingResolution.ScaleImage(
+            g,
+            Nodes.SourceScale,
+            LoadImage.ImageOut(EditNodes.Source),
+            current,
+            target);
+        g[Nodes.Encode] = new VAEEncode { Pixels = encPixels, Vae = VAELoader.VaeOut(EditNodes.Vae) };
+        // Read the normalized image itself so the resolution-aware scheduler cannot drift from the VAE input.
+        g[Nodes.SourceSize] = new GetImageSize { Image = encPixels };
+        g[Nodes.Sigmas] = new Ideogram4SchedulerFromSize
+        {
+            Steps = p.Steps,
+            Width = GetImageSize.WidthOut(Nodes.SourceSize),
+            Height = GetImageSize.HeightOut(Nodes.SourceSize),
+            Mu = p.Mu,
+            Std = p.Std,
+        };
         g[Nodes.SplitSigmas] = new SplitSigmasDenoise { Sigmas = Ideogram4Scheduler.Out(Nodes.Sigmas), Denoise = p.Denoise };
         g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         g[Nodes.Noise] = new RandomNoise { NoiseSeed = ComfyGraph.Seed(p.Seed) };

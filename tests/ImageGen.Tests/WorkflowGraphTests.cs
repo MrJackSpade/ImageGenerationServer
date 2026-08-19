@@ -2319,12 +2319,14 @@ public sealed class WorkflowGraphTests
         JsonElement root = document.RootElement;
 
         Assert.Equal("VAEEncode", root.GetProperty("12").GetProperty("class_type").GetString());
-        Assert.Equal("10", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+        Assert.Equal("11", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
 
         JsonElement scheduler = root.GetProperty("17");
         Assert.Equal("Ideogram4Scheduler", scheduler.GetProperty("class_type").GetString());
-        Assert.Equal(1216, scheduler.GetProperty("inputs").GetProperty("width").GetInt32());
-        Assert.Equal(832, scheduler.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal("19", scheduler.GetProperty("inputs").GetProperty("width")[0].GetString());
+        Assert.Equal(0, scheduler.GetProperty("inputs").GetProperty("width")[1].GetInt32());
+        Assert.Equal("19", scheduler.GetProperty("inputs").GetProperty("height")[0].GetString());
+        Assert.Equal(1, scheduler.GetProperty("inputs").GetProperty("height")[1].GetInt32());
 
         JsonElement split = root.GetProperty("27");
         Assert.Equal("SplitSigmasDenoise", split.GetProperty("class_type").GetString());
@@ -2339,6 +2341,41 @@ public sealed class WorkflowGraphTests
         Assert.Equal("41", root.GetProperty("2").GetProperty("inputs").GetProperty("model")[0].GetString());
         Assert.Equal("40", root.GetProperty("22").GetProperty("inputs").GetProperty("model_negative")[0].GetString());
         Assert.True(new Ideogram4RefineWorkflow().PreservesComposition);
+    }
+
+    [Theory]
+    [InlineData(512, 512, 1024, 1024)]
+    [InlineData(3840, 2160, 1360, 768)]
+    [InlineData(513, 769, 832, 1248)]
+    [InlineData(1001, 777, 1168, 896)]
+    [InlineData(4096, 256, 2048, 128)]
+    public void Ideogram4Refine_normalizes_the_VAE_source_and_wires_its_actual_size_to_the_scheduler(
+        int sourceWidth,
+        int sourceHeight,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "refine the poster",
+            SourceImageName = "src.png",
+            SourceWidth = sourceWidth,
+            SourceHeight = sourceHeight,
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("ideogram4-refine", inputs));
+        JsonElement root = doc.RootElement;
+        JsonElement scaleInputs = root.GetProperty("11").GetProperty("inputs");
+        JsonElement sizeInputs = root.GetProperty("19").GetProperty("inputs");
+        JsonElement schedulerInputs = root.GetProperty("17").GetProperty("inputs");
+
+        Assert.Equal("lanczos", scaleInputs.GetProperty("upscale_method").GetString());
+        Assert.Equal(expectedWidth, scaleInputs.GetProperty("width").GetInt32());
+        Assert.Equal(expectedHeight, scaleInputs.GetProperty("height").GetInt32());
+        Assert.Equal("11", root.GetProperty("12").GetProperty("inputs").GetProperty("pixels")[0].GetString());
+        Assert.Equal("11", sizeInputs.GetProperty("image")[0].GetString());
+        Assert.Equal("19", schedulerInputs.GetProperty("width")[0].GetString());
+        Assert.Equal("19", schedulerInputs.GetProperty("height")[0].GetString());
+        Assert.Equal((expectedWidth, expectedHeight), EtaSize("ideogram4-refine", sourceWidth, sourceHeight));
     }
 
     [Fact]

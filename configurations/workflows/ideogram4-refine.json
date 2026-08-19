@@ -54,6 +54,14 @@
       "value": 0.6,
       "visibility": "hidden"
     },
+    "native_pixels": {
+      "value": 1048576,
+      "visibility": "hidden"
+    },
+    "max_dimension": {
+      "value": 2048,
+      "visibility": "hidden"
+    },
     "negative_supported": false,
     "prompt_template": {
       "value": "{\n  \"high_level_description\": {{ prompt | tojson }},\n  \"compositional_deconstruction\": {\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"desc\": {{ prompt | tojson }}\n      }\n    ]\n  }\n}",
@@ -75,7 +83,7 @@
       "format": "natural_language",
       "guidance": "Describe the complete target image; quote literal text to render it. Refine strength controls how much the result may depart from the source.",
       "example": "A retro travel poster, bold headline reading \"IDEOGRAM\" in cream serif letters over a sunset mountain range, clean vector style",
-      "instructions": "Write a full description of the desired result, not an edit command. The prompt is wrapped in Ideogram's structured JSON caption template. Use lower refine strength to retain the source and higher strength to redraw toward the prompt. No user negative prompt.",
+      "instructions": "Write a full description of the desired result, not an edit command. The prompt is wrapped in Ideogram's structured JSON caption template. Use lower refine strength to retain the source and higher strength to redraw toward the prompt. No user negative prompt. The source is normalized to the configured 1 MP working budget with its aspect ratio preserved and a 2048 px long-edge cap.",
       "do": [
         "Quote literal on-image text",
         "Describe the entire target image and layout",

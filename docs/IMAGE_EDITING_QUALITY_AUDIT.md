@@ -152,7 +152,7 @@ Resolution:
 
 ### EDIT-005 — Ideogram4 refine uses raw dimensions for both VAE and scheduler
 
-- [ ] Open
+- [x] Closed by GitHub issue #312
 - Severity: high
 - Confidence: high
 - Affected workflow: `ideogram4-refine`
@@ -175,6 +175,17 @@ Proposed work:
 - Normalize and snap the source before both VAE encoding and scheduler sizing.
 - Derive scheduler dimensions from `GetImageSize` on the normalized image rather than from upload metadata.
 - Add odd-size and over-2048 regression tests.
+
+Resolution:
+
+- Ideogram4 Refine now normalizes both undersized and oversized inputs to a hidden/configurable 1 MP working budget,
+  preserves aspect ratio, snaps to 16 pixels, and applies a hidden/configurable 2048 px long-edge ceiling before
+  `VAEEncode`.
+- A typed `Ideogram4SchedulerFromSize` variant wires width and height from `GetImageSize` on that exact normalized
+  image. The scheduler can therefore no longer drift from the pixels passed across the VAE boundary.
+- ETA sizing uses the same resolver and configuration values as graph construction.
+- Tests cover low-resolution square, 4K landscape, odd portrait, odd landscape, extreme-aspect long-edge cap,
+  Lanczos scaling, the exact VAE input edge, the image-size edge, scheduler wiring, and ETA parity.
 
 ### EDIT-006 — Checkpoint precision and catalog metadata are inconsistent
 
