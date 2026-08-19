@@ -296,7 +296,7 @@ Resolution:
 
 ### EDIT-008 — FLUX.2 Klein edit uses a coarser resolution grid than upstream
 
-- [ ] Open
+- [x] Closed by GitHub issue #321
 - Severity: low-medium
 - Confidence: high that the difference exists; medium that it materially hurts quality
 - Affected workflows: editors derived from `Flux2KleinEditBase`
@@ -318,6 +318,15 @@ Proposed work:
 - A/B test steps 64, 16, and 1.
 - Prefer the smallest step consistent with the model/VAE latent requirements.
 - Retain scheduler and empty-latent dimensions from `GetImageSize` so every graph consumer remains aligned.
+
+Resolution:
+
+- FLUX.2 Klein edit source and reference normalization now snaps the 1 MP working budget to 16 pixels instead of
+  64, matching the grid declared by the model configurations while avoiding the unnecessary coarse distortion.
+- ETA sizing uses the same 16-pixel resolver. `GetImageSize` on the normalized source remains authoritative for both
+  `EmptyFlux2LatentImage` and `Flux2Scheduler`, so sampler dimensions cannot drift from encoded pixels.
+- Tests cover a common photographic ratio and an extreme wide ratio, source/reference scale-node settings, scheduler
+  and latent wiring, and ETA parity. GPU A/B comparison remains manual.
 
 ### EDIT-009 — Output resolution behavior is inconsistent across editor families
 

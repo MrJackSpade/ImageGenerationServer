@@ -252,6 +252,37 @@ public sealed class WorkflowGraphTests
         }
     }
 
+    [Theory]
+    [InlineData(1216, 832)]
+    [InlineData(4096, 256)]
+    public void Flux2Klein_edit_uses_the_16px_model_grid_for_source_references_and_eta(int sourceWidth, int sourceHeight)
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "make it red",
+            SourceImageName = "src.png",
+            SourceWidth = sourceWidth,
+            SourceHeight = sourceHeight,
+            References = [new ReferenceInput("ref.png", ReferenceKind.Image)],
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("flux2-klein-4b-edit", inputs));
+        JsonElement root = doc.RootElement;
+        Assert.Equal(16, root.GetProperty("11").GetProperty("inputs").GetProperty("resolution_steps").GetInt32());
+        Assert.Equal(16, root.GetProperty("50").GetProperty("inputs").GetProperty("resolution_steps").GetInt32());
+
+        Assert.Equal("17", root.GetProperty("28").GetProperty("inputs").GetProperty("width")[0].GetString());
+        Assert.Equal("17", root.GetProperty("28").GetProperty("inputs").GetProperty("height")[0].GetString());
+        Assert.Equal("17", root.GetProperty("29").GetProperty("inputs").GetProperty("width")[0].GetString());
+        Assert.Equal("17", root.GetProperty("29").GetProperty("inputs").GetProperty("height")[0].GetString());
+
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("flux2-klein-4b-edit"));
+        IWorkflow wf = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+        Dictionary<string, object?> values = Merge(catalog, wf, cfg);
+        Assert.Equal(BudgetScale.Snap(sourceWidth, sourceHeight, 1.0, 16),
+            wf.EtaRenderSize(values, catalog.Resolve(cfg), sourceWidth, sourceHeight));
+    }
+
     [Fact]
     public void Editors_reporting_a_normalized_working_size_keep_it_on_the_declared_grid_and_envelope()
     {
