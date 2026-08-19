@@ -263,7 +263,7 @@ Resolution:
 
 ### EDIT-007 — Qwen-Image-Edit is fixed at the 20-step speed preset
 
-- [ ] Open
+- [x] Closed by GitHub issue #318
 - Severity: medium-high
 - Confidence: high
 - Affected workflows: `qwen-image-edit` and any configuration inheriting the same hidden step value
@@ -285,6 +285,14 @@ Proposed work:
 - Make steps user-selectable or add explicit Fast and Quality configurations.
 - Use 40 steps for the quality/default path and retain 20 as a documented speed option.
 - Benchmark 20 versus 40 using the same source, prompt, seed, and checkpoint.
+
+Resolution:
+
+- `qwen-image-edit` and its masked companion now ship with the upstream-recommended 40-step quality default.
+- The parameter remains hidden in the render UI and configurable through the existing workflow settings system.
+- FireRed and LongCat configurations retain their model-specific step counts.
+- Graph tests verify both Qwen configurations retain hidden settings and wire 40 steps into their sampler. Hardware
+  benchmarking remains a manual validation step.
 
 ### EDIT-008 — FLUX.2 Klein edit uses a coarser resolution grid than upstream
 

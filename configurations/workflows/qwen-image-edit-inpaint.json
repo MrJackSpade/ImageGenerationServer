@@ -19,7 +19,7 @@
     "clip_type": "qwen_image",
     "dual": false,
     "steps": {
-      "value": 20,
+      "value": 40,
       "visibility": "hidden"
     },
     "cfg": {

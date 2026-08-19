@@ -2037,6 +2037,35 @@ public sealed class WorkflowGraphTests
         Assert.Contains("\"SaveImage\"", json);
     }
 
+    [Theory]
+    [InlineData("qwen-image-edit")]
+    [InlineData("qwen-image-edit-inpaint")]
+    public void QwenImageEdit_defaults_to_hidden_configurable_40_step_quality_path(string configId)
+    {
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(configId));
+        ConfigParam steps = cfg.Params[WorkflowParamKeys.Steps];
+        Assert.Equal(40d, Convert.ToDouble(steps.Value, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(ParamVisibility.Hidden, steps.Visibility);
+        Assert.Null(steps.Min);
+        Assert.Null(steps.Max);
+        Assert.Null(steps.Step);
+
+        IWorkflow wf = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+        Dictionary<string, object?> values = wf.Schema
+            .Where(s => s.Default is not null)
+            .ToDictionary(s => s.Key, s => s.Default, StringComparer.OrdinalIgnoreCase);
+        foreach ((string key, ConfigParam value) in cfg.Params)
+        {
+            values[key] = value.Value;
+        }
+
+        using JsonDocument doc = JsonDocument.Parse(JsonSerializer.Serialize(wf.Build(values, catalog.Resolve(cfg), Edit)));
+        JsonElement sampler = doc.RootElement.EnumerateObject()
+            .Single(n => n.Value.GetProperty("class_type").GetString() == "KSampler").Value;
+        Assert.Equal(40, sampler.GetProperty("inputs").GetProperty("steps").GetInt32());
+    }
+
     [Fact]
     public void QwenImageEdit_without_a_mask_is_unchanged()
     {
