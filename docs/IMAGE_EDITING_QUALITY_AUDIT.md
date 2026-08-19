@@ -381,7 +381,7 @@ Resolution:
 
 ### EDIT-011 — Existing tests validate graph intent, not rendered quality
 
-- [ ] Open
+- [x] Closed by GitHub issue #320
 - Severity: medium
 - Confidence: high
 - Affected area: test coverage
@@ -398,6 +398,16 @@ Proposed work:
 - Add semantic graph invariants, such as requiring `Flux2Scheduler` for FLUX.2 and normalized dimensions for workflows with declared envelopes.
 - Add small fixed-seed render fixtures when a GPU test environment is available.
 - Track image similarity separately for preservation edits and instruction adherence for destructive edits.
+
+Resolution:
+
+- Added a catalog-wide invariant that discovers every FLUX.2 redraw configuration from its requirement links and
+  requires `Flux2Scheduler` while rejecting the legacy `BasicScheduler`/`KSampler` path. New variants are covered
+  without extending a fixed test list.
+- Added a catalog-wide resolution invariant for still editors whose sizing contract reports a normalized working
+  size. Oversized inputs must resolve to positive dimensions inside the model envelope and on its declared step grid.
+- The structural invariants complement the focused graph tests added by the preceding audit fixes. Fixed-seed image
+  similarity and instruction-adherence scoring still require a GPU render environment and remain manual validation.
 
 ### EDIT-012 — Runtime unavailability was an audit limitation, not a product defect
 

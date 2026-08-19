@@ -235,6 +235,73 @@ public sealed class WorkflowGraphTests
     private static WorkflowInputs EditMasked => new() { Positive = "make it red", SourceImageName = "src.png", MaskImageName = "mask.png", SourceWidth = 1216, SourceHeight = 832 };
 
     [Fact]
+    public void Every_Flux2_redraw_configuration_uses_the_Flux2_scheduler_path()
+    {
+        (WorkflowCatalog catalog, _) = Build();
+        WorkflowConfiguration[] configs = [.. catalog.AllConfigs().Where(c =>
+            c.Id.Contains("redraw", StringComparison.OrdinalIgnoreCase)
+            && c.Requirements.Checkpoint.Contains("flux2", StringComparison.OrdinalIgnoreCase))];
+        Assert.NotEmpty(configs);
+
+        foreach (WorkflowConfiguration cfg in configs)
+        {
+            string json = BuildJson(cfg.Id, Edit);
+            Assert.Contains("\"Flux2Scheduler\"", json);
+            Assert.DoesNotContain("\"BasicScheduler\"", json);
+            Assert.DoesNotContain("\"KSampler\"", json);
+        }
+    }
+
+    [Fact]
+    public void Editors_reporting_a_normalized_working_size_keep_it_on_the_declared_grid_and_envelope()
+    {
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        List<string> failures = [];
+        int checkedConfigs = 0;
+        foreach (WorkflowConfiguration cfg in catalog.AllConfigs())
+        {
+            IWorkflow? wf = registry.Find(cfg.WorkflowName);
+            if (wf is null || wf.Kind != WorkflowKind.Edit || wf.Media != WorkflowMedia.Image
+                || !wf.NormalizesSourceResolution)
+            {
+                continue;
+            }
+
+            ResolvedRequirements req = catalog.Resolve(cfg);
+            if (req.Resolution is not { } env)
+            {
+                continue;
+            }
+
+            Dictionary<string, object?> values = Merge(catalog, wf, cfg);
+            _ = wf.Normalize(values, new NormalizeContext
+            {
+                SourceWidth = 4096,
+                SourceHeight = 3072,
+                Requirements = req,
+                AtSubmit = true,
+            });
+            (int w, int h) = wf.EtaRenderSize(values, req, 4096, 3072);
+            // Some self-contained/internal-normalization workflows preserve source-sized output and therefore report
+            // source-sized ETA dimensions. This invariant governs workflows that explicitly publish a different
+            // normalized working size through the sizing contract.
+            if (w == 4096 && h == 3072)
+            {
+                continue;
+            }
+
+            checkedConfigs++;
+            if (w <= 0 || h <= 0 || w > env.MaxW || h > env.MaxH || w % env.Step != 0 || h % env.Step != 0)
+            {
+                failures.Add($"{cfg.Id}: {w}x{h}, envelope max {env.MaxW}x{env.MaxH}, step {env.Step}");
+            }
+        }
+
+        Assert.True(checkedConfigs > 0, "No still edit configurations reported a normalized working size.");
+        Assert.True(failures.Count == 0, "Normalized edit invariant failures:\n  " + string.Join("\n  ", failures));
+    }
+
+    [Fact]
     public void DeflickerAuto_emits_the_typed_video_correction_graph()
     {
         // First workflow on the typed-graph rails (Build returns a ComfyWorkflowGraph of typed nodes). Locks the
