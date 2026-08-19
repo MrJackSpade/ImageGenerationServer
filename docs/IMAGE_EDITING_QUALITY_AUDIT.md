@@ -1,7 +1,7 @@
 # Image Editing Quality Audit
 
-Status: initial static audit  
-Date: 2026-08-18  
+Status: initial static audit
+Date: 2026-08-18
 Scope: image-edit, redraw, refine, inpaint, and outpaint workflow graphs; source/output resolution handling; VAE selection and latent sizing; installed checkpoint precision.
 
 This document records the issues found during the initial audit. It deliberately separates confirmed graph/configuration defects from hypotheses that still need controlled renders.
