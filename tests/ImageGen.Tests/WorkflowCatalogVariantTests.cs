@@ -1,4 +1,6 @@
+using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
+using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
 
@@ -93,5 +95,31 @@ public sealed class WorkflowCatalogVariantTests : IDisposable
         Assert.False(cat.IsVariant("base-2"));
         Assert.True(cat.IsVariant("base-3"));
         Assert.False(cat.HasConfigId("base-2"));   // gone from the effective catalogue (FindConfig would loose-match the base)
+    }
+
+    [Fact]
+    public void Loose_configuration_ids_must_resolve_unambiguously()
+    {
+        File.WriteAllText(Path.Combine(_root, "workflows", "sd15.json"),
+            """{ "id": "sd15", "workflow": "Test", "params": {} }""");
+        File.WriteAllText(Path.Combine(_root, "workflows", "sdxl.json"),
+            """{ "id": "sdxl", "workflow": "Test", "params": {} }""");
+        WorkflowCatalog cat = NewCatalog();
+
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(() => cat.FindConfig("sd"));
+
+        Assert.Contains("sd15", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("sdxl", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_missing_persisted_variant_row_is_not_used_as_its_own_file_root()
+    {
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
+            () => WorkflowCatalogService.FileRootOf("base-2", isVariant: true, []));
+
+        Assert.Contains("persisted variant row is missing", ex.Message, StringComparison.Ordinal);
+        Assert.Equal("base", WorkflowCatalogService.FileRootOf(
+            "base-2", isVariant: true, [new WorkflowVariant("base-2", "base", "Variant", "{}")]));
     }
 }

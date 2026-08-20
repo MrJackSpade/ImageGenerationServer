@@ -12,7 +12,7 @@ namespace ImageGen.Comfy;
 /// The Comfy-side <see cref="IWorkflowCatalog"/>: wraps the configuration-tree loader (<see cref="WorkflowCatalog"/>), the
 /// graph registry (<see cref="WorkflowRegistry"/>), the ComfyUI capability probes (<see cref="ComfyClient"/>), and the
 /// gen-timing history, and projects them into the Application's workflow business objects. The eligibility algorithm
-/// (VRAM band + requirement-presence gating + shared-friendly-name de-duplication) and the row/guide shaping live here
+/// (requirement-presence gating + shared-friendly-name de-duplication) and the row/guide shaping live here
 /// — the core sees only the resulting descriptors and guides.
 /// </summary>
 public sealed partial class WorkflowCatalogService(
@@ -137,8 +137,21 @@ public sealed partial class WorkflowCatalogService(
         }
 
         IReadOnlyList<WorkflowVariant> rows = await _variants.VariantsAsync(Environment.MachineName, ct);
+        return FileRootOf(configId, isVariant: true, rows);
+    }
+
+    /// <summary>Resolve a variant to its shipped-file root. A catalog/repository disagreement is an invariant failure,
+    /// not permission to treat the variant id as a filename root and read/write the wrong configuration.</summary>
+    internal static string FileRootOf(string configId, bool isVariant, IReadOnlyList<WorkflowVariant> rows)
+    {
+        if (!isVariant)
+        {
+            return configId;
+        }
+
         return rows.FirstOrDefault(r => string.Equals(r.VariantId, configId, StringComparison.OrdinalIgnoreCase))?.BaseConfigId
-            ?? configId;
+            ?? throw new InvalidOperationException(
+                $"Workflow variant '{configId}' exists in the catalog but its persisted variant row is missing.");
     }
 
     /// <summary>The first free <c>&lt;base&gt;-2</c>, <c>&lt;base&gt;-3</c>… id — unique against both the shipped files

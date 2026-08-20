@@ -36,9 +36,6 @@ public sealed class LoraMetaPopulator(
     private readonly Channel<string> _queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
     private readonly ConcurrentDictionary<string, byte> _queued = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>ComfyUI's loras folder roots, resolved once — they don't move while the app runs.</summary>
-    private IReadOnlyList<string>? _loraRoots;
-
     public void Request(IReadOnlyCollection<string> loraNames)
     {
         // Off means never touch CivitAI — the same gate the lookup itself enforces, applied here so nothing queues.
@@ -89,7 +86,7 @@ public sealed class LoraMetaPopulator(
         ILoraPreviewRepository previews = scope.ServiceProvider.GetRequiredService<ILoraPreviewRepository>();
 
         LoraMeta? existing = (await meta.GetManyAsync([name], ct)).GetValueOrDefault(name);
-        if (existing is not null)
+        if (existing is not null && IsComplete(existing))
         {
             // Already cached. The only thing that might still be missing is the preview BYTES — a row can hold a CDN
             // URL without the media cached locally. Backfill just that.
@@ -116,8 +113,9 @@ public sealed class LoraMetaPopulator(
         string? path = ResolveOnDisk(await LoraRootsAsync(ct), name);
         if (path is null)
         {
-            // Enumerated by ComfyUI but not resolvable on this box (a remote renderer). Record an empty row so the
-            // client stops waiting and the file isn't re-hashed on every visit.
+            // Enumerated by ComfyUI but not resolvable on this box (usually a remote renderer). Record an unresolved
+            // placeholder so the client can stop polling this page. A later Request deliberately retries placeholders:
+            // the renderer address/folder roots may have changed since this row was written.
             await meta.UpsertAsync(new LoraMeta(name, null, [], null, null, DateTime.UtcNow), ct);
             return;
         }
@@ -151,15 +149,16 @@ public sealed class LoraMetaPopulator(
         return true;
     }
 
+    /// <summary>A row with a file hash came from a real file and is final even when CivitAI knew nothing about it. A
+    /// hashless row is only an unresolved placeholder and must be retried after a renderer/folder-path change.</summary>
+    internal static bool IsComplete(LoraMeta meta) => !string.IsNullOrWhiteSpace(meta.Sha256);
+
     private async Task<IReadOnlyList<string>> LoraRootsAsync(CancellationToken ct)
     {
-        if (_loraRoots is not null)
-        {
-            return _loraRoots;
-        }
-
+        // Do not cache roots here. ComfyClient follows the live renderer endpoint, and this path runs only for an
+        // uncached/unresolved LoRA; re-reading is what lets a placeholder recover after the renderer is repointed.
         IReadOnlyDictionary<string, IReadOnlyList<string>> folders = await comfy.GetFolderPathsAsync(ct);
-        return _loraRoots = folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? roots) ? roots : [];
+        return folders.TryGetValue(ComfyFolderKeys.Loras, out IReadOnlyList<string>? roots) ? roots : [];
     }
 
     private static string? ResolveOnDisk(IReadOnlyList<string> roots, string name)

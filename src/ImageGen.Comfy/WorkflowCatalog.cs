@@ -63,6 +63,7 @@ public sealed class WorkflowCatalog : IDisposable
         public const string WorkflowsSection = "workflows";
         public const string ModelEntity = "model";
         public const string WorkflowEntity = "workflow";
+        public const string CandidateSeparator = ", ";
     }
 
     /// <summary>The resolution block's member names, named when <see cref="BuildResolution"/> reports a missing one —
@@ -211,8 +212,8 @@ public sealed class WorkflowCatalog : IDisposable
         }
     }
 
-    /// <summary>Configuration by its (unique) id, or null. Resolution is by id, then a loose contains match so a
-    /// caller can pass the same string it gave generate_image.</summary>
+    /// <summary>Configuration by its unique id, or by one UNAMBIGUOUS loose contains match. Ambiguous shorthand is a
+    /// caller error with the candidates named; dictionary iteration order must never choose a model.</summary>
     public WorkflowConfiguration? FindConfig(string? id)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -228,16 +229,18 @@ public sealed class WorkflowCatalog : IDisposable
                 return c;
             }
 
-            foreach (KeyValuePair<string, WorkflowConfiguration> kv in _byId)
+            WorkflowConfiguration[] matches = [.. _byId
+                .Where(kv => kv.Key.Contains(id, StringComparison.OrdinalIgnoreCase)
+                          || id.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Value)];
+            return matches.Length switch
             {
-                if (kv.Key.Contains(id, StringComparison.OrdinalIgnoreCase)
-                    || id.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
-                {
-                    return kv.Value;
-                }
-            }
-
-            return null;
+                0 => null,
+                1 => matches[0],
+                _ => throw new RenderValidationException(
+                    $"Workflow configuration '{id}' is ambiguous; use one of: "
+                    + string.Join(CatalogText.CandidateSeparator, matches.Select(m => m.Id).OrderBy(x => x, StringComparer.OrdinalIgnoreCase)) + "."),
+            };
         }
     }
 
@@ -866,10 +869,8 @@ public sealed class WorkflowCatalog : IDisposable
         return new ConfigParamRangeOverride(alternate.Min, alternate.Max, label.Trim(), warning.Trim());
     }
 
-    /// <summary>Normalize a card's <c>reference</c> block to per-kind allowances. The explicit <c>types</c> array wins
-    /// (each entry's kind validated, non-positive maxes dropped); otherwise the scalar <c>max</c> declares IMAGE
-    /// references only; a block that declares neither (or all-zero) yields no allowances (the editor takes no
-    /// references). An unknown kind token throws — a malformed card is a boot error, not something to route around.</summary>
+    /// <summary>Normalize a card's already shape-validated <c>reference</c> block to per-kind allowances. The explicit
+    /// <c>types</c> form declares per-kind caps; the scalar <c>max</c> form declares IMAGE references only.</summary>
     private static List<ReferenceAllowance> NormalizeReferenceTypes(ReferenceDto? reference)
     {
         if (reference is null)
@@ -895,6 +896,24 @@ public sealed class WorkflowCatalog : IDisposable
         return reference.Max is > 0 ? [new ReferenceAllowance(ReferenceKindNames.Image, reference.Max.Value)] : [];
     }
 
+    /// <summary>Reference capability has exactly two concrete JSON shapes. Reject both-or-neither at catalog load;
+    /// silently preferring <c>types</c> over <c>max</c> makes an ambiguous authoring error look valid.</summary>
+    internal static void ValidateReferenceShape(string id, ReferenceDto? reference)
+    {
+        if (reference is null)
+        {
+            return;
+        }
+
+        bool scalar = reference.Max.HasValue;
+        bool typed = reference.Types is not null;
+        if (scalar == typed)
+        {
+            throw new InvalidOperationException(
+                $"{id}: card.reference must declare exactly one of 'max' (image-only) or 'types' (per media kind).");
+        }
+    }
+
     /// <summary>An edit card's scalar <c>reference</c> block and its <c>reference_max</c> param are two independently
     /// authored numbers with no runtime coupling: the card sizes the UI <c>＋ ref</c> affordance, <c>reference_max</c>
     /// caps the graph. When the card uses the scalar (image-only) form they MUST agree — a higher card max lets the UI
@@ -905,6 +924,7 @@ public sealed class WorkflowCatalog : IDisposable
     /// over-supplied submit.</summary>
     private static void ValidateReferenceConsistency(string id, ReferenceDto? reference, Dictionary<string, ConfigParam> pars)
     {
+        ValidateReferenceShape(id, reference);
         if (reference is null || reference.Types is { Length: > 0 })
         {
             return;

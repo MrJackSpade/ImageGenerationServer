@@ -1,5 +1,6 @@
 using ImageGen.Application.Workflows;
 using ImageGen.Comfy;
+using ImageGen.Domain;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -68,6 +69,27 @@ public sealed class CatalogDeserializationTests
     public void An_unknown_key_in_a_nested_block_is_rejected()
         => Assert.Throws<JsonException>(() =>
             Workflow("""{"id":"x","workflow":"W","card":{"speed":{"clazz":"fast"}}}"""));
+
+    [Fact]
+    public void A_reference_block_cannot_mix_scalar_and_typed_shapes()
+    {
+        ReferenceDto reference = new()
+        {
+            Max = 2,
+            Types = [new ReferenceTypeDto { Kind = ReferenceKindNames.Image, Max = 1 }],
+        };
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(
+            () => WorkflowCatalog.ValidateReferenceShape("mixed-reference", reference));
+
+        Assert.Contains("exactly one", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("mixed-reference", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_reference_block_must_choose_a_concrete_shape()
+        => Assert.Throws<InvalidOperationException>(
+            () => WorkflowCatalog.ValidateReferenceShape("empty-reference", new ReferenceDto()));
 
     [Fact]
     public void An_unknown_key_in_a_param_envelope_is_rejected()

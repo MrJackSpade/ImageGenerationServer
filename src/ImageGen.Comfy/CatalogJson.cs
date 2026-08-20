@@ -155,8 +155,8 @@ internal sealed record UiLinkDto
 
 /// <summary>The card's <c>reference</c> block: which reference media KINDS an editor takes (and how many of each), plus
 /// a hint. Two spellings: the back-compat scalar <c>max</c> declares reference IMAGES only (every existing card); the
-/// explicit <c>types</c> array declares per-kind maxes for a multi-modal editor (image / audio / video). Give one or the
-/// other — a card with <c>types</c> ignores <c>max</c>.</summary>
+/// explicit <c>types</c> array declares per-kind maxes for a multi-modal editor (image / audio / video). Exactly one
+/// shape is required; catalog loading rejects both-or-neither.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ReferenceDto
 {
