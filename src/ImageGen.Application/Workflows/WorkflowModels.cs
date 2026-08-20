@@ -110,7 +110,7 @@ public static class ParamVisibilityExtensions
 /// <param name="Label">UI label.</param>
 /// <param name="Help">Optional help text.</param>
 /// <param name="Choices">Enum choices, or null.</param>
-/// <param name="RangeOverride">Optional, explicitly-declared alternate range the UI may enable with a warning.</param>
+/// <param name="RangeOverride">Optional wider range enabled for this workflow by its machine-level setting.</param>
 public sealed record WorkflowExposedParam(
     string Key, string Type, object? Value,
     [property: AllowNullable("null = the numeric control has no minimum bound; 0 is a real minimum, distinct from unbounded")] double? Min,
@@ -121,13 +121,12 @@ public sealed record WorkflowExposedParam(
     string[]? Choices,
     WorkflowParamRangeOverride? RangeOverride = null);
 
-/// <summary>An opt-in alternate range for one numeric workflow field. The normal <see cref="WorkflowExposedParam.Min"/>
-/// and <see cref="WorkflowExposedParam.Max"/> remain the recommended/default bounds; the client exposes these bounds
-/// only after the user enables <see cref="Label"/> and accompanies them with <see cref="Warning"/>.</summary>
+/// <summary>A workflow-enabled wider range for one numeric field. The normal
+/// <see cref="WorkflowExposedParam.Min"/> and <see cref="WorkflowExposedParam.Max"/> remain the recommended bounds;
+/// the client accepts this hard range and shows <see cref="Warning"/> outside the recommendation.</summary>
 public sealed record WorkflowParamRangeOverride(
     [property: AllowNullable("null = the alternate range keeps the field's normal minimum")] double? Min,
     [property: AllowNullable("null = the alternate range keeps the field's normal maximum")] double? Max,
-    [property: AllowMagicStrings("human-readable opt-in checkbox label")] string Label,
     [property: AllowMagicStrings("human-readable warning shown for values outside the normal range")] string Warning);
 
 /// <summary>How many references of ONE media kind a workflow accepts.</summary>

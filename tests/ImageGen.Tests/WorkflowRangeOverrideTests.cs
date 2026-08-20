@@ -4,6 +4,7 @@ using ImageGen.Comfy;
 using ImageGen.Comfy.Generation.MiniMaxH3T2V;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -18,7 +19,7 @@ public sealed class WorkflowRangeOverrideTests
     ];
 
     [Fact]
-    public void Every_h3_variant_projects_the_same_opt_in_seconds_range_without_changing_cadence()
+    public void Every_h3_variant_projects_the_extended_range_only_when_its_workflow_enabled_it()
     {
         WorkflowCatalog catalog = Catalog();
         WorkflowRegistry registry = Registry();
@@ -32,17 +33,41 @@ public sealed class WorkflowRangeOverrideTests
             KeyValuePair<string, ConfigParam> length = Assert.Single(
                 cfg.Params, p => p.Key == WorkflowParamKeys.Length);
 
-            WorkflowExposedParam field = WorkflowCatalogService.ExposedParam(length, wf, cfg,
+            WorkflowExposedParam normal = WorkflowCatalogService.ExposedParam(length, wf, cfg,
                 new Dictionary<string, System.Text.Json.JsonElement>());
 
-            Assert.Equal(WorkflowParamKeys.DurationSeconds, field.Key);
-            Assert.Equal(15.08, field.Max);
-            Assert.Equal(0.71, field.Step);
-            WorkflowParamRangeOverride alternate = Assert.IsType<WorkflowParamRangeOverride>(field.RangeOverride);
+            Assert.Equal(WorkflowParamKeys.DurationSeconds, normal.Key);
+            Assert.Equal(15.08, normal.Max);
+            Assert.Equal(0.71, normal.Step);
+            Assert.Null(normal.RangeOverride);
+
+            WorkflowExposedParam enabled = WorkflowCatalogService.ExposedParam(length, wf, cfg,
+                new Dictionary<string, JsonElement>
+                {
+                    ["allowRangeOverride.length"] = JsonSerializer.SerializeToElement(true),
+                });
+            WorkflowParamRangeOverride alternate = Assert.IsType<WorkflowParamRangeOverride>(enabled.RangeOverride);
             Assert.Null(alternate.Min);
             Assert.Equal(149.67, alternate.Max);
-            Assert.Equal("Allow untested lengths", alternate.Label);
         }
+    }
+
+    [Fact]
+    public void H3_extended_values_are_refused_until_the_workflow_setting_is_enabled()
+    {
+        WorkflowConfiguration cfg = Catalog().FindConfig("minimax-h3-t2v")
+            ?? throw new Xunit.Sdk.XunitException("Missing minimax-h3-t2v");
+        Dictionary<string, object?> values = H3Bag(379);
+
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(() =>
+            WorkflowRangeOverridePolicy.Validate(cfg, new Dictionary<string, JsonElement>(), values));
+        Assert.Contains("Allow untested lengths", ex.Message);
+        Assert.Contains("workflow's settings page", ex.Message);
+
+        WorkflowRangeOverridePolicy.Validate(cfg, new Dictionary<string, JsonElement>
+        {
+            ["allowRangeOverride.length"] = JsonSerializer.SerializeToElement(true),
+        }, values);
     }
 
     [Theory]

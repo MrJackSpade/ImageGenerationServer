@@ -6,6 +6,7 @@ using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace ImageGen.Tests;
 
@@ -71,6 +72,31 @@ public sealed class WorkflowFeatureToggleTests
 
         Assert.True(Assert.IsType<WorkflowInfo>(service.ResolveInfo("krea2-turbo")).TagGeneratorEnabled);
         Assert.False(Assert.IsType<WorkflowInfo>(service.ResolveInfo("anima")).TagGeneratorEnabled);
+    }
+
+    [Fact]
+    public void Extended_length_is_a_workflow_setting_not_a_generation_control()
+    {
+        (WorkflowCatalog catalog, WorkflowCatalogService service) = Build();
+        ConfigSetting shipped = Assert.Single(
+            Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v")).Settings,
+            s => s.Key == "allowRangeOverride.length");
+        Assert.Equal("Allow untested lengths", shipped.Label);
+        Assert.False(Assert.IsType<bool>(shipped.Shipped));
+        Assert.Null(shipped.Override);
+
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["minimax-h3-t2v"] = new Dictionary<string, string>
+            {
+                ["param.allowRangeOverride.length"] = "true",
+            },
+        });
+
+        ConfigSetting enabled = Assert.Single(
+            Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v")).Settings,
+            s => s.Key == "allowRangeOverride.length");
+        Assert.True(Assert.IsType<JsonElement>(enabled.Override).GetBoolean());
     }
 
     [Theory]

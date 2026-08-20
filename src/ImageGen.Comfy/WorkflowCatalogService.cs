@@ -375,6 +375,36 @@ public sealed partial class WorkflowCatalogService(
                     kv.Value.Visibility.Token());
             })];
 
+        // A field may declare a wider hard range, but enabling it is a WORKFLOW decision for this machine — not a
+        // checkbox repeated on every generation form. Surface one synthetic bool beside each capable field. Its value
+        // is stored through the same per-config override path as custom size and the tag generator.
+        foreach ((string paramKey, ConfigParam parameter) in cfg.Params.Where(p => p.Value.RangeOverride is not null))
+        {
+            if (parameter.RangeOverride is not { } alternate)
+            {
+                continue;
+            }
+
+            string settingKey = WorkflowRangeOverridePolicy.SettingKey(paramKey);
+            ConfigSetting allowExtended = new(
+                settingKey,
+                alternate.Label,
+                alternate.Warning,
+                ControlTokens.Bool, null, null, null, null,
+                Shipped: false,
+                Override: overrides.TryGetValue(settingKey, out JsonElement value) ? (object?)value : null);
+
+            int paramIndex = settings.FindIndex(s => string.Equals(s.Key, paramKey, StringComparison.OrdinalIgnoreCase));
+            if (paramIndex >= 0)
+            {
+                settings.Insert(paramIndex + 1, allowExtended);
+            }
+            else
+            {
+                settings.Add(allowExtended);
+            }
+        }
+
         // A per-machine "default LoRA folder" for this workflow's composer picker. It is NOT a config/graph param, so
         // it's surfaced here as a synthetic string setting the settings page renders and saves through the same
         // override path (param.targetLoraFolder) as every other setting — no new settings UI needed.
@@ -625,6 +655,9 @@ public sealed partial class WorkflowCatalogService(
                 ? PromptTemplates.Schema
                 : null);
         object? value = machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value;
+        ConfigParamRangeOverride? activeRange = WorkflowRangeOverridePolicy.IsEnabled(machine, kv.Key)
+            ? kv.Value.RangeOverride
+            : null;
 
         if (string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
             && wf.FrameRule is { } fr
@@ -646,7 +679,7 @@ public sealed partial class WorkflowCatalogService(
                 "Length (seconds)",
                 "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
                 null,
-                ProjectRangeOverride(kv.Value.RangeOverride, fps));
+                ProjectRangeOverride(activeRange, fps));
         }
 
         return new WorkflowExposedParam(
@@ -659,7 +692,7 @@ public sealed partial class WorkflowCatalogService(
             spec?.Label ?? kv.Key,
             spec?.Help,
             spec?.Choices,
-            ProjectRangeOverride(kv.Value.RangeOverride));
+            ProjectRangeOverride(activeRange));
     }
 
     private static WorkflowParamRangeOverride? ProjectRangeOverride(
@@ -674,7 +707,7 @@ public sealed partial class WorkflowCatalogService(
             ? divisor is double d ? Math.Round(n / d, 2) : n
             : null;
         return new WorkflowParamRangeOverride(
-            Project(alternate.Min), Project(alternate.Max), alternate.Label, alternate.Warning);
+            Project(alternate.Min), Project(alternate.Max), alternate.Warning);
     }
 
     /// <summary>Ordinary workflow schema plus the four shared quality settings for workflows that opt in.</summary>

@@ -579,7 +579,8 @@ public sealed class ComfyClient : IComfyClient
         (WorkflowConfiguration? cfg, IWorkflow? wf) = ResolveGenerate(configId);
         Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
-        _ = wf.Normalize(dict, new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
+        _ = NormalizeAndValidate(wf, cfg, dict,
+            new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
         pos = PromptTemplates.Render(common.PromptTemplate, pos, cfg.Id);
@@ -661,7 +662,8 @@ public sealed class ComfyClient : IComfyClient
             string videoName = await UploadSourceVideoAsync(sourcePng, ct);
             Dictionary<string, object?> dict0 = MergeParamsDict(wf, cfg, overrides);
             ResolvedRequirements resolved0 = _catalog.Resolve(cfg);
-            _ = wf.Normalize(dict0, new NormalizeContext { Requirements = resolved0, AtSubmit = true });
+            _ = NormalizeAndValidate(wf, cfg, dict0,
+                new NormalizeContext { Requirements = resolved0, AtSubmit = true });
             SubmissionCommon common0 = ParamsCodec.Deserialize<SubmissionCommon>(dict0);
             string renderedInstruction0 = PromptTemplates.Render(common0.PromptTemplate, instruction, cfg.Id);
             WorkflowInputs inputs0 = new() { Positive = renderedInstruction0, SourceVideoName = videoName };
@@ -705,7 +707,8 @@ public sealed class ComfyClient : IComfyClient
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
         // Submit-pass normalization: snap the render resolution onto a clean ×VRES multiple (deliberate, no notice) now,
         // so Build reads the cached size rather than recomputing it. Source dims + the model's envelope live here.
-        _ = wf.Normalize(dict, new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
+        _ = NormalizeAndValidate(wf, cfg, dict,
+            new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         if (common.SnapResolution)
         {
@@ -833,6 +836,20 @@ public sealed class ComfyClient : IComfyClient
         return v;
     }
 
+    /// <summary>Run the workflow's normalizer, then enforce the range selected on this workflow's settings page.
+    /// Normalization comes first because video duration is submitted in seconds and becomes the configured frame
+    /// parameter here; validating the pre-normalized bag would miss that user-facing alias.</summary>
+    private IReadOnlyList<string> NormalizeAndValidate(
+        IWorkflow workflow,
+        WorkflowConfiguration config,
+        Dictionary<string, object?> values,
+        NormalizeContext context)
+    {
+        IReadOnlyList<string> notices = workflow.Normalize(values, context);
+        WorkflowRangeOverridePolicy.Validate(config, _catalog.ParamOverridesFor(config.Id), values);
+        return notices;
+    }
+
     /// <summary>Pre-queue parameter normalization (synchronous; NO ComfyUI call). Resolves the config + workflow,
     /// overlays params, lets the workflow's <see cref="IWorkflow.Normalize"/> snap any out-of-range input (today:
     /// a stepped frame count) onto a model-valid value, and snaps an unsupported custom render size onto the model's
@@ -858,7 +875,7 @@ public sealed class ComfyClient : IComfyClient
 
         Dictionary<string, object?> merged = MergeParamsDict(wf, cfg, overrides);
         Dictionary<string, object?> before = new(merged, StringComparer.OrdinalIgnoreCase);
-        List<string> notices = [.. wf.Normalize(merged, NormalizeContext.Empty)];   // enqueue pass: params only (frame snap), no source/requirements
+        List<string> notices = [.. NormalizeAndValidate(wf, cfg, merged, NormalizeContext.Empty)];   // enqueue pass: params only (frame snap), no source/requirements
 
         // #212: a genuine CUSTOM size (explicit width/height matching none of this config's aspect-map dims) that the
         // model cannot render is snapped to the nearest size it supports HERE, with a notice on the slot — a multi-model

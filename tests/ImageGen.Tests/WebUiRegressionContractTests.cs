@@ -62,6 +62,17 @@ public sealed class WebUiRegressionContractTests
         Assert.DoesNotContain("postPending", edit, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Extended_ranges_are_workflow_owned_not_per_generation_toggles()
+    {
+        string core = Js("core.js");
+
+        Assert.DoesNotContain("mp-range-toggle", core, StringComparison.Ordinal);
+        Assert.DoesNotContain("alternate.label", core, StringComparison.Ordinal);
+        Assert.Contains("setBound(\"max\", alternateMax);", core, StringComparison.Ordinal);
+        Assert.Contains("inp.rangeWarningRefresh = refreshWarning;", core, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;

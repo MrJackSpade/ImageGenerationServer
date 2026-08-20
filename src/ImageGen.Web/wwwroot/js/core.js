@@ -182,8 +182,8 @@ function sharedExposedParams(models) {
     .filter(p => lists.every(l => l.some(q => q.key === p.key && q.type === p.type)))
     .map(p => {
       const peers = lists.map(l => l.find(q => q.key === p.key && q.type === p.type));
-      // A multi-model field may offer the alternate range only when every selected model declares the same one.
-      // Sending the first model's wider range to a stricter peer would turn an explicit opt-in into an invalid batch.
+      // A multi-model field may use the wider range only when every selected workflow enabled the same one.
+      // Sending the first model's range to a stricter peer would turn a workflow-level policy into an invalid batch.
       return peers.every(q => rangeKey(q) === rangeKey(p)) ? p : { ...p, rangeOverride: null };
     });
 }
@@ -243,45 +243,22 @@ function renderParamFields(box, modelOrModels, extraParams) {
       const normalMax = p.max != null ? Number(p.max) : null;
       const alternateMin = alternate.min != null ? Number(alternate.min) : normalMin;
       const alternateMax = alternate.max != null ? Number(alternate.max) : normalMax;
-      const option = document.createElement("label"); option.className = "mp-range-override";
-      const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.className = "mp-range-toggle";
-      const optionText = document.createElement("span"); optionText.textContent = alternate.label;
-      option.append(toggle, optionText);
       const warning = document.createElement("p"); warning.className = "mp-range-warning";
       warning.textContent = alternate.warning; warning.hidden = true;
 
       const setBound = (name, value) => value == null ? inp.removeAttribute(name) : inp.setAttribute(name, value);
+      setBound("min", alternateMin);
+      setBound("max", alternateMax);
       const outsideNormalRange = () => {
         const n = Number(inp.value);
         return inp.value !== "" && !Number.isNaN(n)
           && ((normalMin != null && n < normalMin) || (normalMax != null && n > normalMax));
       };
-      const applyAlternateRange = active => {
-        toggle.checked = active;
-        setBound("min", active ? alternateMin : normalMin);
-        setBound("max", active ? alternateMax : normalMax);
-        warning.hidden = !active || !outsideNormalRange();
-      };
-      toggle.addEventListener("change", () => {
-        applyAlternateRange(toggle.checked);
-        if (!toggle.checked && inp.value !== "") {
-          let n = Number(inp.value);
-          if (normalMin != null) n = Math.max(normalMin, n);
-          if (normalMax != null) n = Math.min(normalMax, n);
-          inp.value = n;
-        }
-      });
-      inp.addEventListener("input", () => { warning.hidden = !toggle.checked || !outsideNormalRange(); });
-      const insideAlternateRange = n => (alternateMin == null || n >= alternateMin)
-        && (alternateMax == null || n <= alternateMax);
-      inp.rangeOverrideControl = {
-        normalMin, normalMax, alternateMin, alternateMax,
-        apply: applyAlternateRange,
-        active: () => toggle.checked,
-      };
-      wrap.append(option, warning);
-      const initial = Number(inp.value);
-      if (outsideNormalRange() && !Number.isNaN(initial) && insideAlternateRange(initial)) applyAlternateRange(true);
+      const refreshWarning = () => { warning.hidden = !outsideNormalRange(); };
+      inp.addEventListener("input", refreshWarning);
+      inp.rangeWarningRefresh = refreshWarning;
+      wrap.appendChild(warning);
+      refreshWarning();
     }
 
     box.appendChild(wrap);
@@ -324,14 +301,6 @@ function applyParamPrefs(box, prefs) {
     // the server's FrameRule.Snap so the shown value is exactly what will render (81 -> 90, not 73).
     if (inp.dataset.ptype === "int" || inp.dataset.ptype === "double") {
       const n = Number(v);
-      const range = inp.rangeOverrideControl;
-      if (range && !Number.isNaN(n)) {
-        const outsideNormal = (range.normalMin != null && n < range.normalMin)
-          || (range.normalMax != null && n > range.normalMax);
-        const insideAlternate = (range.alternateMin == null || n >= range.alternateMin)
-          && (range.alternateMax == null || n <= range.alternateMax);
-        if (outsideNormal && insideAlternate) range.apply(true);
-      }
       const step = Number(inp.step), min = inp.min !== "" ? Number(inp.min) : null, max = inp.max !== "" ? Number(inp.max) : null;
       if (!Number.isNaN(n)) {
         let s = n;
@@ -342,7 +311,7 @@ function applyParamPrefs(box, prefs) {
       }
     }
     inp.value = v;
-    if (inp.rangeOverrideControl?.active()) inp.rangeOverrideControl.apply(true);
+    if (inp.rangeWarningRefresh) inp.rangeWarningRefresh();
   }
 }
 function collectParamPrefs(box, prefs) {
