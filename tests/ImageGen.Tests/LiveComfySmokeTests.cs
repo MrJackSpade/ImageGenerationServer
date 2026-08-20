@@ -14,15 +14,12 @@ namespace ImageGen.Tests;
 /// </summary>
 public sealed class LiveComfySmokeTests
 {
-    [Fact]
+    [SkippableFact]
     public async Task LiveComfy_generates_for_configured_ids()
     {
         string[] ids = (Environment.GetEnvironmentVariable("IMAGEGEN_SMOKE") ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (ids.Length == 0)
-        {
-            return;   // not targeted -> skip silently
-        }
+        Skip.If(ids.Length == 0, "set IMAGEGEN_SMOKE to the configuration ids to exercise against live ComfyUI");
 
         string baseUrl = Environment.GetEnvironmentVariable("COMFY_URL") ?? "http://localhost:8188";
 

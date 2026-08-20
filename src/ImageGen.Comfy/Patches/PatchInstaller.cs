@@ -47,29 +47,46 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     public async Task<string?> ApplyAsync(ComfyPatch patch, string comfyRoot, string? python, bool overwrite, CancellationToken ct)
     {
         string target = patch.ResolveTarget(comfyRoot);
+        bool fetchedTarget = false;
 
-        if (!Directory.Exists(target))
+        try
         {
-            if (patch.SourceUrl is null && !patch.CreatesItsTarget)
+            if (!Directory.Exists(target))
             {
-                throw new PatchConflictException($"{patch.Target} is not installed, and this patch does not say where to get it.");
+                if (patch.SourceUrl is null && !patch.CreatesItsTarget)
+                {
+                    throw new PatchConflictException($"{patch.Target} is not installed, and this patch does not say where to get it.");
+                }
+
+                if (patch.SourceUrl is not null)
+                {
+                    _log.LogInformation("Fetching {Target} from {Source} at {Rev}", patch.Target, patch.SourceUrl, patch.Rev);
+                    await _packs.FetchAsync(patch.SourceUrl, patch.Rev ?? throw new InvalidOperationException($"Patch '{patch.Target}' has a source URL but no pinned rev."), target, ct);
+                    fetchedTarget = true;
+                }
             }
 
-            if (patch.SourceUrl is not null)
-            {
-                _log.LogInformation("Fetching {Target} from {Source} at {Rev}", patch.Target, patch.SourceUrl, patch.Rev);
-                await _packs.FetchAsync(patch.SourceUrl, patch.Rev ?? throw new InvalidOperationException($"Patch '{patch.Target}' has a source URL but no pinned rev."), target, ct);
-            }
+            PatchApplier.Apply(target, patch.Files, reverse: false, overwrite);
+            _log.LogInformation("Applied {Id} to {Target}", patch.Id, target);
+
+            // After applying, not only after fetching. A pack this repo SHIPS can need packages too -- the GGUF loaders
+            // need gguf and sentencepiece -- and those are just as absent on a box that has never installed them. pip is
+            // cheap and idempotent when everything is already satisfied, so doing it every time costs a second and
+            // removes a way for a pack to be present and permanently unable to import.
+            return patch.Target == PathTokens.CurrentDirectory ? null : await InstallRequirementsAsync(target, python, ct);
         }
+        catch
+        {
+            // A target fetched by THIS attempt did not exist before it. If applying the shipped diff (or installing
+            // its requirements) fails, remove that fetched tree so the documented failed-operation invariant holds:
+            // the next attempt sees TargetMissing, not a half-installed/conflicted pack left by this one.
+            if (fetchedTarget && Directory.Exists(target))
+            {
+                Directory.Delete(target, recursive: true);
+            }
 
-        PatchApplier.Apply(target, patch.Files, reverse: false, overwrite);
-        _log.LogInformation("Applied {Id} to {Target}", patch.Id, target);
-
-        // After applying, not only after fetching. A pack this repo SHIPS can need packages too -- the GGUF loaders
-        // need gguf and sentencepiece -- and those are just as absent on a box that has never installed them. pip is
-        // cheap and idempotent when everything is already satisfied, so doing it every time costs a second and
-        // removes a way for a pack to be present and permanently unable to import.
-        return patch.Target == PathTokens.CurrentDirectory ? null : await InstallRequirementsAsync(target, python, ct);
+            throw;
+        }
     }
 
     /// <summary>
@@ -130,30 +147,24 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
 
         _log.LogInformation("Installing {Requirements} with {Python}", requirements, python);
 
-        string constraints = PinInstalledTorch(python);
+        string constraints = await PinInstalledTorchAsync(python, ct);
 
-        Process process = new()
+        ProcessStartInfo startInfo = new(python,
+            ["-m", "pip", "install", "--no-cache-dir", "--constraint", constraints, "-r", requirements])
         {
-            StartInfo = new ProcessStartInfo(python,
-                ["-m", "pip", "install", "--no-cache-dir", "--constraint", constraints, "-r", requirements])
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
         };
 
-        _ = process.Start();
         // No deadline: pip fetching a large wheel over a slow link is not a failure, and a clock invented here
         // would kill it partway and leave a half-installed environment.
-        Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
-        Task<string> stderr = process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        ProcessOutput output = await RunProcessAsync(startInfo, ct);
 
-        if (process.ExitCode != 0)
+        if (output.ExitCode != 0)
         {
             throw new PatchConflictException(
-                $"pip exited {process.ExitCode} installing {requirements}:\n{await stderr}\n{await stdout}");
+                $"pip exited {output.ExitCode} installing {requirements}:\n{output.Stderr}\n{output.Stdout}");
         }
 
         return null;
@@ -167,27 +178,23 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
     /// with — and the GPU stack is silently replaced by an install nobody asked for. This pins nothing of its own:
     /// the versions come back out of the environment, so pip may add packages but can never move these.</para>
     /// </summary>
-    private static string PinInstalledTorch(string python)
+    private static async Task<string> PinInstalledTorchAsync(string python, CancellationToken ct)
     {
-        Process freeze = new()
+        ProcessStartInfo startInfo = new(python, ["-m", "pip", "freeze"])
         {
-            StartInfo = new ProcessStartInfo(python, ["-m", "pip", "freeze"])
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
         };
-        _ = freeze.Start();
-        string installed = freeze.StandardOutput.ReadToEnd();
-        freeze.WaitForExit();
+        ProcessOutput output = await RunProcessAsync(startInfo, ct);
 
-        if (freeze.ExitCode != 0)
+        if (output.ExitCode != 0)
         {
-            throw new PatchConflictException($"Could not read the installed packages from {python} — pip freeze exited {freeze.ExitCode}.");
+            throw new PatchConflictException(
+                $"Could not read the installed packages from {python} — pip freeze exited {output.ExitCode}:\n{output.Stderr}");
         }
 
-        IEnumerable<string> pinned = installed
+        IEnumerable<string> pinned = output.Stdout
             .Split('\n')
             .Select(line => line.Trim())
             .Where(line => line.StartsWith(TorchPin.Torch, StringComparison.OrdinalIgnoreCase)
@@ -198,4 +205,19 @@ public sealed class PatchInstaller(PackSource packs, ILogger<PatchInstaller> log
         File.WriteAllLines(path, pinned);
         return path;
     }
+
+    /// <summary>Run one redirected child process while draining stdout and stderr concurrently. Reading one pipe to
+    /// completion before the other can deadlock when the unread pipe fills (pip commonly emits pages of warnings).</summary>
+    internal static async Task<ProcessOutput> RunProcessAsync(ProcessStartInfo startInfo, CancellationToken ct)
+    {
+        using Process process = new() { StartInfo = startInfo };
+        _ = process.Start();
+        Task<string> stdout = process.StandardOutput.ReadToEndAsync(ct);
+        Task<string> stderr = process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+        string[] streams = await Task.WhenAll(stdout, stderr);
+        return new ProcessOutput(process.ExitCode, streams[0], streams[1]);
+    }
+
+    internal readonly record struct ProcessOutput(int ExitCode, string Stdout, string Stderr);
 }

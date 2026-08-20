@@ -297,12 +297,10 @@ public sealed class ComfyPatchTests : IDisposable
     /// The patch set this build actually ships must parse, carry its metadata, and address each patch uniquely —
     /// an id is what the API takes, and a duplicate would make one of them unreachable.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public void The_shipped_patch_set_loads()
     {
-        string? payload = Payload();
-        Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
-        Assert.NotNull(payload);
+        string payload = RequiredPayload();
 
         IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
@@ -337,12 +335,10 @@ public sealed class ComfyPatchTests : IDisposable
     /// Every shipped node pack must survive being installed and removed with the tree unchanged. This is the
     /// property the Remove button on the settings page is, run against the real packs rather than a fixture.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public void Every_shipped_node_pack_installs_and_uninstalls_cleanly()
     {
-        string? payload = Payload();
-        Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
-        Assert.NotNull(payload);
+        string payload = RequiredPayload();
 
         IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(null, Path.Combine(payload, "comfy-nodes"));
         Assert.NotEmpty(patches);
@@ -366,12 +362,10 @@ public sealed class ComfyPatchTests : IDisposable
     /// arrived by hand is a dependency nothing can state or reinstall, and a rebuilt ComfyUI comes back missing
     /// the packs a dozen workflows need. Every one of them therefore carries a pinned Source/Rev.
     /// </summary>
-    [SkippableFact]
+    [Fact]
     public void Every_third_party_pack_is_installable_from_a_pinned_revision()
     {
-        string? payload = Payload();
-        Skip.If(payload is null, "no comfy-patches/comfy-nodes beside the test binary");
-        Assert.NotNull(payload);
+        string payload = RequiredPayload();
 
         IReadOnlyList<ComfyPatch> patches = ComfyPatchCatalog.Load(Path.Combine(payload, "comfy-patches"), Path.Combine(payload, "comfy-nodes"));
 
@@ -487,7 +481,13 @@ public sealed class ComfyPatchTests : IDisposable
         return null;
     }
 
-    /// <summary>The payload directory, copied beside the test binary by the build. Null if it is not there.</summary>
-    private static string? Payload() =>
-        Directory.Exists(Path.Combine(AppContext.BaseDirectory, "comfy-nodes")) ? AppContext.BaseDirectory : null;
+    /// <summary>The payload directory copied beside the test binary. Its absence is a broken build, not a skip.</summary>
+    private static string RequiredPayload()
+    {
+        string nodes = Path.Combine(AppContext.BaseDirectory, "comfy-nodes");
+        string patches = Path.Combine(AppContext.BaseDirectory, "comfy-patches");
+        Assert.True(Directory.Exists(nodes), $"The build did not copy its comfy-nodes payload to {nodes}.");
+        Assert.True(Directory.Exists(patches), $"The build did not copy its comfy-patches payload to {patches}.");
+        return AppContext.BaseDirectory;
+    }
 }

@@ -175,24 +175,13 @@ public static class UnifiedDiff
                         oldLines.Add(string.Empty);
                         newLines.Add(string.Empty);
                         i++;
+                        ConsumeNoNewlineSentinel(' ', lines, ref i, ref oldNoNewline, ref newNoNewline);
                         continue;
                     }
 
                     if (line == Sentinel.NoNewline)
                     {
-                        // Applies to whichever side's last line we just read.
-                        if (newLines.Count > 0 && (oldLines.Count == 0 || newLines.Count >= oldLines.Count))
-                        {
-                            newNoNewline = true;
-                        }
-
-                        if (oldLines.Count > 0 && (newLines.Count == 0 || oldLines.Count >= newLines.Count))
-                        {
-                            oldNoNewline = true;
-                        }
-
-                        i++;
-                        continue;
+                        throw new FormatException($"line {i + 1}: the no-newline marker must immediately follow a diff line.");
                     }
 
                     string content = line[1..];
@@ -206,6 +195,7 @@ public static class UnifiedDiff
                     }
 
                     i++;
+                    ConsumeNoNewlineSentinel(line[0], lines, ref i, ref oldNoNewline, ref newNoNewline);
                 }
 
                 if (oldLines.Count != oldCount || newLines.Count != newCount)
@@ -235,6 +225,21 @@ public static class UnifiedDiff
         }
 
         return files;
+    }
+
+    /// <summary>Consume a no-newline marker and attribute it to the side named by the immediately preceding diff
+    /// marker. A removed line belongs only to old, an added line only to new, and context belongs to both.</summary>
+    private static void ConsumeNoNewlineSentinel(
+        char previousMarker, string[] lines, ref int index, ref bool oldNoNewline, ref bool newNoNewline)
+    {
+        if (index >= lines.Length || lines[index] != Sentinel.NoNewline)
+        {
+            return;
+        }
+
+        oldNoNewline |= previousMarker is '-' or ' ';
+        newNoNewline |= previousMarker is '+' or ' ';
+        index++;
     }
 
     /// <summary>The path out of a '--- a/x' or '+++ b/x' line, or null for /dev/null.</summary>
@@ -367,8 +372,10 @@ public static class UnifiedDiff
             _ = text.Append(DiffMarker.OldFileHeader).Append(oldSide).Append('\n');
             _ = text.Append(DiffMarker.NewFileHeader).Append(newSide).Append('\n');
 
-            foreach (Hunk hunk in file.Hunks)
+            for (int hunkIndex = 0; hunkIndex < file.Hunks.Count; hunkIndex++)
             {
+                Hunk hunk = file.Hunks[hunkIndex];
+                bool finalHunk = hunkIndex == file.Hunks.Count - 1;
                 _ = text.Append(DiffMarker.HunkHeaderStart).Append(hunk.OldLines.Count == 0 ? 0 : hunk.OldStart).Append(',').Append(hunk.OldLines.Count)
                     .Append(DiffMarker.NewRangePrefix).Append(hunk.NewLines.Count == 0 ? 0 : hunk.NewStart).Append(',').Append(hunk.NewLines.Count)
                     .Append(DiffMarker.HunkHeaderEnd);
@@ -380,7 +387,7 @@ public static class UnifiedDiff
                     if (o < hunk.OldLines.Count && n < hunk.NewLines.Count && hunk.OldLines[o] == hunk.NewLines[n])
                     {
                         _ = text.Append(' ').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
+                        if (finalHunk && o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
                         {
                             _ = text.Append(Sentinel.NoNewline).Append('\n');
                         }
@@ -391,7 +398,7 @@ public static class UnifiedDiff
                     else if (o < hunk.OldLines.Count && (n >= hunk.NewLines.Count || hunk.OldLines[o] != hunk.NewLines[n]))
                     {
                         _ = text.Append('-').Append(hunk.OldLines[o]).Append('\n');
-                        if (o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
+                        if (finalHunk && o == hunk.OldLines.Count - 1 && file.OldEndsWithoutNewline)
                         {
                             _ = text.Append(Sentinel.NoNewline).Append('\n');
                         }
@@ -401,7 +408,7 @@ public static class UnifiedDiff
                     else
                     {
                         _ = text.Append('+').Append(hunk.NewLines[n]).Append('\n');
-                        if (n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline)
+                        if (finalHunk && n == hunk.NewLines.Count - 1 && file.NewEndsWithoutNewline)
                         {
                             _ = text.Append(Sentinel.NoNewline).Append('\n');
                         }

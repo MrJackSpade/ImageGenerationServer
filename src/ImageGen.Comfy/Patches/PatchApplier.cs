@@ -350,7 +350,10 @@ public static class PatchApplier
             if (wanted.Count == 0)
             {
                 // A pure insertion has no context to search for, so the recorded position is all there is.
-                at = Math.Max(recorded, cursor);
+                // Unified diff's zero-count range names the line AFTER which insertion occurs: @@ -N,0 means index N,
+                // while the new-file special case @@ -0,0 still inserts at index 0.
+                int insertionIndex = Math.Max(0, reverse ? hunk.NewStart : hunk.OldStart);
+                at = Math.Max(insertionIndex, cursor);
                 if (at > lines.Count)
                 {
                     throw new PatchConflictException($"{file.Path}: this patch inserts at line {at + 1}, past the end of a {lines.Count}-line file.");
