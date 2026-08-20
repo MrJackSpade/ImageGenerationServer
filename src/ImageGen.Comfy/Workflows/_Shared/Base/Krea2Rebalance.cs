@@ -1,3 +1,4 @@
+using ImageGen.Application.Rendering;
 using System.Globalization;
 
 namespace ImageGen.Comfy;
@@ -51,20 +52,36 @@ public static class Krea2Rebalance
     /// Both neutral (the schema defaults) keeps the emitted graph byte-identical to plain Krea 2.</summary>
     public static bool IsActive(double multiplier, string perLayerWeights)
     {
+        string[] parts = perLayerWeights.Split(',');
+        if (parts.Length != 12)
+        {
+            throw new RenderValidationException(
+                $"'{WorkflowParamKeys.PerLayerWeights}' must contain exactly 12 comma-separated numbers.");
+        }
+
+        double[] weights = new double[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (!double.TryParse(parts[i].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
+                || !double.IsFinite(value))
+            {
+                throw new RenderValidationException(
+                    $"'{WorkflowParamKeys.PerLayerWeights}' item {i + 1} must be a finite number, but was '{parts[i].Trim()}'.");
+            }
+
+            weights[i] = value;
+        }
+
         if (Math.Abs(multiplier - 1.0) > 1e-6)
         {
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(perLayerWeights))
+        foreach (double weight in weights)
         {
-            foreach (string part in perLayerWeights.Split(','))
+            if (Math.Abs(weight - 1.0) > 1e-6)
             {
-                if (double.TryParse(part.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double d)
-                    && Math.Abs(d - 1.0) > 1e-6)
-                {
-                    return true;
-                }
+                return true;
             }
         }
 

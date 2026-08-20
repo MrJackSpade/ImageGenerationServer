@@ -20,7 +20,8 @@ public sealed record ChronoEditParams
     [Range(ParamBounds.CfgMin, ParamBounds.CfgMax)] public required double Cfg { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Scheduler)] public required string Scheduler { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]
+    [Range(1, int.MaxValue)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipVision)] public required string ClipVision { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Lora)] public string? Lora { get; init; }
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]

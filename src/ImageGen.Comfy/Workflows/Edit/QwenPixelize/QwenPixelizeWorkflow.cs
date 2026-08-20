@@ -22,7 +22,7 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler, Type = ParamType.String },
@@ -52,6 +52,16 @@ public sealed class QwenPixelizeWorkflow : EditWorkflow<QwenPixelizeParams>
         new() { Key = WorkflowParamKeys.EndPercent,   Type = ParamType.Double, Min = 0.0, Max = 1.0 },
         new() { Key = WorkflowParamKeys.ProjectEvery, Type = ParamType.Int,    Min = 1, Max = 8 },
     ];
+
+    private const double BudgetMp = 1.0;
+    private const int BudgetSteps = 16;
+
+    protected override (int Width, int Height) EtaRenderSize(QwenPixelizeParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight)
+        => PixelSnap.Target(req.Resolution, p.VirtualResolution, p.SnapResolution, p.Width, p.Height,
+                sourceWidth, sourceHeight) is (int w, int h)
+            ? (w, h)
+            : BudgetScale.Snap(sourceWidth, sourceHeight, BudgetMp, BudgetSteps);
 
     protected override ComfyWorkflowGraph Build(QwenPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

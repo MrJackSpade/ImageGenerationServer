@@ -4,6 +4,7 @@ namespace ImageGen.Comfy.Generation.Ideogram4;
 internal static class Ideogram4WorkflowNodes
 {
     public const string UncondModel = "40";
+    public const string UncondCkAttention = "38";
     public const string Debanner = "41";
     public const string NegativeZeroOut = "26";
     public const string CfgOverride = "2";

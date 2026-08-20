@@ -60,7 +60,7 @@ public sealed class BooguEditWorkflow : EditWorkflow<BooguParams>
         // reference is the node's "images" Autogrow (COMFY_AUTOGROW_V3) input, keyed by its finalized dotted path
         // "images.image_1" (id "." template-name), which the v3 executor rebuilds into images={"image_1": <IMAGE>}. A
         // bare "image_1" is rejected; the dotted key is expressed by the record's [JsonPropertyName("images.image_1")].
-        string neg = inputs.Negative ?? p.Negative ?? "";
+        string neg = ComfyGraph.ComposeNegative(p.Negative, inputs.Negative);
         g[Nodes.Encode] = new TextEncodeBooguEdit
         {
             Clip = clip0,

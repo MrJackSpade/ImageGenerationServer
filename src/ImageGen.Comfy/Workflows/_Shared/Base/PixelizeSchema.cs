@@ -33,7 +33,7 @@ internal static class PixelizeSchema
         // inherit it and hand CLIPLoader a type it does not accept. An omission must surface, not be guessed.
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
@@ -48,7 +48,7 @@ internal static class PixelizeSchema
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },
@@ -62,7 +62,7 @@ internal static class PixelizeSchema
     public static IReadOnlyList<ParamSpec> DreamOmniLike() =>
     [
         new() { Key = WorkflowParamKeys.BaseModel, Type = ParamType.String, IsModelRef = true },
-        new() { Key = WorkflowParamKeys.Steps, Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps, Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,   Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "Guidance scale" },
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },

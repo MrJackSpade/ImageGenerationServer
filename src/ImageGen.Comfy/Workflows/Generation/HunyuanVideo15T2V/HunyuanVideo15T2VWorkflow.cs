@@ -9,6 +9,8 @@ public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2
         [typeof(HunyuanVideo15T2VParams), typeof(HunyuanVideo15T2VNoSrParams), typeof(HunyuanVideo15T2VSrParams)];
     public override string Name => "hunyuanvideo15-t2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
+    /// <summary>HunyuanVideo 1.5 VAE: valid clip lengths are 4n+1.</summary>
+    public override FrameRule? FrameRule => new(1, 4);
     public override IReadOnlyList<ParamSpec> Schema => [.. Txt2ImgWorkflowBase.SharedSchema, .. HunyuanSr.Schema];
 
     protected override ComfyWorkflowGraph Build(HunyuanVideo15T2VParams p, ResolvedRequirements req, WorkflowInputs inputs)

@@ -10,13 +10,14 @@ namespace ImageGen.Comfy.Edit.WanA14bI2V;
 /// (<c>width</c>/<c>height</c>), clip <c>length</c> and <c>fps</c> are required; <c>refiner_steps</c>, the four
 /// <c>pad_*_pct</c> + four <c>end_pad_*_pct</c> percentages, the model's own <c>negative</c> and the <c>seed</c> are
 /// optional (an absent pad % is 0 — no pad on that side).</summary>
-public sealed record WanA14bI2VParams
+public sealed record WanA14bI2VParams : IValidatableObject
 {
     [JsonPropertyName(WorkflowParamKeys.UnetLow)] public required string UnetLow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Shift)] public required double Shift { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Boundary)] public required int Boundary { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Boundary)]
+    [Range(1, ParamBounds.StepsMax - 1)] public required int Boundary { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CfgHigh)] public required double CfgHigh { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CfgLow)] public required double CfgLow { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Sampler)] public required string Sampler { get; init; }
@@ -42,4 +43,13 @@ public sealed record WanA14bI2VParams
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Boundary >= Steps)
+        {
+            yield return new ValidationResult(
+                $"'{WorkflowParamKeys.Boundary}' must be less than '{WorkflowParamKeys.Steps}', but was {Boundary} for {Steps} steps.");
+        }
+    }
 }

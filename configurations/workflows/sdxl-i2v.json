@@ -59,7 +59,7 @@
       "visibility": "exposed",
       "min": 5,
       "max": 16,
-      "step": 4
+      "step": 1
     },
     "beta_schedule": {
       "value": "linear (AnimateDiff-SDXL)",

@@ -225,6 +225,7 @@ public sealed class NormalizeContext
 /// layers, values as CLR primitives or <see cref="JsonElement"/>) is turned into a strongly-typed DTO. Every
 /// submission crosses this boundary exactly once — <see cref="IWorkflow.Build"/> reads its own params DTO here, and
 /// the client reads <see cref="SubmissionCommon"/> here — and stays typed from that point to the wire.</summary>
+[AllowMagicStrings("human-readable numeric validation descriptions")]
 public static class ParamsCodec
 {
     /// <summary>System.Text.Json settings for reading the bag into a typed params DTO: the DTO's own contract enforces
@@ -308,13 +309,19 @@ public static class ParamsCodec
     public static int AsInt(object? v, int dflt = 0) => v switch
     {
         null => dflt,
-        JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? (int)Math.Round(d) : dflt,
-        double d => (int)Math.Round(d),
-        float f => (int)Math.Round(f),
-        long l => (int)l,
+        JsonElement je when je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out int i) => i,
+        JsonElement je when je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) => CheckedInt(d),
+        JsonElement je => throw NumericValueException(je.ToString(), "an integer"),
+        double d => CheckedInt(d),
+        float f => CheckedInt(f),
+        decimal m => CheckedInt((double)m),
+        long l when l is >= int.MinValue and <= int.MaxValue => (int)l,
+        long l => throw NumericValueException(l, "a 32-bit integer"),
         int i => i,
-        string s => int.TryParse(s, out int p) ? p : dflt,
-        _ => dflt
+        string s when int.TryParse(s, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out int p) => p,
+        string s => throw NumericValueException(s, "an integer"),
+        _ => throw NumericValueException(v, "an integer"),
     };
 
     /// <summary>Read a bag value as a double, tolerating the same loose forms as <see cref="AsInt"/> — used by the
@@ -322,14 +329,35 @@ public static class ParamsCodec
     public static double AsDouble(object? v, double dflt = 0) => v switch
     {
         null => dflt,
-        JsonElement je => je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) ? d : dflt,
-        double d => d,
-        float f => f,
+        JsonElement je when je.ValueKind == JsonValueKind.Number && je.TryGetDouble(out double d) => CheckedDouble(d),
+        JsonElement je => throw NumericValueException(je.ToString(), "a finite number"),
+        double d => CheckedDouble(d),
+        float f => CheckedDouble(f),
+        decimal m => CheckedDouble((double)m),
         long l => l,
         int i => i,
-        string s => double.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out double p) ? p : dflt,
-        _ => dflt
+        string s when double.TryParse(s, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out double p) => CheckedDouble(p),
+        string s => throw NumericValueException(s, "a finite number"),
+        _ => throw NumericValueException(v, "a finite number"),
     };
+
+    private static int CheckedInt(double value)
+    {
+        if (!double.IsFinite(value) || value < int.MinValue || value > int.MaxValue || value != Math.Truncate(value))
+        {
+            throw NumericValueException(value, "an integer");
+        }
+
+        return (int)value;
+    }
+
+    private static double CheckedDouble(double value) => double.IsFinite(value)
+        ? value
+        : throw NumericValueException(value, "a finite number");
+
+    private static RenderValidationException NumericValueException(object? value, string expected) =>
+        new($"Parameter value '{value}' must be {expected}; it cannot be silently replaced with a default.");
 }
 
 /// <summary>The cross-workflow submission parameters the client (not a workflow) reads off the merged bag: the ETA
@@ -623,8 +651,8 @@ public sealed record ConfigParamRangeOverride(
 /// A workflow configuration — a row of workflows.json and the unit the API exposes. It binds one
 /// <see cref="IWorkflow"/> (<see cref="WorkflowName"/>), supplies its settings layer (<see cref="Params"/>),
 /// soft-links its requirements, and carries the decision-card/prompting metadata. <see cref="Id"/> is unique
-/// (the binding key the client sends as <c>model</c>); <see cref="FriendlyName"/> MAY be shared across configs
-/// (the shared-display-name case) — paired with disjoint VRAM bands so exactly one is eligible per machine.
+/// (the binding key the client sends as <c>model</c>); <see cref="FriendlyName"/> MAY be shared across configs,
+/// in which case the first requirement-eligible configuration in catalogue order supplies the displayed row.
 /// </summary>
 public sealed class WorkflowConfiguration
 {

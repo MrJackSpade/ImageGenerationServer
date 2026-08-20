@@ -19,13 +19,15 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
         g[Nodes.Model] = ComfyGraph.DiffusionLoaderNode(req.RequiredCheckpoint());   // UNETLoader (.safetensors int8_convrot / bf16)
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Mage, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
+        (Output<Slot.Model> model, Output<Slot.Clip> clip) = ApplyRuntimeModelInputs(
+            g, UNETLoader.ModelOut(Nodes.Model), CLIPLoader.ClipOut(Nodes.Clip), inputs, p.CkAttention);
 
         // Mage's unified conditioning node in its text-only mode: no image inputs -> pure t2i, and it also produces
         // the zero latent (batch×128×h/16×w/16) so the sampler's shape always matches the model. vae is unused here
         // (only edits encode reference latents), so it is left unconnected.
         g[MageFlowGenBaseNodes.Encode] = new TextEncodeMageFlowGen
         {
-            Clip = CLIPLoader.ClipOut(Nodes.Clip),
+            Clip = clip,
             Prompt = inputs.Positive,
             NegativePrompt = inputs.Negative ?? "",
             Width = w,
@@ -41,7 +43,7 @@ public abstract class MageFlowGenBase : Txt2ImgWorkflow<Txt2ImgParams>
             SamplerName = ComfyGraph.MapSampler(p.Sampler),
             Scheduler = ComfyGraph.MapScheduler(p.Scheduler),
             Denoise = 1.0,
-            Model = UNETLoader.ModelOut(Nodes.Model),
+            Model = model,
             Positive = TextEncodeMageFlowGen.PositiveOut(MageFlowGenBaseNodes.Encode),
             Negative = TextEncodeMageFlowGen.NegativeOut(MageFlowGenBaseNodes.Encode),
             LatentImage = TextEncodeMageFlowGen.LatentOut(MageFlowGenBaseNodes.Encode),

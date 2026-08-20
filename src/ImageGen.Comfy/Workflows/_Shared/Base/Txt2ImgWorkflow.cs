@@ -123,6 +123,26 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
         _ => ComfyNodeTypes.EmptyLatentImage,
     };
 
+    /// <summary>
+    /// Apply the runtime model inputs advertised by every still-image generation workflow: the composer's LoRA stack
+    /// patches both MODEL and CLIP, then the optional comfy-kitchen attention backend patches the resulting MODEL.
+    /// Custom graph builders call this once their model and text-encoder heads are ready, so overriding
+    /// <see cref="Workflow{TParams}.Build(TParams, ResolvedRequirements, WorkflowInputs)"/> cannot silently drop
+    /// either cross-cutting input.
+    /// </summary>
+    protected static (Output<Slot.Model> model, Output<Slot.Clip> clip) ApplyRuntimeModelInputs(
+        ComfyWorkflowGraph g,
+        Output<Slot.Model> model,
+        Output<Slot.Clip> clip,
+        WorkflowInputs inputs,
+        bool ckAttention,
+        string attentionNodeId = Nodes.CkAttention)
+    {
+        (model, clip) = ComfyGraph.ApplyLoraStack(g, model, clip, inputs.Loras);
+        model = CkAttention.Apply(g, model, ckAttention, attentionNodeId);
+        return (model, clip);
+    }
+
     protected override ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         string file = req.RequiredCheckpoint();

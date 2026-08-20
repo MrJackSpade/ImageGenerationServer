@@ -29,7 +29,7 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.ClipType, Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Dual,      Type = ParamType.Bool },
         // sampling
-        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps,     Type = ParamType.Int,    Min = ParamBounds.StepsMin, Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,       Type = ParamType.Double, Min = ParamBounds.CfgMin, Max = ParamBounds.CfgMax, Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Guidance,  Type = ParamType.Double },   // Flux distilled guidance (omit the node for non-flux)
         new() { Key = WorkflowParamKeys.Sampler,   Type = ParamType.String },

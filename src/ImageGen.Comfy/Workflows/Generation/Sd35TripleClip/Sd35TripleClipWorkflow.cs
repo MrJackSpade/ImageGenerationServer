@@ -22,6 +22,7 @@ public sealed class Sd35TripleClipWorkflow : Txt2ImgWorkflow<Txt2ImgParams>
             ClipName3 = req.TextEncoder(2),
         };
         Output<Slot.Clip> clipSrc = TripleCLIPLoader.ClipOut(Nodes.Clip);
+        (model0, clipSrc) = ApplyRuntimeModelInputs(g, model0, clipSrc, inputs, p.CkAttention);
 
         (int w, int h) = RenderSize(p, req, inputs);
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };

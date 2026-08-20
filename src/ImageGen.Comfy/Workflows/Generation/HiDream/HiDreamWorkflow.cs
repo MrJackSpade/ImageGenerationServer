@@ -22,6 +22,7 @@ public sealed class HiDreamWorkflow : Txt2ImgWorkflow<HiDreamParams>
         Output<Slot.Clip> clipSrc = QuadrupleCLIPLoader.ClipOut(Nodes.Clip);
         g[Nodes.ModelSampling] = new ModelSamplingSD3 { Model = model0, Shift = p.Shift };
         Output<Slot.Model> modelSrc = ModelSamplingSD3.Out(Nodes.ModelSampling);
+        (modelSrc, clipSrc) = ApplyRuntimeModelInputs(g, modelSrc, clipSrc, inputs, p.CkAttention);
 
         (int w, int h) = RenderSize(p, req, inputs);
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };

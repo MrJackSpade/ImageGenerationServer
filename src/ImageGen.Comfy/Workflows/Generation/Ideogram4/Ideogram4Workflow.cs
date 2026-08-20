@@ -43,17 +43,23 @@ public sealed class Ideogram4Workflow : Txt2ImgWorkflow<Ideogram4Params>
         g[Nodes.Clip] = new CLIPLoader { ClipName = req.TextEncoder(0), Type = ComfyWidgets.ClipType.Ideogram4, Device = ComfyWidgets.Device.Default };
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
 
-        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = CLIPLoader.ClipOut(Nodes.Clip) };
+        Output<Slot.Model> conditionalModel = Ideogram4CorrectionPatch.Out(Ideogram4WorkflowNodes.Debanner);
+        Output<Slot.Clip> clip = CLIPLoader.ClipOut(Nodes.Clip);
+        (conditionalModel, clip) = ApplyRuntimeModelInputs(g, conditionalModel, clip, inputs, p.CkAttention);
+        Output<Slot.Model> unconditionalModel = CkAttention.Apply(
+            g, UNETLoader.ModelOut(Ideogram4WorkflowNodes.UncondModel), p.CkAttention, Ideogram4WorkflowNodes.UncondCkAttention);
+
+        g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip };
         g[Ideogram4WorkflowNodes.NegativeZeroOut] = new ConditioningZeroOut { Conditioning = CLIPTextEncode.Out(Nodes.Positive) };
 
         // Asymmetric CFG: CFGOverride raises guidance on the conditional model over the last (1 - start_percent) of the
         // schedule; DualModelGuider then fuses the (override) conditional and the unconditional model at the base cfg.
-        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = Ideogram4CorrectionPatch.Out(Ideogram4WorkflowNodes.Debanner), Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
+        g[Ideogram4WorkflowNodes.CfgOverride] = new CFGOverride { Model = conditionalModel, Cfg = p.CfgOverride, StartPercent = 0.7, EndPercent = 1.0 };
         g[Ideogram4WorkflowNodes.Guider] = new DualModelGuider
         {
             Model = CFGOverride.Out(Ideogram4WorkflowNodes.CfgOverride),
             Positive = CLIPTextEncode.Out(Nodes.Positive),
-            ModelNegative = UNETLoader.ModelOut(Ideogram4WorkflowNodes.UncondModel),
+            ModelNegative = unconditionalModel,
             Negative = ConditioningZeroOut.Out(Ideogram4WorkflowNodes.NegativeZeroOut),
             Cfg = p.RequiredCfg(),
         };

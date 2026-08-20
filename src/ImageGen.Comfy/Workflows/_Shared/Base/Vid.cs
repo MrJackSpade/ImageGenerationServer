@@ -6,7 +6,8 @@ namespace ImageGen.Comfy;
 /// (none fit the existing single-model i2v/txt2img topologies). Wired from the official ComfyUI templates
 /// (video_wan2_2_14B_{i2v,t2v}.json, video_hunyuan_video_1.5_720p_t2v.json, hunyuan_video_text_to_video.json).
 /// The MoE classes load a SECOND expert from the <c>unet_low</c> param (literal filename); its requirement is linked
-/// in the config's <c>extra</c> for presence-gating. All gate to 24GB via the config's min_vram_mb. Smoke-test live.
+/// in the config's <c>extra</c> for presence-gating. These are intended for 24 GB renderers; catalogue eligibility
+/// itself is requirement-presence only. Smoke-test live.
 /// </summary>
 internal static class Vid
 {
@@ -40,7 +41,7 @@ internal static class Vid
         // structure phase untouched — a draft (small N) then commits (large N) with byte-identical motion, because both
         // runs share the same stage-1 schedule/seed and hand off the same latent. The handoff sits at t* = 1 -
         // boundary/steps; total2 = round(N/t*) puts the refiner's start index on that same sigma (exact whenever N/t* is
-        // whole). 0 = decode the handoff as-is; absent/negative = the legacy shared-schedule tail.
+        // whole). 0 = decode the handoff as-is; absent = the legacy shared-schedule tail.
         int refiner = refinerSteps ?? -1;
         if (refiner == 0)
         {

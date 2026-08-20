@@ -184,6 +184,81 @@ public sealed class ParamBoundsValidationTests
             () => ResolutionGuard.EnsureEditWithin(Env, width, height, workflowNormalizesSource: true));
 
 
+    [Theory]
+    [InlineData("not-a-number")]
+    [InlineData(true)]
+    public void Loose_numeric_normalization_refuses_garbage_instead_of_using_zero(object bad)
+    {
+        _ = Assert.Throws<RenderValidationException>(() => ParamsCodec.AsInt(bad));
+        _ = Assert.Throws<RenderValidationException>(() => ParamsCodec.AsDouble(bad));
+    }
+
+    [Fact]
+    public void Loose_integer_normalization_refuses_fractional_values_instead_of_rounding() =>
+        _ = Assert.Throws<RenderValidationException>(() => ParamsCodec.AsInt(4.6));
+
+    [Fact]
+    public void Hunyuan_sr_toggle_requires_a_json_boolean()
+    {
+        _ = Assert.Throws<RenderValidationException>(() =>
+            ParamsCodec.Deserialize<global::ImageGen.Comfy.Generation.HunyuanVideo15T2V.HunyuanVideo15T2VParams>(
+                new Dictionary<string, object?> { [WorkflowParamKeys.Sr] = "true" }));
+    }
+
+    [Fact]
+    public void Every_explicit_numeric_control_grid_can_reach_its_default_and_maximum()
+    {
+        List<string> offenders = [];
+        foreach ((string id, JsonElement root) in Configurations())
+        {
+            if (!root.TryGetProperty("params", out JsonElement parameters))
+            {
+                continue;
+            }
+
+            foreach (JsonProperty parameter in parameters.EnumerateObject())
+            {
+                JsonElement p = parameter.Value;
+                if (p.ValueKind != JsonValueKind.Object
+                    || !p.TryGetProperty("value", out JsonElement value) || value.ValueKind != JsonValueKind.Number
+                    || !p.TryGetProperty("min", out JsonElement min) || min.ValueKind != JsonValueKind.Number
+                    || !p.TryGetProperty("step", out JsonElement step) || step.ValueKind != JsonValueKind.Number)
+                {
+                    continue;
+                }
+
+                double origin = min.GetDouble();
+                double increment = step.GetDouble();
+                if (increment <= 0)
+                {
+                    offenders.Add($"{id}.{parameter.Name}: step {increment} must be positive");
+                    continue;
+                }
+
+                static bool Reachable(double candidate, double origin, double increment)
+                {
+                    double positions = (candidate - origin) / increment;
+                    return Math.Abs(positions - Math.Round(positions)) < 1e-9;
+                }
+
+                if (!Reachable(value.GetDouble(), origin, increment))
+                {
+                    offenders.Add($"{id}.{parameter.Name}: default {value.GetDouble()} is unreachable from min {origin} by step {increment}");
+                }
+
+                if (p.TryGetProperty("max", out JsonElement max) && max.ValueKind == JsonValueKind.Number
+                    && !Reachable(max.GetDouble(), origin, increment))
+                {
+                    offenders.Add($"{id}.{parameter.Name}: max {max.GetDouble()} is unreachable from min {origin} by step {increment}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "Configuration controls contain values the declared slider grid cannot select:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
     [Fact]
     public void No_configuration_declares_a_bounded_param_outside_its_workflow_schema()
     {

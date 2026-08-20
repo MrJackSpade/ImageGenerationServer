@@ -13,6 +13,8 @@ public sealed class WanA14bT2VWorkflow : Txt2ImgWorkflow<WanA14bT2VParams>
 
     public override string Name => "wan22-t2v-a14b";
     public override WorkflowMedia Media => WorkflowMedia.Video;
+    /// <summary>Wan VAE: 4× temporal compression → valid clip lengths are 4n+1.</summary>
+    public override FrameRule? FrameRule => new(1, 4);
 
     /// <summary>The MoE experts + samplers ("4"/"5"/"41"/"51"/"3"/"31") are written by Vid; Clip/Vae/Positive/Negative/
     /// Decode/Save reuse the inherited txt2img roles; only the empty video latent is an own node.</summary>

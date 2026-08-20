@@ -6,4 +6,5 @@ internal static class Krea2RefineWorkflowNodes
 {
     public const string RefinerModel = "40";
     public const string RefinerSampler = "30";
+    public const string RefinerCkAttention = "38";
 }

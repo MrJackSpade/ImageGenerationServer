@@ -21,6 +21,7 @@ public sealed class ChromaWorkflow : Txt2ImgWorkflow<ChromaParams>
         Output<Slot.Clip> clipSrc = T5TokenizerOptions.Out(ChromaWorkflowNodes.T5Options);
         g[Nodes.ModelSampling] = new ModelSamplingAuraFlow { Model = model0, Shift = p.Shift };
         Output<Slot.Model> modelSrc = ModelSamplingAuraFlow.Out(Nodes.ModelSampling);
+        (modelSrc, clipSrc) = ApplyRuntimeModelInputs(g, modelSrc, clipSrc, inputs, p.CkAttention);
 
         (int w, int h) = RenderSize(p, req, inputs);
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };

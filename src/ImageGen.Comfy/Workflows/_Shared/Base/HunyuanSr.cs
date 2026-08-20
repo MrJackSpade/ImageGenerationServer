@@ -1,3 +1,5 @@
+using ImageGen.Application.Rendering;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -54,8 +56,27 @@ internal static class HunyuanSr
     /// <summary>The SR pass for these params, or null when SR is off — the toggle is the params SHAPE (a concrete SR
     /// subtype implements <see cref="IHunyuanSrPass"/>) plus a supplied SR model file. Callers gate <see cref="Refine"/>
     /// and the tiled decode on a non-null result.</summary>
-    public static IHunyuanSrPass? PassOf(object? p) =>
-        p is IHunyuanSrPass sr && !string.IsNullOrWhiteSpace(sr.SrModel) ? sr : null;
+    public static IHunyuanSrPass? PassOf(object? p)
+    {
+        if (p is not IHunyuanSrPass sr)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(sr.SrModel))
+        {
+            throw new RenderValidationException(
+                $"Super-resolution is enabled, but '{WorkflowParamKeys.SrModel}' is blank.");
+        }
+
+        if (string.IsNullOrWhiteSpace(sr.SrUpsampler))
+        {
+            throw new RenderValidationException(
+                $"Super-resolution is enabled, but '{WorkflowParamKeys.SrUpsampler}' is blank.");
+        }
+
+        return sr;
+    }
 
     /// <summary>Append the SR pass over a typed <see cref="ComfyWorkflowGraph"/> and return its refined latent. Called
     /// only for an SR config (the caller gates on <see cref="PassOf"/>), so every knob on <paramref name="p"/> is present.

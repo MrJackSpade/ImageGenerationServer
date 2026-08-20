@@ -46,7 +46,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
         g[Nodes.ClipVisionEncodeNode] = new CLIPVisionEncode { ClipVision = CLIPVisionLoader.Out(Nodes.ClipVisionLoaderNode), Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Crop = ComfyWidgets.Crop.None };
 
         g[Nodes.PositiveEncode] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
-        g[Nodes.NegativeEncode] = new CLIPTextEncode { Text = Nodes.Negative, Clip = clip0 };
+        g[Nodes.NegativeEncode] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
 
         // Wan2.1 i2v conditioning node: bakes the start image + clip-vision into pos/neg conditioning + the latent.
         g[Nodes.I2VConditioning] = new WanImageToVideo
@@ -76,7 +76,7 @@ public sealed class ChronoEditWorkflow : EditWorkflow<ChronoEditParams>
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
         // Keep the LAST frame of the short trajectory as the edited still.
-        g[Nodes.LastFrame] = new ImageFromBatch { Image = VAEDecode.Out(Nodes.Decode), BatchIndex = Math.Max(0, len - 1), Length = 1 };
+        g[Nodes.LastFrame] = new ImageFromBatch { Image = VAEDecode.Out(Nodes.Decode), BatchIndex = len - 1, Length = 1 };
         g[Nodes.Save] = new SaveImage { Images = ImageFromBatch.Out(Nodes.LastFrame), FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }

@@ -55,6 +55,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
 
         Output<Slot.Model> baseModel = ComfyGraph.ApplyLora(g, UNETLoader.ModelOut(Nodes.Model), p.Lora, p.LoraStrength);   // optional LoRA on the base model only
         Output<Slot.Clip> clipSrc = CLIPLoader.ClipOut(Nodes.Clip);
+        (baseModel, clipSrc) = ApplyRuntimeModelInputs(g, baseModel, clipSrc, inputs, p.CkAttention);
         Output<Slot.Vae> vaeSrc = VAELoader.VaeOut(Nodes.Vae);
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clipSrc };
@@ -86,6 +87,8 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
         if (polish)
         {
             g[Krea2RefineWorkflowNodes.RefinerModel] = ComfyGraph.DiffusionLoaderNode(req.RequiredMotionModel());
+            Output<Slot.Model> refinerModel = CkAttention.Apply(
+                g, UNETLoader.ModelOut(Krea2RefineWorkflowNodes.RefinerModel), p.CkAttention, Krea2RefineWorkflowNodes.RefinerCkAttention);
             g[Krea2RefineWorkflowNodes.RefinerSampler] = new KSampler
             {
                 Seed = ComfyGraph.Seed(p.Seed),
@@ -94,7 +97,7 @@ public sealed class Krea2RefineWorkflow : Krea2Base<Krea2RefineParams>
                 SamplerName = ComfyGraph.MapSampler(p.RefinerSampler ?? p.Sampler),
                 Scheduler = ComfyGraph.MapScheduler(p.RefinerScheduler ?? p.Scheduler),
                 Denoise = p.PolishDenoise,
-                Model = UNETLoader.ModelOut(Krea2RefineWorkflowNodes.RefinerModel),
+                Model = refinerModel,
                 Positive = posSrc,
                 Negative = negSrc,
                 LatentImage = KSampler.Out(Nodes.Sampler),

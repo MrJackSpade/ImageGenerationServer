@@ -1,3 +1,4 @@
+using ImageGen.Application.Rendering;
 using ImageGen.Domain.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,9 +17,19 @@ public abstract class HunyuanSrToggleConverter<TBase, TSr, TNoSr> : JsonConverte
     {
         using JsonDocument doc = JsonDocument.ParseValue(ref reader);
         JsonElement root = doc.RootElement;
-        bool sr = root.TryGetProperty(WorkflowParamKeys.Sr, out JsonElement e)
-            && (e.ValueKind == JsonValueKind.True
-                || (e.ValueKind == JsonValueKind.String && bool.TryParse(e.GetString(), out bool b) && b));
+        bool sr = false;
+        if (root.TryGetProperty(WorkflowParamKeys.Sr, out JsonElement e))
+        {
+            if (e.ValueKind == JsonValueKind.True)
+            {
+                sr = true;
+            }
+            else if (e.ValueKind != JsonValueKind.False)
+            {
+                throw new RenderValidationException($"'{WorkflowParamKeys.Sr}' must be a JSON boolean.");
+            }
+        }
+
         TBase? dto = sr ? root.Deserialize<TSr>(options) : root.Deserialize<TNoSr>(options);
         return dto ?? throw new JsonException($"The merged parameters could not be read as {typeToConvert.Name}.");
     }

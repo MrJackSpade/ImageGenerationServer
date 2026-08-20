@@ -7,7 +7,7 @@ namespace ImageGen.Comfy.Generation.HunyuanImage21;
 /// (flow-shift 5, not AuraFlow) and <c>EmptyHunyuanImageLatent</c> (not the std/SD3/Flux2 latents the base offers).
 /// The distilled build runs ~8 steps at low CFG (meanflow distillation); the standard build ~50 steps at CFG 3.5.
 /// The refiner stage isn't implemented natively in ComfyUI yet, so it's intentionally omitted. ~17 GB fp8 unet +
-/// the Qwen encoder → 24 GB tier (gated by the config's min_vram_mb).
+/// the Qwen encoder → intended for a 24 GB renderer; catalogue eligibility itself is requirement-presence only.
 /// </summary>
 public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Params>
 {
@@ -29,6 +29,7 @@ public sealed class HunyuanImage21Workflow : Txt2ImgWorkflow<HunyuanImage21Param
         Output<Slot.Model> model = ComfyGraph.ApplyLora(g, ModelSamplingSD3.Out(HunyuanImage21WorkflowNodes.ModelSampling), p.Lora, p.LoraStrength);
         g[Nodes.Clip] = new DualCLIPLoader { ClipName1 = req.TextEncoder(0), ClipName2 = req.TextEncoder(1), Type = ComfyWidgets.ClipType.HunyuanImage, Device = ComfyWidgets.Device.Default };
         Output<Slot.Clip> clip = DualCLIPLoader.ClipOut(Nodes.Clip);
+        (model, clip) = ApplyRuntimeModelInputs(g, model, clip, inputs, p.CkAttention);
         g[Nodes.Vae] = new VAELoader { VaeName = req.RequiredVae() };
         Output<Slot.Vae> vae = VAELoader.VaeOut(Nodes.Vae);
 

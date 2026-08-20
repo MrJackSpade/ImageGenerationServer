@@ -16,7 +16,7 @@ public sealed class LineThickenControlNetWorkflow : EditWorkflow<LineThickenCont
     private static readonly IReadOnlyList<ParamSpec> ControlNetSchema =
     [
         new() { Key = LoaderKinds.ParamKey, Type = ParamType.Enum, Choices = LoaderKindWire.Choices },
-        new() { Key = WorkflowParamKeys.Steps,      Type = ParamType.Int,    Min = ParamBounds.StepsMin,    Max = ParamBounds.StepsMax, Label = "Steps" },
+        new() { Key = WorkflowParamKeys.Steps,      Type = ParamType.Int,    Min = ParamBounds.StepsMin,    Max = ParamBounds.StepsMax, Label = "Steps", EtaVariable = true },
         new() { Key = WorkflowParamKeys.Cfg,        Type = ParamType.Double, Min = ParamBounds.CfgMin,    Max = ParamBounds.CfgMax,  Label = "CFG scale" },
         new() { Key = WorkflowParamKeys.Sampler,    Type = ParamType.String },
         new() { Key = WorkflowParamKeys.Scheduler,  Type = ParamType.String },

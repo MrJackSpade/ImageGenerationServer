@@ -9,6 +9,8 @@ public sealed class HunyuanVideoT2VWorkflow : Txt2ImgWorkflow<HunyuanVideoT2VPar
     public override string Name => "hunyuanvideo-t2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     public override bool PromptDirectsMotion => true;
+    /// <summary>HunyuanVideo VAE: valid clip lengths are 4n+1.</summary>
+    public override FrameRule? FrameRule => new(1, 4);
 
     protected override ComfyWorkflowGraph Build(HunyuanVideoT2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {

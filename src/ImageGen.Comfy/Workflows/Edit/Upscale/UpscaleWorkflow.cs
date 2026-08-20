@@ -77,18 +77,13 @@ public sealed class UpscaleWorkflow : EditWorkflow<UpscaleParams>
         };
         Output<Slot.Image> outImage = ImageUpscaleWithModel.Out(Nodes.Upscale);
 
-        // Fit the net's fixed-factor output to the requested scale. A model_scale of 0 (config typo) would divide by
-        // zero, so fall back to "the net's output is already what was asked for" and emit no resample.
-        double modelScale = p.ModelScale;
-        double scale = p.Scale;
-        if (modelScale > 0 && scale > 0)
+        // Fit the net's fixed-factor output to the requested scale. Both factors are validated as positive at the
+        // ParamsCodec boundary, so there is no default-on-error branch here.
+        double ratio = p.Scale / p.ModelScale;
+        if (Math.Abs(ratio - 1.0) > 0.001)   // exactly native → the SR output IS the answer, no resample node
         {
-            double ratio = scale / modelScale;
-            if (Math.Abs(ratio - 1.0) > 0.001)   // exactly native → the SR output IS the answer, no resample node
-            {
-                g[Nodes.Resample] = new ImageScaleBy { Image = outImage, UpscaleMethod = p.Resample, ScaleBy = ratio };
-                outImage = ImageScaleBy.Out(Nodes.Resample);
-            }
+            g[Nodes.Resample] = new ImageScaleBy { Image = outImage, UpscaleMethod = p.Resample, ScaleBy = ratio };
+            outImage = ImageScaleBy.Out(Nodes.Resample);
         }
 
         g[Nodes.Save] = new SaveImage { Images = outImage, FilenamePrefix = OutputPrefixes.Edit };

@@ -1096,7 +1096,7 @@ public sealed class WorkflowGraphTests
     [InlineData("photanima-redraw")]
     [InlineData("flux1-dev-redraw")]
     [InlineData("flux2-dev-redraw")]
-    [InlineData("flux2-klein-4b-redraw-hq")]
+    [InlineData("flux2-klein-4b-redraw")]
     [InlineData("chroma1-hd-redraw")]
     public void No_redraw_config_evicts_the_text_encoder(string id) => Assert.DoesNotContain("EvictCLIPFromGPU", BuildJson(id, Edit));
 
@@ -2546,6 +2546,108 @@ public sealed class WorkflowGraphTests
         string overridden = JsonSerializer.Serialize(wf.Build(Merge(catalog, wf, cfg), catalog.Resolve(cfg), Gen));
         Assert.Contains("\"steps\":12", overridden);
         Assert.DoesNotContain("\"steps\":28", overridden);
+    }
+
+    [Fact]
+    public void BooguEdit_appends_the_user_negative_to_the_model_quality_negative()
+    {
+        const string modelNegative = "model quality negative";
+        WorkflowInputs inputs = new()
+        {
+            Positive = "make it red",
+            Negative = "user negative",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+        };
+
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("boogu-edit", inputs,
+            new Dictionary<string, object?> { [WorkflowParamKeys.Negative] = modelNegative }));
+        JsonElement encode = doc.RootElement.EnumerateObject()
+            .Single(p => p.Value.GetProperty("class_type").GetString() == "TextEncodeBooguEdit").Value;
+        Assert.Equal(ComfyGraph.ComposeNegative(modelNegative, inputs.Negative),
+            encode.GetProperty("inputs").GetProperty("negative_prompt").GetString());
+    }
+
+    [Fact]
+    public void ChronoEdit_uses_the_user_negative_and_refuses_nonpositive_lengths()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "make it red",
+            Negative = "user negative",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+        };
+
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("chronoedit", inputs));
+        Assert.Equal("user negative",
+            doc.RootElement.GetProperty("12").GetProperty("inputs").GetProperty("text").GetString());
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("chronoedit", inputs,
+            new Dictionary<string, object?> { [WorkflowParamKeys.Length] = 0 }));
+    }
+
+    [Fact]
+    public void Wan22_t2v_catalog_entry_builds_the_existing_two_expert_video_graph()
+    {
+        (WorkflowCatalog catalog, _) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("wan22-t2v"));
+        Assert.Equal("wan22-t2v-a14b", cfg.WorkflowName);
+        Assert.Contains("wan2-2-t2v-low-noise-14b", cfg.Requirements.Extra);
+
+        string json = BuildJson("wan22-t2v", Gen);
+        Assert.Contains("\"EmptyHunyuanLatentVideo\"", json);
+        Assert.Contains("\"SaveAnimatedWEBP\"", json);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(json, "\"KSamplerAdvanced\"").Count);
+        Assert.DoesNotContain("\"SaveImage\"", json);
+    }
+
+    [Fact]
+    public void Pixelize_and_line_thicken_step_controls_participate_in_eta_signatures()
+    {
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        string[] families = ["pixelize", "pixelize-kontext", "pixelize-qwen", "pixelize-klein4b", "pixelize-dreamomni2", "line-thicken-controlnet"];
+        WorkflowConfiguration[] configs = [.. catalog.AllConfigs().Where(c => families.Contains(c.WorkflowName, StringComparer.Ordinal))];
+        Assert.NotEmpty(configs);
+
+        foreach (WorkflowConfiguration cfg in configs)
+        {
+            IWorkflow wf = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+            ParamSpec steps = Assert.Single(wf.Schema, s => s.Key == WorkflowParamKeys.Steps);
+            Assert.True(steps.EtaVariable, $"{cfg.Id} does not include steps in its ETA signature.");
+        }
+    }
+
+    [Theory]
+    [InlineData("pixelize-kontext")]
+    [InlineData("pixelize-qwen")]
+    [InlineData("pixelize-longcat")]
+    [InlineData("pixelize-longcat-turbo")]
+    [InlineData("pixelize-firered")]
+    public void Kontext_and_Qwen_pixelizers_report_their_one_megapixel_working_size(string configId)
+    {
+        Dictionary<string, object?> unsnapped = new()
+        {
+            [WorkflowParamKeys.SnapResolution] = false,
+            [WorkflowParamKeys.Width] = 0,
+            [WorkflowParamKeys.Height] = 0,
+        };
+        Assert.Equal(BudgetScale.Snap(2400, 1600, 1.0, 16), EtaSize(configId, 2400, 1600, unsnapped));
+    }
+
+    [Fact]
+    public void Invalid_specialized_workflow_values_are_refused_before_graph_construction()
+    {
+        _ = Assert.Throws<RenderValidationException>(() => Krea2Rebalance.IsActive(1.0,
+            "1,1,1,1,1,1,1,1,1,1,not-a-number,1"));
+
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("hunyuanvideo15-t2v-sr", Gen,
+            new Dictionary<string, object?> { [WorkflowParamKeys.SrModel] = " " }));
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("wan22-t2v-a14b", Gen,
+            new Dictionary<string, object?> { [WorkflowParamKeys.Boundary] = 40 }));
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("wan22-t2v-a14b", Gen,
+            new Dictionary<string, object?> { [WorkflowParamKeys.RefinerSteps] = -1 }));
     }
 
     /// <summary>

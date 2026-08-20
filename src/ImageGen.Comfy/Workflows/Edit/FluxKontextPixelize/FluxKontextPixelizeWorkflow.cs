@@ -14,6 +14,16 @@ public sealed class FluxKontextPixelizeWorkflow : EditWorkflow<FluxKontextPixeli
     public override bool PreservesComposition => true;
     public override IReadOnlyList<ParamSpec> Schema => PixelizeSchema.KontextLike();
 
+    private const double BudgetMp = 1.0;
+    private const int BudgetSteps = 16;
+
+    protected override (int Width, int Height) EtaRenderSize(FluxKontextPixelizeParams p, ResolvedRequirements req,
+        int sourceWidth, int sourceHeight)
+        => PixelSnap.Target(req.Resolution, p.VirtualResolution, p.SnapResolution, p.Width, p.Height,
+                sourceWidth, sourceHeight) is (int w, int h)
+            ? (w, h)
+            : BudgetScale.Snap(sourceWidth, sourceHeight, BudgetMp, BudgetSteps);
+
     protected override ComfyWorkflowGraph Build(FluxKontextPixelizeParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();

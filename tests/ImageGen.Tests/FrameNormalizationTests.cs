@@ -96,6 +96,21 @@ public sealed class FrameNormalizationTests
         Assert.Equal(expected, p[WorkflowParamKeys.Length]);
     }
 
+    [Theory]
+    [InlineData(typeof(ImageGen.Comfy.Generation.WanA14bT2V.WanA14bT2VWorkflow))]
+    [InlineData(typeof(ImageGen.Comfy.Generation.HunyuanVideoT2V.HunyuanVideoT2VWorkflow))]
+    [InlineData(typeof(ImageGen.Comfy.Generation.HunyuanVideo15T2V.HunyuanVideo15T2VWorkflow))]
+    public void Cadence_sensitive_t2v_workflows_normalize_to_their_4n_plus_1_grid(Type workflowType)
+    {
+        IWorkflow workflow = Assert.IsAssignableFrom<IWorkflow>(Activator.CreateInstance(workflowType));
+        Assert.Equal(new FrameRule(1, 4), workflow.FrameRule);
+        Dictionary<string, object?> p = Bag((WorkflowParamKeys.Length, 30));
+
+        _ = workflow.Normalize(p, NormalizeContext.Empty);
+
+        Assert.Equal(33, p[WorkflowParamKeys.Length]);
+    }
+
     [Fact]
     public void No_frame_rule_means_no_change()
     {
