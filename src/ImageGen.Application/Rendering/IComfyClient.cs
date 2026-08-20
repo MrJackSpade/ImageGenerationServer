@@ -44,9 +44,10 @@ public interface IComfyClient
         IReadOnlyList<ReferenceUpload>? references, IReadOnlyDictionary<string, JsonElement>? overrides,
         byte[]? maskPng, byte[]? lastFramePng, CancellationToken ct);
 
-    /// <summary>One non-looping poll of a prompt's result: the produced image if ready, null if not yet, or throws
-    /// <see cref="RenderValidationException"/> if the backend reported an error.</summary>
-    Task<GeneratedImage?> PollResultAsync(string promptId, CancellationToken ct);
+    /// <summary>One non-looping poll of a prompt's result. Not-ready and renderer-unavailable are distinct so a
+    /// transport outage is never used as evidence that an accepted prompt vanished. Throws
+    /// <see cref="RenderValidationException"/> if the backend reported a terminal execution error.</summary>
+    Task<RenderPollResult> PollResultAsync(string promptId, CancellationToken ct);
 
     /// <summary>What the backend currently holds — the prompts it is EXECUTING and the ones queued behind them — or
     /// null when it didn't answer (distinct from an empty queue). The executing set is the only thing that makes a
@@ -64,9 +65,9 @@ public interface IComfyClient
     /// returning the corrected overrides + a user-facing notice (both null when nothing changed).</summary>
     QueueNormalizationResult NormalizeForQueue(string? configId, RenderKind kind, IReadOnlyDictionary<string, JsonElement>? overrides);
 
-    /// <summary>Fetch raw bytes for a legacy image id (a backend view-ref minted before DB storage), for the
-    /// DB-first/legacy-fallback image path. Throws when the backend doesn't have it.</summary>
-    Task<byte[]> FetchLegacyImageAsync(string imageId, CancellationToken ct);
+    /// <summary>Fetch raw bytes for a legacy image id (a backend view-ref minted before DB storage), distinguishing a
+    /// definitive missing artifact from a renderer that could not answer.</summary>
+    Task<LegacyImageFetchResult> FetchLegacyImageAsync(string imageId, CancellationToken ct);
 
     /// <summary>Connect to the backend's live-progress WebSocket under this client's id, so the API can proxy
     /// progress/preview frames to the browser.</summary>

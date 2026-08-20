@@ -94,6 +94,9 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     /// transition. Without this, a stale active-list row can be published after cancellation and later persisted back
     /// over the cancelled row.</summary>
     private readonly SemaphoreSlim _rehydrateMutation = new(1, 1);
+    /// <summary>Terminal jobs with exactly one owner driving their final durable write. A rejected write leaves the
+    /// job visible in memory and the driver retries until the row accepts the terminal state.</summary>
+    private readonly HashSet<string> _finalPersistenceDrivers = new(StringComparer.Ordinal);
     private readonly string _machine = Environment.MachineName;
     private RenderSlot? _running;
 
@@ -288,13 +291,12 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         {
             // As in Cancel: the slot is already flagged, so a failed interrupt does not undo the preemption — but the
             // GPU is then still on the background render, and that must be recorded rather than dropped. This is a
-            // SYNCHRONOUS interrupt of the backend's single in-flight prompt (ours), and it returns before this method
-            // does — long before the worker can notice the preempt (next 1.5s poll), requeue, pick, build and submit the
-            // foreground slot — so it cannot land on that later foreground render. The same bounded stale-interrupt
-            // window the Cancel path has carried; there is no interrupt-by-prompt-id on the backend to tighten it.
+            // Await the interrupt of the backend's single in-flight prompt (ours) before waking the worker — long
+            // before it can notice the preempt, requeue, pick, build and submit the foreground slot — so the interrupt
+            // cannot land on that later render. There is no interrupt-by-prompt-id on the backend to tighten this.
             try
             {
-                _comfy.InterruptAsync(CancellationToken.None).GetAwaiter().GetResult();
+                await _comfy.InterruptAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -469,7 +471,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
     /// <summary>Cancel a whole job: drop the slots still waiting, and ask the worker to abandon the one it holds.
     /// Returns false if unknown.</summary>
-    public bool Cancel(string jobId)
+    public async Task<bool> CancelAsync(string jobId)
     {
         RenderJob? job;
         bool interrupt = false;
@@ -524,7 +526,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             // rendering cancelled work with nothing anywhere to say so.
             try
             {
-                _comfy.InterruptAsync(CancellationToken.None).GetAwaiter().GetResult();
+                await _comfy.InterruptAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -556,7 +558,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
             if (live)
             {
-                return Cancel(jobId);
+                return await CancelAsync(jobId);
             }
 
             JobRecord? rec = await _jobRepo.GetAsync(jobId, ct);
@@ -584,7 +586,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     /// <para>Server-side deliberately: the queue page shows 25 rows of a list it re-polls every 2s, so a client-side
     /// loop over the rendered rows would clear only the visible page and race the poll rebuilding it.</para>
     /// <para>The render on the GPU is stopped without any separate interrupt call, and — this is the point — without
-    /// the risk of one. <see cref="Cancel"/> interrupts only when the slot the worker holds belongs to the job being
+    /// the risk of one. <see cref="CancelAsync"/> interrupts only when the slot the worker holds belongs to the job being
     /// cancelled, so cancelling a set stops the in-flight image exactly when that image is part of the set. Firing an
     /// unconditional interrupt for "cancel mine" would kill whatever else was on that GPU, which for a cross-user box
     /// means killing another user's image while claiming to have cancelled only your own.</para>
@@ -595,7 +597,14 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     public async Task<int> CancelAllAsync(long? owner, CancellationToken ct)
     {
         List<RenderJob> live = owner is { } o ? ActiveForOwner(o) : AllActive();
-        int cancelled = live.Count(j => Cancel(j.JobId));
+        int cancelled = 0;
+        foreach (RenderJob job in live)
+        {
+            if (await CancelAsync(job.JobId))
+            {
+                cancelled++;
+            }
+        }
 
         IReadOnlyList<JobRecord> rows = await _jobRepo.ListActiveForMachineAsync(_machine, ct);
         foreach (JobRecord rec in rows)
@@ -824,7 +833,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     /// <summary>Abandon the single image the worker is on (its job's other slots keep their place). Returns false when
     /// the worker has nothing. If the prompt hasn't reached the backend yet there is nothing to interrupt — the worker
     /// is told to stop and drops it before submitting.</summary>
-    public bool CancelRunning()
+    public async Task<bool> CancelRunningAsync()
     {
         RenderSlot? s;
         bool interrupt;
@@ -853,7 +862,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             // cancel — but it does mean the GPU is still on it, and that has to be recorded rather than dropped.
             try
             {
-                _comfy.InterruptAsync(CancellationToken.None).GetAwaiter().GetResult();
+                await _comfy.InterruptAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -1123,7 +1132,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 {
                     src = await GetImageBytesAsync(edit.ImageId, ct);
                 }
-                catch (HttpRequestException)
+                catch (RenderInputNotFoundException)
                 {
                     FailSlot(slot, $"source image '{edit.ImageId}' not found");
                     return;
@@ -1137,7 +1146,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     {
                         refMedia = await GetImageMediaAsync(refId, ct);
                     }
-                    catch (HttpRequestException)
+                    catch (RenderInputNotFoundException)
                     {
                         FailSlot(slot, $"reference '{refId}' not found");
                         return;
@@ -1161,7 +1170,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     {
                         maskBytes = await GetImageBytesAsync(edit.MaskImageId, ct);
                     }
-                    catch (HttpRequestException)
+                    catch (RenderInputNotFoundException)
                     {
                         FailSlot(slot, $"mask image '{edit.MaskImageId}' not found");
                         return;
@@ -1175,7 +1184,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     {
                         lastFrameBytes = await GetImageBytesAsync(edit.LastFrameImageId, ct);
                     }
-                    catch (HttpRequestException)
+                    catch (RenderInputNotFoundException)
                     {
                         FailSlot(slot, $"last-frame image '{edit.LastFrameImageId}' not found");
                         return;
@@ -1366,7 +1375,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     double? avgMs = slot.EtaSignature is { } sig
                         ? await _timings.EtaAverageMsAsync(_machine, slot.Model, sig, 10, ct)
                         : null;
-                    expected = avgMs is double ms ? ms / 1000.0 : null;
+                    expected = avgMs is double averageMilliseconds ? averageMilliseconds / 1000.0 : null;
                 }
                 catch (Exception ex)
                 {
@@ -1397,9 +1406,19 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 }
 
                 await Task.Delay(1500, ct);
-                img = await _comfy.PollResultAsync(promptId, ct);
-                if (img is not null)
+                RenderPollResult poll = await _comfy.PollResultAsync(promptId, ct);
+                if (poll.State == RenderPollState.Unavailable)
                 {
+                    // A failed history request is not evidence that the prompt is absent. In particular, do not pair
+                    // it with an empty /queue response and increment the vanish counter: the prompt may have finished
+                    // and be waiting in history while that endpoint is temporarily unhealthy.
+                    continue;
+                }
+
+                if (poll.State == RenderPollState.Ready)
+                {
+                    img = poll.Image ?? throw new InvalidOperationException(
+                        "The renderer reported a ready prompt without an image.");
                     break;
                 }
 
@@ -1472,22 +1491,27 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             }
 
             // Success — record the actual render duration (submit -> image; queue wait excluded) for future ETAs.
-            try
+            // A resumed prompt deliberately has no local start timestamp: the pre-restart value includes application
+            // downtime and cannot produce a truthful sample. Null means skip, never fabricate a near-zero duration.
+            int? completedMs = CompletedTimingMilliseconds(slot.GenStartedAt, DateTimeOffset.UtcNow);
+            if (completedMs is int elapsedMs)
             {
-                int ms = (int)Math.Clamp((DateTimeOffset.UtcNow - (slot.GenStartedAt ?? DateTimeOffset.UtcNow)).TotalMilliseconds, 0, int.MaxValue);
-                EtaSignature? etaSig = slot.EtaSignature;
-                await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, ms,
-                    etaSig?.Width, etaSig?.Height, etaSig?.Steps, etaSig?.Frames), ct);
-                // The sample is persisted — flush the averages snapshot so the next /forge/workflows and /forge/queue
-                // read reflects it. Done AFTER the insert so the rebuild can't race it and re-cache the old averages.
-                _timingAverages.Invalidate();
-            }
-            catch (Exception ex)
-            {
-                // Telemetry, and the image is already rendered — this must not fail the slot. It must still be
-                // recorded: these samples are what every future ETA is computed from, so losing them silently
-                // degrades the ETAs of every later render with nothing to attribute it to.
-                _log.LogWarning(ex, "Render-timing sample could not be recorded for {Model}.", slot.Model);
+                try
+                {
+                    EtaSignature? etaSig = slot.EtaSignature;
+                    await _timings.AddAsync(new GenTimingEntry(_machine, slot.Model, slot.IsEdit, elapsedMs,
+                        etaSig?.Width, etaSig?.Height, etaSig?.Steps, etaSig?.Frames), ct);
+                    // The sample is persisted — flush the averages snapshot so the next /forge/workflows and /forge/queue
+                    // read reflects it. Done AFTER the insert so the rebuild can't race it and re-cache the old averages.
+                    _timingAverages.Invalidate();
+                }
+                catch (Exception ex)
+                {
+                    // Telemetry, and the image is already rendered — this must not fail the slot. It must still be
+                    // recorded: these samples are what every future ETA is computed from, so losing them silently
+                    // degrades the ETAs of every later render with nothing to attribute it to.
+                    _log.LogWarning(ex, "Render-timing sample could not be recorded for {Model}.", slot.Model);
+                }
             }
 
             // The artifact's media type is the file ComfyUI wrote: a still (.png), the silent animated-webp clip most
@@ -1609,6 +1633,13 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             FailSlot(slot, ex.Message);
         }
     }
+
+    /// <summary>A truthful completed-render duration, or null when this process did not observe the submit time. The
+    /// latter is the resumed-render case: using the persisted timestamp would include restart downtime.</summary>
+    internal static int? CompletedTimingMilliseconds(DateTimeOffset? startedAt, DateTimeOffset finishedAt) =>
+        startedAt is { } started
+            ? (int)Math.Clamp((finishedAt - started).TotalMilliseconds, 0, int.MaxValue)
+            : null;
 
     /// <summary>
     /// Store a finished render's bytes, waiting out an unreachable database.
@@ -1807,57 +1838,122 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         }
     }
 
-    /// <summary>After a slot resolves: write the job through, and if every slot is now terminal, finalize the job and
-    /// drop it from the active maps (the DB holds the finalized record).</summary>
+    /// <summary>After a slot resolves: write the job through. Once every slot is terminal, exactly one final-persistence
+    /// driver owns the durable write; rejection leaves the terminal outcome resident and schedules retries. The job is
+    /// removed from memory only after its terminal row succeeds.</summary>
     private async Task AfterSlotAsync(RenderJob job)
     {
-        bool finalize = false;
+        bool terminal;
+        bool ownsFinalDriver = false;
         lock (_lock)
         {
-            if (job.AllTerminal && job.FinishedAt is null)
+            terminal = job.AllTerminal;
+            if (terminal)
             {
-                job.FinishedAt = DateTimeOffset.UtcNow;
-                finalize = true;
+                job.FinishedAt ??= DateTimeOffset.UtcNow;
+                ownsFinalDriver = _finalPersistenceDrivers.Add(job.JobId);
             }
         }
 
-        bool persisted = await PersistAsync(job) is null;
-
-        // Finalizing means dropping the job from memory next — so if the write failed, memory is about to become the
-        // only place the outcome ever existed. Keep the job resident (it is terminal, so it renders nothing) and let a
-        // later write carry it, rather than silently losing the result and leaving the row Active to replay forever.
-        if (finalize && !persisted)
+        if (!terminal)
         {
-            lock (_lock)
-            {
-                job.FinishedAt = null;   // not finished until it is written down
-            }
-
+            _ = await PersistAsync(job);
             return;
         }
 
-        if (finalize)
+        if (!ownsFinalDriver)
         {
-            // Now that the write-through is done and this job will never upsert again, drop any slot whose image the
-            // user deleted while the batch was still running (the delete cascade has to leave live slots alone).
+            return;
+        }
+
+        if (await PersistAsync(job) is null)
+        {
             try
             {
-                await _jobRepo.SweepDeletedImageSlotsAsync(job.JobId, CancellationToken.None);
+                await RemoveDurablyFinalizedJobAsync(job);
             }
-            catch (Exception ex)
+            finally
             {
-                _log.LogWarning(ex, "Slot sweep failed for job {JobId}", job.JobId);
+                lock (_lock)
+                {
+                    _ = _finalPersistenceDrivers.Remove(job.JobId);
+                }
             }
+        }
+        else
+        {
+            _log.LogWarning("Final persistence for job {JobId} was rejected; its terminal result remains live and will be retried.", job.JobId);
+            _ = RetryFinalPersistenceAsync(job);
+        }
+    }
 
+    /// <summary>Health driver for a rejected terminal write. Non-database defects are retried with a capped backoff;
+    /// database outages are already waited out inside <see cref="PersistAsync"/>. The driver is deliberately detached:
+    /// startup rehydration and request threads must remain responsive while the terminal outcome stays queryable.</summary>
+    private async Task RetryFinalPersistenceAsync(RenderJob job)
+    {
+        TimeSpan delay = TimeSpan.FromSeconds(1);
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(delay);
+                lock (_lock)
+                {
+                    if (!_jobs.TryGetValue(job.JobId, out RenderJob? current) || !ReferenceEquals(current, job))
+                    {
+                        return;
+                    }
+                }
+
+                if (await PersistAsync(job) is null)
+                {
+                    await RemoveDurablyFinalizedJobAsync(job);
+                    return;
+                }
+
+                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 30));
+                _log.LogWarning("Final persistence for job {JobId} is still pending; retrying in {Delay}s.",
+                    job.JobId, delay.TotalSeconds);
+            }
+        }
+        catch (Exception ex)
+        {
+            // PersistAsync converts repository failures to results; this catches only a defect in the retry driver
+            // itself. Leave the job resident and loud rather than allowing an unobserved task fault to hide it.
+            _log.LogError(ex, "Final persistence retry driver failed for job {JobId}; the terminal result remains live.", job.JobId);
+        }
+        finally
+        {
             lock (_lock)
             {
-                _ = _jobs.Remove(job.JobId);
-                foreach (RenderSlot s in job.Slots)
+                _ = _finalPersistenceDrivers.Remove(job.JobId);
+            }
+        }
+    }
+
+    /// <summary>Drop a terminal job from the live cache only after its terminal row has been accepted.</summary>
+    private async Task RemoveDurablyFinalizedJobAsync(RenderJob job)
+    {
+        // Now that the write-through is done and this job will never upsert again, drop any slot whose image the
+        // user deleted while the batch was still running (the delete cascade has to leave live slots alone).
+        try
+        {
+            await _jobRepo.SweepDeletedImageSlotsAsync(job.JobId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Slot sweep failed for job {JobId}", job.JobId);
+        }
+
+        lock (_lock)
+        {
+            _ = _jobs.Remove(job.JobId);
+            foreach (RenderSlot s in job.Slots)
+            {
+                if (s.ComfyPromptId is { } c)
                 {
-                    if (s.ComfyPromptId is { } c)
-                    {
-                        _ = _comfyToSlot.Remove(c);
-                    }
+                    _ = _comfyToSlot.Remove(c);
                 }
             }
         }
@@ -1958,10 +2054,9 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
         try
         {
-            // Waits out an unreachable database rather than reporting the write as failed. Nothing re-drives a
-            // dropped persist: AfterSlotAsync relies on a LATER write carrying it, and for the last slot of the last
-            // job there is no later write — the job then sits resident and unpersisted while its row stays Active
-            // forever. That is the zombie-Active-row mechanism, and it is this call that has to not give up.
+            // Waits out an unreachable database rather than reporting the write as failed. Non-terminal transitions
+            // rely on a later state change to carry a rejected write; a terminal transition is different and has the
+            // explicit RetryFinalPersistenceAsync driver, which retains the visible result until this succeeds.
             await AwaitingDatabaseAsync(
                 ct => _jobRepo.UpsertAsync(rec, ct), $"persisting job {job.JobId}", CancellationToken.None);
             return null;
@@ -2065,12 +2160,12 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 // The spec, field by field — stored as columns rather than one blob, with the ids left legible so the
                 // database can join and cascade on them. The mode-specific columns are grouped: exactly one of the two
                 // is populated, by mode, and each field is absent (not forced-null) from the other mode's slot.
-                Workflow = s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
-                Prompt = s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
-                NegativePrompt = s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
-                OverridesJson = OverridesJsonOf(s),
-                LorasJson = LorasJsonOf(s),
-                Generate = s.IsEdit ? null : new GenerateSlotData
+                Workflow = s.RehydrateFallback is { } fallbackWorkflow ? fallbackWorkflow.Workflow : s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
+                Prompt = s.RehydrateFallback is { } fallbackPrompt ? fallbackPrompt.Prompt : s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
+                NegativePrompt = s.RehydrateFallback is { } fallbackNegative ? fallbackNegative.NegativePrompt : s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
+                OverridesJson = s.RehydrateFallback is { } fallbackOverrides ? fallbackOverrides.OverridesJson : OverridesJsonOf(s),
+                LorasJson = s.RehydrateFallback is { } fallbackLoras ? fallbackLoras.LorasJson : LorasJsonOf(s),
+                Generate = s.RehydrateFallback is { } fallbackGenerate ? fallbackGenerate.Generate : s.IsEdit ? null : new GenerateSlotData
                 {
                     Aspect = s.RequireGen().Aspect,
                     RandomArtist = s.RequireGen().RandomArtist,
@@ -2078,7 +2173,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     Temperature = s.RequireGen().Temperature,
                     TagTypesJson = s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
                 },
-                Edit = !s.IsEdit ? null : new EditSlotData
+                Edit = s.RehydrateFallback is { } fallbackEdit ? fallbackEdit.Edit : !s.IsEdit ? null : new EditSlotData
                 {
                     Changed = s.EditResult?.Changed ?? true,
                     ChangeScore = s.EditResult?.ChangeScore,
@@ -2334,6 +2429,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 Index = sr.SlotIndex,
                 Gen = gen,
                 Edit = edit,
+                RehydrateFallback = parseError is null ? null : sr,
                 IsBackground = sr.IsBackground,
                 ComfyPromptId = comfyPromptId,
                 ImageId = sr.ImageId,
@@ -2349,7 +2445,13 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 RawNegativePrompt = sr.RawNegativePrompt,
                 Marks = marks,
                 GeneratedTokens = generatedTokens,
-                GenStartedAt = sr.GenStartedAtUtc is { } g ? new DateTimeOffset(DateTime.SpecifyKind(g, DateTimeKind.Utc)) : null,
+                // Only a terminal row may retain its historical timestamp for serialization. Every non-terminal slot
+                // resumes under this new process with an unknown local start, so it must not contribute a timing sample
+                // or a restart-gap ETA countdown.
+                GenStartedAt = sr.State is JobSlotState.Done or JobSlotState.Error or JobSlotState.Cancelled
+                    && sr.GenStartedAtUtc is { } g
+                        ? new DateTimeOffset(DateTime.SpecifyKind(g, DateTimeKind.Utc))
+                        : null,
                 ExpectedGenSeconds = sr.ExpectedGenSeconds,
                 State = parseError is not null ? SlotState.Error : RenderPhases.Live(sr.State),
             };
@@ -2561,7 +2663,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
     /// <summary>Source bytes for an edit/reference id: an in-memory upload first (the user's own source/reference/mask,
     /// which is never persisted), then the DB blob, else the legacy backend view fetch. Throws
-    /// <see cref="HttpRequestException"/> when none has it, which the caller turns into a "not found".
+    /// <see cref="RenderInputNotFoundException"/> only for a definitive legacy 404; renderer outages wait and retry.
     /// <para>An upload is process-local, so a slot that was queued but never submitted before a restart lands here with
     /// nothing to find; that surfaces as a slot error naming the missing source rather than a silent failure.</para></summary>
     private async Task<byte[]> GetImageBytesAsync(string id, CancellationToken ct) => (await GetImageMediaAsync(id, ct)).Bytes;
@@ -2585,7 +2687,26 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             return (blob.Bytes, blob.ContentType);
         }
 
-        return (await _comfy.FetchLegacyImageAsync(id, ct), ReferenceKindNames.ImageMime + "png");
+        TimeSpan retryDelay = TimeSpan.FromSeconds(5);
+        while (true)
+        {
+            LegacyImageFetchResult legacy = await _comfy.FetchLegacyImageAsync(id, ct);
+            if (legacy.State == LegacyImageFetchState.Found)
+            {
+                return (legacy.Bytes ?? throw new InvalidOperationException(
+                    "The renderer reported a found legacy image without bytes."), ReferenceKindNames.ImageMime + "png");
+            }
+
+            if (legacy.State == LegacyImageFetchState.NotFound)
+            {
+                throw new RenderInputNotFoundException(id);
+            }
+
+            // Accepted work is durable and must survive a renderer restart. The client logged why this lookup could
+            // not answer; retry with capped backoff until it can distinguish found from definitively missing.
+            await Task.Delay(retryDelay, ct);
+            retryDelay = TimeSpan.FromSeconds(Math.Min(retryDelay.TotalSeconds * 2, 60));
+        }
     }
 
     #endregion

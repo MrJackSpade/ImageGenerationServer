@@ -980,8 +980,9 @@ public static class ForgeApi
         // holds — stranded by a crash — has nothing rendering it, so its row is failed instead. Same answer either way:
         // the queue page offers Cancel on anything unfinished, and unfinished-and-unowned must not be a dead button.
         _ = app.MapPost(Routes.Cancel, async (string id, RenderOrchestrator queue, CancellationToken ct) =>
-            Results.Ok(new { ok = queue.Cancel(id) || await queue.CancelStrandedAsync(id, ct) }));
-        _ = app.MapPost(Routes.Interrupt, (RenderOrchestrator queue) => Results.Ok(new { ok = queue.CancelRunning() }));
+            Results.Ok(new { ok = await queue.CancelAsync(id) || await queue.CancelStrandedAsync(id, ct) }));
+        _ = app.MapPost(Routes.Interrupt, async (RenderOrchestrator queue) =>
+            Results.Ok(new { ok = await queue.CancelRunningAsync() }));
 
         // Bulk cancel, in one call rather than a client loop over rendered rows: the queue page shows 25 of a list it
         // re-polls every 2s, so a loop would clear only the visible page and race the poll rebuilding it.
@@ -1326,14 +1327,14 @@ public static class ForgeApi
     /// unreachable, or erroring. Those are opposite facts, and only one of them is the user's to act on.</summary>
     private static async Task<byte[]?> FetchLegacyOrNullAsync(IComfyClient comfy, ImageReadGrant grant, CancellationToken ct)
     {
-        try
+        LegacyImageFetchResult result = await comfy.FetchLegacyImageAsync(grant.ImageId, ct);
+        return result.State switch
         {
-            return await comfy.FetchLegacyImageAsync(grant.ImageId, ct);
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-        {
-            return null;
-        }
+            LegacyImageFetchState.Found => result.Bytes ?? throw new InvalidOperationException(
+                "The renderer reported a found legacy image without bytes."),
+            LegacyImageFetchState.NotFound => null,
+            _ => throw new HttpRequestException("ComfyUI could not answer the legacy image lookup."),
+        };
     }
 
     /// <summary>A slot's marks in the client's token-&gt;kind shape. They are stored as rows (dbo.JobSlotMark), so

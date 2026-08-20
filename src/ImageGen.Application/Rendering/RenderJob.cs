@@ -42,8 +42,13 @@ public sealed class RenderSlot
     public GenerateSpec? Gen { get; init; }
     /// <summary>The edit spec, or null for a generate slot.</summary>
     public EditSpec? Edit { get; init; }
-    /// <summary>True when this slot is an edit.</summary>
-    public bool IsEdit => Edit is not null;
+    /// <summary>The original durable row for a slot whose value bag was corrupt during rehydration. Such a slot has
+    /// no runnable Gen/Edit spec, but still needs its typed columns to survive the error-state write-through.</summary>
+    [AllowNullable("null for every normal/runnable slot; present only when corrupt persisted JSON prevented spec reconstruction")]
+    internal JobSlotRecord? RehydrateFallback { get; init; }
+    /// <summary>True when this slot is an edit. A corrupt rehydrated slot retains the durable discriminant even though
+    /// it deliberately has no runnable <see cref="Edit"/> object.</summary>
+    public bool IsEdit => Edit is not null || (Gen is null && RehydrateFallback?.IsEdit == true);
 
     /// <summary>True when this is a BACKGROUND (idle-time) slot: it becomes schedulable only once the queue has been
     /// foreground-idle for the configured delay, and a foreground submission preempts it (halting and requeuing it,
@@ -137,7 +142,15 @@ public sealed class RenderSlot
     public bool Submitted => ComfyPromptId is not null;
 
     /// <summary>The workflow configuration id for this slot.</summary>
-    public string Model => IsEdit ? RequireEdit().Workflow : RequireGen().Workflow;
+    public string Model => IsEdit
+        ? Edit?.Workflow ?? RehydrateFallback?.Workflow ?? ""
+        : Gen?.Workflow ?? RehydrateFallback?.Workflow ?? "";
+
+    /// <summary>The prompt/instruction used for job-level display. Corrupt rehydrated slots retain the typed durable
+    /// prompt even though their malformed value bag prevents reconstruction of a runnable spec.</summary>
+    internal string SummaryPrompt => IsEdit
+        ? Edit?.Instruction ?? RehydrateFallback?.Prompt ?? ""
+        : Gen?.Prompt ?? RehydrateFallback?.Prompt ?? "";
 }
 
 /// <summary>
@@ -182,7 +195,7 @@ public sealed class RenderJob
     /// <summary>The job's configuration id (from slot 0).</summary>
     public string Model => Slots.Count > 0 ? Slots[0].Model : "";
     /// <summary>The job's summary prompt/instruction (from slot 0).</summary>
-    public string Prompt => Slots.Count == 0 ? "" : (Slots[0].IsEdit ? Slots[0].RequireEdit().Instruction : Slots[0].RequireGen().Prompt);
+    public string Prompt => Slots.Count == 0 ? "" : Slots[0].SummaryPrompt;
 
     /// <summary>The positional image-id array the client diffs: <c>imageIds[i]</c> is slot i's produced image (or null
     /// until it lands / if it failed).</summary>

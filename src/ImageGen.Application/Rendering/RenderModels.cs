@@ -97,6 +97,46 @@ public sealed record BackendQueue(IReadOnlySet<string> Executing, IReadOnlySet<s
     public bool Has(string promptId) => Executing.Contains(promptId) || Pending.Contains(promptId);
 }
 
+/// <summary>The result of one non-blocking renderer-history check. <see cref="RenderPollState.Unavailable"/> is deliberately
+/// separate from <see cref="RenderPollState.NotReady"/>: an unavailable history endpoint says nothing about whether the prompt is
+/// still queued or has completed, so the orchestrator must not use that poll as evidence that the prompt vanished.</summary>
+public enum RenderPollState
+{
+    NotReady,
+    Ready,
+    Unavailable,
+}
+
+/// <summary>One typed renderer-history observation. Backend execution failures continue to throw
+/// <see cref="RenderValidationException"/> because they are terminal prompt outcomes, not polling states.</summary>
+public readonly record struct RenderPollResult(RenderPollState State, GeneratedImage? Image = null)
+{
+    public static RenderPollResult NotReady() => new(RenderPollState.NotReady);
+    public static RenderPollResult Ready(GeneratedImage image) => new(RenderPollState.Ready, image);
+    public static RenderPollResult Unavailable() => new(RenderPollState.Unavailable);
+}
+
+/// <summary>What the renderer said when asked for a pre-database legacy image. Only <see cref="LegacyImageFetchState.NotFound"/> is a
+/// definitive absence; <see cref="LegacyImageFetchState.Unavailable"/> is a temporary inability to answer and accepted work must wait.</summary>
+public enum LegacyImageFetchState
+{
+    Found,
+    NotFound,
+    Unavailable,
+}
+
+/// <summary>A typed legacy-image lookup, keeping a missing artifact distinct from an unreachable renderer.</summary>
+public readonly record struct LegacyImageFetchResult(LegacyImageFetchState State, byte[]? Bytes = null)
+{
+    public static LegacyImageFetchResult Found(byte[] bytes) => new(LegacyImageFetchState.Found, bytes);
+    public static LegacyImageFetchResult NotFound() => new(LegacyImageFetchState.NotFound);
+    public static LegacyImageFetchResult Unavailable() => new(LegacyImageFetchState.Unavailable);
+}
+
+/// <summary>A definitive miss for an input image after upload, database, and legacy-renderer lookup.</summary>
+public sealed class RenderInputNotFoundException(string imageId)
+    : Exception($"Render input '{imageId}' was not found.");
+
 /// <summary>
 /// Thrown for expected, user-correctable render problems (e.g. an unknown workflow configuration). Callers turn it
 /// into a clean message instead of an unhandled stack trace.

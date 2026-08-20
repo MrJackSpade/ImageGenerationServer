@@ -917,82 +917,94 @@ public sealed class ComfyClient : IComfyClient
 
     #region HTTP plumbing
 
-    /// <summary>One non-looping <c>/history/{promptId}</c> check. Returns the produced image if ready, throws if
-    /// ComfyUI reported an error, or returns null if not present yet (caller should poll again).</summary>
-    public async Task<GeneratedImage?> PollResultAsync(string promptId, CancellationToken ct = default)
+    /// <summary>One non-looping <c>/history/{promptId}</c> check. Transport and HTTP availability failures are explicit
+    /// retryable outcomes; a prompt execution error remains a terminal validation exception.</summary>
+    public async Task<RenderPollResult> PollResultAsync(string promptId, CancellationToken ct = default)
     {
-        using HttpResponseMessage hresp = await Http.GetAsync($"history/{promptId}", ct);
-        if (!hresp.IsSuccessStatusCode)
+        try
         {
-            return null;
-        }
-
-        using JsonDocument hdoc = await JsonDocument.ParseAsync(await hresp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        if (!hdoc.RootElement.TryGetProperty(promptId, out JsonElement entry))
-        {
-            return null;
-        }
-
-        if (entry.TryGetProperty(Field.Status, out JsonElement status) &&
-            status.TryGetProperty(Field.StatusStr, out JsonElement ss) && ss.GetString() == Field.Error)
-        {
-            throw new RenderValidationException(DescribeComfyError(status, promptId));
-        }
-
-        if (!entry.TryGetProperty(Field.Outputs, out JsonElement outputs))
-        {
-            return null;
-        }
-
-        // Scan ALL output nodes: the produced clip/image is the first node carrying `images` (SaveAnimatedWEBP /
-        // SaveImage). The pixel-quantize (fp) node additionally surfaces its derived `palette` (inline #RRGGBB array)
-        // and native-res `lossless_frames` (saved-PNG refs) under distinct keys — collect those too so Forge can
-        // persist them next to the produced image. Distinct keys => no collision with the result image.
-        JsonElement? resultImg = null;
-        string? paletteJson = null;
-        string? frequenciesJson = null;
-        List<byte[]>? losslessFrames = null;
-        foreach (JsonProperty node in outputs.EnumerateObject())
-        {
-            JsonElement v = node.Value;
-            if (resultImg is null && v.TryGetProperty(Field.Images, out JsonElement images) && images.GetArrayLength() > 0)
+            using HttpResponseMessage hresp = await Http.GetAsync($"history/{promptId}", ct);
+            if (!hresp.IsSuccessStatusCode)
             {
-                resultImg = images[0];
+                _logger.LogWarning(
+                    "ComfyUI GET history/{PromptId} answered {Status}; history is unavailable and the prompt remains nonterminal.",
+                    promptId, (int)hresp.StatusCode);
+                return RenderPollResult.Unavailable();
             }
 
-            if (paletteJson is null && v.TryGetProperty(Field.Palette, out JsonElement pal) && pal.ValueKind == JsonValueKind.Array)
+            using JsonDocument hdoc = await JsonDocument.ParseAsync(await hresp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (!hdoc.RootElement.TryGetProperty(promptId, out JsonElement entry))
             {
-                paletteJson = pal.GetRawText();
-            }
-            // The fp quantize also surfaces its pooled label frequencies (floats, indexed by palette order) — the
-            // second global a single-frame replay needs to reproduce the batch's rarity weighting exactly.
-            if (frequenciesJson is null && v.TryGetProperty(Field.Frequencies, out JsonElement fq) && fq.ValueKind == JsonValueKind.Array)
-            {
-                frequenciesJson = fq.GetRawText();
+                return RenderPollResult.NotReady();
             }
 
-            if (losslessFrames is null && v.TryGetProperty(Field.LosslessFrames, out JsonElement lf)
-                && lf.ValueKind == JsonValueKind.Array && lf.GetArrayLength() > 0)
+            if (entry.TryGetProperty(Field.Status, out JsonElement status) &&
+                status.TryGetProperty(Field.StatusStr, out JsonElement ss) && ss.GetString() == Field.Error)
             {
-                losslessFrames = new List<byte[]>(lf.GetArrayLength());
-                foreach (JsonElement fr in lf.EnumerateArray())
+                throw new RenderValidationException(DescribeComfyError(status, promptId));
+            }
+
+            if (!entry.TryGetProperty(Field.Outputs, out JsonElement outputs))
+            {
+                return RenderPollResult.NotReady();
+            }
+
+            // Scan ALL output nodes: the produced clip/image is the first node carrying `images` (SaveAnimatedWEBP /
+            // SaveImage). The pixel-quantize (fp) node additionally surfaces its derived `palette` (inline #RRGGBB array)
+            // and native-res `lossless_frames` (saved-PNG refs) under distinct keys — collect those too so Forge can
+            // persist them next to the produced image. Distinct keys => no collision with the result image.
+            JsonElement? resultImg = null;
+            string? paletteJson = null;
+            string? frequenciesJson = null;
+            List<byte[]>? losslessFrames = null;
+            foreach (JsonProperty node in outputs.EnumerateObject())
+            {
+                JsonElement v = node.Value;
+                if (resultImg is null && v.TryGetProperty(Field.Images, out JsonElement images) && images.GetArrayLength() > 0)
                 {
-                    losslessFrames.Add(await Http.GetByteArrayAsync(ViewUrl(fr), ct));
+                    resultImg = images[0];
+                }
+
+                if (paletteJson is null && v.TryGetProperty(Field.Palette, out JsonElement pal) && pal.ValueKind == JsonValueKind.Array)
+                {
+                    paletteJson = pal.GetRawText();
+                }
+                // The fp quantize also surfaces its pooled label frequencies (floats, indexed by palette order) — the
+                // second global a single-frame replay needs to reproduce the batch's rarity weighting exactly.
+                if (frequenciesJson is null && v.TryGetProperty(Field.Frequencies, out JsonElement fq) && fq.ValueKind == JsonValueKind.Array)
+                {
+                    frequenciesJson = fq.GetRawText();
+                }
+
+                if (losslessFrames is null && v.TryGetProperty(Field.LosslessFrames, out JsonElement lf)
+                    && lf.ValueKind == JsonValueKind.Array && lf.GetArrayLength() > 0)
+                {
+                    losslessFrames = new List<byte[]>(lf.GetArrayLength());
+                    foreach (JsonElement fr in lf.EnumerateArray())
+                    {
+                        losslessFrames.Add(await Http.GetByteArrayAsync(ViewUrl(fr), ct));
+                    }
                 }
             }
-        }
 
-        if (resultImg is { } img)
+            if (resultImg is { } img)
+            {
+                string file = img.GetProperty(Field.Filename).GetString()
+                    ?? throw new JsonException("ComfyUI history image has a null 'filename'.");
+                string sub = img.TryGetProperty(Field.Subfolder, out JsonElement sf) ? sf.GetString() ?? "" : "";
+                string type = img.TryGetProperty(Field.Type, out JsonElement t) ? t.GetString() ?? "output" : "output";
+                byte[] bytes = await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
+                return RenderPollResult.Ready(new GeneratedImage(bytes, string.Empty, file, sub, type, paletteJson, losslessFrames, frequenciesJson));
+            }
+
+            return RenderPollResult.NotReady();
+        }
+        catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !ct.IsCancellationRequested)
         {
-            string file = img.GetProperty(Field.Filename).GetString()
-                ?? throw new JsonException("ComfyUI history image has a null 'filename'.");
-            string sub = img.TryGetProperty(Field.Subfolder, out JsonElement sf) ? sf.GetString() ?? "" : "";
-            string type = img.TryGetProperty(Field.Type, out JsonElement t) ? t.GetString() ?? "output" : "output";
-            byte[] bytes = await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
-            return new GeneratedImage(bytes, string.Empty, file, sub, type, paletteJson, losslessFrames, frequenciesJson);
+            _logger.LogWarning(ex,
+                "ComfyUI GET history/{PromptId} failed; history is unavailable and the prompt remains nonterminal.", promptId);
+            return RenderPollResult.Unavailable();
         }
-
-        return null;
     }
 
     /// <summary>Build a ComfyUI <c>/view</c> url for a saved-output ref (filename/subfolder/type).</summary>
@@ -1132,11 +1144,34 @@ public sealed class ComfyClient : IComfyClient
     }
 
     /// <summary>Fetch raw bytes for a legacy image id (a ComfyUI view-ref minted before DB storage) by proxying
-    /// <c>/view</c>. Throws when the backend doesn't have it.</summary>
-    public async Task<byte[]> FetchLegacyImageAsync(string imageId, CancellationToken ct)
+    /// <c>/view</c>. A 404/410 is definitive; transport, timeout, and other HTTP failures are retryable inability to answer.</summary>
+    public async Task<LegacyImageFetchResult> FetchLegacyImageAsync(string imageId, CancellationToken ct)
     {
         (string? file, string? sub, string? type) = DecodeId(imageId);
-        return await Http.GetByteArrayAsync(ViewUrl(file, sub, type), ct);
+        try
+        {
+            using HttpResponseMessage resp = await Http.GetAsync(ViewUrl(file, sub, type), ct);
+            if (resp.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Gone)
+            {
+                return LegacyImageFetchResult.NotFound();
+            }
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "ComfyUI legacy image lookup for {ImageId} answered {Status}; treating the renderer as unavailable.",
+                    imageId, (int)resp.StatusCode);
+                return LegacyImageFetchResult.Unavailable();
+            }
+
+            return LegacyImageFetchResult.Found(await resp.Content.ReadAsByteArrayAsync(ct));
+        }
+        catch (Exception ex) when (ex is HttpRequestException || ex is OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex,
+                "ComfyUI legacy image lookup for {ImageId} failed; treating the renderer as unavailable.", imageId);
+            return LegacyImageFetchResult.Unavailable();
+        }
     }
 
     /// <summary>Decode an image id into a ComfyUI view-ref (filename/subfolder/type). A bare id (no ':') is an output
