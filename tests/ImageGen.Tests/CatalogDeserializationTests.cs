@@ -62,6 +62,15 @@ public sealed class CatalogDeserializationTests
         JsonSerializer.Deserialize(json, CatalogJsonContext.Default.WorkflowFileDto);
 
     [Fact]
+    public void Workflow_short_name_is_catalog_metadata()
+    {
+        WorkflowFileDto? dto = Workflow("""{"id":"x","workflow":"W","friendly_name":"Long descriptive name","short_name":"Compact"}""");
+
+        Assert.NotNull(dto);
+        Assert.Equal("Compact", dto.ShortName);
+    }
+
+    [Fact]
     public void An_unknown_top_level_key_is_rejected()
         => Assert.Throws<JsonException>(() => Workflow("""{"id":"x","workflow":"W","typo_here":true}"""));
 

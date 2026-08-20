@@ -214,6 +214,7 @@ public sealed record WorkflowDescriptor(
     bool TakesPrompt,
     bool SupportsLastFrame,
     string? FriendlyName,
+    string? ShortName,
     bool Default,
     [property: AllowNullable("null = no timing samples yet on this machine; 0 would be a real (instant) average")] int? AvgSeconds,
     IReadOnlyList<WorkflowExposedParam> ExposedParams,

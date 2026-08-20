@@ -561,6 +561,7 @@ public sealed partial class WorkflowCatalogService(
             SupportsLastFrame: wf.SupportsEndFrame,
             HasAudio: HasAudio(cfg, wf),
             FriendlyName: cfg.FriendlyName ?? c.FriendlyName,
+            ShortName: cfg.ShortName,
             Default: cfg.Default,
             AvgSeconds: avgSeconds,
             ExposedParams: exposed,

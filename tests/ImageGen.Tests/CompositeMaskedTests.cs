@@ -76,4 +76,33 @@ public sealed class CompositeMaskedTests
 
         _ = Assert.Throws<ArgumentException>(() => Media.CompositeMasked(original, result, mask, growPx: 8, blurRadius: 6));
     }
+
+    [Fact]
+    public void A_proportional_bucket_result_is_scaled_to_the_source_dimensions()
+    {
+        byte[] original = Solid(160, 90, new Rgba32(0, 0, 255, 255));
+        byte[] result = Solid(80, 45, new Rgba32(255, 0, 0, 255));
+        byte[] mask = Solid(160, 90, new Rgba32(255, 255, 255, 255));
+
+        byte[] output = Media.CompositeMasked(original, result, mask, growPx: 0, blurRadius: 0);
+
+        using Image<Rgba32> composed = Image.Load<Rgba32>(output);
+        Assert.Equal(160, composed.Width);
+        Assert.Equal(90, composed.Height);
+        Assert.True(composed[80, 45].R > 240);
+    }
+
+    [Fact]
+    public void An_incompatible_result_aspect_ratio_is_rejected_instead_of_stretched()
+    {
+        byte[] original = Solid(160, 90, new Rgba32(0, 0, 255, 255));
+        byte[] result = Solid(120, 90, new Rgba32(255, 0, 0, 255));
+        byte[] mask = Solid(160, 90, new Rgba32(255, 255, 255, 255));
+
+        ArgumentException ex = Assert.Throws<ArgumentException>(
+            () => Media.CompositeMasked(original, result, mask, growPx: 0, blurRadius: 0));
+
+        Assert.Equal("result", ex.ParamName);
+        Assert.Contains("aspect ratios differ", ex.Message, StringComparison.Ordinal);
+    }
 }

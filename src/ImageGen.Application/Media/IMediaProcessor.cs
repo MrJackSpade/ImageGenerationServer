@@ -60,7 +60,8 @@ public interface IMediaProcessor
     /// feathered — grown by <paramref name="growPx"/> then blurred by <paramref name="blurRadius"/> — and used as the
     /// per-pixel alpha: <c>out = original*(1-a) + result*a</c>. Mirrors the in-graph recipe
     /// (<c>GrowMask + ImageBlur</c>) so the composite route and the sibling-inpaint route paste back the same way.
-    /// Throws when the mask's dimensions do not match the original's. Returns PNG bytes.
+    /// Throws when the mask's dimensions do not match the original's, or when the result's aspect ratio is materially
+    /// incompatible with the original (same-aspect bucket-to-source scaling remains supported). Returns PNG bytes.
     /// </summary>
     byte[] CompositeMasked(byte[] original, byte[] result, byte[] maskPng, int growPx, int blurRadius);
 }

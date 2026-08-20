@@ -211,6 +211,11 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     /// spread of the binary mask dilates the white area by ~<c>growPx</c> rather than eroding it to the blur's midpoint.</summary>
     private const byte GrowThreshold = 8;
 
+    /// <summary>Bucket dimensions are rounded to model-friendly multiples, so a proportional scale may carry a small
+    /// aspect drift. Up to 2% is treated as rounding; anything larger is a different composition and must not be
+    /// stretched into the source frame.</summary>
+    private const double MaxCompositeAspectDrift = 0.02;
+
     /// <inheritdoc/>
     public byte[] CompositeMasked(byte[] original, byte[] result, byte[] maskPng, int growPx, int blurRadius)
     {
@@ -226,6 +231,17 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
         using Image<Rgba32> res = Image.Load<Rgba32>(result);
         if (res.Width != orig.Width || res.Height != orig.Height)
         {
+            double aspectDrift = Math.Abs(((double)res.Width / res.Height) / ((double)orig.Width / orig.Height) - 1.0);
+            if (aspectDrift > MaxCompositeAspectDrift)
+            {
+                throw new ArgumentException(
+                    $"The generated result is {res.Width}x{res.Height} but the original is {orig.Width}x{orig.Height}; "
+                    + $"their aspect ratios differ by {aspectDrift:P1}, so scaling would distort the composite.",
+                    nameof(result));
+            }
+
+            // Same-aspect bucket-to-source scaling is intentional. Stretch here corrects only size/rounding after the
+            // explicit aspect guard above; it can no longer reshape an incompatible generated composition.
             res.Mutate(x => x.Resize(new ResizeOptions
             {
                 Mode = ResizeMode.Stretch,

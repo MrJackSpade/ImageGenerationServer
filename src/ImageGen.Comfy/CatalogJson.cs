@@ -43,6 +43,7 @@ internal sealed record WorkflowFileDto
     [JsonPropertyName("id")] public string? Id { get; init; }
     [JsonPropertyName("workflow")] public string? Workflow { get; init; }
     [JsonPropertyName("friendly_name")] public string? FriendlyName { get; init; }
+    [JsonPropertyName("short_name")] public string? ShortName { get; init; }
     [JsonPropertyName("requirements")] public RequirementLinksDto? Requirements { get; init; }
     [JsonPropertyName("params")] public Dictionary<string, ConfigParamDto>? Params { get; init; }
     [JsonPropertyName("effect_type")] public string? EffectType { get; init; }

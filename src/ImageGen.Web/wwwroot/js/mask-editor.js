@@ -96,8 +96,19 @@ function createMaskEditor({ modalEl, stageEl, brushEl, onChange }) {
     // alone gates it; a cleared mask (painted=false) leaves the preview blank.
     if (canvas && painted) pctx.drawImage(canvas, 0, 0);
   }
-  function drawAllPreviews() { for (const p of previews) drawOne(p); }
-  function drawPreview(previewCv) { if (previewCv) { previews.add(previewCv); drawOne(previewCv); } }
+  function prunePreviews() {
+    for (const p of previews) if (!p.isConnected) previews.delete(p);
+  }
+  function drawAllPreviews() {
+    prunePreviews();
+    for (const p of previews) drawOne(p);
+  }
+  function drawPreview(previewCv) {
+    if (!previewCv) return;
+    prunePreviews();
+    previews.add(previewCv);
+    drawOne(previewCv);
+  }
 
   function open(url, w, h) {
     if (url !== srcUrl) { srcUrl = url; setupStage(url, w, h); }

@@ -74,9 +74,11 @@ const isUpscale = m => !!(m && m.kind === "upscale");
 // Whether the current source (editCurrent) is a video clip. Decided from /forge/media for a seeded/edited source, and
 // from the file type for an upload. When true, the editor collapses to the single V2V "Pixelize" mode.
 let srcIsVideo = false;
-// Ask the server whether an id is a clip (content type webp/video). Used to flip into V2V mode for a clip source.
-async function detectSrcVideo(id) {
-  if (!id) return false;
+// Ask the server whether an id is a clip or a still. "Unknown" is NOT a still: a failed/malformed lookup cannot safely
+// choose editors, mask controls, or an upload route, so it throws and boot leaves the source blocked with a visible
+// error instead of quietly sending a clip to an image workflow.
+async function detectSrcMedia(id) {
+  if (!id) return "image";   // the legitimate source-less editor; no existing media needs inspection
   const key = imageId(id);
   try {
     const r = await fetch(`${GATEWAY}/media`, {
@@ -85,10 +87,15 @@ async function detectSrcVideo(id) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: [key] }),
     });
-    if (!r.ok) return false;
+    if (!r.ok) throw new Error(`the server answered ${r.status}`);
     const map = await r.json();
-    return map[key] === "webp" || map[key] === "mp4";   // clip kinds; a still ("image") is not V2V-eligible
-  } catch (e) { console.debug("media kind check failed:", e); return false; }
+    const kind = map && map[key];
+    if (kind === "webp" || kind === "mp4") return "video";
+    if (kind === "image") return "image";
+    throw new Error("the server returned no recognised media kind");
+  } catch (e) {
+    throw new Error(`Couldn't inspect the source media: ${e.message}`, { cause: e });
+  }
 }
 // The inpaint/outpaint boxes seed from the source image's prompt VERBATIM — the marker form ('#'/'@' and underscores
 // intact) the worker stored when it made the picture. Empty for prose/uploaded sources; falls back to the plain prompt
@@ -172,30 +179,8 @@ function effectiveEditModels() { const em = effectiveEditModel(); return (maskAc
 // an inpaint editor is unsubmittable until the selection is narrowed and a mask drawn.
 function editSubmitBlockedByMask() { return editModels().some(m => m && isInpaint(m)) && !maskActive(); }
 
-// Edit-box display names: strip redundant tags and fix misleading ones, keyed by catalog friendly_name.
-const EDIT_NAME = {
-  "FLUX.1-Kontext (image editing)": "FLUX.1-Kontext",
-  "Qwen Rapid (uncensored)": "Qwen Rapid",
-  "Qwen-Image-Edit (fp8)": "Qwen-Image-Edit",
-  "Anime video (SD1.5)": "AnimateDiff (SD1.5)",
-  "Anime video — Lightning (SD1.5)": "AnimateDiff Lightning (SD1.5)",
-  "Anime video — AnimateLCM (SD1.5)": "AnimateLCM (SD1.5)",
-  "HunyuanVideo (image → video)": "HunyuanVideo",
-  "HunyuanVideo 1.5 (image → video)": "HunyuanVideo 1.5",
-  "HunyuanVideo anime — Anime Style": "HunyuanVideo (Anime Style)",
-  "HunyuanVideo anime — AnimeShots": "HunyuanVideo (AnimeShots)",
-  "LTX Video (fast image → video)": "LTX Video",
-  "LTX Video 13B (image → video)": "LTX Video 13B",
-  "LTX-2 (image → video)": "LTX-2",
-  "LTX-2 dev (image → video)": "LTX-2 dev",
-  "LTX-2.3 22B (image → video)": "LTX-2.3 22B",
-  "SDXL video (AnimateDiff)": "SDXL AnimateDiff",
-  "Wan 2.2 (image → video)": "Wan 2.2",
-  "Wan 2.2 14B (image → video)": "Wan 2.2 14B",
-  "WAN anime — Anime LoRA": "Wan 2.2 (Anime LoRA)",
-  "WAN anime — Flat Color": "Wan 2.2 (Flat Color)"
-};
-const cleanName = m => EDIT_NAME[m.friendly_name] || m.friendly_name;
+// The catalog owns both names. shortName is optional compact picker copy; friendly_name is the full display fallback.
+const cleanName = m => m.shortName || m.friendly_name;
 let editFavs = new Set(), editHidden = new Set(), editTags = {}, editRemoved = {};
 
 // editCurrent is the FIXED source image (the seed). It never advances on its own — every Apply edits this
@@ -282,7 +267,7 @@ function editPanel(spec) {
     onSettle: made => { document.title = "Edit · Make a Picture"; editActiveJobId = null; if (!made && spec.onNoneMade) spec.onNoneMade(); },
   };
 }
-// The bits every edit mode's submit control shares: the page's busy flag, cancel handle, status, and pending-record.
+// The bits every edit mode's submit control shares: the page's busy flag, cancel handle, and status.
 // buildItems + the mode's panel are the only per-mode parts, supplied where each control is attached.
 function editSubmitBase(specMode) {
   return {
@@ -291,7 +276,6 @@ function editSubmitBase(specMode) {
     // on, because buildItems can be async (the inpaint mask upload) and the user may switch tabs during that await.
     onBusy: b => { if (b) { cancelRequested = false; runningSpecMode = specMode; } setBusy(b); },
     onActiveGen: h => { activeGen = h; },
-    onJob: (jobId, items) => postPending({ jobId, prompt: items[0].instruction || "", model: items[0].workflow, modelId: items[0].workflow, aspect: "" }).catch(e => console.debug("record pending job failed:", e)),
     setStatus,
     startStatus: () => "Generating…",
   };
@@ -310,7 +294,7 @@ async function loadEditModels() {
     const s = prefs.settings;
     rows.filter(r => r.canEdit).forEach(r => {
       EDIT_MODELS[r.id] = {
-        id: r.id, friendly_name: r.friendlyName || r.id, _gw: r.id, workflow: r.workflow,
+        id: r.id, friendly_name: r.friendlyName || r.id, shortName: r.shortName || null, _gw: r.id, workflow: r.workflow,
         kind: r.kind,   // the catalog's resolved kind — every tab routes off this (issue #163)
         exposedParams: r.exposedParams || [], avgSeconds: r.avgSeconds,
         hiddenParams: r.hiddenParams || [],   // shipped hidden-but-revealable params — shown only where the user's visibility prefs reveal them (#191)
@@ -1210,7 +1194,14 @@ function startEditRecover() {
   // The paint-mask controller (mask-editor.js) — created before renderSrc so the source preview can register its
   // tinted mask-preview canvas. A stroke or clear routes back through maskChanged.
   maskEditor = createMaskEditor({ modalEl: $maskModal, stageEl: $maskModalStage, brushEl: $brushSize, onChange: maskChanged });
-  srcIsVideo = await detectSrcVideo(seed.id);   // a clip seed → collapse the editor to the single V2V mode
+  try {
+    srcIsVideo = (await detectSrcMedia(seed.id)) === "video";   // a clip seed → collapse into V2V mode
+  } catch (e) {
+    // Do not render the source or enable any submit path under a guessed media type. The rejected boot promise keeps
+    // the rest of initialization stopped; this status gives the user the actionable reason instead of a dead page.
+    setStatus(friendlyError(e), { error: true });
+    throw e;
+  }
   if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders
   renderSrc(); renderEditRefs(); renderEditLastFrame();
   applySourceMediaUi();

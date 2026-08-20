@@ -659,6 +659,8 @@ public sealed class WorkflowConfiguration
     public required string Id { get; init; }
     public required string WorkflowName { get; init; }
     public string? FriendlyName { get; init; }
+    /// <summary>Optional compact picker label supplied by the catalog; clients fall back to FriendlyName.</summary>
+    public string? ShortName { get; init; }
     public IReadOnlyDictionary<string, ConfigParam> Params { get; init; } = new Dictionary<string, ConfigParam>();
     public RequirementLinks Requirements { get; init; } = new();
     /// <summary>For edit-kind configs: an optional effect category (e.g. "Line art", "Pixelize"). When set, the editor
