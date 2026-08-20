@@ -36,20 +36,10 @@
   // its rows must not land in the grid (typing fast otherwise interleaves two result sets).
   let seq = 0;
 
-  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { console.debug("date format failed:", e); return ""; } };
-  // Cards carry the UTC millisecond epoch in <time data-ts>; the text is always written here, in the
-  // browser's zone — the server never bakes in its own local time.
-  const fillDates = () => grid.querySelectorAll("time[data-ts]").forEach(t => { if (!t.textContent) t.textContent = fmtDate(Number(t.dataset.ts)); });
-
-  function cardHtml(r) {
-    const id = encodeURIComponent(r.id);
-    const prompt = escapeHtml(r.prompt || "");
-    // Outlined until opened, exactly as on the Recent strip — one meaning, both grids.
-    return `<a class="imgcard${r.viewed ? "" : " unviewed"}" href="/image/${id}">`
-      + `<div class="img"><img data-src="${GATEWAY}/image/${id}?w=${THUMB_W}" alt="${prompt}"></div>`
-      + `<div class="meta"><div class="p">${prompt}</div>`
-      + `<div class="row"><span class="tag">${escapeHtml(r.model || "")}</span><span class="seed"><time data-ts="${Number(r.ts) || 0}"></time></span></div></div>`
-      + `</a>`;
+  function cards(items) {
+    const fragment = document.createDocumentFragment();
+    (items || []).forEach(r => fragment.appendChild(buildImageCard(r, { showDate: true })));
+    return fragment;
   }
 
   // The selected workflow's display name (without the count), for the empty-state message.
@@ -97,10 +87,7 @@
       page += 1;
       if (typeof d.total === "number") total = d.total;
       if (d.items && d.items.length) {
-        const tpl = document.createElement("template");
-        tpl.innerHTML = d.items.map(cardHtml).join("");
-        grid.appendChild(tpl.content);
-        fillDates();
+        grid.appendChild(cards(d.items));
         syncMarkAll();   // a newly-loaded page can be the first thing on screen carrying an outline
         loaded += d.items.length;
       }
@@ -144,11 +131,8 @@
       const fresh = d.items.filter(r => !seen.has(String(r.id)));
       if (!fresh.length) return;
 
-      const tpl = document.createElement("template");
-      tpl.innerHTML = fresh.map(cardHtml).join("");
-      grid.prepend(tpl.content);
+      grid.prepend(cards(fresh));
       loaded += fresh.length;
-      fillDates();
       syncMarkAll();
       // imgqueue.js watches the document with a MutationObserver, so the prepended cards are claimed for
       // lazy loading without being told.
@@ -240,7 +224,7 @@
     finally { markAll.disabled = false; syncMarkAll(); }
   });
 
-  fillDates();              // the server-rendered first page
+  fillImageCardDates(grid); // the server-rendered first page
   render();
   syncMarkAll();
   keepFillingIfVisible();   // first page may not fill the viewport

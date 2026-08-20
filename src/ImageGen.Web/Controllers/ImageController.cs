@@ -30,12 +30,21 @@ public sealed class ImageController(
         }
 
         ImageDetailViewModel? vm = await BuildAsync(id, ct);
-        return vm is null ? NotFound() : View(vm);
+        if (vm is null)
+        {
+            return NotFound();
+        }
+
+        // A full detail-page navigation is itself a view. The JSON endpoint below is deliberately side-effect-free:
+        // the lightbox records this same fact through its explicit POST only after it has rendered the image.
+        await _views.MarkViewedAsync(User.GetRequiredUserId(), vm.Entry.GatewayImageId, ct);
+        return View(vm);
     }
 
-    /// <summary>The image card on its own, for the in-page lightbox (see lightbox.js + _Card.cshtml).</summary>
-    [HttpGet("/image/{id}/card")]
-    public async Task<IActionResult> Card(string id, CancellationToken ct)
+    /// <summary>Presentation data for the in-page lightbox. JSON only and side-effect-free: merely preloading or
+    /// inspecting detail data is not a view.</summary>
+    [HttpGet("/image/{id}/detail")]
+    public async Task<IActionResult> DetailData(string id, CancellationToken ct)
     {
         if (await _visibility.CanReadImageAsync(User.GetRequiredUserId(), id, ct) is null)
         {
@@ -43,7 +52,28 @@ public sealed class ImageController(
         }
 
         ImageDetailViewModel? vm = await BuildAsync(id, ct);
-        return vm is null ? NotFound() : PartialView(Views.Card, vm);
+        return vm is null ? NotFound() : Json(vm.ToRecord());
+    }
+
+    /// <summary>Record the intentional act of opening an image. Kept separate from detail-data delivery so a JSON
+    /// fetch or future prefetch cannot silently clear the unviewed state.</summary>
+    [HttpPost("/image/{id}/view")]
+    public async Task<IActionResult> MarkViewed(string id, CancellationToken ct)
+    {
+        long userId = User.GetRequiredUserId();
+        if (await _visibility.CanReadImageAsync(userId, id, ct) is null)
+        {
+            return Unauthorized();
+        }
+
+        HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        await _views.MarkViewedAsync(userId, entry.GatewayImageId, ct);
+        return NoContent();
     }
 
     /// <summary>The page's data, or null when the caller has no history row for the id — a readable id that never
@@ -56,11 +86,6 @@ public sealed class ImageController(
         {
             return null;
         }
-
-        // BOTH ways of opening an image come through here — the standalone page and the lightbox's card fetch — which
-        // is what "viewed" means: you looked at the picture, not that a card scrolled past you in a grid. Marked after
-        // the ownership check above, so it can only ever record an image this user actually has.
-        await _views.MarkViewedAsync(userId, entry.GatewayImageId, ct);
 
         (string? newer, string? older) = await _history.GetNeighborsAsync(userId, id, ct);
         bool isBookmarked = await _bookmarks.IsImageBookmarkedAsync(userId, id, ct);
@@ -98,12 +123,5 @@ public sealed class ImageController(
             BookmarkedTags = tokens.Where(t => t.Kind == TokenKind.Tag).Select(t => t.Name).ToHashSet(StringComparer.Ordinal),
             BookmarkedArtists = tokens.Where(t => t.Kind == TokenKind.Artist).Select(t => t.Name).ToHashSet(StringComparer.Ordinal),
         };
-    }
-
-    /// <summary>View names this controller renders.</summary>
-    private static class Views
-    {
-        /// <summary>The image card partial, used by the in-page lightbox.</summary>
-        public const string Card = "_Card";
     }
 }

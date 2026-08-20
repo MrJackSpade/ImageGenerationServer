@@ -52,6 +52,23 @@ public sealed class ImageDetailViewModel
 
     public long Ts => new DateTimeOffset(DateTime.SpecifyKind(Entry.CreatedAtUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 
+    /// <summary>The JSON detail endpoint's complete client-rendering contract. Keeping this projection beside the
+    /// Razor-facing model prevents the standalone page and lightbox from inventing separate data shapes.</summary>
+    public ImageDetailRecord ToRecord() => new(
+        Ts,
+        Entry.GatewayImageId,
+        Entry.Prompt,
+        MarkerPrompt,
+        MarkerNegativePrompt,
+        OriginalPrompt,
+        Entry.ModelFriendly,
+        Entry.ModelId,
+        Entry.Aspect,
+        MarksMap.Count == 0 ? null : MarksMap,
+        Entry.Loras is { Count: > 0 } ? Entry.Loras : null,
+        Chips,
+        IsBookmarked);
+
     /// <summary>marks as the SPA's token-&gt;("tag"|"artist") map, for the client record blob.</summary>
     public IReadOnlyDictionary<string, string> MarksMap => Entry.Marks;
 

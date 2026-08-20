@@ -18,13 +18,13 @@
   const seen = new Set();
   (function seedSeen() { const g = getGrid(); if (g) g.querySelectorAll(".gen[data-id]").forEach(el => seen.add(el.dataset.id)); })();
 
-  function cardHtml(r) {
-    const id = encodeURIComponent(r.id);
-    const prompt = escapeHtml(r.prompt || "");
-    return `<div class="gen" data-id="${escapeHtml(r.id)}">`
-      + `<a class="imgcard${r.viewed ? "" : " unviewed"}" href="/image/${id}"><div class="img"><img data-src="${gateway}/image/${id}?w=${THUMB_W}" alt="${prompt}"></div>`
-      + `<div class="meta"><div class="p">${prompt}</div><div class="row"><span class="tag">${escapeHtml(r.model || "")}</span></div></div></a>`
-      + `<button type="button" class="set-display" title="Use as ${escapeHtml(pretty)}'s display image">★</button></div>`;
+  function generationCard(r) {
+    const gen = document.createElement("div"); gen.className = "gen"; gen.dataset.id = r.id;
+    gen.appendChild(buildImageCard(r));
+    const button = document.createElement("button"); button.type = "button"; button.className = "set-display";
+    button.title = "Use as " + pretty + "'s display image"; button.textContent = "★";
+    gen.appendChild(button);
+    return gen;
   }
 
   // --- display image (hero) ---------------------------------------------------------------------
@@ -75,8 +75,8 @@
   function addCard(r) {
     if (!r || !r.id || seen.has(r.id)) return;
     seen.add(r.id);
-    const t = document.createElement("template"); t.innerHTML = cardHtml(r);
-    ensureGrid().insertBefore(t.content, ensureGrid().firstChild);
+    const g = ensureGrid();
+    g.insertBefore(generationCard(r), g.firstChild);
   }
   // Only THIS artist's images belong here. The page's own composer is locked to this artist, but the
   // cross-device/page liveSync announces every gen the user makes anywhere — so match on the image's marks
@@ -109,8 +109,9 @@
       const fresh = (d.items || []).filter(it => it && it.id && !seen.has(it.id));
       if (fresh.length) {
         fresh.forEach(it => seen.add(it.id));
-        const t = document.createElement("template"); t.innerHTML = fresh.map(cardHtml).join("");
-        grid.appendChild(t.content);
+        const fragment = document.createDocumentFragment();
+        fresh.forEach(r => fragment.appendChild(generationCard(r)));
+        grid.appendChild(fragment);
       }
       loaded += (d.items || []).length;
       if (!d.items || !d.items.length || loaded >= total) done = true;

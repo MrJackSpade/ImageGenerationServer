@@ -61,3 +61,20 @@ public sealed record ImageDetailView(
 /// <param name="Name">The subfolder-qualified <c>lora_name</c>.</param>
 /// <param name="Weight">The strength it was applied at.</param>
 public sealed record LoraView(string Name, double Weight);
+
+/// <summary>The JSON contract used to client-render an image detail card. It contains the same presentation facts
+/// the standalone Razor card consumes; no HTML or domain entity crosses the endpoint.</summary>
+public sealed record ImageDetailRecord(
+    long Ts,
+    string Id,
+    string Prompt,
+    string? MarkerPrompt,
+    string? NegativePrompt,
+    string? OriginalPrompt,
+    string Model,
+    string ModelId,
+    string Aspect,
+    IReadOnlyDictionary<string, string>? Marks,
+    IReadOnlyList<LoraView>? Loras,
+    IReadOnlyList<PromptChip> Chips,
+    bool Bookmarked);

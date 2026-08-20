@@ -13,7 +13,6 @@
   let prefsOk = false;
   let listError = "";
   const gb = b => b ? (b / 1073741824).toFixed(1) + " GB" : "—";
-  const fmtDate = ts => { try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { console.debug("date format failed:", e); return ""; } };
 
   async function load() {
     const [rows, status, prefs] = await Promise.all([
@@ -200,25 +199,42 @@
 
   async function toggleFav() {
     if (!canWritePrefs()) return;
-    if (favs.has(workflow.id)) favs.delete(workflow.id); else favs.add(workflow.id);
-    document.getElementById("mdStar").classList.toggle("on", favs.has(workflow.id));
-    try { await saveFavoriteWorkflows([...favs]); } catch (e) { console.error("save favorites failed:", e); toast("Couldn't save"); }
+    const wasOn = favs.has(workflow.id);
+    if (wasOn) favs.delete(workflow.id); else favs.add(workflow.id);
+    const star = document.getElementById("mdStar");
+    star.classList.toggle("on", !wasOn);
+    try { await saveFavoriteWorkflows([...favs]); }
+    catch (e) {
+      if (wasOn) favs.add(workflow.id); else favs.delete(workflow.id);
+      star.classList.toggle("on", wasOn);
+      console.error("save favorites failed:", e); toast("Couldn't save");
+    }
   }
   async function toggleHide() {
     if (!canWritePrefs()) return;
-    const on = !hidden.has(workflow.id);
+    const wasOn = hidden.has(workflow.id), on = !wasOn;
     if (on) hidden.add(workflow.id); else hidden.delete(workflow.id);
     const h = document.getElementById("mdHide");
     h.classList.toggle("on", on); h.textContent = on ? "Unhide from picker" : "Hide from picker";
-    try { await saveHiddenWorkflows([...hidden]); } catch (e) { console.error("save hidden failed:", e); toast("Couldn't save"); }
+    try { await saveHiddenWorkflows([...hidden]); }
+    catch (e) {
+      if (wasOn) hidden.add(workflow.id); else hidden.delete(workflow.id);
+      h.classList.toggle("on", wasOn); h.textContent = wasOn ? "Unhide from picker" : "Hide from picker";
+      console.error("save hidden failed:", e); toast("Couldn't save");
+    }
   }
   async function toggleHideApi() {
     if (!canWritePrefs()) return;
-    const on = !hiddenApi.has(workflow.id);
+    const wasOn = hiddenApi.has(workflow.id), on = !wasOn;
     if (on) hiddenApi.add(workflow.id); else hiddenApi.delete(workflow.id);
     const h = document.getElementById("mdHideApi");
     h.classList.toggle("on", on); h.textContent = on ? "Unhide from API" : "Hide from API";
-    try { await saveHiddenApiWorkflows([...hiddenApi]); } catch (e) { console.error("save hidden-api failed:", e); toast("Couldn't save"); }
+    try { await saveHiddenApiWorkflows([...hiddenApi]); }
+    catch (e) {
+      if (wasOn) hiddenApi.add(workflow.id); else hiddenApi.delete(workflow.id);
+      h.classList.toggle("on", wasOn); h.textContent = wasOn ? "Unhide from API" : "Hide from API";
+      console.error("save hidden-api failed:", e); toast("Couldn't save");
+    }
   }
 
   // --- this machine's settings for this workflow ---------------------------------------------------
@@ -479,13 +495,10 @@
       const d = await queryHistory({ workflow: id, pageSize: 24 });
       const items = d.items || [];
       if (!items.length) { grid.innerHTML = '<p class="muted">No images from this workflow yet.</p>'; return; }
-      grid.innerHTML = items.map(r => {
-        const iid = encodeURIComponent(r.id), prompt = escapeHtml(r.prompt || "");
-        return `<a class="imgcard" href="/image/${iid}">`
-          + `<div class="img"><img data-src="${GATEWAY}/image/${iid}?w=${THUMB_W}" alt="${prompt}"></div>`
-          + `<div class="meta"><div class="p">${prompt}</div>`
-          + `<div class="row"><span class="seed">${escapeHtml(fmtDate(r.ts))}</span></div></div></a>`;
-      }).join("");
+      grid.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+      items.forEach(r => fragment.appendChild(buildImageCard(r, { showModel: false, showDate: true })));
+      grid.appendChild(fragment);
     } catch (e) { console.error("load recents failed:", e); grid.innerHTML = '<p class="muted">Couldn’t load recents.</p>'; }
   }
 

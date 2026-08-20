@@ -6,6 +6,49 @@ const viewUrl = r => `${GATEWAY}/image/${encodeURIComponent(imageId(r))}`;
 // Small JPEG preview for grid/list/recents cards (full image stays at viewUrl). Tens of KB vs a multi-MB PNG.
 const THUMB_W = 512;
 const thumbUrl = (r, w) => `${viewUrl(r)}?w=${w || THUMB_W}`;
+
+// One image-grid card contract for gallery, artist, workflow-detail and recents. Contexts choose whether their
+// metadata row needs the model, date, or both; structure, escaping, thumbnail URL and unviewed semantics stay shared.
+function buildImageCard(record, options) {
+  const r = record || {}, opts = options || {};
+  const id = imageId(r);
+  const a = document.createElement("a");
+  a.className = "imgcard";
+  if (r.viewed !== true) a.classList.add("unviewed");
+  a.href = "/image/" + encodeURIComponent(id);
+
+  const imageWrap = document.createElement("div"); imageWrap.className = "img";
+  const image = document.createElement("img"); image.setAttribute("data-src", thumbUrl(r)); image.alt = r.prompt || "";
+  imageWrap.appendChild(image);
+
+  const meta = document.createElement("div"); meta.className = "meta";
+  const prompt = document.createElement("div"); prompt.className = "p"; prompt.textContent = r.prompt || "";
+  const row = document.createElement("div"); row.className = "row";
+  if (opts.showModel !== false) {
+    const model = document.createElement("span"); model.className = "tag"; model.textContent = r.model || "";
+    row.appendChild(model);
+  }
+  if (opts.showDate) {
+    const date = document.createElement("span"); date.className = "seed";
+    const time = document.createElement("time"); time.dataset.ts = String(Number(r.ts) || 0);
+    date.appendChild(time); row.appendChild(date);
+  }
+  meta.append(prompt, row); a.append(imageWrap, meta);
+  fillImageCardDates(a);
+  return a;
+}
+
+function formatImageCardDate(ts) {
+  try { return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+  catch (e) { console.debug("date format failed:", e); return ""; }
+}
+
+// Also formats the server-rendered first page, whose <time> nodes use the same card contract.
+function fillImageCardDates(root) {
+  (root || document).querySelectorAll("time[data-ts]").forEach(t => {
+    if (!t.textContent) t.textContent = formatImageCardDate(Number(t.dataset.ts));
+  });
+}
 // Absolute ws/wss URL for a gateway path — works whether GATEWAY is an absolute http(s) origin or, now that the
 // gateway is embedded same-origin, a relative path like "/forge" (relative WebSocket urls aren't universally ok).
 const gwWs = path => /^https?:/i.test(GATEWAY)
@@ -692,7 +735,6 @@ function attachLiveRecover(o) {
 //                                       activeStatus?, finalStatus,
 //                                       onSettle? — onSlot/onRunning receive the built `meta` so a queue-more submission
 //                                       (its own job + meta) can never corrupt the running job's rendering.
-//   onJob?(jobId, items, meta)          e.g. record a pending-job row for cross-device pickup
 //   setStatus(text, opts?)              write the page's status line
 //   startStatus(count) -> text          status shown the instant a submit is accepted
 //   queuedToast?(count) -> text         toast when a press queues behind a running job
@@ -716,7 +758,6 @@ function attachEnqueueSubmit(o) {
       if (!r.ok) throw new Error(await gwError(r));
       const resp = await r.json(); const jobId = resp.jobId;
       if (!jobId) throw new Error("The queue accepted no jobs.");
-      if (o.onJob) o.onJob(jobId, items, meta);
       await trackJobBatch(jobId, {
         total: resp.total || items.length,
         eta: o.panel.eta, onProgress: o.panel.onProgress, previewTarget: o.panel.previewTarget,
@@ -881,8 +922,6 @@ const Api = {
 };
 // NOTE: there is intentionally no client history writer. History is written exactly once, server-side, by the
 // JobQueue worker the moment an image is produced. The browser only READS history (queryHistory/recents) and DELETEs.
-// Register a submitted gateway job (legacy/vestigial; the worker persists regardless of the browser now).
-const postPending = rec => Api.send("/api/pending", "POST", rec);
 const deleteHistory = id => Api.send("/api/history?id=" + encodeURIComponent(id), "DELETE");
 // A history page. POST with the query in the BODY — `search` is prompt content by another name and `tag` is a tag
 // token, and a URL carrying either is written into the browser's own history and address-bar autocomplete on the

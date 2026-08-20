@@ -256,15 +256,25 @@
 
   async function toggleFav(id) {
     if (!canWritePrefs()) return;
-    if (favs.has(id)) favs.delete(id); else favs.add(id);
+    const wasOn = favs.has(id);
+    if (wasOn) favs.delete(id); else favs.add(id);
     render();
-    try { await saveFavoriteWorkflows([...favs]); } catch (_) { toast("Couldn't save"); }
+    try { await saveFavoriteWorkflows([...favs]); }
+    catch (e) {
+      if (wasOn) favs.add(id); else favs.delete(id);
+      render(); console.error("save favorites failed:", e); toast("Couldn't save");
+    }
   }
   async function toggleHide(id) {
     if (!canWritePrefs()) return;
-    if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
+    const wasOn = hidden.has(id);
+    if (wasOn) hidden.delete(id); else hidden.add(id);
     render();
-    try { await saveHiddenWorkflows([...hidden]); } catch (_) { toast("Couldn't save"); }
+    try { await saveHiddenWorkflows([...hidden]); }
+    catch (e) {
+      if (wasOn) hidden.add(id); else hidden.delete(id);
+      render(); console.error("save hidden failed:", e); toast("Couldn't save");
+    }
   }
 
   load();

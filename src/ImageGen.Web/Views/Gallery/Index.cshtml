@@ -16,7 +16,7 @@
    filters live. The select has no auto-submit of its own, hence the noscript button. *@
 <form class="gal-search" role="search" method="get" action="/gallery">
     <input id="gallerySearch" name="q" type="search" value="@Model.Search" autocomplete="off"
-           placeholder="Search prompts — an image must contain every word" aria-label="Search prompts" />
+           placeholder="Search prompts" title="An image must contain every search word." aria-label="Search prompts" />
     @if (Model.Workflows.Count > 0)
     {
         <select id="galleryWorkflow" name="workflow" aria-label="Filter by workflow">

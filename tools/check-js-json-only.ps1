@@ -16,20 +16,27 @@ $jsDir = Join-Path $root 'src/ImageGen.Web/wwwroot/js'
 
 $patterns = @(
     @{ Rx = 'fetch\s*\(\s*(location|window\.location)'; Why = 'fetches its own page as data' },
-    @{ Rx = 'DOMParser';                                Why = 'parses a fetched response as HTML' },
-    @{ Rx = '\$\([^)]*\)\.load\s*\(';                   Why = 'jQuery .load() injects fetched HTML' },
-    @{ Rx = "dataType\s*:\s*['""]html['""]";            Why = 'requests HTML instead of JSON' },
-    @{ Rx = '\.text\(\)[^\n]*innerHTML';                Why = 'puts a fetched response body into innerHTML' }
+    @{ Rx = 'DOMParser'; Why = 'parses a fetched response as HTML' },
+    @{ Rx = '\$\([^)]*\)\.load\s*\('; Why = 'jQuery .load() injects fetched HTML' },
+    @{ Rx = "dataType\s*:\s*['""]html['""]"; Why = 'requests HTML instead of JSON' },
+    @{ Rx = '(?:innerHTML|outerHTML)\s*=\s*await\s+[A-Za-z_$][\w$]*\.text\s*\(\s*\)'; Why = 'puts a fetched response body into HTML' },
+    # Dataflow, not line shape: catches `const html = await response.text();` followed several statements/lines
+    # later by `node.innerHTML = html` (the lightbox defect that the old same-line regex missed).
+    @{ Rx = '(?<body>[A-Za-z_$][\w$]*)\s*=\s*await\s+[A-Za-z_$][\w$]*\.text\s*\(\s*\)\s*;.{0,4000}?(?:(?:innerHTML|outerHTML)\s*=\s*\k<body>\b|insertAdjacentHTML\s*\([^,]+,\s*\k<body>\b)'; Why = 'puts a fetched response body into HTML' }
 )
 
 $violations = @()
 foreach ($file in Get-ChildItem -Path $jsDir -Filter *.js -File -Recurse) {
-    $lines = Get-Content $file.FullName
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        foreach ($p in $patterns) {
-            if ($lines[$i] -match $p.Rx) {
-                $violations += "{0}:{1}: {2}`n    {3}" -f $file.Name, ($i + 1), $p.Why, $lines[$i].Trim()
-            }
+    $source = Get-Content $file.FullName -Raw
+    foreach ($p in $patterns) {
+        foreach ($match in [regex]::Matches(
+            $source, $p.Rx,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+                [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
+            $line = ([regex]::Matches($source.Substring(0, $match.Index), "`n")).Count + 1
+            $snippet = ($match.Value -replace '\s+', ' ').Trim()
+            if ($snippet.Length -gt 180) { $snippet = $snippet.Substring(0, 180) + '…' }
+            $violations += "{0}:{1}: {2}`n    {3}" -f $file.Name, $line, $p.Why, $snippet
         }
     }
 }

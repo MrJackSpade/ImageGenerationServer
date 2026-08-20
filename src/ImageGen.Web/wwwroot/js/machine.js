@@ -21,24 +21,23 @@
   function field(s) {
     const wrap = document.createElement("label");
     wrap.className = "mp-field machine-field";
-    wrap.title = s.help;
-
     const label = document.createElement("span");
     label.className = "fld-label";
     label.textContent = s.label;
+    const help = [s.help];
     if (!s.live) {
-      const tag = document.createElement("span");
-      tag.className = "machine-restart";
-      tag.textContent = "restart to apply";
-      tag.title = "Stored straight away. This one is read once while the app starts, so the running process keeps the old value.";
-      label.appendChild(document.createTextNode(" "));
-      label.appendChild(tag);
+      help.push("Stored straight away. This one is read once while the app starts, so the running process keeps the old value.");
     }
     if (s.store === "file") {
+      help.push("Kept in the environment's appsettings file, because it is what opens the database every other setting lives in.");
+    }
+    const helpText = help.filter(Boolean).join(" ");
+    if (helpText) {
+      wrap.title = helpText;
       const tag = document.createElement("span");
-      tag.className = "machine-restart";
-      tag.textContent = "in the config file";
-      tag.title = "Kept in the environment's appsettings file, because it is what opens the database every other setting lives in.";
+      tag.className = "fld-help";
+      tag.textContent = "ⓘ";
+      tag.setAttribute("aria-label", helpText);
       label.appendChild(document.createTextNode(" "));
       label.appendChild(tag);
     }

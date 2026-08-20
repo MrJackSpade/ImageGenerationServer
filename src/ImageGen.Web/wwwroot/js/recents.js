@@ -18,20 +18,11 @@
   let timer = null;
   let seq = 0;                    // refresh sequence: only the newest pull may apply, so a slow stale one can't win
 
-  function card(r) {
-    const id = imageId(r);
-    const a = document.createElement("a"); a.className = "imgcard"; a.href = "/image/" + encodeURIComponent(id);
-    if (!r.viewed) a.classList.add("unviewed");   // outlined until it's been opened — the server's answer, not this tab's
-    a.innerHTML = `<div class="img"><img data-src="${thumbUrl(r)}" alt=""></div>`
-      + `<div class="meta"><div class="p">${escapeHtml(r.prompt || "")}</div>`
-      + `<div class="row"><span class="tag">${escapeHtml(r.model || "")}</span></div></div>`;
-    return a;
-  }
   function render() {
     if (!items.length) { wrap.classList.add("hidden"); grid.innerHTML = ""; return; }
     wrap.classList.remove("hidden");
     grid.innerHTML = "";
-    for (const r of items) grid.appendChild(card(r));
+    for (const r of items) grid.appendChild(buildImageCard(r));
   }
   async function refresh() {
     const mine = ++seq;

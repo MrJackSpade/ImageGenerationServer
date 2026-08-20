@@ -1,9 +1,8 @@
 @model ImageDetailViewModel
 @inject IConfiguration Configuration
 @*
-    The image "card" — the picture plus its meta/prompt-chips/actions. Shared by the standalone
-    /image/{id} detail page and the in-page lightbox (GET /image/{id}/card). detail.js wires it up
-    via window.initDetail(root); it reads #detailRecord from inside this fragment.
+    The standalone detail page's image card. The lightbox renders the same presentation contract client-side from
+    GET /image/{id}/detail; detail.js wires both forms through window.initDetail(root).
 *@
 @{
     var gateway = "/forge";

@@ -1,7 +1,73 @@
 // Wires up an image card (image bookmark, token-chip bookmarks, delete, download). Uses core.js.
-// Driven both by the standalone /image/{id} page (auto-init below) and by the lightbox, which
-// fetches the same card fragment and calls window.initDetail(root, opts). `root` scopes all queries
-// so the modal and a page never collide. opts.onDelete / opts.onBookmark let the lightbox react.
+// The standalone page ships Razor markup; the lightbox calls renderImageDetail with the JSON detail contract.
+// Both then pass through initDetail, so controls have one behavior implementation. `root` scopes all queries.
+
+// Build the detail card from GET /image/{id}/detail. Values are assigned through DOM properties/textContent rather
+// than interpolated markup: prompts, model names and catalog strings are data, never HTML.
+function renderImageDetail(root, rec) {
+  root.innerHTML = "";
+  const card = document.createElement("div"); card.className = "detail-card";
+  const media = document.createElement("img"); media.id = "detailImg"; media.src = viewUrl(rec); media.alt = rec.prompt || "";
+  const meta = document.createElement("div"); meta.className = "detail-meta";
+  const prompt = document.createElement("p"); prompt.id = "detailPrompt";
+
+  (Array.isArray(rec.chips) ? rec.chips : []).forEach(c => {
+    if (c.kind != null) {
+      const chip = document.createElement("span");
+      chip.className = "tagchip " + c.kind;
+      if (c.category) chip.classList.add("cat-" + c.category);
+      if (c.banned) chip.classList.add("banned");
+      if (c.bookmarked) chip.classList.add("on");
+      if (c.generated) chip.classList.add("src-auto");
+      chip.dataset.token = c.key || "";
+      chip.dataset.kind = c.kind;
+      chip.dataset.category = c.category || "";
+      chip.title = "Click to cycle: bookmark → ban for this workflow → off";
+      const star = document.createElement("span"); star.className = "tc-star"; star.textContent = "★";
+      const name = document.createElement("span"); name.className = "tc-name"; name.textContent = c.text || "";
+      chip.append(star, name); prompt.appendChild(chip);
+    } else {
+      const plain = document.createElement("span"); plain.className = "plainchip"; plain.textContent = c.text || "";
+      prompt.appendChild(plain);
+    }
+  });
+
+  const sub = document.createElement("p"); sub.className = "detail-sub";
+  if (rec.modelId) {
+    const link = document.createElement("a"); link.className = "detail-model-link";
+    link.href = "/settings/workflows/" + encodeURIComponent(rec.modelId);
+    link.title = "Open this workflow's page"; link.textContent = rec.model || "";
+    sub.appendChild(link);
+  } else {
+    sub.appendChild(document.createTextNode(rec.model || ""));
+  }
+  sub.appendChild(document.createTextNode(" · " + (rec.aspect || "") + " · "));
+  const time = document.createElement("time"); time.dataset.ts = String(Number(rec.ts) || 0); sub.appendChild(time);
+
+  const actions = document.createElement("div"); actions.className = "detail-actions";
+  function action(id, title, aria, text, extraClass) {
+    const button = document.createElement("button"); button.type = "button";
+    button.className = "icon-btn" + (extraClass ? " " + extraClass : "");
+    button.id = id; button.title = title; button.setAttribute("aria-label", aria); button.textContent = text;
+    actions.appendChild(button); return button;
+  }
+  action("detailStar", rec.bookmarked ? "Bookmarked" : "Bookmark", "Bookmark", rec.bookmarked ? "★" : "☆", rec.bookmarked ? "on" : "");
+  action("detailReload", "Reload — generate again with this prompt", "Reload", "⟳").hidden = true;
+  action("detailPortrait", "Set as portrait", "Set as portrait", "🖼").hidden = true;
+  const edit = action("detailEdit", "Edit this", "Edit this", "✎"); edit.dataset.href = "/edit/" + encodeURIComponent(rec.id);
+  action("detailCopy", "Copy prompt — keeps #, @ and underscores. Hold for the original, as typed", "Copy prompt", "⧉");
+  action("detailValues", "Generation values", "Show generation values", "ⓘ");
+  action("detailDelete", "Delete", "Delete", "🗑");
+  action("detailDownload", "Save image", "Save image", "↓");
+
+  meta.append(prompt, sub, actions);
+  card.append(media, meta);
+  const record = document.createElement("script"); record.type = "application/json"; record.id = "detailRecord";
+  record.textContent = JSON.stringify(rec);
+  root.append(card, record);
+  return card;
+}
+
 function initDetail(root, opts) {
   opts = opts || {};
   const card = root.querySelector(".detail-card");
@@ -477,5 +543,6 @@ function openPortraitPicker(groups) {
 }
 
 window.initDetail = initDetail;
+window.renderImageDetail = renderImageDetail;
 // Standalone detail page: bind immediately.
 if (document.querySelector(".detail-stage")) initDetail(document, {});

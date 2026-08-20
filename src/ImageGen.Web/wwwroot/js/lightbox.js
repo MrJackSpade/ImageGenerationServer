@@ -1,8 +1,7 @@
 // In-page image lightbox. Clicking any .imgcard opens a fitted modal viewer (image auto-fits the
 // viewport, full detail/meta beside it) instead of navigating to /image/{id}, and the ‹ › / arrow
 // keys step through every .imgcard on the page it was opened from — stopping at the ends, no wrap-around.
-// Falls back to a normal page
-// load if the card fragment can't be fetched. Loaded after core.js + detail.js.
+// Falls back to a normal page load if the JSON detail record can't be fetched. Loaded after core.js + detail.js.
 //
 // WHERE IT IS is an image ID, never a position. The grid changes underneath an open lightbox — gallery.js
 // prepends live arrivals on every imagegen:generated, recents.js rebuilds its strip from scratch, a delete
@@ -51,7 +50,7 @@
 
     let r;
     try {
-      r = await fetch("/image/" + eid + "/card", { credentials: "same-origin" });
+      r = await fetch("/image/" + eid + "/detail", { credentials: "same-origin" });
     } catch (e) {
       console.error("lightbox card load failed, navigating to the page:", e);
       if (my === token) location.href = a.href;      // network error — fall back to the full page
@@ -68,17 +67,39 @@
       slideInto(slot);
       return;
     }
-    const html = await r.text();
+    let rec;
+    try {
+      rec = await r.json();
+    } catch (e) {
+      console.error("lightbox detail response was not valid JSON, navigating to the page:", e);
+      if (my === token) location.href = a.href;
+      return;
+    }
     if (my !== token) return;                         // superseded while reading the body
-    content.innerHTML = html;
-    // Fetching the card IS opening the image — the server recorded the view answering this request. Drop the
-    // card's unviewed outline now rather than leaving the grid disagreeing with the fact until a reload.
-    a.classList.remove("unviewed");
+    if (typeof window.renderImageDetail !== "function") { location.href = a.href; return; }
+    window.renderImageDetail(content, rec);
     syncOrientation();                                // stack the meta under wide pictures
     if (window.initDetail) window.initDetail(content, { onDelete, onRegenerate: close });
     history.replaceState({ lb: 1 }, "", "/image/" + eid);
     paintNav();
     preloadNeighbours();
+    markViewed(a, eid, my);
+  }
+
+  // Fetching presentation data is side-effect-free. Only a card that was actually rendered/opened records a view;
+  // preloads can never clear a neighbour's outline. Remove the local outline only after the durable write succeeds.
+  async function markViewed(a, eid, my) {
+    try {
+      const response = await fetch("/image/" + eid + "/view", { method: "POST", credentials: "same-origin" });
+      if (my !== token) return;
+      if (!response.ok) throw new Error("the server answered " + response.status);
+      // The strip may have rebuilt while the write was in flight. Clear the current live card, not only
+      // the possibly-detached node that originally opened the lightbox.
+      const live = liveCards().find(card => idOf(card) === decodeURIComponent(eid));
+      (live || a).classList.remove("unviewed");
+    } catch (e) {
+      console.error("lightbox viewed-state save failed:", e);
+    }
   }
 
   // Show whatever now sits at `slot` after a card was removed from the live list; the last image if the
@@ -141,7 +162,7 @@
   // Warm what stepping actually costs, so ‹ › land on something already fetched.
   //
   // Warming the neighbour's THUMBNAIL would be pointless: it is the picture the grid behind the overlay already
-  // shows, not what the lightbox displays. Stepping fetches the card fragment and then the FULL image inside it —
+  // shows, not what the lightbox displays. Stepping fetches the detail record and then the FULL image inside it —
   // the part actually worth warming.
   //
   // The full image is the same URL as the thumbnail without the ?w= that shrinks it (core.js: thumbUrl is
@@ -159,10 +180,8 @@
       if (!eid || preloaded.has(eid)) return;
       preloaded.add(eid);
 
-      // Warm ONLY the picture, never the /card fragment. Fetching /card is how the server records a VIEW
-      // (ImageController marks viewed on that GET), so pre-warming the card would mark neighbours viewed before you
-      // ever stepped to them — corrupting the unviewed outline and the unviewed-only filter. The card is a small
-      // fragment, re-fetched on the real step; the picture is the multi-megabyte part worth warming.
+      // Warm ONLY the picture. Detail JSON is small and side-effect-free, while the picture is the multi-megabyte
+      // part worth warming. Viewed state is recorded only after a detail record has actually rendered.
       //
       // A neighbour still in the imgqueue has no src yet, so fall back to data-src rather than assigning an empty
       // string — that resolves to the current page URL and fetches the document instead.
