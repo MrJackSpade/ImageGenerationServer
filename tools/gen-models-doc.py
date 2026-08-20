@@ -147,8 +147,9 @@ def main():
             if m["variants"] > 1:
                 label += f" ×{m['variants']}"
             detail = m["summary"] or m["arch"] or ""
+            detail = detail.replace("|", "\\|")
             links = " · ".join(page_link(p) for p in m["pages"])
-            lines.append(f"| {label} | {detail.replace('|', '\\|')} | {links} |")
+            lines.append(f"| {label} | {detail} | {links} |")
         lines.append("")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

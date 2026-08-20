@@ -11,6 +11,7 @@ Weights: vendor/sketchKeras-pytorch/weights/model.pth (downloaded separately).
 from __future__ import annotations
 
 import os
+import threading
 import numpy as np
 import torch
 import torch.nn as nn
@@ -60,30 +61,29 @@ class SketchKeras(nn.Module):
         return self.last_conv(self.last_pad(u5))
 
 
-_MODEL = None
-
-
-def _device():
-    try:
-        import comfy.model_management as mm
-        return mm.get_torch_device()
-    except Exception:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+_PATCHER = None
+_PATCHER_LOCK = threading.Lock()
 
 
 def _get_model():
-    global _MODEL
-    if _MODEL is None:
-        if not os.path.exists(_WEIGHTS):
-            raise FileNotFoundError(f"sketchKeras weights missing: {_WEIGHTS}")
-        m = SketchKeras()
-        m.load_state_dict(torch.load(_WEIGHTS, map_location="cpu"))
-        m.eval()
-        _MODEL = m
-    return _MODEL
+    global _PATCHER
+    import comfy.model_management as mm
+    from comfy.model_patcher import ModelPatcher
+    with _PATCHER_LOCK:
+        if _PATCHER is None:
+            if not os.path.exists(_WEIGHTS):
+                raise FileNotFoundError(f"sketchKeras weights missing: {_WEIGHTS}")
+            model = SketchKeras()
+            model.load_state_dict(torch.load(_WEIGHTS, map_location="cpu"))
+            model.eval()
+            _PATCHER = ModelPatcher(model, mm.get_torch_device(), mm.unet_offload_device())
+        # The patcher is a module-level CPU cache, but its device residency is owned by ComfyUI: it can be evicted
+        # through the same arbiter as diffusion models instead of becoming invisible permanent VRAM.
+        mm.load_models_gpu([_PATCHER])
+        return _PATCHER.model, _PATCHER.load_device
 
 
-def _sketch_one(rgb_u8: np.ndarray, thresh: float) -> np.ndarray:
+def _sketch_one(rgb_u8: np.ndarray, thresh: float, model, dev) -> np.ndarray:
     """rgb_u8 (H,W,3) -> dark-lines-on-white (H,W) uint8 at the same H,W."""
     H, W = rgb_u8.shape[:2]
     # resize longest edge to 512 (aspect kept), as the fixed-size net requires
@@ -103,8 +103,6 @@ def _sketch_one(rgb_u8: np.ndarray, thresh: float) -> np.ndarray:
     canvas[0:nh, 0:nw, :] = highpass
     # 3 colour channels -> batch of 3 single-channel images
     x = torch.from_numpy(canvas.transpose(2, 0, 1)[:, None, :, :])  # (3,1,512,512)
-    dev = _device()
-    model = _get_model().to(dev)
     with torch.no_grad():
         pred = model(x.to(dev)).squeeze(1).cpu().numpy()           # (3,512,512)
     line = np.amax(pred, axis=0)                                    # (512,512), high = line
@@ -133,9 +131,10 @@ class SketchKerasLines:
 
     def run(self, image, threshold):
         batch = (image.clamp(0, 1).cpu().numpy() * 255.0 + 0.5).astype(np.uint8)
+        model, dev = _get_model()
         out = []
         for i in range(batch.shape[0]):
-            line = _sketch_one(batch[i], threshold)
+            line = _sketch_one(batch[i], threshold, model, dev)
             out.append(np.repeat(line[..., None], 3, axis=2))
         arr = np.stack(out, axis=0).astype(np.float32) / 255.0
         return (torch.from_numpy(arr),)

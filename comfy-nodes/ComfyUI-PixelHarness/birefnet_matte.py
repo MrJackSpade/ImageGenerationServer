@@ -9,27 +9,33 @@ Uses transformers (already in the ComfyUI env); weights download from HF on firs
 """
 from __future__ import annotations
 
+import threading
 import numpy as np
 import torch
 from PIL import Image
 
-_MODEL = None   # (model, device, dtype) — loaded once, reused across calls
+_PATCHER = None
+_PATCHER_LOCK = threading.Lock()
 
 
 def _load():
-    global _MODEL
-    if _MODEL is None:
-        from transformers import AutoModelForImageSegmentation
-        model = AutoModelForImageSegmentation.from_pretrained(
-            "ZhengPeng7/BiRefNet", trust_remote_code=True).eval()
-        dev = "cuda" if torch.cuda.is_available() else "cpu"
-        model = model.to(dev)
-        if dev == "cuda":
-            model = model.half()          # fp16 on GPU (smaller footprint next to other resident models)
-        else:
-            model = model.float()         # CPU has no fp16 conv
-        _MODEL = (model, dev, next(model.parameters()).dtype)
-    return _MODEL
+    global _PATCHER
+    import comfy.model_management as mm
+    from comfy.model_patcher import ModelPatcher
+    with _PATCHER_LOCK:
+        if _PATCHER is None:
+            from transformers import AutoModelForImageSegmentation
+            model = AutoModelForImageSegmentation.from_pretrained(
+                "ZhengPeng7/BiRefNet", trust_remote_code=True).eval()
+            load_device = mm.get_torch_device()
+            if load_device.type == "cuda":
+                model = model.half()          # fp16 on GPU (smaller footprint next to other resident models)
+            else:
+                model = model.float()         # CPU has no fp16 conv
+            _PATCHER = ModelPatcher(model, load_device, mm.unet_offload_device())
+        mm.load_models_gpu([_PATCHER])
+        model = _PATCHER.model
+        return model, _PATCHER.load_device, next(model.parameters()).dtype
 
 
 _MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
@@ -67,6 +73,7 @@ class BiRefNetMatte:
                 pred = model(t)
                 pred = pred[-1] if isinstance(pred, (list, tuple)) else pred
                 a = pred.sigmoid().float().cpu()[0, 0]        # (1024,1024)
+                del pred, t
                 a = Image.fromarray((a.numpy() * 255.0).astype(np.uint8)).resize((w, h), Image.BILINEAR)
                 av = torch.from_numpy(np.asarray(a).astype(np.float32) / 255.0)
                 if threshold > 0:

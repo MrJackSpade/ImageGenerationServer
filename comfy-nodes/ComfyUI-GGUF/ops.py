@@ -69,10 +69,9 @@ class GGMLTensor(torch.Tensor):
 
     def copy_(self, *args, **kwargs):
         # fixes .weight.copy_ in comfy/clip_model/CLIPTextModel
-        try:
-            return super().copy_(*args, **kwargs)
-        except Exception as e:
-            logging.warning(f"ignoring 'copy_' on tensor: {e}")
+        # A failed copy means the model was not populated as requested. Propagate it; continuing would return a
+        # partially initialized model whose later output gives no clue which weight failed.
+        return super().copy_(*args, **kwargs)
 
     def new_empty(self, size, *args, **kwargs):
         # Intel Arc fix, ref#50

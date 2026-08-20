@@ -185,6 +185,10 @@ def weighted_mode_downsample(labels, palette, out_w, out_h, beta=0.5, rarity=Non
     grid alpha is returned alongside — a cell is opaque iff at least half its source pixels are.
     Returns (sprite_rgb, out_lab, alpha_grid); alpha_grid is None when `opaque` is None."""
     H, W = labels.shape
+    if out_w < 1 or out_h < 1 or out_w > W or out_h > H:
+        raise ValueError(
+            f"pixel grid {out_w}x{out_h} must be positive and no larger than source {W}x{H}; "
+            "otherwise rounded grid cells have no source pixels")
     K = len(palette)
     if rarity is None:
         freq = np.bincount(labels.ravel(), minlength=K).astype(np.float64)

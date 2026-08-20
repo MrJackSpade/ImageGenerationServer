@@ -135,8 +135,6 @@ class PixelManifoldProjection:
     def patch(self, model, vae, grid_w, grid_h, palette, method, w_start, w_end,
               start_percent, end_percent, project_every, virtual_resolution=0):
         m = model.clone()
-        state = {"n": 0}
-
         def post_cfg(args):
             denoised = args["denoised"]                       # (B,C,H,W) latent x0 estimate
             sigma = args["sigma"]
@@ -149,12 +147,14 @@ class PixelManifoldProjection:
                 idx = int(torch.argmin(torch.abs(sched.to(cur.device) - cur)).item())
                 frac = idx / max(len(sched) - 2, 1)           # len-1 = nsteps; ramp over i in 0..nsteps-1
             else:
+                idx = 0
                 frac = 1.0
             frac = min(max(frac, 0.0), 1.0)
             if frac < start_percent or frac > end_percent:
                 return denoised
-            state["n"] += 1
-            if (state["n"] - 1) % project_every != 0:
+            # Derive cadence from this run's sigma schedule. A mutable closure counter survives ComfyUI output
+            # caching and shifts project_every's phase in later executions of the same cached patched model.
+            if idx % project_every != 0:
                 return denoised
             w = w_start + (w_end - w_start) * frac
 

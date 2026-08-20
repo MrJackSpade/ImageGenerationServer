@@ -63,7 +63,8 @@ def get_gguf_metadata(reader):
                     metadata[field_name] = float(field.parts[field.data[-1]])
                 elif field.types[0] == gguf.GGUFValueType.BOOL:
                     metadata[field_name] = bool(field.parts[field.data[-1]])
-        except:
+        except Exception as exc:
+            logging.debug("ComfyUI-GGUF: skipping unreadable metadata field %s: %s", field_name, exc)
             continue
     return metadata
 

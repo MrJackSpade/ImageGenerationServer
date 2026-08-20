@@ -1,6 +1,6 @@
 # Supported models
 
-**108 models, 158 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
+**109 models, 160 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
 
 A model can appear in more than one section: the same weights that generate a picture often also redraw one or drive an effect.
 
@@ -93,7 +93,7 @@ Take an existing image and change it. Multi-turn: each edit builds on the last.
 | **Photanima** 🏷 | Reinterpret an entire existing image through Photanima using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the… | [Civitai](https://civitai.com/models/2645333/photanima) |
 | **Photo** | Upscale photographic and real-world images through Nomos2's high-quality DAT2 network. | [Hugging Face](https://huggingface.co/Phips/4xNomos2_hq_dat2) |
 | **Qwen-Image** ×2 | Regenerate a PAINTED region of an image with base Qwen-Image driven by the InstantX inpainting ControlNet. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI) |
-| **Qwen-Image-Edit** | Clean instruction editor on the 20B Qwen-Image base, fp8 for near-bf16 quality. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
+| **Qwen-Image-Edit** | Clean instruction editor on the 20B Qwen-Image base. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **Qwen-Image-Edit (masked)** | Paint a region, give an instruction, and optionally attach reference images — the Qwen edit runs only inside the mask and everything outside is composited back untouched. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **SeedVR2** | Restore and upscale an image through SeedVR2's one-step diffusion transformer. | [Hugging Face](https://huggingface.co/Comfy-Org/SeedVR2) |
 | **Step1X-Edit (i1258)** | StepFun's original instruction editor (i1258), fp8. | [Hugging Face](https://huggingface.co/stepfun-ai/Step1X-Edit) |
@@ -130,6 +130,7 @@ Animate a still, or generate a clip from a prompt.
 | **MiniMax-H3 Turbo** ×2 | The fast MiniMax-H3 image→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **MiniMax-H3 Turbo (reference)** | The fast MiniMax-H3 reference→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **SDXL AnimateDiff** | Animates a still image into a short clip using base SDXL and the AnimateDiff SDXL motion module. | [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) |
+| **SeedVR2** | Restores and upscales a source video with SeedVR2's temporal diffusion model. | [Hugging Face](https://huggingface.co/Comfy-Org/SeedVR2) |
 | **Wan 2.2** | Animates a still image into a short clip (image-to-video). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Wan 2.2 (Anime LoRA)** | Animate a still into a short clip with an anime-style LoRA on WAN 2.2 TI2V-5B. | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Wan 2.2 (Flat Color)** | Animate a still into a short clip in flat anime-color style (WAN 2.2 TI2V-5B + Flat Color LoRA). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
@@ -175,6 +176,7 @@ Applied to an image or a clip you already have. Several need no diffusion model 
 | **Pixel Quantize (batch)** | Pixel-quantizes N still frames together, deriving ONE global fp palette + label frequencies across the whole set (temporally consistent — no frame-to-frame flicker) and emitting the per-frame… |  |
 | **Qwen-Image-Edit** | Generates pixel art directly from a reference image: QIE redraws per the instruction while the projection clamps onto a fixed grid+palette every denoise step, so the model produces manifold-friendly… | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **Stable Diffusion 3.5 Large** | Pixel art authored by Stable Diffusion 3.5 Large under per-step reprojection. | [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-3.5-large) |
+| **VAE Round-trip (Qwen diagnostic)** | Developer diagnostic that reconstructs the source through the bound Qwen VAE without diffusion, prompting, sampling, or application-side resizing. |  |
 | **Wan 2.2 14B Pixel** | Pixel-art image-to-video (locked-palette per-frame quantize). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Wan 2.2 Pixel** | Pixel-art image-to-video (locked-palette per-frame quantize). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Z-Image** | Pixel art authored by Z-Image under per-step reprojection. | [Hugging Face](https://huggingface.co/Comfy-Org/z_image) |
