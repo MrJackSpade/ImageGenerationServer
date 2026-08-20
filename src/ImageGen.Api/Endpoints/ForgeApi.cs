@@ -1144,7 +1144,7 @@ public static class ForgeApi
 
     /// <summary>One slot's view for the client.</summary>
     private static object SlotView(int index, string status, string? imageId, string model, string media, bool hasAudio,
-        string? effectivePrompt, Dictionary<string, string>? marks, int width, int height, bool? changed,
+        string? aspect, string? effectivePrompt, Dictionary<string, string>? marks, int width, int height, bool? changed,
         double? changeScore, string? error, string? notice = null) => new
         {
             index,
@@ -1154,6 +1154,7 @@ public static class ForgeApi
             model,
             media,
             hasAudio,
+            aspect,
             effectivePrompt,
             marks,
             width,
@@ -1169,7 +1170,7 @@ public static class ForgeApi
         (string media, bool hasAudio) = MediaOf(catalog, s.Model);
         return SlotView(
             s.Index, RenderPhases.Of(s.State).Wire(),
-            s.ImageId, s.Model, media, hasAudio, s.EffectivePrompt, s.Marks, s.Width, s.Height,
+            s.ImageId, s.Model, media, hasAudio, s.Gen?.Aspect, s.EffectivePrompt, s.Marks, s.Width, s.Height,
             s.EditResult?.Changed, s.EditResult?.ChangeScore, s.Error, s.Notice);
     }
 
@@ -1314,7 +1315,7 @@ public static class ForgeApi
             imageIds = r.Slots.OrderBy(s => s.SlotIndex).Select(s => s.ImageId),
             slots = r.Slots.OrderBy(s => s.SlotIndex).Select(s => SlotView(
                 s.SlotIndex, RenderPhases.Of(s.State).Wire(),
-                s.ImageId, r.Model, media, hasAudio, s.EffectivePrompt, MarksMap(s.Marks), s.Width ?? 0, s.Height ?? 0,
+                s.ImageId, r.Model, media, hasAudio, s.Generate?.Aspect, s.EffectivePrompt, MarksMap(s.Marks), s.Width ?? 0, s.Height ?? 0,
                 s.Edit?.Changed, s.Edit?.ChangeScore, s.Error)),
             createdAt = AsUtc(r.CreatedAtUtc),
             finishedAt = AsUtc(r.FinishedAtUtc)

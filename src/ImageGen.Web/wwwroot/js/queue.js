@@ -15,7 +15,7 @@
   const catalog = {};   // configId -> { name, avgSeconds }
   const nameOf = id => (catalog[id] && catalog[id].name) || id;
 
-  let page = 1, total = 0, pollTimer = null, seq = 0;
+  let page = 1, total = 0, pollTimer = null, seq = 0, lastRows = null;
   // The operator-set foreground-idle delay (minutes) before background jobs run — carried on each /queue response so a
   // background row can read "waiting for idle (Nm)". 0 until the first response lands.
   let bgIdleMinutes = 0;
@@ -23,18 +23,13 @@
   // Names only — a failure here degrades the queue to raw config ids, which is visible and harmless. It is logged
   // rather than swallowed so "why is the queue showing ids instead of names" has an answer.
   async function loadCatalog() {
-    // DIAGNOSTIC: /workflows is fetched serially BEFORE the first /queue, so the queue list cannot appear until this
-    // returns. It re-probes ComfyUI (object_info per loader) on every call — the suspected source of a long blank list.
-    const t = performance.now();
     try {
       const r = await fetch(`${GATEWAY}/workflows`);
-      console.log(`[queue] /workflows responded ${r.status} in ${Math.round(performance.now() - t)}ms`);
       if (!r.ok) throw new Error(`the catalog answered ${r.status}`);
       const rows = (await r.json()) || [];
       for (const row of rows) catalog[row.id] = { name: row.friendlyName || row.id, avgSeconds: row.avgSeconds };
-      console.log(`[queue] /workflows parsed ${rows.length} rows, total ${Math.round(performance.now() - t)}ms`);
     } catch (e) {
-      console.error(`[queue] /workflows FAILED after ${Math.round(performance.now() - t)}ms; queue will show raw ids:`, e);
+      console.error("queue catalog unavailable; showing workflow ids:", e);
     }
   }
 
@@ -44,26 +39,20 @@
   // rebuild (used when navigating, so the list always reflects the page just asked for).
   async function fetchPage(p, live) {
     const mine = ++seq;
-    // DIAGNOSTIC: separate the network+server time (the DB page query lives behind this) from the DOM render time,
-    // and log it on every poll so a one-off slow first load is distinguishable from persistent latency.
-    const t = performance.now();
     let data;
     try {
       const r = await fetch(`${GATEWAY}/queue?page=${p}&pageSize=${PAGE_SIZE}`);
-      console.log(`[queue] /queue?page=${p} responded ${r.status} in ${Math.round(performance.now() - t)}ms`);
       data = r.ok ? await r.json() : null;
     }
-    catch (e) { console.error(`[queue] /queue?page=${p} THREW after ${Math.round(performance.now() - t)}ms:`, e); return; }
+    catch (_) { return; }
     if (mine !== seq) return; // a newer poll/navigation started while this request was in flight
-    if (!data) { console.warn(`[queue] /queue?page=${p} returned no data (response not ok)`); return; }
+    if (!data) return;
     page = data.page || p; total = data.total || 0;
     bgIdleMinutes = data.backgroundIdleMinutes || 0;
     if (!live) lastSig = null;
-    const tr = performance.now();
     render(data.jobs || []);
     renderPager();
     renderOutstanding(data.outstanding);
-    console.log(`[queue] page ${page}: ${(data.jobs || []).length} rows, fetch+parse ${Math.round(tr - t)}ms, render ${Math.round(performance.now() - tr)}ms`);
   }
 
   // What's left across the WHOLE box, from the server — this page shows 25 rows and its `total` counts finished
@@ -261,6 +250,7 @@
   }
 
   function render(jobs) {
+    lastRows = jobs;
     const s = page + "#" + sig(jobs);
     if (s === lastSig) { refreshLive(jobs); tickAll(); return; }
     lastSig = s;
@@ -306,17 +296,11 @@
     go(b.dataset.act === "prev" ? page - 1 : page + 1);
   });
 
-  // DIAGNOSTIC timeline. `performance.now()` is milliseconds since navigation START, so logging it here reveals how
-  // long AFTER the page began loading the queue script even runs — a large value means the HTML document/assets were
-  // slow (before any of these fetches), a small one means the delay is entirely in the two awaited fetches below.
-  (async () => {
-    const t0 = performance.now();
-    console.log(`[queue] bootstrap start at +${Math.round(t0)}ms since navigation`);
-    await loadCatalog();
-    console.log(`[queue] catalog done at +${Math.round(performance.now() - t0)}ms into bootstrap; fetching first page`);
-    await fetchPage(1, false);
-    console.log(`[queue] FIRST PAGE SHOWN at +${Math.round(performance.now() - t0)}ms into bootstrap`);
-    schedulePolling(); setInterval(tickAll, 1000);
-  })();
+  // Queue state is the first paint; friendly catalog names are a decoration and must never sit in front of it.
+  // If the catalog arrives second, repaint the rows already on screen without issuing (and potentially superseding)
+  // another queue request.
+  loadCatalog().then(() => { if (lastRows) { lastSig = null; render(lastRows); } });
+  fetchPage(1, false).then(schedulePolling);
+  setInterval(tickAll, 1000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchPage(page, true); });
 })();

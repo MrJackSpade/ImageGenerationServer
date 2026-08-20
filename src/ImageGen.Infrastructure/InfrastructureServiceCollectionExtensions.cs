@@ -60,7 +60,6 @@ public static class InfrastructureServiceCollectionExtensions
         _ = services.AddScoped<IHistoryRepository, HistoryRepository>();
         _ = services.AddScoped<IBookmarkRepository, BookmarkRepository>();
         _ = services.AddScoped<IBannedTokenRepository, BannedTokenRepository>();
-        _ = services.AddScoped<IPendingJobRepository, PendingJobRepository>();
         _ = services.AddScoped<IArtistDisplayRepository, ArtistDisplayRepository>();
         _ = services.AddScoped<ILoraDisplayRepository, LoraDisplayRepository>();
         _ = services.AddScoped<ITagDisplayRepository, TagDisplayRepository>();

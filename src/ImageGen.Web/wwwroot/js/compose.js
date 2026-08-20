@@ -557,7 +557,9 @@ const composePanel = {
   onProgress: showBar,   // also drives the tab-title/favicon ring
   // `meta` is THIS submission's context (prompt/model/shapes), threaded by the control — so a queue-more job (its own
   // meta) can never make the running job record its slots against the wrong prompt/model.
-  onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks, notice: s.notice }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
+  // The server's slot aspect is authoritative: one submitted item may fan into several prompt-expanded slots, whose
+  // indices no longer line up with the pre-expansion client array.
+  onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks, notice: s.notice }, meta.prompt, meta.model, meta.modelId, s.aspect || (meta.slotAspects && meta.slotAspects[s.index]) || ""),
   onRunning: showRunningModel,   // multi-model runs show which workflow is rendering now (see showRunningModel)
   activeStatus: composerCreatingStatus,
   // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
@@ -573,12 +575,10 @@ const composeSubmit = attachEnqueueSubmit({
   isBusy: () => busy,
   onBusy: b => { if (b) cancelRequested = false; setBusy(b); },
   onActiveGen: h => { activeGen = h; },
-  onJob: (jobId, _items, meta) => postPending({ jobId, prompt: meta.prompt, model: meta.model, modelId: meta.modelId, aspect: (meta.slotAspects && meta.slotAspects[0]) || primaryAspect() }).catch(e => console.debug("record pending job failed:", e)),
   setStatus,
   startStatus: () => "Generating…",
 });
 function generate() { composeSubmit.submit(1); }
-function startBatch(n) { composeSubmit.submit(n); }   // kept for any external callers
 
 // Build what the composer's Generate submits: fan the prompt across every checked model, n images PER model, as ONE
 // /enqueue job. One checked model → a single-model batch (its random-artist/prompt + param overrides); two-or-more →

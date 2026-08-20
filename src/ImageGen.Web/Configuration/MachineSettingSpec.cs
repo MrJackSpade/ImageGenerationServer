@@ -101,9 +101,6 @@ public static class MachineSettingSpecs
         /// <summary>Whether X-Forwarded-* is honoured from any caller.</summary>
         public const string TrustAllProxies = "Security:TrustAllProxies";
 
-        /// <summary>Whether the stale-PendingJob reconciler runs.</summary>
-        public const string ReconcilerEnabled = "Reconciler:Enabled";
-
         /// <summary>Rolling-by-day log file path; blank turns the file sink off.</summary>
         public const string LogFilePath = "Logging:FilePath";
 
@@ -192,10 +189,6 @@ public static class MachineSettingSpecs
         new(Keys.TrustAllProxies, "Trust all proxies",
             "Honour X-Forwarded-* from any caller — correct behind your own reverse proxy. Turn off where the app "
             + "is reachable directly, since these headers are otherwise spoofable.",
-            SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: Defaults.BoolTrue),
-
-        new(Keys.ReconcilerEnabled, "Run the reconciler",
-            "Reaps stale PendingJob rows. Registered as a hosted service at startup.",
             SettingKind.Bool, SettingStore.Database, SettingApply.Restart, Default: Defaults.BoolTrue),
 
         new(Keys.LogFilePath, "Log file",

@@ -154,6 +154,7 @@ public sealed class TagCompilerTests
             [RenderItem.ForGenerate(new GenerateSpec("wf", "#1girl, {{#red|#blue}}", null, "square"))]);
 
         Assert.Equal(["#1girl, #red", "#1girl, #blue"], items.Select(i => i.Gen?.Prompt));
+        Assert.All(items, item => Assert.Equal("square", item.Gen?.Aspect));
     }
 
     [Fact]

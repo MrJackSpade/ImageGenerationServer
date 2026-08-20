@@ -19,31 +19,6 @@ public sealed record HistoryRecordContract
     public bool Viewed { get; init; }
 }
 
-/// <summary>
-/// Registers a just-submitted ForgeGateway job so the server can record its result independently of the
-/// browser that started it. The gateway supplies the image id / effective prompt / marks on completion;
-/// this carries only what the gateway doesn't know (friendly model name, catalog id, aspect).
-/// </summary>
-public sealed record PendingJobContract
-{
-    public required string JobId { get; init; }
-    public required string Prompt { get; init; }
-    public required string Model { get; init; }
-    public required string ModelId { get; init; }
-    public required string Aspect { get; init; }
-}
-
-/// <summary>One of a user's in-flight gateway jobs, returned by GET /api/pending for cross-device progress.</summary>
-public sealed record PendingJobView
-{
-    public required string JobId { get; init; }
-    public required long Ts { get; init; }
-    public required string Prompt { get; init; }
-    public required string Model { get; init; }
-    public required string ModelId { get; init; }
-    public required string Aspect { get; init; }
-}
-
 public sealed record ImageBookmarkContract
 {
     public required long Ts { get; init; }

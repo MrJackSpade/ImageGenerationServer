@@ -15,7 +15,6 @@ using ImageGen.Web.Auth;
 using ImageGen.Web.Comfy;
 using ImageGen.Web.Configuration;
 using ImageGen.Web.Hosting;
-using ImageGen.Web.Reconciler;
 using ImageGen.Web.Updates;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
@@ -60,8 +59,6 @@ public partial class Program
         /// environment variable) rather than <c>dbo.MachineSetting</c>.</summary>
         public const string TagModelWriteToSharedCache = "TagModel:WriteToSharedCache";
 
-        /// <summary>Whether the stale-<c>PendingJob</c> reconciler runs.</summary>
-        public const string ReconcilerEnabled = "Reconciler:Enabled";
 
         /// <summary>Whether <c>X-Forwarded-*</c> is honoured from any caller.</summary>
         public const string TrustAllProxies = "Security:TrustAllProxies";
@@ -355,12 +352,6 @@ public partial class Program
         // Run the single snapshot sync worker's serial rebuild loop (warms every registered source on boot, then
         // rebuilds on invalidation/backstop). Same plain-singleton-adapted-to-hosted-service split as RenderWorker.
         _ = builder.Services.AddHostedService<SnapshotSyncService>();
-
-        // Vestigial reconciler: reaps stale PendingJob rows (history is worker-written). Toggle off via Reconciler:Enabled.
-        if (config.IsOn(ConfigKeys.ReconcilerEnabled))
-        {
-            _ = builder.Services.AddHostedService<PendingJobReconciler>();
-        }
 
         // /forge/upload reads the posted file via ReadFormAsync, whose 128MB default would become the new
         // binding limit once Kestrel's MaxRequestBodySize is raised past it. Keep it in step with the Kestrel

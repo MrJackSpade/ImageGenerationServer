@@ -73,32 +73,6 @@ public static class WireMapping
 
     #endregion
 
-    #region pending jobs
-
-    public static RegisterPendingJobCommand ToRegisterPendingJobCommand(
-        this PendingJobContract c, long userId, DateTime createdAtUtc) => new()
-        {
-            UserId = userId,
-            JobId = c.JobId,
-            Prompt = c.Prompt,
-            ModelFriendly = c.Model,
-            ModelId = c.ModelId,
-            Aspect = c.Aspect,
-            CreatedAtUtc = createdAtUtc,
-        };
-
-    public static PendingJobView ToView(this PendingJob e) => new()
-    {
-        JobId = e.JobId,
-        Ts = ToMs(e.CreatedAtUtc),
-        Prompt = e.Prompt,
-        Model = e.ModelFriendly,
-        ModelId = e.ModelId,
-        Aspect = e.Aspect,
-    };
-
-    #endregion
-
     #region image bookmarks
 
     public static AddImageBookmarkCommand ToAddImageCommand(this ImageBookmarkContract c, long userId) => new()

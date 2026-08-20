@@ -28,7 +28,6 @@ public static class ApplicationServiceCollectionExtensions
         _ = services.AddScoped<HistoryService>();
         _ = services.AddScoped<BookmarkService>();
         _ = services.AddScoped<BanService>();
-        _ = services.AddScoped<PendingJobService>();
         _ = services.AddScoped<ArtistService>();
         _ = services.AddScoped<LoraService>();
         _ = services.AddScoped<TagService>();

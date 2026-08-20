@@ -106,13 +106,13 @@ ImageGen.Web (host) → Application, Infrastructure, Comfy, TagModel, Media, Api
 | Project | Layer | Responsibility | May depend on |
 |---|---|---|---|
 | **ImageGen.Domain** | Domain | Entities, repository *interfaces*, `TokenKind`; `IUserLogService` | nothing |
-| **ImageGen.Application** | Application | Services (use-cases): `UserService`, `HistoryService`, `BookmarkService`, `BanService`, `PendingJobService`, `ArtistService`; `PasswordHasher`; **`UserCrypto` + `IUserCipher`** (per-user column cipher), `UserLogService` | Domain |
+| **ImageGen.Application** | Application | Services (use-cases): `UserService`, `HistoryService`, `BookmarkService`, `BanService`, `ArtistService`; `PasswordHasher`; **`UserCrypto` + `IUserCipher`** (per-user column cipher), `UserLogService` | Domain |
 | **ImageGen.Infrastructure** | Infrastructure | ADO.NET repositories, `IDbConnectionFactory`, `DatabaseInitializer`, `schema.sql`; **`UserCipher`** (key load/cache), `UserLogRepository` | Application, Domain |
 | **ImageGen.Comfy** | Backend adapter | `ComfyClient`, `WorkflowCatalog`, `WorkflowRegistry` + the per-model `IWorkflow` classes; **`Patches/`** — the patch engine over a ComfyUI *installation* (§7.2.1) | Application, Domain |
 | **ImageGen.TagModel** | Backend adapter | The tag model in-process: ONNX session, vocabulary, suggest + generate engines. Serves BOTH `ITagCatalog` and `ITagModelClient` | Application |
 | **ImageGen.Media** | Backend adapter | ImageSharp + ffmpeg IN-PROCESS via Loxifi.FFmpeg (`WebpTranscoder`, `MediaProcessor`) | Application |
 | **ImageGen.Api** | Presentation | Every JSON endpoint: `/api` groups and `/forge` | Application, ASP.NET |
-| **ImageGen.Web** | Presentation/host | Composition root (`Program.cs`), MVC controllers, Razor views, `wwwroot` JS, `PendingJobReconciler` | Application, Infrastructure, and every adapter |
+| **ImageGen.Web** | Presentation/host | Composition root (`Program.cs`), MVC controllers, Razor views, `wwwroot` JS | Application, Infrastructure, and every adapter |
 
 **Dependency rule:** dependencies point inward toward Domain. Domain references nothing, and the core
 (Domain + Application) contains **zero ComfyUI, ASP.NET or ImageSharp types** — each of those lives behind a
@@ -130,7 +130,7 @@ All wiring is in `src/ImageGen.Web/Program.cs` plus `ForgeServiceCollectionExten
   `AuthOptions`, `ForgeConfig`, `WorkflowCatalog`, `WorkflowRegistry`, and every `IWorkflow` (one per model,
   registered explicitly in `AddWorkflows()`). The workflows are pure graph builders (no mutable state).
 - **Scoped (per request):** every repository (`IUserRepository`, `IHistoryRepository`,
-  `IBookmarkRepository`, `IBannedTokenRepository`, `IPendingJobRepository`, `IArtistDisplayRepository`)
+  `IBookmarkRepository`, `IBannedTokenRepository`, `IArtistDisplayRepository`)
   and every application service.
 - **Singletons that hold mutable in-memory state — read this twice:**
   - `JobQueue` (also an `IHostedService` worker) — the live job index, per-user queues, fairness
@@ -162,8 +162,8 @@ All wiring is in `src/ImageGen.Web/Program.cs` plus `ForgeServiceCollectionExten
 > `JobQueue` must go through a similarly singleton-safe path (open its own scope, or use a singleton-stateless
 > repo).
 
-Background services: **`JobQueue`** (the render worker) and **`PendingJobReconciler`** (server-side
-history persistence, §7). Both start with the host.
+Background services: **`RenderWorker`** (adapts the orchestrator's render loop) and **`SnapshotSyncService`**
+(serial snapshot warming/rebuild). Both start with the host.
 
 ---
 
@@ -219,7 +219,6 @@ datareader/datawriter only — **no DDL** — so schema changes are applied out-
 | `TokenBookmark` | `UserId` | starred tags/artists | unique `(UserId, Name, Kind)` |
 | `BannedToken` | `UserId, ModelId` | per-model banned tags/artists (excluded from **auto-gen only**) | unique `(UserId, ModelId, Name, Kind)` |
 | `ArtistDisplay` | `UserId, ArtistName` | the chosen display image for an artist | falls back to latest gen if unset |
-| `PendingJob` | `UserId` | a submitted job's **display metadata** (friendly model name + aspect) for the reconciler's history write | unique `(UserId, JobId)`; cleared on reconcile/age-out |
 | `Job` (+ `JobSlot`) | `JobId` (GUID) | the **authoritative job lifecycle**: owning `MachineName`, `Total`/`Status`, and one `JobSlot` per image (state, `ComfyPromptId`, produced `ImageId`, effective prompt, marks, request payload) | write-through cache target of `JobQueue`; finalized rows readable by id from any instance |
 | `ImageBlob` | `ImageId` (GUID) | **the actual image bytes** of a *generated* image, width/height, content-type | global GUID id, never a ComfyUI filename; **uploads never land here** (see below) |
 | `UserEncryptionKey` | `UserId` (1:1 `AppUser`) | the user's random 32-byte master key (`KeyMaterial`) | **its own table on purpose** (§6.1) so routine queries never pull key material; obvious name = "don't `SELECT` this" |
@@ -273,7 +272,7 @@ someone opens a table in SSMS or skims a log. Keys live in the same database —
 - **The cipher (`UserCrypto` / `IUserCipher` → `UserCipher`).** Pure BCL (`AesGcm`/`HKDF`/`HMACSHA256`). The
   master key is stretched (HKDF) into three subkeys. Two modes:
   - **Randomized** (`enc:v1:`, fresh nonce) for free-text never searched by value: `HistoryEntry.Prompt`,
-    `ImageBookmark.Prompt`, `PendingJob.Prompt`, `Job.Prompt`, `JobSlot.{EffectivePrompt,Prompt,NegativePrompt}`,
+    `ImageBookmark.Prompt`, `Job.Prompt`, `JobSlot.{EffectivePrompt,Prompt,NegativePrompt}`,
     `AppUser.ComposerPrefs`, and `UserLog.Payload`.
   - **Deterministic** (`det:v1:`, synthetic nonce = `HMAC(plaintext)`) for searchable tokens that must keep
     equality filters and UNIQUE constraints working: `HistoryMark.Token`, `ImageBookmarkMark.Token`,
@@ -361,9 +360,8 @@ a time, persists the result, and streams progress.
   `/forge` is exposed through the public edge at all.
 
 > **Canonical rule:** the app's own server-side code **never calls `/forge` over HTTP** — there is no
-> loopback. In-process consumers (e.g. `PendingJobReconciler`) use the Forge classes directly. `/forge`
-> exists only because the browser and the MCP are out-of-process. (Verified: no server-side HTTP client
-> targets `/forge`.)
+> loopback. `/forge` exists only because the browser and the MCP are out-of-process. (Verified: no
+> server-side HTTP client targets `/forge`.)
 
 ### 7.1 The queue (`JobQueue`)
 
@@ -475,22 +473,13 @@ that stream and never open competing upstream connections. For each downstream, 
 The filtering relies on the in-memory `_comfyToSlot` route map — i.e. it only works for jobs *this
 instance* submitted (§8).
 
-### 7.5 Server-side persistence (`PendingJobReconciler`)
+### 7.5 Server-side history persistence
 
-History is meant to survive the originating browser tab closing mid-render, and to appear on every
-device. Mechanism:
-
-1. On submit, the client `POST /api/pending` writes a `PendingJob` row carrying the **display metadata** the
-   lean `dbo.Job` row doesn't (friendly model name + aspect).
-2. The originating tab also writes `HistoryEntry` directly per image as it lands (instant UI).
-3. The reconciler (every `Reconciler:PollSeconds`, default 15s) reads pending rows and looks each job up in
-   **`dbo.Job`/`dbo.JobSlot`** (via `IJobRepository`, not the in-memory queue). Once a job is **finalized**, it
-   writes a `HistoryEntry` for **each produced slot** (an N-image job yields up to N rows) using the pending
-   row's display metadata, then clears the pending row. History insertion dedupes on `(UserId,
-   GatewayImageId)`, so the direct write and the reconciler write can't double-up.
-
-Each instance reconciles **only the jobs it owns**: a job row whose `MachineName` isn't this instance is left
-untouched for the instance that owns it (§8.3), and truly-orphaned pending rows age out via `maxAge`.
+History survives the originating browser tab closing because the render worker writes it directly when each image is
+stored. The durable `JobSlot` already carries the effective prompt, model/config id, aspect, marks, and generated image
+id needed for that write; the browser only reads history and treats job completion as a refresh signal. There is no
+client-side pending registration, second history writer, or polling reconciler. `HistoryEntry` still deduplicates on
+`(UserId, GatewayImageId)` as a final storage invariant.
 
 ### 7.6 Workflows, configurations & requirements (the model is workflow-focused)
 
@@ -594,18 +583,11 @@ instance's live job against *its* ComfyUI — that would be meaningless (differe
 - The **only** thing that must cross instances is the durable per-user data in §6, and it does, through
   the shared DB.
 
-### 8.3 The one cross-instance rule the code must obey: the reconciler
+### 8.3 The cross-instance ownership rule
 
-Because the `PendingJob` table is in the **shared** DB but each `JobQueue` is **private** to its
-instance, the reconciler is the one place a single instance can see another instance's rows — and it
-must not act on them. **Each instance's `PendingJobReconciler` persists only jobs in its own
-`JobQueue`; a pending row it doesn't own it leaves untouched** for the owning instance to handle.
-Genuinely-orphaned rows (the owning instance restarted and lost the job) are reaped by the `maxAge`
-age-out, not by cross-instance deletion.
-
-This was violated and is now fixed: the reconciler used to `RemoveAsync` any pending row whose job
-wasn't in its local queue, so a second instance would delete the first's rows before they were
-persisted, losing the server-side history write. It now **skips** unknown rows (see §10.1).
+Each instance may advance only durable jobs whose `MachineName` names that instance. Rehydration filters on that key,
+and the worker writes image history while processing its own slots; there is no separate shared pending-work list for
+another instance to reap or interpret.
 
 > **Canonical rule:** instances share *data* (the DB), never *live job state*. No instance may delete,
 > persist, or report a job it does not own. Cross-instance coordination happens only through durable,
@@ -688,11 +670,11 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
    on completion, and the front end treats completion as a doorbell — Recents renders strictly from
    `/api/history`, so deletes stick and nothing resurrects.
 
-1. ~~**`PendingJobReconciler` cross-instance deletion (correctness, was the worst).**~~ **FIXED.** It used
-   to `RemoveAsync` any pending row whose job wasn't in its local queue, so a second instance would
-   delete the first's rows before they were persisted, losing server-side history. Now the `job is null`
-   branch **skips** (leaves the row for its owning instance); orphaned rows are reaped by the `maxAge`
-   age-out. `Reconciler:Enabled` can safely be true on every instance again. (`PendingJobReconciler.cs`.)
+1. ~~**`PendingJobReconciler` cross-instance deletion (correctness, was the worst).**~~ **RETIRED.** The
+   render worker now writes history itself from the authoritative typed job/slot rows. The client pending POST,
+   reconciler, service/repository stack, and configuration toggle were removed rather than preserving a second
+   lifecycle beside `Job`. The old table's released CREATE blocks remain untouched in the append-only schema history;
+   no runtime code reads or writes that inert legacy artifact.
 2. ~~**`edit.js` used `localStorage` for the edit workflow (violated §9).**~~ **FIXED.** Moved to a per-user
    `AppUser.EditWorkflowId` column via `GET /api/settings` + `PUT /api/settings/edit-workflow`; restored on
    boot, saved on change. No composer/edit state remains in device storage.
@@ -726,12 +708,7 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
    nobody "fixes" them into Scoped services (which would make a singleton depend on a scoped service) — and so
    any new `JobQueue` persistence follows the same singleton-safe pattern.
 
-9. **`PendingJob` and `Job` coexist (documented overlap).** `dbo.Job` is the authoritative job lifecycle;
-   `dbo.PendingJob` survives only to carry the display metadata (friendly model name + aspect) the lean `Job`
-   row lacks, for the reconciler's `HistoryEntry` write. A future cleanup could fold those two columns into
-   `Job` and retire `PendingJob` + `POST /api/pending` entirely.
-
-10. **Deterministic token columns leak equality (by design, §6.1).** Encrypting `HistoryMark.Token` etc.
+9. **Deterministic token columns leak equality (by design, §6.1).** Encrypting `HistoryMark.Token` etc.
     deterministically is what keeps tag/artist filtering and UNIQUE constraints working without server-side
     decryption — but it means someone with DB read access can see which rows share a (still-secret) token and
     frequency-analyze. This is an accepted trade-off given the "accidental viewing" threat model, not a defect;

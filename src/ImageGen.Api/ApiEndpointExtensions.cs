@@ -38,7 +38,6 @@ public static class ApiEndpointExtensions
         api.MapHistoryEndpoints();
         api.MapBookmarkEndpoints();
         api.MapBanEndpoints();
-        api.MapPendingEndpoints();
         api.MapArtistEndpoints();
         api.MapLoraEndpoints();
         api.MapTagEndpoints();
