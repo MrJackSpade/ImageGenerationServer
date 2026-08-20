@@ -69,7 +69,7 @@ public static class ForgeApi
         /// <summary><c>POST /catalog/duplicate</c> — duplicate a workflow into a new DB-backed variant on this machine.</summary>
         public const string CatalogDuplicate = "/catalog/duplicate";
         /// <summary><c>DELETE /catalog/variant/{id}</c> — remove a DB-backed variant on this machine.</summary>
-        public const string CatalogVariant = "/catalog/variant";
+        public const string CatalogVariantById = "/catalog/variant/{id}";
         /// <summary><c>GET /catalog/config/{id}/settings</c> — a configuration's effective and shipped settings.</summary>
         public const string CatalogConfigSettings = "/catalog/config/{id}/settings";
         /// <summary><c>GET /catalog/config/{id}/slots</c> — the file-backed model slots one configuration uses, each with
@@ -627,7 +627,7 @@ public static class ForgeApi
 
         // Remove a DB-backed variant on this machine (and its per-variant overrides). Only variants can be deleted;
         // a shipped file config answers 400.
-        _ = app.MapDelete(Routes.CatalogVariant + "/{id}", async (string id, IWorkflowCatalog catalog, CancellationToken ct) =>
+        _ = app.MapDelete(Routes.CatalogVariantById, async (string id, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             try
             {

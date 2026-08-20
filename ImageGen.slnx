@@ -11,6 +11,7 @@
     <Project Path="src/ImageGen.Web/ImageGen.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ImageGen.Analyzers.Tests/ImageGen.Analyzers.Tests.csproj" />
     <Project Path="tests/ImageGen.Tests/ImageGen.Tests.csproj" />
   </Folder>
   <!-- ComfyPatch is here, unlike the throwaway backfills in tools/, because the container build runs it: if it

@@ -275,7 +275,7 @@ public sealed partial class WorkflowCatalogService
             GuardAspectAgainstEnvelope(configId, settingValue);
         }
 
-        if (string.Equals(settingKey, "param." + WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(settingKey, SettingKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(settingValue))
         {
             WorkflowConfiguration? cfg = _catalog.FindConfig(configId);

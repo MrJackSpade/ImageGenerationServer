@@ -1,4 +1,5 @@
 using ImageGen.Domain;
+using System.Data;
 using System.Data.Common;
 using System.Globalization;
 
@@ -30,37 +31,49 @@ namespace ImageGen.Infrastructure.Database;
 internal static class DbValueExtensions
 {
     /// <summary>A <c>TINYINT</c> / SQLite <c>INTEGER</c> column, whatever CLR type the provider chose for it.</summary>
-    internal static byte AsByte(this DbDataReader reader, int ordinal) =>
+    internal static byte AsByte(this IDataRecord reader, int ordinal) =>
         Convert.ToByte(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 
     /// <summary>An <c>INT</c> / SQLite <c>INTEGER</c> column, whatever CLR type the provider chose for it.</summary>
-    internal static int AsInt32(this DbDataReader reader, int ordinal) =>
+    internal static int AsInt32(this IDataRecord reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 
+    /// <summary>A <c>SMALLINT</c> / SQLite <c>INTEGER</c> column, whatever CLR type the provider chose for it.</summary>
+    internal static short AsInt16(this IDataRecord reader, int ordinal) =>
+        Convert.ToInt16(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
     /// <summary>A <c>BIT</c> / SQLite <c>INTEGER</c> column, whatever CLR type the provider chose for it.</summary>
-    internal static bool AsBool(this DbDataReader reader, int ordinal) =>
+    internal static bool AsBool(this IDataRecord reader, int ordinal) =>
         Convert.ToBoolean(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 
     /// <summary>A <c>FLOAT</c> / SQLite <c>REAL</c> column, whatever CLR type the provider chose for it.</summary>
-    internal static double AsDouble(this DbDataReader reader, int ordinal) =>
+    internal static double AsDouble(this IDataRecord reader, int ordinal) =>
         Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 
+    /// <summary>A <c>REAL</c> column, whatever CLR type the provider chose for it.</summary>
+    internal static float AsFloat(this IDataRecord reader, int ordinal) =>
+        Convert.ToSingle(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    /// <summary>A <c>DECIMAL</c> column, whatever CLR type the provider chose for it.</summary>
+    internal static decimal AsDecimal(this IDataRecord reader, int ordinal) =>
+        Convert.ToDecimal(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
     /// <summary><see cref="AsInt32"/>, or null when the column is NULL.</summary>
-    internal static int? AsNullableInt32(this DbDataReader reader, int ordinal) =>
+    internal static int? AsNullableInt32(this IDataRecord reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.AsInt32(ordinal);
 
     /// <summary><see cref="AsBool"/>, or null when the column is NULL.</summary>
-    internal static bool? AsNullableBool(this DbDataReader reader, int ordinal) =>
+    internal static bool? AsNullableBool(this IDataRecord reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.AsBool(ordinal);
 
     /// <summary><see cref="AsDouble"/>, or null when the column is NULL.</summary>
-    internal static double? AsNullableDouble(this DbDataReader reader, int ordinal) =>
+    internal static double? AsNullableDouble(this IDataRecord reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.AsDouble(ordinal);
 
     /// <summary>A nullable <c>BIT</c> / SQLite <c>INTEGER</c> column read as a <see cref="TriState"/>: NULL is
     /// <see cref="TriState.Unspecified"/>, 1 is <see cref="TriState.True"/>, 0 is <see cref="TriState.False"/>. The DB
     /// column stays a nullable bit — the enum is the in-memory shape, mapped here at the boundary.</summary>
-    internal static TriState AsTriState(this DbDataReader reader, int ordinal) =>
+    internal static TriState AsTriState(this IDataRecord reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? TriState.Unspecified : reader.AsBool(ordinal) ? TriState.True : TriState.False;
 
     /// <summary>A <see cref="TriState"/> as the value to bind to a nullable-bit parameter: <see cref="TriState.True"/>

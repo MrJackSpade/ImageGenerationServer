@@ -8,9 +8,10 @@ using System.Linq;
 namespace ImageGen.Analyzers;
 
 /// <summary>
-/// Reports a string literal used as a value anywhere it carries meaning — a magic string. The literal's
-/// meaning lives only in the quotes, so a second copy silently drifts out of sync and a rename never reaches
-/// it. Introduce a named constant and use that instead.
+/// Reports literal-built constant string content used as a value anywhere it carries meaning — a magic string.
+/// Ordinary/raw/u8 literals, constant interpolated strings, and constant-folded concatenations all carry the same
+/// unnamed meaning, so a second copy silently drifts out of sync and a rename never reaches it. Introduce a named
+/// constant and use that instead.
 ///
 /// <para>Three shapes are covered. <b>Equality</b>: the <c>==</c>/<c>!=</c> operators, an <c>Equals(...)</c> call
 /// (as the receiver or an argument), and every constant pattern — <c>is "x"</c>, a <c>switch</c> arm
@@ -51,20 +52,20 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     public const string JustificationDiagnosticId = "IMGSTR002";
 
     /// <summary>
-    /// Simple (unqualified) name of the opt-out attribute. Matched by name so this analyzer never has to
-    /// reference the assembly that declares it — see <c>ImageGen.Domain.CodeAnalysis.AllowMagicStringsAttribute</c>.
+    /// Metadata name of the one real opt-out attribute. Resolved from the compilation so a same-simple-name type in
+    /// user source cannot spoof an exemption.
     /// </summary>
-    private const string AllowAttributeName = "AllowMagicStringsAttribute";
+    private const string AllowAttributeMetadataName = "ImageGen.Domain.CodeAnalysis.AllowMagicStringsAttribute";
 
     private static readonly DiagnosticDescriptor Rule = new(
         id: DiagnosticId,
         title: "Magic string literal",
-        messageFormat: "Magic string literal {0}; use a named constant, or annotate the enclosing type or member "
+        messageFormat: "Magic string content {0}; use a named constant, or annotate the enclosing type or member "
             + "with [AllowMagicStrings(\"reason\")] to allow it",
         category: "Maintainability",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "A string literal used in an equality comparison (==, !=, Equals, or an is/switch/case "
+        description: "Literal-built constant string content used in an equality comparison (==, !=, Equals, or an is/switch/case "
             + "constant pattern), passed as an argument to a method, constructor, or indexer, or assigned to a member "
             + "in an object initializer is a magic string: "
             + "its meaning lives only in the quotes and a duplicate drifts out of sync silently. Introduce a named "
@@ -95,29 +96,33 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeBinary, SyntaxKind.EqualsExpression, SyntaxKind.NotEqualsExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
-        context.RegisterSyntaxNodeAction(
-            AnalyzeObjectCreation,
-            SyntaxKind.ObjectCreationExpression,
-            SyntaxKind.ImplicitObjectCreationExpression);
-        context.RegisterSyntaxNodeAction(
-            AnalyzeElementAccess,
-            SyntaxKind.ElementAccessExpression,
-            SyntaxKind.ImplicitElementAccess,
-            SyntaxKind.ElementBindingExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeConstantPattern, SyntaxKind.ConstantPattern);
-        context.RegisterSyntaxNodeAction(AnalyzeCaseLabel, SyntaxKind.CaseSwitchLabel);
-        context.RegisterSyntaxNodeAction(AnalyzeInitializerAssignment, SyntaxKind.SimpleAssignmentExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeAllowAttribute, SyntaxKind.Attribute);
+        context.RegisterCompilationStartAction(start =>
+        {
+            INamedTypeSymbol? allowAttribute = start.Compilation.GetTypeByMetadataName(AllowAttributeMetadataName);
+            start.RegisterSyntaxNodeAction(c => AnalyzeBinary(c, allowAttribute), SyntaxKind.EqualsExpression, SyntaxKind.NotEqualsExpression);
+            start.RegisterSyntaxNodeAction(c => AnalyzeInvocation(c, allowAttribute), SyntaxKind.InvocationExpression);
+            start.RegisterSyntaxNodeAction(
+                c => AnalyzeObjectCreation(c, allowAttribute),
+                SyntaxKind.ObjectCreationExpression,
+                SyntaxKind.ImplicitObjectCreationExpression);
+            start.RegisterSyntaxNodeAction(
+                c => AnalyzeElementAccess(c, allowAttribute),
+                SyntaxKind.ElementAccessExpression,
+                SyntaxKind.ImplicitElementAccess,
+                SyntaxKind.ElementBindingExpression);
+            start.RegisterSyntaxNodeAction(c => AnalyzeConstantPattern(c, allowAttribute), SyntaxKind.ConstantPattern);
+            start.RegisterSyntaxNodeAction(c => AnalyzeCaseLabel(c, allowAttribute), SyntaxKind.CaseSwitchLabel);
+            start.RegisterSyntaxNodeAction(c => AnalyzeInitializerAssignment(c, allowAttribute), SyntaxKind.SimpleAssignmentExpression);
+            start.RegisterSyntaxNodeAction(c => AnalyzeAllowAttribute(c, allowAttribute), SyntaxKind.Attribute);
+        });
     }
 
     /// <summary>Flags <c>x == "a"</c> and <c>x != "a"</c> (a literal on either side).</summary>
-    private static void AnalyzeBinary(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeBinary(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         BinaryExpressionSyntax binary = (BinaryExpressionSyntax)context.Node;
-        ReportIfLiteral(context, binary.Left);
-        ReportIfLiteral(context, binary.Right);
+        ReportIfConstantString(context, binary.Left, allowAttribute);
+        ReportIfConstantString(context, binary.Right, allowAttribute);
     }
 
     /// <summary>
@@ -125,15 +130,15 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// <see cref="AnalyzeArguments"/> — plus a string literal used as the receiver of an <c>Equals</c> call
     /// (<c>"a".Equals(x)</c>), which is an equality comparison rather than a passed argument.
     /// </summary>
-    private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         InvocationExpressionSyntax invocation = (InvocationExpressionSyntax)context.Node;
         IMethodSymbol? method = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol as IMethodSymbol;
-        AnalyzeArguments(context, method, invocation.ArgumentList.Arguments);
+        AnalyzeArguments(context, method, invocation.ArgumentList.Arguments, allowAttribute);
 
         if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: nameof(object.Equals) } member)
         {
-            ReportIfLiteral(context, member.Expression);
+            ReportIfConstantString(context, member.Expression, allowAttribute);
         }
     }
 
@@ -141,7 +146,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// Flags a string literal passed as a constructor argument — <c>new Foo("a")</c>, <c>new("a")</c> — under the
     /// same per-parameter opt-outs as any call, including the built-in Exception <c>message</c> carve-out.
     /// </summary>
-    private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         BaseObjectCreationExpressionSyntax creation = (BaseObjectCreationExpressionSyntax)context.Node;
         if (creation.ArgumentList is null)
@@ -150,7 +155,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         }
 
         IMethodSymbol? constructor = context.SemanticModel.GetSymbolInfo(creation, context.CancellationToken).Symbol as IMethodSymbol;
-        AnalyzeArguments(context, constructor, creation.ArgumentList.Arguments);
+        AnalyzeArguments(context, constructor, creation.ArgumentList.Arguments, allowAttribute);
     }
 
     /// <summary>
@@ -162,19 +167,20 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeArguments(
         SyntaxNodeAnalysisContext context,
         IMethodSymbol? method,
-        SeparatedSyntaxList<ArgumentSyntax> arguments)
+        SeparatedSyntaxList<ArgumentSyntax> arguments,
+        INamedTypeSymbol? allowAttribute)
     {
         for (int i = 0; i < arguments.Count; i++)
         {
             ArgumentSyntax argument = arguments[i];
             if (method is not null
                 && ResolveParameter(method, argument, i) is { } parameter
-                && (HasAllowAttribute(parameter) || IsExemptWellKnownParameter(method, parameter)))
+                && (HasAllowAttribute(parameter, allowAttribute) || IsExemptWellKnownParameter(method, parameter)))
             {
                 continue;
             }
 
-            ReportIfLiteral(context, argument.Expression);
+            ReportIfConstantString(context, argument.Expression, allowAttribute);
         }
     }
 
@@ -241,7 +247,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// Flags a string literal used as an indexer key — <c>map["a"]</c>, the null-conditional <c>map?["a"]</c>,
     /// and the <c>["a"] = …</c> form inside a collection/dictionary initializer.
     /// </summary>
-    private static void AnalyzeElementAccess(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeElementAccess(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         SeparatedSyntaxList<ArgumentSyntax> arguments = context.Node switch
         {
@@ -252,22 +258,22 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         };
         foreach (ArgumentSyntax argument in arguments)
         {
-            ReportIfLiteral(context, argument.Expression);
+            ReportIfConstantString(context, argument.Expression, allowAttribute);
         }
     }
 
     /// <summary>Flags a string literal in a constant pattern — <c>is "a"</c>, <c>"a" =&gt; …</c>, <c>case "a" when …</c>.</summary>
-    private static void AnalyzeConstantPattern(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeConstantPattern(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         ConstantPatternSyntax pattern = (ConstantPatternSyntax)context.Node;
-        ReportIfLiteral(context, pattern.Expression);
+        ReportIfConstantString(context, pattern.Expression, allowAttribute);
     }
 
     /// <summary>Flags a string literal in a classic switch label — <c>case "a":</c>.</summary>
-    private static void AnalyzeCaseLabel(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeCaseLabel(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         CaseSwitchLabelSyntax label = (CaseSwitchLabelSyntax)context.Node;
-        ReportIfLiteral(context, label.Value);
+        ReportIfConstantString(context, label.Value, allowAttribute);
     }
 
     /// <summary>
@@ -278,7 +284,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// it: a member marked <c>[AllowMagicStrings]</c>, or a well-known display-prose property
     /// (<see cref="IsExemptWellKnownProperty"/>), is skipped.
     /// </summary>
-    private static void AnalyzeInitializerAssignment(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeInitializerAssignment(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         AssignmentExpressionSyntax assignment = (AssignmentExpressionSyntax)context.Node;
         if (assignment.Parent is not InitializerExpressionSyntax { RawKind: (int)SyntaxKind.ObjectInitializerExpression })
@@ -287,7 +293,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         }
 
         if (context.SemanticModel.GetSymbolInfo(assignment.Left, context.CancellationToken).Symbol is { } member
-            && (HasAllowAttribute(member) || IsExemptWellKnownProperty(member.Name)))
+            && (HasAllowAttribute(member, allowAttribute) || IsExemptWellKnownProperty(member.Name)))
         {
             return;
         }
@@ -296,13 +302,13 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
         {
             foreach (ExpressionSyntax element in elements)
             {
-                ReportIfLiteral(context, element);
+                ReportIfConstantString(context, element, allowAttribute);
             }
 
             return;
         }
 
-        ReportIfLiteral(context, assignment.Right);
+        ReportIfConstantString(context, assignment.Right, allowAttribute);
     }
 
     /// <summary>
@@ -311,7 +317,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// its element expressions, so a literal element (<c>Choices = new[] { "median", … }</c>) is flagged exactly like a
     /// scalar assignment. Returns <see langword="null"/> for any other RHS, which the caller flags directly. A nested
     /// <b>object</b> initializer among the elements is left to the object-creation/initializer visitors that reach it
-    /// directly — here it is simply not a literal, so <see cref="ReportIfLiteral"/> passes it over.
+    /// directly — here it is simply not literal-built constant content, so <see cref="ReportIfConstantString"/> passes it over.
     /// </summary>
     private static System.Collections.Generic.IEnumerable<ExpressionSyntax>? GetCollectionElements(ExpressionSyntax expression) =>
         expression switch
@@ -340,23 +346,41 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     };
 
     /// <summary>
-    /// Reports at <paramref name="expression"/> when it is a string literal and no enclosing scope opts out.
-    /// The empty literal is included on purpose; only <see cref="string.Empty"/> (a field, never a literal) is
-    /// out of reach.
+    /// Reports at <paramref name="expression"/> when it is literal-built constant string content and no enclosing
+    /// scope opts out. This includes ordinary/raw/u8 literals, constant interpolated strings, and constant-folded
+    /// concatenations. A named const identifier is deliberately not reported: extracting a name is the requested fix.
     /// </summary>
-    private static void ReportIfLiteral(SyntaxNodeAnalysisContext context, ExpressionSyntax? expression)
+    private static void ReportIfConstantString(
+        SyntaxNodeAnalysisContext context,
+        ExpressionSyntax? expression,
+        INamedTypeSymbol? allowAttribute)
     {
-        if (expression is not LiteralExpressionSyntax literal || !literal.IsKind(SyntaxKind.StringLiteralExpression))
+        if (expression is null)
         {
             return;
         }
 
-        if (IsExempt(context.ContainingSymbol))
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+        {
+            expression = parenthesized.Expression;
+        }
+
+        bool utf8Literal = expression.IsKind(SyntaxKind.Utf8StringLiteralExpression);
+        bool literalBuilt = expression.IsKind(SyntaxKind.StringLiteralExpression)
+            || expression is InterpolatedStringExpressionSyntax
+            || expression.IsKind(SyntaxKind.AddExpression);
+        if (!utf8Literal && (!literalBuilt
+            || context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is not { HasValue: true, Value: string }))
         {
             return;
         }
 
-        context.ReportDiagnostic(Diagnostic.Create(Rule, literal.GetLocation(), literal.Token.Text));
+        if (IsExempt(context.ContainingSymbol, allowAttribute))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(Diagnostic.Create(Rule, expression.GetLocation(), expression.ToString()));
     }
 
     /// <summary>
@@ -364,7 +388,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     /// justification. A missing justification is left to the compiler — the constructor's required parameter
     /// already makes a bare <c>[AllowMagicStrings]</c> a build error.
     /// </summary>
-    private static void AnalyzeAllowAttribute(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeAllowAttribute(SyntaxNodeAnalysisContext context, INamedTypeSymbol? allowAttribute)
     {
         AttributeSyntax attribute = (AttributeSyntax)context.Node;
         if (context.SemanticModel.GetSymbolInfo(attribute, context.CancellationToken).Symbol is not IMethodSymbol ctor)
@@ -372,7 +396,7 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (ctor.ContainingType?.Name != AllowAttributeName)
+        if (allowAttribute is null || !SymbolEqualityComparer.Default.Equals(ctor.ContainingType, allowAttribute))
         {
             return;
         }
@@ -390,19 +414,27 @@ public sealed class MagicStringAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>True when <paramref name="symbol"/> carries <c>[AllowMagicStrings]</c> directly.</summary>
-    private static bool HasAllowAttribute(ISymbol symbol) =>
-        symbol.GetAttributes().Any(a => a.AttributeClass?.Name == AllowAttributeName);
+    private static bool HasAllowAttribute(ISymbol symbol, INamedTypeSymbol? allowAttribute) =>
+        allowAttribute is not null
+        && symbol.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, allowAttribute));
 
     /// <summary>
     /// True when <paramref name="symbol"/> or any symbol enclosing it carries <c>[AllowMagicStrings]</c>. Walking
     /// the containing chain is what makes a class-level attribute cover every literal in its members, and a
     /// method-level one cover just that body.
     /// </summary>
-    private static bool IsExempt(ISymbol? symbol)
+    private static bool IsExempt(ISymbol? symbol, INamedTypeSymbol? allowAttribute)
     {
         for (ISymbol? current = symbol; current is not null; current = current.ContainingSymbol)
         {
-            if (HasAllowAttribute(current))
+            // The canonical attribute does not target namespaces or assemblies. Stop before them so a lookalike
+            // assembly-level attribute can never turn a lexical exemption walk into a whole-compilation bypass.
+            if (current is INamespaceSymbol or IAssemblySymbol)
+            {
+                break;
+            }
+
+            if (HasAllowAttribute(current, allowAttribute))
             {
                 return true;
             }

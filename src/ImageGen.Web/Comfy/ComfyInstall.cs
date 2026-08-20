@@ -44,6 +44,13 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
         public const string ConfigsKey = "configs";
     }
 
+    private static class Messages
+    {
+        public const string RendererFolderNotSet =
+            "No renderer folder is set. Patches change ComfyUI's own files, so this needs the directory it is "
+            + "installed in — set it on Settings → This machine. Leave it empty if ComfyUI is on another machine.";
+    }
+
     private readonly IConfiguration _config = config;
     private readonly IHttpClientFactory _httpFactory = httpFactory;
     private readonly IComfyEndpoint _endpoint = endpoint;
@@ -62,9 +69,7 @@ public sealed class ComfyInstall(IConfiguration config, IHttpClientFactory httpF
         string? root = Root;
         if (root is null)
         {
-            return new ComfyInstallInfo(null, false,
-                "No renderer folder is set. Patches change ComfyUI's own files, so this needs the directory it is "
-                + "installed in — set it on Settings → This machine. Leave it empty if ComfyUI is on another machine.");
+            return new ComfyInstallInfo(null, false, Messages.RendererFolderNotSet);
         }
 
         if (!Directory.Exists(root))

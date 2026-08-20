@@ -41,12 +41,16 @@ public sealed class DatabaseInitializer(IDbConnectionFactory connectionFactory, 
         /// <summary>Named groups of <see cref="AddColumn"/>, read back off a successful match.</summary>
         public const string TableGroup = "table";
         public const string ColumnGroup = "col";
+
+        /// <summary>The guarded SQLite additive-column statement shape.</summary>
+        public const string AddColumnPattern =
+            $@"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<{TableGroup}>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<{ColumnGroup}>\w+)";
     }
 
     /// <summary>An additive column: <c>ALTER TABLE [dbo.]Table ADD [COLUMN] Name …</c>. Matched so the runner can
     /// skip it when the column already exists — the one statement in the SQLite script that is not self-idempotent.</summary>
     private static readonly Regex AddColumn = new(
-        $@"^\s*ALTER\s+TABLE\s+(?:(?<schema>\w+)\s*\.\s*)?(?<{Sql.TableGroup}>\w+)\s+ADD\s+(?:COLUMN\s+)?(?<{Sql.ColumnGroup}>\w+)",
+        Sql.AddColumnPattern,
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Create anything the configured provider's schema says is missing.</summary>

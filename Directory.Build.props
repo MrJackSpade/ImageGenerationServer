@@ -24,7 +24,7 @@
     The condition excludes the analyzer project itself (it cannot reference itself).
     ReferenceOutputAssembly=false: we want the analyzer, not a runtime dependency.
   -->
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ImageGen.Analyzers'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ImageGen.Analyzers' and '$(MSBuildProjectName)' != 'ImageGen.Analyzers.Tests'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\ImageGen.Analyzers\ImageGen.Analyzers.csproj">
       <OutputItemType>Analyzer</OutputItemType>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
