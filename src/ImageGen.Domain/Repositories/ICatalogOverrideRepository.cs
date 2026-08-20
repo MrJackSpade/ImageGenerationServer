@@ -16,7 +16,7 @@ public sealed record ModelBinding(string SlotId, string FileName, bool IsAuto);
 /// </summary>
 /// <param name="ConfigId">The workflow configuration.</param>
 /// <param name="SettingKey">
-/// Namespaced key: <c>vram.min</c>, <c>vram.max</c>, or <c>param.&lt;key&gt;</c> for an exposed parameter's default.
+/// Namespaced setting key, normally <c>param.&lt;key&gt;</c> for a workflow parameter's default.
 /// </param>
 /// <param name="SettingValue">The raw text, coerced through the parameter's existing type when it is read.</param>
 public sealed record CatalogOverride(string ConfigId, string SettingKey, string SettingValue);
@@ -24,8 +24,8 @@ public sealed record CatalogOverride(string ConfigId, string SettingKey, string 
 /// <summary>
 /// The install-wide catalogue overrides for a machine: model bindings and per-configuration settings.
 ///
-/// <para>Keyed by machine name rather than by user, because these describe the BOX — which file is on its disk,
-/// what its GPU can afford — not somebody's preference. The shipped catalogue is immutable; everything a user
+/// <para>Keyed by machine name rather than by user, because these describe the BOX — which file is on its disk and
+/// which configuration defaults it uses — not somebody's preference. The shipped catalogue is immutable; everything a user
 /// can legitimately change about it lives here.</para>
 /// </summary>
 public interface ICatalogOverrideRepository

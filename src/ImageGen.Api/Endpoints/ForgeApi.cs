@@ -581,7 +581,7 @@ public static class ForgeApi
             return Results.NoContent();
         });
 
-        // One per-configuration override for this machine (vram.min, param.<key>, ...). A blank value
+        // One per-configuration setting override for this machine (param.<key> and synthetic UI settings). A blank value
         // REMOVES the override and restores the shipped default.
         _ = app.MapPut(Routes.CatalogOverride, async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {

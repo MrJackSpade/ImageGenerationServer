@@ -199,7 +199,7 @@ public sealed record WorkflowCardSummary(
 /// <summary>
 /// One eligible workflow configuration as offered to the SPA/MCP <c>/workflows</c> list: its identity + capability
 /// flags, UI-exposed parameters, per-machine average runtime, and decision card. Produced by the catalog after
-/// VRAM/requirement-presence eligibility filtering and shared-friendly-name de-duplication.
+/// requirement-presence eligibility filtering and shared-friendly-name de-duplication.
 /// </summary>
 public sealed record WorkflowDescriptor(
     string Id,
@@ -265,11 +265,6 @@ public sealed record PromptingGuide(
 /// <param name="IsAuto">True when a match pattern chose <see cref="BoundFile"/> rather than a person.</param>
 /// <param name="Candidates">Files of the right kind that its patterns recognised — what the UI offers first.</param>
 /// <param name="Available">Every file of the right kind, so any of them can be picked.</param>
-/// <param name="Kind">The loader family — which file list this slot can be bound from.</param>
-/// <param name="Category">
-/// The catalogue's own word for what it is ("lora", "clip_vision", …). What the UI groups by, because Kind folds
-/// most of them into Other and "Other (22)" is not a category.
-/// </param>
 public sealed record ModelSlotStatus(
     string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
     IReadOnlyList<string> Candidates, IReadOnlyList<string> Available);
@@ -343,6 +338,5 @@ public sealed record WorkflowSettings(
 /// <summary>The whole picture: what this machine can run, and what it needs pointing at.</summary>
 /// <param name="Workflows">Every workflow, ready or not.</param>
 /// <param name="Slots">Every model slot and its binding.</param>
-/// <param name="TotalVramMb">What the GPU reports, or null when ComfyUI did not say.</param>
 public sealed record CatalogStatus(
     IReadOnlyList<WorkflowStatus> Workflows, IReadOnlyList<ModelSlotStatus> Slots);

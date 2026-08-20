@@ -2,8 +2,9 @@ namespace ImageGen.Comfy;
 
 /// <summary>
 /// 24GB-tier generation models whose graph is NOT the plain single-CLIPLoader txt2img topology, so each gets its own
-/// Build (over the shared Txt2Img parameter menu + typed nodes). All three gate to 24GB via their config's
-/// min_vram_mb. Node ids follow the txt2img convention (4=model, 20=clip, 21=vae, 11=model-sampling, 6/7=encode,
+/// Build (over the shared Txt2Img parameter menu + typed nodes). All three are intended for 24 GB renderers;
+/// catalogue eligibility itself is requirement-presence only. Node ids follow the txt2img convention
+/// (4=model, 20=clip, 21=vae, 11=model-sampling, 6/7=encode,
 /// 5=latent, 3=sampler, 8=decode, 9=save). Wired from the official ComfyUI example workflows; smoke-test on the box.
 /// </summary>
 internal static class HighVram

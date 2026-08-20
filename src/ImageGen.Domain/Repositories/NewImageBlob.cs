@@ -11,7 +11,7 @@ namespace ImageGen.Domain.Repositories;
 /// <param name="ContentType">The MIME type of <paramref name="Bytes"/> (e.g. image/png, image/webp).</param>
 /// <param name="Width">Pixel width, when known.</param>
 /// <param name="Height">Pixel height, when known.</param>
-/// <param name="Kind">Whether the blob is a generated image, an upload, or another kind.</param>
+/// <param name="Kind">Whether the blob is a generated image or a legacy upload.</param>
 public sealed record NewImageBlob(
     byte[] Bytes,
     string ContentType,

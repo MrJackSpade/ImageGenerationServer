@@ -12,10 +12,9 @@ namespace ImageGen.Application.Platform;
 /// </para>
 /// </summary>
 /// <param name="memory">Reports the machine's available physical memory.</param>
-/// <param name="minAvailableBytes">Free memory the box must have to accept new work.</param>
 /// <param name="minAvailableBytes">
-/// Read on every check rather than captured, because the floor is a machine setting the settings page can change
-/// while the app is running.
+/// Free memory the box must have to accept new work. Read on every check rather than captured, because the floor is a
+/// machine setting the settings page can change while the app is running.
 /// </param>
 public sealed class SubmissionMemoryGate(ISystemMemory memory, Func<long> minAvailableBytes)
 {

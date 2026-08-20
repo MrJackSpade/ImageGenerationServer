@@ -828,11 +828,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ModelBinding_Machine_S
 CREATE UNIQUE INDEX UX_ModelBinding_Machine_Slot ON dbo.ModelBinding (MachineName, SlotId);
 GO
 
--- Per-configuration setting overrides for this machine: VRAM floor/ceiling and exposed-parameter defaults
--- (aspect, size, steps...). One generic key/value pair rather than a column per setting, because the set of
--- things worth overriding is open-ended and a column per setting means a migration per idea. SettingKey is
--- namespaced -- 'vram.min', 'vram.max', 'param.<key>' -- and SettingValue is the raw text, coerced through the
--- parameter's existing ParamSpec type.
+-- Per-configuration setting overrides for this machine: parameter defaults and synthetic UI settings (aspect,
+-- custom-size toggle, LoRA folder, prompt template...). One generic key/value pair rather than a column per setting,
+-- because the set of things worth overriding is open-ended and a column per setting means a migration per idea.
+-- SettingKey is namespaced (normally 'param.<key>'); SettingValue is the raw text, coerced by the setting contract.
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ConfigOverride' AND schema_id = SCHEMA_ID('dbo'))
 CREATE TABLE dbo.ConfigOverride
 (

@@ -27,7 +27,6 @@ vendoring somebody else's code.
 | `imagegen_gate` | ours | Submission gate — the app's queue is the only way in (`/prompt` refuses direct submissions). Carries a removal warning, because taking it out changes a guarantee rather than a feature. |
 | `ComfyUI-PixelHarness` | ours | `PixelQuantize` / `PixelManifoldProjection` and their palettes. ~15 workflow classes need these node names, and the DreamOmni2 patch loads its `quant.py`. Developed in a separate repo until that was retired — see `VENDORED.md`. |
 | `ComfyUI-GGUF` | vendored, patched | city96's GGUF loaders, carrying local changes. Re-cloning would drop them. |
-| `ComfyUI-Step1X-v1p2` | vendored, patched | Step1X-Edit v1p2 pipeline, patched against the installed transformers. Distinct from `ComfyUI_Step1X-Edit`, which is upstream code `comfy-patches/` only patches. |
 
 ## Adding or changing a pack
 

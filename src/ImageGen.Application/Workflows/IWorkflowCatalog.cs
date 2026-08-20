@@ -5,7 +5,7 @@ namespace ImageGen.Application.Workflows;
 /// <summary>
 /// The application's view of the workflow catalog: which configurations the current machine can offer, their
 /// prompting guides, and the compact per-configuration info the render orchestrator needs. The ComfyUI-specific
-/// loading, graph metadata, VRAM/requirement-presence eligibility, and shared-name de-duplication all live behind
+/// loading, graph metadata, requirement-presence eligibility, and shared-name de-duplication all live behind
 /// this port in the Comfy adapter; the core sees only these business objects.
 /// </summary>
 public interface IWorkflowCatalog
@@ -14,7 +14,7 @@ public interface IWorkflowCatalog
     /// gate opt-out), or null if the id is unknown.</summary>
     WorkflowInfo? ResolveInfo(string? configId);
 
-    /// <summary>Every workflow configuration the current machine can run, after VRAM/requirement-presence
+    /// <summary>Every workflow configuration the current machine can run, after requirement-presence
     /// eligibility and shared-friendly-name de-duplication, each annotated with its per-machine average runtime.
     /// Returns the same list to every caller — per-user hiding (UI picker and API) is applied above this port, by
     /// the picker client and the API endpoint respectively. Throws when the renderer is unreachable (mapped to a
@@ -71,7 +71,7 @@ public interface IWorkflowCatalog
     /// <summary>Binds a file to a slot on this machine, or clears it when <paramref name="fileName"/> is blank.</summary>
     Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct);
 
-    /// <summary>Sets or clears one per-configuration override (VRAM, visibility, a parameter default).</summary>
+    /// <summary>Sets or clears one per-configuration setting override.</summary>
     Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct);
 
     /// <summary>Duplicates a workflow into a new DB-backed variant on this machine — a coexisting, independently

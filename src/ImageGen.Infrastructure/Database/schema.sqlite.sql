@@ -546,7 +546,7 @@ ALTER TABLE dbo.AppUser ADD COLUMN PinBookmarkSuggestions INTEGER NOT NULL DEFAU
 ALTER TABLE dbo.JobSlot ADD COLUMN IsBackground INTEGER NOT NULL DEFAULT 0;
 
 
--- --- 0.14.0 -----------------------------------------------------------------------------------------------------
+-- --- 0.11.0 (continued) -----------------------------------------------------------------------------------------
 
 -- Mark PROVENANCE: 1 when a random sampler (random-prompt tag or random-artist) APPENDED the token, 0 when the user
 -- typed it. The viewer dashes the border of generated chips. New column on the three pre-existing mark tables, so each
@@ -572,6 +572,9 @@ CREATE TABLE IF NOT EXISTS dbo.WorkflowVariant
     CreatedAtUtc TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_WorkflowVariant_Machine_Variant ON WorkflowVariant (MachineName, VariantId);
+
+
+-- --- 0.14.0 -----------------------------------------------------------------------------------------------------
 
 -- Per-user parameter-visibility overrides (issue #191): which workflow params this user has revealed or hidden on the
 -- generation page, as an opaque JSON blob (config id -> param key -> bool) the server stores verbatim. New column on

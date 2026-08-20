@@ -3,9 +3,9 @@ namespace ImageGen.Comfy;
 /// <summary>
 /// One way of running ONE model: a self-contained ComfyUI graph builder. A workflow owns its node topology
 /// explicitly (no central dispatch), declares the full set of parameters it understands (<see cref="Schema"/>),
-/// and the VRAM band the machine must satisfy for it to be offered. Exactly one model per workflow — two models
-/// never share a workflow class. A <see cref="WorkflowConfiguration"/> binds to a workflow by <see cref="Name"/>,
-/// fills in its parameters, and is what the API actually exposes.
+/// and its media/capability contract. Exactly one model per workflow — two models never share a workflow class. A
+/// <see cref="WorkflowConfiguration"/> binds to a workflow by <see cref="Name"/>, fills in its parameters, and is
+/// what the API actually exposes.
 /// </summary>
 public interface IWorkflow
 {

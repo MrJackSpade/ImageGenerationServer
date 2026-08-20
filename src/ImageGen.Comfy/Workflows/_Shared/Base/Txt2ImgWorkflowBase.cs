@@ -1,8 +1,8 @@
 namespace ImageGen.Comfy;
 
 /// <summary>
-/// The shared text-to-image parameter menu. Every generation model has its OWN workflow subclass (its own name and
-/// VRAM band) deriving from <see cref="Txt2ImgWorkflow{TParams}"/>, but they all draw their exposed knobs from this
+/// The shared text-to-image parameter menu. Every generation model has its OWN workflow subclass and name deriving
+/// from <see cref="Txt2ImgWorkflow{TParams}"/>, but they all draw their exposed knobs from this
 /// one <see cref="SharedSchema"/>.
 /// </summary>
 internal static class Txt2ImgWorkflowBase

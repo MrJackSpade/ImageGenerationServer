@@ -238,8 +238,9 @@ filename-collision and output-dir-rotation problems from the app and MCP sharing
 
 **Uploads are never persisted.** An uploaded edit source, reference image, inpaint mask or i2v end frame is a
 render *input*: it never enters history, the library or a bookmark, so nothing can retrieve one afterwards.
-`POST /forge/upload` puts the bytes in the process-local `IUploadStore` (`Application/Images`, singleton, LRU
-under `Uploads:MemoryBudgetMB`) and every read path checks it before `ImageBlob`. They used to be written as
+`POST /forge/upload` first passes the live `SubmissionMemoryGate` check against
+`Uploads:MinAvailableMemoryMB`, then puts the bytes in the process-local `IUploadStore` (`Application/Images`,
+singleton, never evicted while the process runs); every read path checks it before `ImageBlob`. They used to be written as
 `ImageBlob` rows with `Kind=1`, one per inpaint stroke — 19,329 rows / 7.1 GB of write-only data, whose only
 reference lived *inside the encrypted* `JobSlot.RequestJson`, so nothing could tell which were still in use. That
 blob is gone: a slot's spec is typed columns now, and its image ids are plain, joinable columns plus a
@@ -499,7 +500,7 @@ chains):
 
 - **Workflow** — a C# class (`IWorkflow`, under `Forge/Workflows/`) that builds one ComfyUI graph topology.
   It owns its graph explicitly, declares the full set of parameters it understands (`Schema`), a `Kind`
-  (Generate/Edit), and a **VRAM band** (`MinVramMb`..`MaxVramMb`). **One workflow per model — workflows are
+  (Generate/Edit), and its media/capability contract. **One workflow per model — workflows are
   never shared between models.** There are ~26: one txt2img class per generation model (over a shared
   `Txt2ImgWorkflowBase` topology) and one self-contained class per edit model (Flux Kontext, Flux.2, Qwen,
   Wan i2v, AnimateDiff sd15/sdxl, LTX-V). They share only low-level emit primitives (`ComfyGraph`:
@@ -507,7 +508,7 @@ chains):
 - **WorkflowConfiguration** — a row of **`workflows.json`** and the unit the API exposes. It binds one
   workflow by name, supplies its **settings layer** (`params`: a value per key + an `exposed` flag deciding
   whether the UI gets a control or it's a retained hidden default), soft-links its **requirements** by id,
-  may override the VRAM band, and carries the decision-card/prompting metadata (`card`). `id` is the unique
+  and carries the decision-card/prompting metadata (`card`). `id` is the unique
   key the client submits as `model`; `friendly_name` MAY be shared across configurations.
 - **Requirement** — a row of **`requirements.json`**: a model file (`name`) with a `kind`, `target_folder`,
   download `urls` (carried for a future fetcher — not downloaded yet), and optional size. Configurations
@@ -528,27 +529,24 @@ filenames, and serves the cards. Both files default under the repo root via `Cat
 > A configuration whose linked files aren't in `requirements.json` resolves to empty filenames and is hidden
 > by presence-gating — i.e. it silently never appears. This is the step that's easy to forget.
 >
-> **Precision / VRAM tiers (the 24 GB pattern).** To offer a higher-precision build of an existing model on a
-> bigger card, add a *second* configuration with the **same `friendly_name`**, a `min_vram_mb` floor (e.g.
-> `20000`), and requirement links to the higher-precision files (Q8/bf16/fp16 vs Q4/fp8). Because configs that
-> share a `friendly_name` de-dup to the highest VRAM floor the machine can afford (§7.6), the big card auto-
-> selects the high-precision sibling while smaller cards keep the quantized one — no code change, just JSON.
+> **Precision / VRAM tiers are an operator choice.** The catalogue has no VRAM metadata and
+> `min_vram_mb` / `max_vram_mb` are not valid configuration keys. Bind and expose only configurations suitable
+> for the renderer. Configurations with the same `friendly_name` are de-duplicated in catalogue order after
+> requirement-presence filtering; the server does not choose between them from GPU capacity.
 >
 > **OOM is not a failure mode here — it's an operating assumption.** Every machine this runs on is provisioned
-> so its offered tier fits: the `min_vram_mb` floors gate each tier to cards that can actually run it, and the
-> hosts carry enough system RAM that ComfyUI's weight-offload absorbs anything tight. So a tier may *spill*
+> so its offered configuration fits, and the hosts carry enough system RAM that ComfyUI's weight-offload absorbs
+> anything tight. So a model may *spill*
 > (offload to host RAM and run slower) but will **not hard-OOM/crash** on its intended machine. Concretely, on
 > the 24 GB box the high tiers run at Q8/bf16 (e.g. Qwen-Image Q8 ~20 GB + its encoder) — sized to spill at
 > worst, never to OOM. Don't add code that treats OOM as a recoverable runtime case; if a new tier could OOM a
-> target machine, raise its `min_vram_mb` floor instead so that machine simply isn't offered it.
+> target machine, do not bind/expose that configuration on the machine.
 
-**The list the API serves (`GET /forge/workflows`) is gated twice.** A configuration is offered only if it's
-visible AND the machine's VRAM (from ComfyUI `/system_stats`, max across devices, cached, fail-open) falls
-within its band (`max(workflow floor, config floor)` .. `config ceiling ?? workflow ceiling`) AND every linked
-requirement file is present among what ComfyUI reports it can load. Configurations that share a
-`friendly_name` (within a kind) are de-duped — keeping the highest VRAM floor the machine can afford — so a
-**quantized** config (band `0..8GB`) and an **unquantized** one (band `8GB+`) present as one stable UI entry
-that resolves to whichever model the machine can run. Each row carries the configuration's UI-exposed
+**The list the API serves (`GET /forge/workflows`) is presence-gated.** A configuration is offered only when its
+workflow class is registered and every requested requirement is usable: custom-node requirements must be reported
+by ComfyUI, while model slots must be bound to files ComfyUI reports present. Configurations that share a
+`friendly_name` (within a kind/effect/edit section) are de-duplicated by keeping the first eligible catalogue entry;
+there is no GPU-capacity selection. Each row carries the configuration's UI-exposed
 parameters (joined to the workflow schema for type/range/label); the SPA renders them as controls and sends
 their values back as `overrides` on generate/edit.
 
@@ -785,10 +783,10 @@ These are where the code contradicts the canon above. Fixed items are kept (stru
 11. **One workflow class per model; the API lists configurations, not models.** A workflow owns its graph
     and is never shared between models. A configuration (`workflows.json`) binds one workflow, supplies its
     parameter settings layer + UI-exposed flags, and soft-links its requirements (`requirements.json`). A
-    configuration is offered by `GET /forge/workflows` only if it's visible, the machine's VRAM falls within
-    its band (`min_vram_mb`..`max_vram_mb`), and every linked requirement file is present in ComfyUI;
-    configurations may share a `friendly_name` across disjoint bands so one UI entry resolves to the model
-    that fits the machine. Graph construction never lives in `ComfyClient` — it dispatches to the workflow.
+    configuration is offered by `GET /forge/workflows` only when its workflow class exists and every requested
+    node/model requirement is present and bound as appropriate. Configurations sharing a `friendly_name` are
+    de-duplicated by catalogue order after that presence check; GPU capacity is not part of eligibility. Graph
+    construction never lives in `ComfyClient` — it dispatches to the workflow.
 12. **Prompt/tag data is encrypted at rest, per-user, with the repositories as the only crypto boundary.**
     Keys live in their own `dbo.UserEncryptionKey` table (never on a queried entity); free text is randomized,
     searchable tokens are deterministic, decrypt tolerates legacy plaintext (§6.1). Code outside the repos sees
