@@ -55,6 +55,12 @@ public sealed class RenderOrchestrator : IStepProgressSink
         public const string ListSeparator = ", ";
     }
 
+    /// <summary>Marker/folding rules used only when a prose workflow opts into the tag generator without declaring its
+    /// own booru-tagging contract. Generated names are stored in the same reload-safe marker dialect as existing
+    /// tagging workflows, rendered as ordinary comma-separated natural-language tags, and artists lose their marker.</summary>
+    private static readonly WorkflowTagging ProseTagGeneratorRules =
+        new(Tags: true, Artists: true, KeepArtistMarker: false, UnderscoresToSpaces: true);
+
     /// <summary>The user-activity-log category tags this orchestrator writes under.</summary>
     private static class LogCategories
     {
@@ -94,6 +100,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
     private readonly IMediaProcessor _media;
     private readonly IJobRepository _jobRepo;
     private readonly IUploadStore _uploads;
+    private readonly ImageVisibilityService _visibility;
     private readonly IImageBlobRepository _blobs;
     private readonly IImageFrameRepository _frames;
     private readonly IGenTimingRepository _timings;
@@ -108,7 +115,8 @@ public sealed class RenderOrchestrator : IStepProgressSink
     /// which is resolved per-write from <paramref name="scopeFactory"/>.</summary>
     public RenderOrchestrator(
         IComfyClient comfy, IWorkflowCatalog catalog, ITagModelClient tagModel, ITagCatalog tags,
-        IMediaProcessor media, IJobRepository jobRepo, IUploadStore uploads, IImageBlobRepository blobs,
+        IMediaProcessor media, IJobRepository jobRepo, IUploadStore uploads, ImageVisibilityService visibility,
+        IImageBlobRepository blobs,
         IImageFrameRepository frames,
         IGenTimingRepository timings, Snapshots.ISnapshot<Snapshots.GenTimingAverages> timingAverages,
         IUserLogService userLog, IDatabaseAvailability databaseAvailability,
@@ -122,6 +130,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
         _media = media;
         _jobRepo = jobRepo;
         _uploads = uploads;
+        _visibility = visibility;
         _blobs = blobs;
         _frames = frames;
         _timings = timings;
@@ -684,7 +693,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
             }
         }
 
-        if (await FirstMissingEditInputAsync(edits, ct) is { } gone)
+        if (await FirstMissingEditInputAsync(owner, edits, ct) is { } gone)
         {
             return new RequeueOutcome(RequeueStatus.Unrunnable, Reason: gone);
         }
@@ -693,10 +702,10 @@ public sealed class RenderOrchestrator : IStepProgressSink
         return new RequeueOutcome(RequeueStatus.Requeued, job.JobId, items.Count);
     }
 
-    /// <summary>The first edit input across these specs that can no longer be USED — either it can no longer be found,
-    /// or it is a reference whose media KIND the workflow doesn't accept — phrased for the user, or null when every one
-    /// is usable. One database round trip for the whole set (content types, which also existence-check the blobs).</summary>
-    private async Task<string?> FirstMissingEditInputAsync(List<EditSpec> edits, CancellationToken ct)
+    /// <summary>The first edit input across these specs that can no longer be USED — the owner may no longer read it,
+    /// it can no longer be found, or it is a reference whose media KIND the workflow doesn't accept — phrased for the
+    /// user, or null when every one is usable. Bulk ownership and content-type queries keep the checks set-based.</summary>
+    private async Task<string?> FirstMissingEditInputAsync(long owner, List<EditSpec> edits, CancellationToken ct)
     {
         if (edits.Count == 0)
         {
@@ -725,6 +734,15 @@ public sealed class RenderOrchestrator : IStepProgressSink
                     inputs.Add((r, "reference"));
                 }
             }
+        }
+
+        HashSet<string> inputIds = inputs.Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
+        IReadOnlySet<string> readable = await _visibility.ReadableAsync(owner, inputIds, ct);
+        if (!inputIds.All(readable.Contains))
+        {
+            // Do not identify the failed id or distinguish foreign from absent. The owner knows only that the old job's
+            // input capability is no longer valid, which is enough to explain why replay is refused without an oracle.
+            return "one or more of its edit inputs is no longer available";
         }
 
         List<string> unresolved = [.. inputs.Where(i => _uploads.Get(i.Id) is null).Select(i => i.Id).Distinct(StringComparer.Ordinal)];
@@ -1226,6 +1244,13 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 }
 
                 WorkflowInfo? info = _catalog.ResolveInfo(slot.Gen.Workflow);
+                // A prose model may opt into random tag generation without claiming booru autocomplete semantics.
+                // When this render actually requests it, use neutral marker/folding rules solely so sampled names can
+                // travel through the existing raw-prompt provenance path and reach the model as comma-separated ordinary
+                // text. Merely enabling the workflow setting does not otherwise alter a prose prompt.
+                bool wantsGeneratedPrompt = slot.Gen.RandomPrompt == TriState.True && info?.TagGeneratorEnabled == true;
+                WorkflowTagging? promptTagging = info?.Tagging
+                    ?? (wantsGeneratedPrompt ? ProseTagGeneratorRules : null);
                 // The RAW prompt is the source of truth. It is the marker-form string the user submitted ("#long_hair,
                 // @greg_rutkowski"), and the random samplers below APPEND TO IT in that same dialect — so after they run
                 // it still reads as something the user could have typed. The rendered prompt and the marks are then
@@ -1239,21 +1264,21 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 // server-side fact, so it is never taken from the request: a caller that omits it (an API-key client, a
                 // browser holding a stale ban cache, a job resumed from before the ban) must not be able to generate its
                 // way around one. Only fetched when a random sampler is actually going to run — bans bind auto-gen only.
-                (HashSet<string> Tags, HashSet<string> Artists) bans = slot.Gen.RandomPrompt == TriState.True || slot.Gen.RandomArtist == TriState.True
+                (HashSet<string> Tags, HashSet<string> Artists) bans = wantsGeneratedPrompt || slot.Gen.RandomArtist == TriState.True
                     ? await BannedKeysAsync(slot.Job.Owner, slot.Model, ct)
                     : (Tags: new HashSet<string>(StringComparer.Ordinal), Artists: new HashSet<string>(StringComparer.Ordinal));
                 // Provenance captured EXACTLY as the samplers append — the canonical keys of the tokens they add. The
                 // viewer dashes these chips. Taken here, at the append, not reconstructed by diffing OriginalPrompt (which
                 // is pre-expansion, so a diff mis-flags wildcard/locked-artist tags as auto). Empty when nothing sampled.
                 HashSet<string> generatedTokens = new(StringComparer.Ordinal);
-                // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed tags,
-                // but only when the model speaks tags. This does NOT fail soft: a tag model that is down or erroring
+                // Random-prompt: generate the whole prompt PER SLOT from the tag model, seeded by the user's typed text,
+                // when this workflow's own toggle permits it. This does NOT fail soft: a tag model that is down or erroring
                 // throws out of GenerateAsync and fails the slot (see the catch at the bottom of RunSlotAsync). This is
                 // deliberate: silently rendering the typed seed instead of the generated prompt would produce an image
                 // the user did not ask for and give no hint why.
-                if (slot.Gen.RandomPrompt == TriState.True && info?.Tagging is { Tags: true })
+                if (wantsGeneratedPrompt && promptTagging is { } generatorTagging)
                 {
-                    (string? seed, HashSet<string>? suppressKeys) = TagSeed(raw, info.Tagging);
+                    (string? seed, HashSet<string>? suppressKeys) = TagSeed(raw, generatorTagging);
                     HashSet<string> bannedTags = RandomPromptBannedTags(bans, negKeys, suppressKeys);
                     // The generation mask for this slot: the one submitted with it, or the owner's stored mask when the
                     // caller specified none. It rides on the SLOT (unlike the bans, which stay a server-side fact read
@@ -1301,7 +1326,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 }
                 // The single derivation: the prompt the model renders and the marks that describe it both come from the
                 // raw string we are about to store, so the three can never disagree.
-                FinalizedPrompt final = PromptFinalizer.Finalize(raw, info?.Tagging);
+                FinalizedPrompt final = PromptFinalizer.Finalize(raw, promptTagging);
                 slot.RawPrompt = raw;
                 // The negative is stored exactly as submitted. The random samplers never touch it (they only ever ADD a
                 // positive), so verbatim here is simply what the user typed — null when they typed nothing, which is
@@ -1313,7 +1338,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
                 await _userLog.LogAsync(slot.Job.Owner, LogCategories.Submit, final.Rendered, ct);
                 // Finalize the negative with the same tag rules as the positive (the negative box shares the tag/artist
                 // autocomplete, so its text carries '#'/'@' markers). Comfy appends this onto the model's default negative.
-                string genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, info?.Tagging).Rendered;
+                string genNeg = PromptFinalizer.Finalize(slot.Gen.NegativePrompt, promptTagging).Rendered;
                 SubmitResult submit = await _comfy.SubmitGenerateAsync(final.Rendered, genNeg, slot.Gen.Workflow, slot.Gen.Aspect, slot.Gen.Overrides, slot.Gen.Loras, ct);
                 promptId = submit.PromptId;
                 slot.EtaSignature = submit.Eta;

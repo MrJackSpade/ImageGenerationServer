@@ -14,7 +14,13 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
     public override FrameRule? FrameRule => new(1, 8);
 
     /// <summary>The shared edit menu plus the per-config i2v <c>megapixels</c> budget control (#186).</summary>
-    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, VideoSizeSchema.Megapixels, .. CkAttention.Schema];
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. EditWorkflowBase.SharedSchema,
+        VideoSizeSchema.Megapixels,
+        .. CkAttention.Schema,
+        new() { Key = WorkflowParamKeys.AudioVae, Type = ParamType.String, IsModelRef = true, Label = "Audio VAE" },
+    ];
 
     /// <summary>LTX-2's i2v snap grid (32-px). The megapixel BUDGET is the per-config <c>megapixels</c> control (#186),
     /// read off the params record.</summary>
@@ -26,6 +32,13 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
     {
         ComfyWorkflowGraph g = new();
         LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
+        Output<Slot.Vae>? audioVae = null;
+        if (!string.IsNullOrWhiteSpace(p.AudioVae))
+        {
+            g[Nodes.AudioVae] = new VAELoader { VaeName = p.AudioVae };
+            audioVae = VAELoader.VaeOut(Nodes.AudioVae);
+        }
+
         model0 = ComfyGraph.ApplyLora(g, model0, p.Lora, p.LoraStrength);   // optional anime-style LoRA on the LTX-2 model
         model0 = CkAttention.Apply(g, model0, p.CkAttention, Nodes.CkAttention);
         long seed = ComfyGraph.Seed(p.Seed);
@@ -37,12 +50,32 @@ public sealed class LtxV2I2VWorkflow : EditWorkflow<LtxV2I2VParams>
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         g[Nodes.Negative] = new CLIPTextEncode { Text = inputs.Negative ?? "", Clip = clip0 };
         g[Nodes.ImgToVideo] = new LTXVImgToVideo { Positive = CLIPTextEncode.Out(Nodes.Positive), Negative = CLIPTextEncode.Out(Nodes.Negative), Vae = vae0, Image = ImageScaleToTotalPixels.Out(Nodes.Scale), Width = GetImageSize.WidthOut(Nodes.Size), Height = GetImageSize.HeightOut(Nodes.Size), Length = frames, BatchSize = 1, Strength = 1.0 };
+        Output<Slot.Latent> sampleLatent = LTXVImgToVideo.LatentOut(Nodes.ImgToVideo);
+        if (audioVae is { } av)
+        {
+            g[Nodes.AudioLatent] = new LTXVEmptyLatentAudio { FramesNumber = frames, FrameRate = fps, BatchSize = 1, AudioVae = av };
+            g[Nodes.AvLatent] = new LTXVConcatAVLatent { VideoLatent = sampleLatent, AudioLatent = LTXVEmptyLatentAudio.Out(Nodes.AudioLatent) };
+            sampleLatent = LTXVConcatAVLatent.Out(Nodes.AvLatent);
+        }
+
         g[Nodes.Conditioning] = new LTXVConditioning { Positive = LTXVImgToVideo.PositiveOut(Nodes.ImgToVideo), Negative = LTXVImgToVideo.NegativeOut(Nodes.ImgToVideo), FrameRate = fps };
-        g[Nodes.Scheduler] = new LTXVScheduler { Steps = p.Steps, MaxShift = 2.05, BaseShift = 0.95, Stretch = true, Terminal = 0.1, Latent = LTXVImgToVideo.LatentOut(Nodes.ImgToVideo) };
+        g[Nodes.Scheduler] = new LTXVScheduler { Steps = p.Steps, MaxShift = 2.05, BaseShift = 0.95, Stretch = true, Terminal = 0.1, Latent = sampleLatent };
         g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
-        g[Nodes.Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Nodes.Conditioning), Negative = LTXVConditioning.NegativeOut(Nodes.Conditioning), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = LTXVScheduler.Out(Nodes.Scheduler), LatentImage = LTXVImgToVideo.LatentOut(Nodes.ImgToVideo) };
-        g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustom.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        g[Nodes.Sampler] = new SamplerCustom { Model = model0, AddNoise = true, NoiseSeed = seed, Cfg = p.Cfg, Positive = LTXVConditioning.PositiveOut(Nodes.Conditioning), Negative = LTXVConditioning.NegativeOut(Nodes.Conditioning), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = LTXVScheduler.Out(Nodes.Scheduler), LatentImage = sampleLatent };
+        if (audioVae is { } decodeAudioVae)
+        {
+            g[Nodes.SeparateAv] = new LTXVSeparateAVLatent { AvLatent = SamplerCustom.Out(Nodes.Sampler) };
+            g[Nodes.Decode] = new VAEDecode { Samples = LTXVSeparateAVLatent.VideoOut(Nodes.SeparateAv), Vae = vae0 };
+            g[Nodes.AudioDecode] = new LTXVAudioVAEDecode { Samples = LTXVSeparateAVLatent.AudioOut(Nodes.SeparateAv), AudioVae = decodeAudioVae };
+            g[Nodes.CreateVideo] = new CreateVideo { Images = VAEDecode.Out(Nodes.Decode), Fps = fps, Audio = LTXVAudioVAEDecode.Out(Nodes.AudioDecode) };
+            g[Nodes.Save] = new SaveVideo { Video = CreateVideo.Out(Nodes.CreateVideo), FilenamePrefix = OutputPrefixes.Edit, Format = ComfyWidgets.SaveFormat.Auto, Codec = ComfyWidgets.VideoCodec.Auto };
+        }
+        else
+        {
+            g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustom.Out(Nodes.Sampler), Vae = vae0 };
+            g[Nodes.Save] = new SaveAnimatedWEBPLiteralFps { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit, Fps = fps, Lossless = false, Quality = 80, Method = ComfyWidgets.WebpMethod.Default };
+        }
+
         return g;
     }
 }

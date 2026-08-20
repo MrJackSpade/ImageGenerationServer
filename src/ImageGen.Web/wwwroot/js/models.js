@@ -87,7 +87,7 @@
         <span class="listrow-name">${esc(s.label)}</span>
         ${badge}
       </div>
-      <select class="slot-pick" data-slot="${esc(s.id)}" title="${esc(s.id)}">${slotOptionsHtml(s)}</select>
+      <select class="slot-pick" data-slot="${esc(s.id)}" title="${esc(s.id)}" aria-label="Choose a file for ${esc(s.label)}">${slotOptionsHtml(s)}</select>
     </div>`;
   }
 

@@ -54,12 +54,11 @@ async def _imagegen_gate(request, handler):
     return await handler(request)
 
 
-try:
-    server.PromptServer.instance.app.middlewares.append(_imagegen_gate)
-    print("[imagegen_gate] queue gate installed — direct POST /prompt,/queue,/interrupt,"
-          "/upload require the app token; everything else is blocked with 403.")
-except Exception as e:  # pragma: no cover
-    print(f"[imagegen_gate] FAILED to install queue gate: {e!r}")
+# This is a security boundary, not an optional integration. If ComfyUI changes its startup order/API and the
+# middleware cannot be installed, let the import fail so the server cannot boot with its mutation endpoints exposed.
+server.PromptServer.instance.app.middlewares.append(_imagegen_gate)
+print("[imagegen_gate] queue gate installed — direct POST /prompt,/queue,/interrupt,"
+      "/upload require the app token; everything else is blocked with 403.")
 
 # Not a node pack — no nodes to register; this module only installs the HTTP gate.
 NODE_CLASS_MAPPINGS = {}

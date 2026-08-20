@@ -1,0 +1,9 @@
+{
+  "id": "ltx-2-5-audio-vae",
+  "kind": "vae",
+  "label": "LTX-2.5 Audio VAE",
+  "match": [
+    "ltx[-_.]?2[-_.]?5[-_.]?audio[-_.]?vae"
+  ],
+  "page": "https://huggingface.co/Lightricks/LTX-2.5"
+}

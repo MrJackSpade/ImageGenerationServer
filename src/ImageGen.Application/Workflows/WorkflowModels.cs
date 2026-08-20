@@ -23,9 +23,12 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// output's file extension — a single-frame render comes back as .webp exactly like a clip does.</param>
 /// <param name="HasAudio">Video only: the clip carries a native audio track (MiniMax-H3). Rides the job/slot wire
 /// views so a client rendering a result it did not submit still knows to offer an unmute control.</param>
+/// <param name="TagGeneratorEnabled">Whether this workflow may use the built-in random tag-prompt generator. This is
+/// independent of <paramref name="Tagging"/>: prose models can consume its comma-separated output without adopting the
+/// booru autocomplete/artist-formatting contract.</param>
 public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
-    WorkflowReference? Reference = null, bool HasAudio = false, string Kind = "");
+    WorkflowReference? Reference = null, bool HasAudio = false, string Kind = "", bool TagGeneratorEnabled = false);
 
 /// <summary>The wire tokens for a workflow's resolved kind — the one vocabulary shared by the descriptor's
 /// <see cref="WorkflowDescriptor.Kind"/> badge/routing, <see cref="WorkflowInfo.Kind"/>, and the render orchestrator's
@@ -107,6 +110,7 @@ public static class ParamVisibilityExtensions
 /// <param name="Label">UI label.</param>
 /// <param name="Help">Optional help text.</param>
 /// <param name="Choices">Enum choices, or null.</param>
+/// <param name="RangeOverride">Optional, explicitly-declared alternate range the UI may enable with a warning.</param>
 public sealed record WorkflowExposedParam(
     string Key, string Type, object? Value,
     [property: AllowNullable("null = the numeric control has no minimum bound; 0 is a real minimum, distinct from unbounded")] double? Min,
@@ -114,7 +118,17 @@ public sealed record WorkflowExposedParam(
     [property: AllowNullable("null = the control declares no increment (free-entry); distinct from a 0 step")] double? Step,
     [AllowMagicStrings("human-readable UI parameter label")] string Label,
     [AllowMagicStrings("human-readable UI parameter help text")] string? Help,
-    string[]? Choices);
+    string[]? Choices,
+    WorkflowParamRangeOverride? RangeOverride = null);
+
+/// <summary>An opt-in alternate range for one numeric workflow field. The normal <see cref="WorkflowExposedParam.Min"/>
+/// and <see cref="WorkflowExposedParam.Max"/> remain the recommended/default bounds; the client exposes these bounds
+/// only after the user enables <see cref="Label"/> and accompanies them with <see cref="Warning"/>.</summary>
+public sealed record WorkflowParamRangeOverride(
+    [property: AllowNullable("null = the alternate range keeps the field's normal minimum")] double? Min,
+    [property: AllowNullable("null = the alternate range keeps the field's normal maximum")] double? Max,
+    [property: AllowMagicStrings("human-readable opt-in checkbox label")] string Label,
+    [property: AllowMagicStrings("human-readable warning shown for values outside the normal range")] string Warning);
 
 /// <summary>How many references of ONE media kind a workflow accepts.</summary>
 /// <param name="Kind">The media kind's wire token (see <see cref="ReferenceKinds.Wire"/>): image / audio / video.</param>
@@ -210,6 +224,7 @@ public sealed record WorkflowDescriptor(
     string? LoraFolder = null,
     bool HasAudio = false,
     bool CustomSizeEnabled = false,
+    bool TagGeneratorEnabled = false,
     bool IsVariant = false,
     // The configuration's aspect→[w,h] dims map (this machine's override applied), or null for a config with none.
     // The composer writes a clicked shape's dims into its (possibly hidden) width/height controls from THIS map and

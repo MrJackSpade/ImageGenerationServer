@@ -11,6 +11,7 @@
     "vae": "ltx-2-5-video-vae"
   },
   "params": {
+    "audio_vae": "ltx-2-5-audio-vae",
     "seed": {
       "value": 0,
       "visibility": "hidden"

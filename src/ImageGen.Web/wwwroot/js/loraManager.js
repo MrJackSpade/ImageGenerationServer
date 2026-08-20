@@ -7,7 +7,7 @@
   if (!root) return;
   const THUMB = (typeof THUMB_W !== "undefined" && THUMB_W) || 220;
 
-  const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const esc = escapeHtml;
   const label = name => String(name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, "");
 
   const rows = new Map();   // name -> { el, cover, nameEl, trig, edited, aacb }

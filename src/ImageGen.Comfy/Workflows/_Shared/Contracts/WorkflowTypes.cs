@@ -607,7 +607,17 @@ public sealed class ConfigParam
     /// <summary>Optional per-config UI increment override for an exposed numeric control (falls back to the schema's Step).</summary>
     [AllowNullable("null = no per-config step override, so the schema's Step stands; distinct from a real 0 step")]
     public double? Step { get; init; }
+    /// <summary>Optional alternate UI range which must be explicitly enabled by the user. It changes numeric range
+    /// validation only; type validation and model-specific normalization rules remain in force.</summary>
+    public ConfigParamRangeOverride? RangeOverride { get; init; }
 }
+
+/// <summary>Configuration-side form of an explicitly enabled alternate numeric range.</summary>
+public sealed record ConfigParamRangeOverride(
+    [property: AllowNullable("null = the alternate range keeps the field's normal minimum")] double? Min,
+    [property: AllowNullable("null = the alternate range keeps the field's normal maximum")] double? Max,
+    string Label,
+    string Warning);
 
 /// <summary>
 /// A workflow configuration — a row of workflows.json and the unit the API exposes. It binds one

@@ -6,9 +6,7 @@
   let overlay = null;
   let pollCancel = null;
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  }
+  const esc = escapeHtml;
   function label(name) { return String(name || "").split(/[\\/]/).pop().replace(/\.(safetensors|ckpt|pt|gguf)$/i, ""); }
   function parentFolder(f) { const i = f.lastIndexOf("/"); return i < 0 ? "" : f.slice(0, i); }
   function relFolder(itemFolder, folder) {

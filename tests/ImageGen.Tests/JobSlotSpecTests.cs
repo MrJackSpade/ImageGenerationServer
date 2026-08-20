@@ -78,6 +78,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         const string requested = "a lighthouse at dusk";
         const string displayed = "a lighthouse at dusk";
         const string submitted = "{\"high_level_description\":\"a lighthouse at dusk\"}";
+        const string negative = "fog, low contrast";
         JobSlotRecord slot = new()
         {
             JobId = jobId,
@@ -86,6 +87,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             ImageId = imageId,
             Workflow = "ideogram4",
             Prompt = requested,
+            NegativePrompt = negative,
             EffectivePrompt = displayed,
             ModelPrompt = submitted,
             ModelManifestJson = """{"checkpoint":"ideogram4-fp8.safetensors","loader":"unet","weightDtype":"default","quantization":"fp8","vae":"ae.safetensors","textEncoders":["gemma.safetensors"]}""",
@@ -103,6 +105,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.NotNull(record);
         using JsonDocument values = JsonDocument.Parse(record.RequestJson);
         Assert.Equal(submitted, values.RootElement.GetProperty("prompt").GetString());
+        Assert.Equal(negative, values.RootElement.GetProperty("negativePrompt").GetString());
         JsonElement models = values.RootElement.GetProperty("models");
         Assert.Equal("ideogram4-fp8.safetensors", models.GetProperty("checkpoint").GetString());
         Assert.Equal("fp8", models.GetProperty("quantization").GetString());

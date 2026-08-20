@@ -33,8 +33,9 @@ public static class ApplicationServiceCollectionExtensions
         _ = services.AddScoped<LoraService>();
         _ = services.AddScoped<TagService>();
         _ = services.AddScoped<ImageViewService>();
-        // The one owner check every id-addressed image read goes through, on both the API and the MVC surface.
-        _ = services.AddScoped<ImageVisibilityService>();
+        // The one owner check every id-addressed image read and edit-input replay goes through. It is stateless and
+        // both collaborators are singletons, so the singleton renderer can enforce the same rule during requeue.
+        _ = services.AddSingleton<ImageVisibilityService>();
 
         _ = services.AddSingleton<IUserLogService>(sp => new UserLogService(
             sp.GetRequiredService<IUserCipher>(),

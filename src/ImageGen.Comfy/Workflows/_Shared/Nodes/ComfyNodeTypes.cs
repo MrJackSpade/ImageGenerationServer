@@ -82,7 +82,11 @@ internal static class ComfyNodeTypes
     public const string KSamplerAdvanced = "KSamplerAdvanced";
     public const string KSamplerSelect = "KSamplerSelect";
     public const string LTXVConditioning = "LTXVConditioning";
+    public const string LTXVConcatAVLatent = "LTXVConcatAVLatent";
+    public const string LTXVEmptyLatentAudio = "LTXVEmptyLatentAudio";
+    public const string LTXVAudioVAEDecode = "LTXVAudioVAEDecode";
     public const string LTXVImgToVideo = "LTXVImgToVideo";
+    public const string LTXVSeparateAVLatent = "LTXVSeparateAVLatent";
     public const string LTXVScheduler = "LTXVScheduler";
     public const string LatentUpscaleModelLoader = "LatentUpscaleModelLoader";
     public const string LineArtPreprocessor = "LineArtPreprocessor";

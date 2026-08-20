@@ -75,6 +75,20 @@ public sealed class CatalogDeserializationTests
             Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"visibilty":"exposed"}}}"""));
 
     [Fact]
+    public void An_unknown_key_in_a_range_override_is_rejected()
+        => Assert.Throws<JsonException>(() => Workflow("""
+            {"id":"x","workflow":"W","params":{"steps":{"value":8,"visibility":"exposed","max":10,
+              "range_override":{"max":20,"label":"Advanced","warning":"Careful","typo":true}}}}
+            """));
+
+    [Fact]
+    public void A_range_override_requires_a_bound_label_and_warning()
+        => Assert.Throws<JsonException>(() => Workflow("""
+            {"id":"x","workflow":"W","params":{"steps":{"value":8,"visibility":"exposed","max":10,
+              "range_override":{"max":20,"label":"Advanced"}}}}
+            """));
+
+    [Fact]
     public void The_retired_exposed_envelope_key_is_rejected_not_aliased()
         => Assert.Throws<JsonException>(() =>
             Workflow("""{"id":"x","workflow":"W","params":{"steps":{"value":8,"exposed":true}}}"""));
@@ -100,7 +114,8 @@ public sealed class CatalogDeserializationTests
               "id":"x","workflow":"W",
               "params":{
                 "loader": "unet",
-                "cfg": { "value": 7, "visibility": "exposed", "min": 1, "max": 30, "step": 0.5 },
+                "cfg": { "value": 7, "visibility": "exposed", "min": 1, "max": 30, "step": 0.5,
+                  "range_override": { "max": 50, "label": "Allow advanced values", "warning": "Results may vary." } },
                 "steps": { "value": 8, "visibility": "hidden" },
                 "baked": { "value": 4, "visibility": "locked" },
                 "aspect": { "square": [1024,1024] },
@@ -125,6 +140,9 @@ public sealed class CatalogDeserializationTests
         Assert.Equal(1, cfg.Min);
         Assert.Equal(30, cfg.Max);
         Assert.Equal(0.5, cfg.Step);
+        Assert.Equal(50, cfg.RangeOverride?.Max);
+        Assert.Equal("Allow advanced values", cfg.RangeOverride?.Label);
+        Assert.Equal("Results may vary.", cfg.RangeOverride?.Warning);
         Assert.Equal(ParamVisibility.Hidden, p["steps"].Visibility);
         Assert.Equal(ParamVisibility.Locked, p["baked"].Visibility);
 

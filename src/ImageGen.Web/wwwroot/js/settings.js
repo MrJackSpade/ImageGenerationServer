@@ -9,7 +9,7 @@
   const bans = {};     // id -> { artists:[], tags:[] }
   const ensureModel = (id, name, tagging) => { if (!models[id]) models[id] = { name: name || id, tagging: tagging || null }; };
 
-  // Present, tagging-capable generate configurations from the gateway. /workflows already returns only runnable
+  // Present, tag-generator-capable generate configurations from the gateway. /workflows already returns only runnable
   // (present + VRAM-fitting) configs, so no client-side presence check is needed.
   //
   // Both loads below record WHY they came back empty. Swallowing that would produce an empty `models`, which falls
@@ -22,8 +22,10 @@
     if (!r.ok) throw new Error(`the catalog answered ${r.status}`);
     for (const w of ((await r.json()) || [])) {
       const tg = w.card && w.card.tagging;
-      if (w.kind === "generate" && tg && (tg.tags || tg.artists))
-        ensureModel(w.id, w.friendlyName, tg);
+      if (w.kind === "generate" && (w.tagGeneratorEnabled || (tg && (tg.tags || tg.artists))))
+        // A prose workflow with the generator enabled can receive both tag and artist categories from the tag model;
+        // the render path turns either into ordinary comma-separated text.
+        ensureModel(w.id, w.friendlyName, tg || { tags: true, artists: true });
     }
   } catch (e) {
     loadError = e.message || String(e);

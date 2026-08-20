@@ -11,6 +11,7 @@ namespace ImageGen.Comfy.Edit.LtxV2I2V;
 /// <c>seed</c> is the app's single-sourced seed (defaulted).</summary>
 public sealed record LtxV2I2VParams
 {
+    [JsonPropertyName(WorkflowParamKeys.AudioVae)] public string? AudioVae { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Loader)] public required string Loader { get; init; }
     [JsonPropertyName(WorkflowParamKeys.WeightDtype)] public string? WeightDtype { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ClipType)] public string? ClipType { get; init; }

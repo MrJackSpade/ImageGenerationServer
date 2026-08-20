@@ -43,7 +43,10 @@ public sealed partial class WorkflowCatalogService(
         IWorkflow? wf = _registry.Find(cfg.WorkflowName);
         bool preserves = wf?.PreservesComposition ?? false;
         string kind = wf is null ? "" : KindToken(ResolveKind(cfg, wf));
-        return new WorkflowInfo(friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card), wf?.HasAudio ?? false, kind);
+        IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
+        return new WorkflowInfo(
+            friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card),
+            HasAudio(cfg, wf), kind, EffectiveBool(machine, SettingKeys.TagGenerator, card.Tagging?.Tags == true));
     }
 
     /// <summary>The workflow's reference capability, or null when it accepts no references — the single projection of a
@@ -372,6 +375,20 @@ public sealed partial class WorkflowCatalogService(
                 Override: overrides.TryGetValue(SettingKeys.TargetLoraFolder, out JsonElement lf) ? (object?)lf : null));
         }
 
+        // Random prompt is a per-WORKFLOW capability, not a statement that the model uses booru prompt syntax. A prose
+        // model can opt in and consume the generated comma-separated list as ordinary text. Existing tag-speaking
+        // generate workflows ship ON so this migration preserves today's UI; every other generate workflow ships OFF
+        // and can be enabled here for this machine.
+        if (wf.Kind == WorkflowKind.Generate)
+        {
+            settings.Add(new ConfigSetting(
+                SettingKeys.TagGenerator, "Tag generator on the generation page",
+                "When on, the generation page offers the Random prompt slider for this workflow.",
+                ControlTokens.Bool, null, null, null, null,
+                Shipped: cfg.Card.Tagging?.Tags == true,
+                Override: overrides.TryGetValue(SettingKeys.TagGenerator, out JsonElement tg) ? (object?)tg : null));
+        }
+
         // A per-machine "custom size" toggle for this workflow's composer. Like the LoRA folder above it is not a
         // config/graph param, so it's surfaced as a synthetic bool setting the settings page renders and saves through
         // the same override path (param.customSize). Only image generators can offer a Custom aspect. When on, the
@@ -529,7 +546,7 @@ public sealed partial class WorkflowCatalogService(
             },
             TakesPrompt: wf.TakesPrompt,
             SupportsLastFrame: wf.SupportsEndFrame,
-            HasAudio: wf.HasAudio,
+            HasAudio: HasAudio(cfg, wf),
             FriendlyName: cfg.FriendlyName ?? c.FriendlyName,
             Default: cfg.Default,
             AvgSeconds: avgSeconds,
@@ -566,6 +583,9 @@ public sealed partial class WorkflowCatalogService(
             // Opt-in per-machine toggle: when set, the composer offers a "Custom" aspect with width/height boxes for
             // this workflow. Read from the same per-machine override store as the settings toggle that sets it.
             CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize),
+            // Per-machine random-prompt toggle. Defaults on for the workflows whose tagging block enabled the feature
+            // before the toggle existed; prose workflows remain off until explicitly enabled.
+            TagGeneratorEnabled: EffectiveBool(machine, SettingKeys.TagGenerator, c.Tagging?.Tags == true),
             // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
             IsVariant: _catalog.IsVariant(cfg.Id),
             // Each config's aspect→[w,h] map travels to the composer, which writes a clicked shape's dims into its
@@ -582,7 +602,7 @@ public sealed partial class WorkflowCatalogService(
     /// range and step are converted with the model's own <c>fps</c>, and the composer sends back
     /// <see cref="WorkflowParamKeys.DurationSeconds"/>, which <see cref="FrameNormalization"/> turns back into frames at
     /// enqueue. People think in "a 5-second clip", not "121 frames".</summary>
-    private static WorkflowExposedParam ExposedParam(
+    internal static WorkflowExposedParam ExposedParam(
         KeyValuePair<string, ConfigParam> kv, IWorkflow wf, WorkflowConfiguration cfg,
         IReadOnlyDictionary<string, JsonElement> machine)
     {
@@ -611,7 +631,8 @@ public sealed partial class WorkflowCatalogService(
                 Math.Max(0.01, Math.Round(fr.Step / fps, 2)),
                 "Length (seconds)",
                 "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
-                null);
+                null,
+                ProjectRangeOverride(kv.Value.RangeOverride, fps));
         }
 
         return new WorkflowExposedParam(
@@ -623,7 +644,23 @@ public sealed partial class WorkflowCatalogService(
             kv.Value.Step ?? spec?.Step,
             spec?.Label ?? kv.Key,
             spec?.Help,
-            spec?.Choices);
+            spec?.Choices,
+            ProjectRangeOverride(kv.Value.RangeOverride));
+    }
+
+    private static WorkflowParamRangeOverride? ProjectRangeOverride(
+        ConfigParamRangeOverride? alternate, double? divisor = null)
+    {
+        if (alternate is null)
+        {
+            return null;
+        }
+
+        double? Project(double? value) => value is double n
+            ? divisor is double d ? Math.Round(n / d, 2) : n
+            : null;
+        return new WorkflowParamRangeOverride(
+            Project(alternate.Min), Project(alternate.Max), alternate.Label, alternate.Warning);
     }
 
     /// <summary>Ordinary workflow schema plus the four shared quality settings for workflows that opt in.</summary>
@@ -670,6 +707,10 @@ public sealed partial class WorkflowCatalogService(
         /// <summary>The per-machine setting key for whether the composer offers a Custom aspect (width/height boxes) for
         /// this workflow (a plain bool override, not a graph parameter).</summary>
         public const string CustomSize = "customSize";
+
+        /// <summary>The per-machine setting key for whether the composer offers the built-in random tag generator for
+        /// this workflow. Independent of the card's booru tagging syntax.</summary>
+        public const string TagGenerator = "tagGenerator";
     }
 
     /// <summary>Control tokens the settings page uses to pick an input widget.</summary>
@@ -702,15 +743,33 @@ public sealed partial class WorkflowCatalogService(
     /// <summary>Read a boolean per-machine override, accepting either a real JSON boolean or the string "true"/"false"
     /// (the settings page persists it as a string). Missing/blank/anything-else is false.</summary>
     private static bool OverrideBool(IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key)
+        => EffectiveBool(machine, key, false);
+
+    /// <summary>Read a boolean per-machine override, falling back to the workflow's shipped value when absent or
+    /// malformed. Accepts real JSON booleans and the settings page's string representation.</summary>
+    private static bool EffectiveBool(
+        IReadOnlyDictionary<string, System.Text.Json.JsonElement> machine, string key, bool fallback)
     {
         if (!machine.TryGetValue(key, out JsonElement v))
         {
-            return false;
+            return fallback;
         }
 
-        return v.ValueKind == System.Text.Json.JsonValueKind.True
-            || (v.ValueKind == System.Text.Json.JsonValueKind.String && bool.TryParse(v.GetString(), out bool b) && b);
+        if (v.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
+        {
+            return v.GetBoolean();
+        }
+
+        return v.ValueKind == System.Text.Json.JsonValueKind.String && bool.TryParse(v.GetString(), out bool b)
+            ? b
+            : fallback;
     }
+
+    /// <summary>Audio is normally a workflow-class property. LTX-2.5 is the configuration-specific exception because
+    /// the same workflow class also serves older video-only LTX configurations; its locked audio-VAE model ref is the
+    /// authoritative opt-in.</summary>
+    private static bool HasAudio(WorkflowConfiguration cfg, IWorkflow? wf) =>
+        (wf?.HasAudio ?? false) || cfg.Params.ContainsKey(WorkflowParamKeys.AudioVae);
 
     private static PromptingGuide ToGuide(ModelCard c) => new(
         Name: c.Name,

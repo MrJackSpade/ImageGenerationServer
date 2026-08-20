@@ -7,6 +7,7 @@ namespace ImageGen.Comfy.Generation.LtxV2T2V;
 /// LTX runs its own <c>LTXVScheduler</c>, so the base <c>scheduler</c>/<c>latent</c> knobs are unused here.</summary>
 public sealed record LtxV2T2VParams : Txt2ImgParams
 {
+    [JsonPropertyName(WorkflowParamKeys.AudioVae)] public string? AudioVae { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
 }

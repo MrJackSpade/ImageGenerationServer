@@ -20,8 +20,11 @@ function slotOptionsHtml(s) {
   const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
   const candidates = (s.candidates || []).slice().sort(byName);
   const rest = (s.available || []).filter(f => !(s.candidates || []).includes(f)).sort(byName);
-  const opt = (f, tag) => `<option value="${escapeHtml(f)}"${f === s.boundFile ? " selected" : ""}>${escapeHtml(f)}${tag || ""}</option>`;
-  return `<option value="">— not set —</option>`
+  const opt = (f, tag) => {
+    const label = `${f}${tag || ""}`;
+    return `<option value="${escapeHtml(f)}" label="${escapeHtml(label)}"${f === s.boundFile ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  };
+  return `<option value="" label="— not set —">— not set —</option>`
     + candidates.map(f => opt(f, " (recognised)")).join("")
     + rest.map(f => opt(f, "")).join("");
 }
@@ -131,7 +134,15 @@ function effectiveParams(m) {
 function sharedExposedParams(models) {
   const lists = models.map(m => (m && effectiveParams(m)) || []);
   if (!lists.length) return [];
-  return lists[0].filter(p => lists.every(l => l.some(q => q.key === p.key && q.type === p.type)));
+  const rangeKey = p => JSON.stringify(p.rangeOverride || null);
+  return lists[0]
+    .filter(p => lists.every(l => l.some(q => q.key === p.key && q.type === p.type)))
+    .map(p => {
+      const peers = lists.map(l => l.find(q => q.key === p.key && q.type === p.type));
+      // A multi-model field may offer the alternate range only when every selected model declares the same one.
+      // Sending the first model's wider range to a stricter peer would turn an explicit opt-in into an invalid batch.
+      return peers.every(q => rangeKey(q) === rangeKey(p)) ? p : { ...p, rangeOverride: null };
+    });
 }
 function renderParamFields(box, modelOrModels, extraParams) {
   if (!box) return;
@@ -144,8 +155,10 @@ function renderParamFields(box, modelOrModels, extraParams) {
   if (!ps.length) { box.hidden = true; box.classList.add("hidden"); return; }
   box.hidden = false; box.classList.remove("hidden");
   for (const p of ps) {
-    const wrap = document.createElement("label"); wrap.className = "mp-field";
-    const span = document.createElement("span"); span.className = "fld-label"; span.textContent = p.label || p.key;
+    const wrap = document.createElement("div"); wrap.className = "mp-field";
+    const span = document.createElement("label"); span.className = "fld-label"; span.textContent = p.label || p.key;
+    const fieldId = `${box.id || "params"}-${String(p.key).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+    span.htmlFor = fieldId;
     // Keep labels short; the long explanation lives in a hover tooltip (native title) marked with a small ⓘ.
     if (p.help) {
       wrap.title = p.help;
@@ -176,8 +189,59 @@ function renderParamFields(box, modelOrModels, extraParams) {
       inp = document.createElement("input"); inp.type = "text"; inp.value = (p.value != null ? p.value : "");
     }
     inp.className = "fld-input";   // the field chrome rides on the input, not on the container it happens to be in
+    inp.id = fieldId;
     inp.dataset.key = p.key; inp.dataset.ptype = p.type;
-    wrap.appendChild(span); wrap.appendChild(inp); box.appendChild(wrap);
+    wrap.appendChild(span); wrap.appendChild(inp);
+
+    if ((p.type === "int" || p.type === "double") && p.rangeOverride) {
+      wrap.classList.add("mp-field-range");
+      const alternate = p.rangeOverride;
+      const normalMin = p.min != null ? Number(p.min) : null;
+      const normalMax = p.max != null ? Number(p.max) : null;
+      const alternateMin = alternate.min != null ? Number(alternate.min) : normalMin;
+      const alternateMax = alternate.max != null ? Number(alternate.max) : normalMax;
+      const option = document.createElement("label"); option.className = "mp-range-override";
+      const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.className = "mp-range-toggle";
+      const optionText = document.createElement("span"); optionText.textContent = alternate.label;
+      option.append(toggle, optionText);
+      const warning = document.createElement("p"); warning.className = "mp-range-warning";
+      warning.textContent = alternate.warning; warning.hidden = true;
+
+      const setBound = (name, value) => value == null ? inp.removeAttribute(name) : inp.setAttribute(name, value);
+      const outsideNormalRange = () => {
+        const n = Number(inp.value);
+        return inp.value !== "" && !Number.isNaN(n)
+          && ((normalMin != null && n < normalMin) || (normalMax != null && n > normalMax));
+      };
+      const applyAlternateRange = active => {
+        toggle.checked = active;
+        setBound("min", active ? alternateMin : normalMin);
+        setBound("max", active ? alternateMax : normalMax);
+        warning.hidden = !active || !outsideNormalRange();
+      };
+      toggle.addEventListener("change", () => {
+        applyAlternateRange(toggle.checked);
+        if (!toggle.checked && inp.value !== "") {
+          let n = Number(inp.value);
+          if (normalMin != null) n = Math.max(normalMin, n);
+          if (normalMax != null) n = Math.min(normalMax, n);
+          inp.value = n;
+        }
+      });
+      inp.addEventListener("input", () => { warning.hidden = !toggle.checked || !outsideNormalRange(); });
+      const insideAlternateRange = n => (alternateMin == null || n >= alternateMin)
+        && (alternateMax == null || n <= alternateMax);
+      inp.rangeOverrideControl = {
+        normalMin, normalMax, alternateMin, alternateMax,
+        apply: applyAlternateRange,
+        active: () => toggle.checked,
+      };
+      wrap.append(option, warning);
+      const initial = Number(inp.value);
+      if (outsideNormalRange() && !Number.isNaN(initial) && insideAlternateRange(initial)) applyAlternateRange(true);
+    }
+
+    box.appendChild(wrap);
   }
 }
 function readOverrides(box) {
@@ -217,6 +281,14 @@ function applyParamPrefs(box, prefs) {
     // the server's FrameRule.Snap so the shown value is exactly what will render (81 -> 90, not 73).
     if (inp.dataset.ptype === "int" || inp.dataset.ptype === "double") {
       const n = Number(v);
+      const range = inp.rangeOverrideControl;
+      if (range && !Number.isNaN(n)) {
+        const outsideNormal = (range.normalMin != null && n < range.normalMin)
+          || (range.normalMax != null && n > range.normalMax);
+        const insideAlternate = (range.alternateMin == null || n >= range.alternateMin)
+          && (range.alternateMax == null || n <= range.alternateMax);
+        if (outsideNormal && insideAlternate) range.apply(true);
+      }
       const step = Number(inp.step), min = inp.min !== "" ? Number(inp.min) : null, max = inp.max !== "" ? Number(inp.max) : null;
       if (!Number.isNaN(n)) {
         let s = n;
@@ -227,6 +299,7 @@ function applyParamPrefs(box, prefs) {
       }
     }
     inp.value = v;
+    if (inp.rangeOverrideControl?.active()) inp.rangeOverrideControl.apply(true);
   }
 }
 function collectParamPrefs(box, prefs) {

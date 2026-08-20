@@ -123,8 +123,8 @@ function nsfwFlag(raw) {
 function updatePlaceholder() {
   const m = primaryModel();   // null when 0 or 2+ checked: the per-model panel/tip/autocomplete then stay hidden
   if ($randomArtistBar) $randomArtistBar.hidden = !(m && m.tagging && m.tagging.artists);
-  if ($randomPromptBar) $randomPromptBar.hidden = !(m && m.tagging && m.tagging.tags);
-  syncTagTypesBar();   // the mask hides with the slider when the model can't take random tags
+  if ($randomPromptBar) $randomPromptBar.hidden = !(m && m.tagGeneratorEnabled);
+  syncTagTypesBar();   // the mask hides with the slider when this workflow's tag generator is off
   updateNegativeField();   // reveal the negative field iff any checked model supports one (independent of primary)
   updateLoraSection();     // the LoRA accordion shows only when a selected model produces images
   updateCustomShape();     // the "Custom" aspect shows only for a single workflow that enabled custom sizing
@@ -138,13 +138,26 @@ function updatePlaceholder() {
   parts.push(`<div><b>Adult content:</b> <span class="${nf.cls}">${nf.text}</span></div>`);
   if (help.note) {
     let note = escapeHtml(help.note);
-    if (help.link && help.link.url)
-      note += ` <a href="${encodeURI(help.link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.link.text || "Learn more")}</a>`;
+    const helpUrl = help.link && safeExternalUrl(help.link.url);
+    if (helpUrl)
+      note += ` <a href="${escapeHtml(helpUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(help.link.text || "Learn more")}</a>`;
     parts.push(`<div class="mi-note">${note}</div>`);
   }
   $modelTip.innerHTML = parts.join("");
   $modelTip.hidden = false;
   renderParams(m);
+}
+
+// A workflow card is server-shipped today, but its URL still crosses into an executable browser sink. Encoding a
+// javascript: URL does not change its scheme; parse it and allow only ordinary web links before it reaches href.
+function safeExternalUrl(raw) {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 
@@ -375,6 +388,7 @@ function adaptWorkflow(r) {
     prompt: { example: c.example, required_prefix: c.requiredPrefix },
     ui_help: { good_for: c.uiGoodFor, note: c.uiNote, link: c.uiLink || null },
     tagging: c.tagging || null,
+    tagGeneratorEnabled: !!r.tagGeneratorEnabled,
     customSizeEnabled: !!r.customSizeEnabled,
     aspects: r.aspects || null   // this model's aspect→[w,h] map; clicking a shape writes its dims into W/H (#209)
   };
@@ -699,7 +713,7 @@ function wantsRandomArtist(model) {
   const tg = model && model.tagging; return !!(tg && tg.artists && $randomArtist && $randomArtist.checked);
 }
 // The slider IS the on/off switch: 0 means don't randomize at all, so there's no separate checkbox to consult.
-function wantsRandomPrompt(model) { const tg = model && model.tagging; return !!(tg && tg.tags && promptTempValue() > 0); }
+function wantsRandomPrompt(model) { return !!(model && model.tagGeneratorEnabled && promptTempValue() > 0); }
 
 // --- optional negative prompt -------------------------------------------------------------------
 // The negative prompt is offered only for models whose card declares support (negativeSupported). The field

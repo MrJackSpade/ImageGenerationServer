@@ -37,6 +37,23 @@ internal static class H3
     /// clip renders at that size (#186).</summary>
     public const int BudgetSteps = 32;
 
+    /// <summary>ComfyUI's H3 node accepts 5..3600 frames on a 17n+5 cadence. 3592 is the greatest value on that
+    /// cadence below the node ceiling; 362 remains the separately configured recommended/trained maximum.</summary>
+    public const int MinFrames = 5;
+    public const int MaxFrames = 3592;
+    public const int FrameStep = 17;
+
+    public static readonly ParamSpec LengthSchema = new()
+    {
+        Key = WorkflowParamKeys.Length,
+        Type = ParamType.Int,
+        Min = MinFrames,
+        Max = MaxFrames,
+        Step = FrameStep,
+        Label = "Frames",
+        EtaVariable = true,
+    };
+
     /// <summary>The audio VAE — a SECOND vae slot beyond the video VAE (<c>req.Vae</c>). A model-ref param resolved to
     /// this machine's bound file (linked in the config's <c>extra</c>), mirroring how the MoE/SR workflows carry a
     /// second model file.</summary>

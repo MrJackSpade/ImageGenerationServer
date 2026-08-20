@@ -11,8 +11,15 @@ public sealed class MiniMaxH3I2VWorkflow : EditWorkflow<MiniMaxH3I2VParams>
     /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>
     public override bool HasAudio => true;
     /// <summary>H3 VAE: valid clip length = 17n+5 (mirrors the node's length step=17, min=5).</summary>
-    public override FrameRule? FrameRule => new(5, 17);
-    public override IReadOnlyList<ParamSpec> Schema => [.. EditWorkflowBase.SharedSchema, .. H3.ExtraSchema, .. CkAttention.Schema, VideoSizeSchema.Megapixels];
+    public override FrameRule? FrameRule => new(H3.MinFrames, H3.FrameStep);
+    public override IReadOnlyList<ParamSpec> Schema =>
+    [
+        .. EditWorkflowBase.SharedSchema.Where(p => p.Key != WorkflowParamKeys.Length),
+        H3.LengthSchema,
+        .. H3.ExtraSchema,
+        .. CkAttention.Schema,
+        VideoSizeSchema.Megapixels,
+    ];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3I2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.BuildI2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.CkAttention, p.Megapixels);

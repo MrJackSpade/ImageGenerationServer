@@ -824,7 +824,8 @@ public static class ForgeApi
         // (prompt/aspect/random-* for a generation; source, mask, refs, last frame, instruction for an edit), so an
         // N-count or multi-model submission is one cancellable job — never N separate jobs.
 
-        _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue, SubmissionMemoryGate gate, IWorkflowCatalog catalog) =>
+        _ = app.MapPost(Routes.Enqueue, async (EnqueueRequest req, HttpRequest http, RenderOrchestrator queue,
+            SubmissionMemoryGate gate, IWorkflowCatalog catalog, ImageVisibilityService visibility, CancellationToken ct) =>
         {
             if (gate.Refusal() is { } full)
             {
@@ -859,9 +860,19 @@ public static class ForgeApi
                 return Results.BadRequest(new { error = "No valid jobs in the batch." });
             }
 
+            long owner = OwnerOf(http);
+            // An image id is a capability only after the caller-scoped resolver says it is. Checking every source,
+            // mask, end frame, and reference BEFORE persistence closes the copy oracle where a user could feed a
+            // foreign id to a near-zero-denoise edit and then read the newly produced image as its legitimate owner.
+            // Refuse the whole batch without identifying which id failed, just like the id-addressed read routes.
+            if (!await AllEditInputsReadableAsync(owner, items, visibility, ct))
+            {
+                return Results.Unauthorized();
+            }
+
             return await AcceptAsync(async () =>
             {
-                RenderJob job = await queue.EnqueueJobAsync(OwnerOf(http), items);
+                RenderJob job = await queue.EnqueueJobAsync(owner, items);
                 return Results.Ok(new { jobId = job.JobId, total = job.Total });
             });
         });
@@ -1037,6 +1048,44 @@ public static class ForgeApi
             await comfy.FreeMemoryAsync(ct);
             return Results.Ok(new { ok = true });
         });
+    }
+
+    /// <summary>Whether <paramref name="owner"/> may read every image id an edit item would hand to a workflow.
+    /// Generates carry no input image and do not participate. The bulk resolver covers durable images and process-local
+    /// uploads under the same ownership rule as the image-serving routes.</summary>
+    internal static async Task<bool> AllEditInputsReadableAsync(
+        long owner, IReadOnlyList<RenderItem> items, ImageVisibilityService visibility, CancellationToken ct)
+    {
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        foreach (EditSpec edit in items.Select(i => i.Edit).OfType<EditSpec>())
+        {
+            _ = ids.Add(edit.ImageId);
+            if (!string.IsNullOrWhiteSpace(edit.MaskImageId))
+            {
+                _ = ids.Add(edit.MaskImageId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(edit.LastFrameImageId))
+            {
+                _ = ids.Add(edit.LastFrameImageId);
+            }
+
+            foreach (string referenceId in edit.ReferenceIds ?? [])
+            {
+                if (!string.IsNullOrWhiteSpace(referenceId))
+                {
+                    _ = ids.Add(referenceId);
+                }
+            }
+        }
+
+        if (ids.Count == 0)
+        {
+            return true;
+        }
+
+        IReadOnlySet<string> readable = await visibility.ReadableAsync(owner, ids, ct);
+        return ids.All(readable.Contains);
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using ImageGen.Comfy;
 using System.Text.Json;
 
 namespace ImageGen.Tests;
@@ -16,6 +17,44 @@ public sealed class DeclaredEnvelopeTests
 {
     /// <summary>ImageScaleToTotalPixels declares megapixels min 0.01 — 10,000 pixels of area.</summary>
     private const int MinBudgetPixels = 10_000;
+
+    /// <summary>
+    /// Krea's official ComfyUI workflow describes its supported range as 1–2 megapixels, not a 1024px minimum on
+    /// each side. The shipped ~1MP portrait/landscape presets therefore establish the 768px short-edge floor used by
+    /// these configurations. Every sibling must keep its literal quick sizes inside that envelope, and the coupled
+    /// megapixel resolver must leave the defaults alone rather than independently clamping and distorting them.
+    /// Source: https://docs.comfy.org/tutorials/image/krea/krea-2
+    /// </summary>
+    [Theory]
+    [InlineData("krea2")]
+    [InlineData("krea2-turbo")]
+    [InlineData("krea2-refine")]
+    public void Krea_generation_presets_fit_their_envelope_without_reshaping(string configId)
+    {
+        JsonElement root = Configurations().Single(x => x.Id == configId).Root;
+        JsonElement resolution = root.GetProperty("resolution");
+        ModelResolution envelope = new()
+        {
+            MinW = resolution.GetProperty("min_w").GetInt32(),
+            MinH = resolution.GetProperty("min_h").GetInt32(),
+            MaxW = resolution.GetProperty("max_w").GetInt32(),
+            MaxH = resolution.GetProperty("max_h").GetInt32(),
+            Step = resolution.GetProperty("step").GetInt32(),
+        };
+        JsonElement parameters = root.GetProperty("params");
+        double megapixels = parameters.GetProperty("megapixels").GetProperty("value").GetDouble();
+
+        Assert.Equal((768, 768), (envelope.MinW, envelope.MinH));
+        foreach (JsonProperty aspect in parameters.GetProperty("aspect").EnumerateObject())
+        {
+            int width = aspect.Value[0].GetInt32(), height = aspect.Value[1].GetInt32();
+            Assert.Null(ResolutionGuard.Violation(envelope, width, height, aspect.Name));
+            Assert.Equal((width, height), RenderSizing.Resolve((width, height), megapixels, envelope));
+        }
+
+        Assert.Null(ResolutionGuard.RenderSizeViolation(envelope, 768, 1280));
+        Assert.NotNull(ResolutionGuard.RenderSizeViolation(envelope, 752, 1280));
+    }
 
     [Fact]
     public void No_video_configuration_allows_a_length_that_renders_a_still()

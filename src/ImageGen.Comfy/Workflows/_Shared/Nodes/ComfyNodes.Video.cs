@@ -120,3 +120,42 @@ public sealed record EmptyLTXVLatentVideo : ComfyNode
     [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
     public static Output<Slot.Latent> Out(string id) => new(id, 0);
 }
+
+/// <summary>Builds the empty audio half of an LTX-2 joint audio/video latent. The audio VAE supplies the channel and
+/// frequency dimensions; frame count and rate keep the generated soundtrack aligned with the video.</summary>
+public sealed record LTXVEmptyLatentAudio : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.LTXVEmptyLatentAudio;
+    [JsonPropertyName("frames_number")] public required int FramesNumber { get; init; }
+    [JsonPropertyName("frame_rate")] public required double FrameRate { get; init; }
+    [JsonPropertyName("batch_size")] public required int BatchSize { get; init; }
+    [JsonPropertyName("audio_vae")] public required Output<Slot.Vae> AudioVae { get; init; }
+    public static Output<Slot.Latent> Out(string id) => new(id, 0);
+}
+
+/// <summary>Combines LTX-2 video and audio latents into the nested latent its audio/video diffusion model samples.</summary>
+public sealed record LTXVConcatAVLatent : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.LTXVConcatAVLatent;
+    [JsonPropertyName("video_latent")] public required Output<Slot.Latent> VideoLatent { get; init; }
+    [JsonPropertyName("audio_latent")] public required Output<Slot.Latent> AudioLatent { get; init; }
+    public static Output<Slot.Latent> Out(string id) => new(id, 0);
+}
+
+/// <summary>Splits a sampled LTX-2 joint latent back into independently decodable video and audio streams.</summary>
+public sealed record LTXVSeparateAVLatent : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.LTXVSeparateAVLatent;
+    [JsonPropertyName("av_latent")] public required Output<Slot.Latent> AvLatent { get; init; }
+    public static Output<Slot.Latent> VideoOut(string id) => new(id, 0);
+    public static Output<Slot.Latent> AudioOut(string id) => new(id, 1);
+}
+
+/// <summary>Decodes the audio half of an LTX-2 joint latent with its dedicated audio VAE.</summary>
+public sealed record LTXVAudioVAEDecode : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.LTXVAudioVAEDecode;
+    [JsonPropertyName("samples")] public required Output<Slot.Latent> Samples { get; init; }
+    [JsonPropertyName("audio_vae")] public required Output<Slot.Vae> AudioVae { get; init; }
+    public static Output<AudioSlot> Out(string id) => new(id, 0);
+}

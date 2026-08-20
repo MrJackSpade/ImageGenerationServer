@@ -46,7 +46,12 @@
       "visibility": "exposed",
       "min": 5,
       "max": 362,
-      "step": 17
+      "step": 17,
+      "range_override": {
+        "max": 3592,
+        "label": "Allow untested lengths",
+        "warning": "Lengths above 362 frames (~15.1 seconds) are outside MiniMax H3's recommended range and may fail, degrade, or exhaust memory."
+      }
     },
     "fps": {
       "value": 24,

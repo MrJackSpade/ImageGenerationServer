@@ -120,8 +120,8 @@
     }
   },
   "resolution": {
-    "min_w": 1024,
-    "min_h": 1024,
+    "min_w": 768,
+    "min_h": 768,
     "max_w": 2048,
     "max_h": 2048,
     "step": 16

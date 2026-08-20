@@ -69,8 +69,9 @@ public static class InfrastructureServiceCollectionExtensions
         _ = services.AddSingleton<ILoraPreviewRepository, LoraPreviewRepository>();
         _ = services.AddScoped<ILoraUserSettingRepository, LoraUserSettingRepository>();
         _ = services.AddScoped<IImageViewRepository, ImageViewRepository>();
-        // Who may read an image id. Read on every image-derived request, so it sits with the per-request repositories.
-        _ = services.AddScoped<IImageVisibilityRepository, ImageVisibilityRepository>();
+        // Who may read an image id. Stateless (fresh connection per call), and also used by the singleton renderer to
+        // fail closed when replaying a persisted edit, so it shares the singleton-safe repository lifetime below.
+        _ = services.AddSingleton<IImageVisibilityRepository, ImageVisibilityRepository>();
 
         // Stateless (fresh connection per call) → singletons, so the singleton render orchestrator can resolve them
         // from the root provider and write through on every state transition.

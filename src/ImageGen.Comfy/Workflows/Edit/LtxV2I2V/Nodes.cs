@@ -5,6 +5,12 @@ internal static class Nodes
 {
     public const string Scale = "51";
     public const string CkAttention = "57";
+    public const string AudioVae = "58";
+    public const string AudioLatent = "59";
+    public const string AvLatent = "60";
+    public const string SeparateAv = "61";
+    public const string AudioDecode = "62";
+    public const string CreateVideo = "63";
     public const string Size = "52";
     public const string Positive = "13";
     public const string Negative = "12";

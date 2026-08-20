@@ -19,7 +19,12 @@ public sealed class WorkflowCatalogVariantTests : IDisposable
         _ = Directory.CreateDirectory(Path.Combine(_root, "models"));
         File.WriteAllText(
             Path.Combine(_root, "workflows", "base.json"),
-            """{ "id": "base", "workflow": "Test", "friendly_name": "Base", "params": { "steps": 8, "cfg": 3.5 } }""");
+            """
+            { "id": "base", "workflow": "Test", "friendly_name": "Base", "params": {
+              "steps": { "value": 8, "visibility": "exposed", "max": 10,
+                "range_override": { "max": 20, "label": "Allow advanced values", "warning": "Results may vary." } },
+              "cfg": 3.5 } }
+            """);
     }
 
     public void Dispose()
@@ -51,6 +56,7 @@ public sealed class WorkflowCatalogVariantTests : IDisposable
         Assert.Equal("Base hi-res", v.FriendlyName);     // its own name
         Assert.Equal(40L, Convert.ToInt64(v.Params["steps"].Value));   // snapshot value replaced the base's 8
         Assert.Equal(3.5d, Convert.ToDouble(v.Params["cfg"].Value));   // an un-snapshotted param keeps the base's value
+        Assert.Equal(20, v.Params["steps"].RangeOverride?.Max);       // UI/range structure is inherited too
         Assert.True(cat.IsVariant("base-2"));
         Assert.False(cat.IsVariant("base"));
         Assert.Contains(cat.AllConfigs(), c => c.Id == "base-2");

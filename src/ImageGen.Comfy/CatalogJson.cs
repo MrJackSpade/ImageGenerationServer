@@ -20,6 +20,7 @@ namespace ImageGen.Comfy;
 [JsonSourceGenerationOptions]
 [JsonSerializable(typeof(ModelFileDto))]
 [JsonSerializable(typeof(WorkflowFileDto))]
+[JsonSerializable(typeof(ConfigParamRangeOverrideDto))]
 internal sealed partial class CatalogJsonContext : JsonSerializerContext;
 
 /// <summary>A <c>models/&lt;id&gt;.json</c> file: one bindable slot's identity.</summary>
@@ -203,6 +204,17 @@ internal sealed record ConfigParamDto
     [AllowNullable("null = the envelope declared no minimum bound; 0 is a real minimum, distinct from unbounded")] public double? Min { get; init; }
     [AllowNullable("null = the envelope declared no maximum bound; 0 is a real maximum, distinct from unbounded")] public double? Max { get; init; }
     [AllowNullable("null = the envelope declared no increment (free-entry); distinct from a 0 step")] public double? Step { get; init; }
+    public ConfigParamRangeOverrideDto? RangeOverride { get; init; }
+}
+
+/// <summary>The strict wire shape of a field's explicitly enabled alternate numeric range.</summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ConfigParamRangeOverrideDto
+{
+    [JsonPropertyName("min")][AllowNullable("null = the alternate range keeps the field's normal minimum")] public double? Min { get; init; }
+    [JsonPropertyName("max")][AllowNullable("null = the alternate range keeps the field's normal maximum")] public double? Max { get; init; }
+    [JsonPropertyName("label")] public string? Label { get; init; }
+    [JsonPropertyName("warning")] public string? Warning { get; init; }
 }
 
 /// <summary>
@@ -229,6 +241,7 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
         public const string Min = "min";
         public const string Max = "max";
         public const string Step = "step";
+        public const string RangeOverride = "range_override";
     }
 
     public override ConfigParamDto Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -240,11 +253,12 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
         {
             foreach (JsonProperty member in pv.EnumerateObject())
             {
-                if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Visibility or EnvelopeMember.Min or EnvelopeMember.Max or EnvelopeMember.Step))
+                if (member.Name is not (EnvelopeMember.Value or EnvelopeMember.Visibility or EnvelopeMember.Min
+                    or EnvelopeMember.Max or EnvelopeMember.Step or EnvelopeMember.RangeOverride))
                 {
                     throw new JsonException(
                         $"Unknown key '{member.Name}' in a parameter envelope. A wrapped parameter may declare only "
-                        + "value, visibility, min, max and step.");
+                        + "value, visibility, min, max, step and range_override.");
                 }
             }
 
@@ -255,6 +269,7 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
                 Min = Number(pv, EnvelopeMember.Min),
                 Max = Number(pv, EnvelopeMember.Max),
                 Step = Number(pv, EnvelopeMember.Step),
+                RangeOverride = ReadRangeOverride(pv),
             };
         }
 
@@ -290,4 +305,36 @@ internal sealed class ConfigParamDtoConverter : JsonConverter<ConfigParamDto>
 
     private static double? Number(JsonElement e, string key) =>
         e.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+
+    private static ConfigParamRangeOverrideDto? ReadRangeOverride(JsonElement envelope)
+    {
+        if (!envelope.TryGetProperty(EnvelopeMember.RangeOverride, out JsonElement value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("A parameter's range_override must be an object.");
+        }
+
+        ConfigParamRangeOverrideDto result = value.Deserialize(CatalogJsonContext.Default.ConfigParamRangeOverrideDto)
+            ?? throw new JsonException("A parameter's range_override cannot be null.");
+        if (result.Min is null && result.Max is null)
+        {
+            throw new JsonException("A parameter's range_override must declare min, max, or both.");
+        }
+
+        if (string.IsNullOrWhiteSpace(result.Label) || string.IsNullOrWhiteSpace(result.Warning))
+        {
+            throw new JsonException("A parameter's range_override must declare non-empty label and warning text.");
+        }
+
+        if (result.Min is double min && result.Max is double max && min > max)
+        {
+            throw new JsonException($"A parameter's range_override min ({min}) cannot exceed its max ({max}).");
+        }
+
+        return result;
+    }
 }

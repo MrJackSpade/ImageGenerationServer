@@ -195,6 +195,12 @@ history persistence, §7). Both start with the host.
 > user id, resolved server-side from the authenticated principal. The client never asserts its own
 > identity or ownership.
 
+> **Authenticated-user control boundary:** this is a small, cooperatively administered instance with no roles;
+> every authenticated user is trusted to control machine-wide render work. Consequently `/forge/cancel/{id}`,
+> `/forge/interrupt`, and `/forge/cancel-all` deliberately allow any signed-in user to stop any job. That operator
+> trust does **not** cross the data-privacy boundary or mint work as somebody else: image/job reads remain owner-checked,
+> edit inputs must be readable by the submitting user, and requeue creates work only for the original owner.
+
 ---
 
 ## 6. Data model — the source of truth

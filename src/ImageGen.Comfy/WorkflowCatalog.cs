@@ -675,6 +675,7 @@ public sealed class WorkflowCatalog : IDisposable
                 Min = bp.Min,
                 Max = bp.Max,
                 Step = bp.Step,
+                RangeOverride = bp.RangeOverride,
             };
         }
 
@@ -808,6 +809,7 @@ public sealed class WorkflowCatalog : IDisposable
                     Min = p.Min,
                     Max = p.Max,
                     Step = p.Step,
+                    RangeOverride = MapRangeOverride(id, name, p),
                 };
             }
         }
@@ -828,6 +830,40 @@ public sealed class WorkflowCatalog : IDisposable
             Resolution = BuildResolution(c.Resolution, id),
             Card = BuildCard(c.Card, id, c.FriendlyName),
         };
+    }
+
+    /// <summary>An alternate range is useful only when it widens the ordinary one. Requiring that relationship at
+    /// catalog load prevents a no-op checkbox or, worse, a checkbox whose "advanced" range is actually narrower.</summary>
+    private static ConfigParamRangeOverride? MapRangeOverride(string configId, string paramKey, ConfigParamDto param)
+    {
+        if (param.RangeOverride is not { } alternate)
+        {
+            return null;
+        }
+
+        bool narrowsBelow = alternate.Min is double min && (param.Min is null || min > param.Min);
+        bool narrowsAbove = alternate.Max is double max && (param.Max is null || max < param.Max);
+        if (narrowsBelow || narrowsAbove)
+        {
+            throw new InvalidOperationException(
+                $"{configId}.{paramKey}: range_override may widen a normal bound but cannot narrow or create one.");
+        }
+
+        bool expandsBelow = alternate.Min is double lower && param.Min is double normalMin && lower < normalMin;
+        bool expandsAbove = alternate.Max is double upper && param.Max is double normalMax && upper > normalMax;
+        if (!expandsBelow && !expandsAbove)
+        {
+            throw new InvalidOperationException(
+                $"{configId}.{paramKey}: range_override must expand the normal min/max range, not duplicate or narrow it.");
+        }
+
+        if (alternate.Label is not { } label || alternate.Warning is not { } warning)
+        {
+            throw new InvalidOperationException(
+                $"{configId}.{paramKey}: range_override must declare label and warning text.");
+        }
+
+        return new ConfigParamRangeOverride(alternate.Min, alternate.Max, label.Trim(), warning.Trim());
     }
 
     /// <summary>Normalize a card's <c>reference</c> block to per-kind allowances. The explicit <c>types</c> array wins

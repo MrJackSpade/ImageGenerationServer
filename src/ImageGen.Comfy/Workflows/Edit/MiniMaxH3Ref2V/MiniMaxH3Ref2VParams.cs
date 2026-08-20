@@ -14,7 +14,8 @@ public sealed record MiniMaxH3Ref2VParams
     [JsonPropertyName(WorkflowParamKeys.AudioVae)] public required string AudioVae { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Megapixels)]
     public required double Megapixels { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.Length)] public required int Length { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.Length)]
+    [Range(H3.MinFrames, H3.MaxFrames)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Steps)]
     [Range(ParamBounds.StepsMin, ParamBounds.StepsMax)] public required int Steps { get; init; }

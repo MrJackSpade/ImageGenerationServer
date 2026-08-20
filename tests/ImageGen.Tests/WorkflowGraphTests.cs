@@ -2827,6 +2827,29 @@ public sealed class WorkflowGraphTests
         Assert.Contains("ltx-2-3-22b-distilled-1-1.safetensors", json);
         Assert.Contains("ltx-2-3-text-projection.safetensors", json);   // loaded as DualCLIPLoader clip2
         Assert.Contains("\"SaveAnimatedWEBP\"", json);
+        Assert.DoesNotContain("\"LTXVConcatAVLatent\"", json);
+    }
+
+    [Theory]
+    [InlineData("ltx25-t2v")]
+    [InlineData("ltx25-t2v-dev")]
+    [InlineData("ltx25-i2v")]
+    [InlineData("ltx25-i2v-dev")]
+    public void Ltx25_builds_and_decodes_a_joint_audio_video_latent(string configId)
+    {
+        string json = BuildJson(configId, configId.Contains("i2v", StringComparison.Ordinal) ? Edit : Gen);
+        Assert.Contains("ltx-2-5-audio-vae.safetensors", json);
+        Assert.Contains("\"LTXVEmptyLatentAudio\"", json);
+        Assert.Contains("\"LTXVConcatAVLatent\"", json);
+        Assert.Contains("\"LTXVSeparateAVLatent\"", json);
+        Assert.Contains("\"LTXVAudioVAEDecode\"", json);
+        Assert.Contains("\"CreateVideo\"", json);
+        Assert.Contains("\"SaveVideo\"", json);
+        Assert.DoesNotContain("\"SaveAnimatedWEBP\"", json);
+
+        using JsonDocument doc = JsonDocument.Parse(json);
+        Assert.Equal(2, doc.RootElement.EnumerateObject()
+            .Count(n => n.Value.GetProperty("class_type").GetString() == "VAELoader"));
     }
 
     [Fact]
