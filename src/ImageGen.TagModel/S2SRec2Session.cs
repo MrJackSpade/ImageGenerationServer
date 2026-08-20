@@ -88,7 +88,7 @@ public sealed class S2SRec2Session : IDisposable
     /// <summary>
     /// Run the model over a tag set.
     /// </summary>
-    /// <param name="ids">Vocab ids to condition on. May be empty.</param>
+    /// <param name="ids">One or more vocab ids to condition on.</param>
     /// <param name="typeMask">The allowed-types mask; see <see cref="TypeMask"/>.</param>
     /// <returns>
     /// <c>Logits</c> indexed by VOCAB id (already widened, <see cref="float.NegativeInfinity"/> where a tag is not
@@ -96,7 +96,13 @@ public sealed class S2SRec2Session : IDisposable
     /// </returns>
     public (float[] Logits, float CompletenessLogit) Forward(IReadOnlyList<int> ids, int typeMask)
     {
-        int n = Math.Max(ids.Count, 1);
+        if (ids.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one vocab id is required; an empty tag set has no model input representation.", nameof(ids));
+        }
+
+        int n = ids.Count;
         long[] idBuffer = new long[n];
         for (int i = 0; i < ids.Count; i++)
         {

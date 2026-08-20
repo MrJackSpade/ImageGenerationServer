@@ -13,8 +13,8 @@ namespace ImageGen.TagModel;
 /// to use it is the confusing part; the app knows it needs the file, so the app gets it.</para>
 ///
 /// <para>Downloads land in a <c>.part</c> file and are moved into place only after their checksum matches, so an
-/// interrupted run cannot leave a truncated artifact that looks complete on the next one. Nothing is re-downloaded
-/// when it is already present at the published size.</para>
+/// interrupted run cannot leave a truncated artifact that looks complete on the next one. A cached file is reused only
+/// when both its size and SHA-256 match the current manifest.</para>
 /// </summary>
 public static class TagModelArtifacts
 {
@@ -69,7 +69,7 @@ public static class TagModelArtifacts
         foreach ((string? name, ManifestEntry? entry) in files)
         {
             string target = Path.Combine(directory, name);
-            if (File.Exists(target) && new FileInfo(target).Length == entry.Bytes)
+            if (await MatchesAsync(target, entry, ct))
             {
                 continue;
             }
@@ -87,6 +87,23 @@ public static class TagModelArtifacts
         {
             logger.LogInformation("Tag model: {Count} artifact(s) fetched and verified.", fetched);
         }
+    }
+
+    private static async Task<bool> MatchesAsync(string path, ManifestEntry expected, CancellationToken ct)
+    {
+        if (!File.Exists(path) || new FileInfo(path).Length != expected.Bytes)
+        {
+            return false;
+        }
+
+        string actual = await Sha256Async(path, ct);
+        return string.Equals(actual, expected.Sha256, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string> Sha256Async(string path, CancellationToken ct)
+    {
+        await using FileStream stream = File.OpenRead(path);
+        return Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
     }
 
     private static Dictionary<string, ManifestEntry> ReadManifest(string path)
@@ -132,8 +149,7 @@ public static class TagModelArtifacts
 
             if (expected is not null && !string.IsNullOrEmpty(expected.Sha256))
             {
-                await using FileStream stream = File.OpenRead(partial);
-                string actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
+                string actual = await Sha256Async(partial, ct);
                 if (!string.Equals(actual, expected.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidDataException(
@@ -145,8 +161,8 @@ public static class TagModelArtifacts
         }
         catch
         {
-            // Leaving a truncated .part behind would be indistinguishable from a complete file on the size check
-            // above, so the failed attempt is removed and the exception carries on.
+            // A failed attempt never replaces the verified target. Remove its private staging file and carry the
+            // exception on so startup names the artifact that could not be installed.
             if (File.Exists(partial))
             {
                 File.Delete(partial);

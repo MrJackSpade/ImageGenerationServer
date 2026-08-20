@@ -117,7 +117,7 @@ public sealed class TagModelBundle : IDisposable
     /// The all-types calibration fit, if present. Absent is tolerable — the caller falls back to the softmax — because
     /// this only affects the percentage shown next to a suggestion, not which tags are suggested or in what order.
     /// </summary>
-    private static DisplayCalibration? LoadCalibration(string directory)
+    internal static DisplayCalibration? LoadCalibration(string directory)
     {
         string path = Path.Combine(directory, Files.CalibrationFileName);
         if (!File.Exists(path))
@@ -125,15 +125,41 @@ public sealed class TagModelBundle : IDisposable
             return null;
         }
 
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-        JsonElement root = document.RootElement;
-        if (!root.TryGetProperty(CalibrationProps.CalibrationAProperty, out JsonElement a) || !root.TryGetProperty(CalibrationProps.CalibrationBProperty, out JsonElement b))
+        try
         {
-            return null;
-        }
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty(CalibrationProps.CalibrationAProperty, out JsonElement a)
+                || !root.TryGetProperty(CalibrationProps.CalibrationBProperty, out JsonElement b)
+                || a.ValueKind != JsonValueKind.Number
+                || b.ValueKind != JsonValueKind.Number)
+            {
+                throw InvalidCalibration(path);
+            }
 
-        return new DisplayCalibration(a.GetDouble(), b.GetDouble());
+            double slope = a.GetDouble();
+            double intercept = b.GetDouble();
+            if (!double.IsFinite(slope) || !double.IsFinite(intercept))
+            {
+                throw InvalidCalibration(path);
+            }
+
+            return new DisplayCalibration(slope, intercept);
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException or OverflowException)
+        {
+            throw InvalidCalibration(path, ex);
+        }
     }
+
+    private static InvalidDataException InvalidCalibration(string path, Exception? inner = null) =>
+        new($"'{path}' is not a valid tag-model calibration. A present calibration.json must be a JSON object "
+            + "with finite numeric 'a' and 'b' coefficients; remove the file to run intentionally uncalibrated.", inner);
 
     private static string Require(string directory, string fileName, string what)
     {

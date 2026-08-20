@@ -26,34 +26,43 @@ public static class BookmarkEndpoints
         _ = api.MapPost(Routes.Tokens, async (HttpContext context, BookmarkService bookmarks) =>
         {
             TokenBookmarkRequest? request = await Json.ReadAsync<TokenBookmarkRequest>(context);
-            if (request is null || string.IsNullOrWhiteSpace(request.Name))
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.Name)
+                || !WireMapping.TryParseKind(request.Kind, out TokenKind kind))
             {
                 return Results.BadRequest();
             }
 
             long userId = context.User.GetRequiredUserId();
-            bool added = await bookmarks.AddTokenAsync(userId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
+            bool added = await bookmarks.AddTokenAsync(userId, request.Name, kind, context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         _ = api.MapDelete(Routes.Tokens, async (HttpContext context, BookmarkService bookmarks, string name, string kind) =>
         {
+            if (!WireMapping.TryParseKind(kind, out TokenKind parsed))
+            {
+                return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
-            bool removed = await bookmarks.RemoveTokenAsync(userId, name, WireMapping.ParseKind(kind), context.RequestAborted);
+            bool removed = await bookmarks.RemoveTokenAsync(userId, name, parsed, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
 
         _ = api.MapPost(Routes.TokensPin, async (HttpContext context, BookmarkService bookmarks) =>
         {
             PinTokenRequest? request = await Json.ReadAsync<PinTokenRequest>(context);
-            if (request is null || string.IsNullOrWhiteSpace(request.Name))
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.Name)
+                || !WireMapping.TryParseKind(request.Kind, out TokenKind kind))
             {
                 return Results.BadRequest();
             }
 
             long userId = context.User.GetRequiredUserId();
             bool updated = await bookmarks.SetTokenPinnedAsync(
-                userId, request.Name, WireMapping.ParseKind(request.Kind), request.Pinned, context.RequestAborted);
+                userId, request.Name, kind, request.Pinned, context.RequestAborted);
             return updated ? Results.NoContent() : Results.NotFound();
         });
 
@@ -82,13 +91,22 @@ public static class BookmarkEndpoints
         _ = api.MapGet(Routes.Categories, async (
             HttpContext context, BookmarkService bookmarks, string? scope, string? name, string? kind, string? id) =>
         {
+            string tokenName = name ?? string.Empty;
+            bool tokenScope = string.Equals(scope, Scopes.Token, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(tokenName);
+            TokenKind tokenKind = default;
+            if (tokenScope && !WireMapping.TryParseKind(kind, out tokenKind))
+            {
+                return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
             IReadOnlyList<string> all = await bookmarks.GetAllCategoriesAsync(userId, context.RequestAborted);
             IReadOnlyList<string> selected = [];
-            if (string.Equals(scope, Scopes.Token, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(name))
+            if (tokenScope)
             {
                 selected = await bookmarks.GetTokenCategoriesAsync(
-                    userId, name, WireMapping.ParseKind(kind ?? ""), context.RequestAborted);
+                    userId, tokenName, tokenKind, context.RequestAborted);
             }
             else if (string.Equals(scope, Scopes.Image, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(id))
             {
@@ -101,14 +119,16 @@ public static class BookmarkEndpoints
         _ = api.MapPost(Routes.TokenCategories, async (HttpContext context, BookmarkService bookmarks) =>
         {
             SetTokenCategoriesRequest? request = await Json.ReadAsync<SetTokenCategoriesRequest>(context);
-            if (request is null || string.IsNullOrWhiteSpace(request.Name))
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.Name)
+                || !WireMapping.TryParseKind(request.Kind, out TokenKind kind))
             {
                 return Results.BadRequest();
             }
 
             long userId = context.User.GetRequiredUserId();
             await bookmarks.SetTokenCategoriesAsync(
-                userId, request.Name, WireMapping.ParseKind(request.Kind), request.Categories, context.RequestAborted);
+                userId, request.Name, kind, request.Categories, context.RequestAborted);
             return Results.NoContent();
         });
 

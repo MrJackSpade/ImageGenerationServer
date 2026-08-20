@@ -31,22 +31,30 @@ public static class BanEndpoints
         _ = api.MapPost(Routes.Bans, async (HttpContext context, BanService bans) =>
         {
             BanRequest? request = await Json.ReadAsync<BanRequest>(context);
-            if (request is null || string.IsNullOrWhiteSpace(request.ModelId) || string.IsNullOrWhiteSpace(request.Name))
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.ModelId)
+                || string.IsNullOrWhiteSpace(request.Name)
+                || !WireMapping.TryParseKind(request.Kind, out TokenKind kind))
             {
                 return Results.BadRequest();
             }
 
             long userId = context.User.GetRequiredUserId();
             bool added = await bans.AddAsync(
-                userId, request.ModelId, request.Name, WireMapping.ParseKind(request.Kind), context.RequestAborted);
+                userId, request.ModelId, request.Name, kind, context.RequestAborted);
             return Results.Ok(new { added });
         });
 
         _ = api.MapDelete(Routes.Bans, async (HttpContext context, BanService bans, string modelId, string name, string kind) =>
         {
+            if (!WireMapping.TryParseKind(kind, out TokenKind parsed))
+            {
+                return Results.BadRequest();
+            }
+
             long userId = context.User.GetRequiredUserId();
             bool removed = await bans.RemoveAsync(
-                userId, modelId, name, WireMapping.ParseKind(kind), context.RequestAborted);
+                userId, modelId, name, parsed, context.RequestAborted);
             return removed ? Results.NoContent() : Results.NotFound();
         });
     }

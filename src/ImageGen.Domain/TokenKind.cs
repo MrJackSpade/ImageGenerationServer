@@ -24,9 +24,36 @@ public static class TokenKinds
 /// <summary>Converts <see cref="TokenKind"/> to and from its <see cref="TokenKinds"/> wire spelling.</summary>
 public static class TokenKindWire
 {
-    public static string ToWire(this TokenKind kind) => kind == TokenKind.Artist ? TokenKinds.Artist : TokenKinds.Tag;
+    public static string ToWire(this TokenKind kind) => kind switch
+    {
+        TokenKind.Tag => TokenKinds.Tag,
+        TokenKind.Artist => TokenKinds.Artist,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown token kind."),
+    };
 
-    /// <summary>Anything that isn't "artist" is a tag — the marks map only ever carries the two.</summary>
-    public static TokenKind Parse(string? kind) =>
-        string.Equals(kind, TokenKinds.Artist, StringComparison.OrdinalIgnoreCase) ? TokenKind.Artist : TokenKind.Tag;
+    /// <summary>Parse the two explicit wire spellings. Matching is case-insensitive for compatibility with existing
+    /// API clients, but null, blank, and every other value are invalid.</summary>
+    public static TokenKind Parse(string? kind) => TryParse(kind, out TokenKind parsed)
+        ? parsed
+        : throw new FormatException($"Unknown token kind '{kind ?? "<null>"}'; expected '{TokenKinds.Tag}' or '{TokenKinds.Artist}'.");
+
+    /// <summary>Try to parse an explicit tag/artist wire value using the same case-insensitive policy as
+    /// <see cref="Parse"/>.</summary>
+    public static bool TryParse(string? kind, out TokenKind parsed)
+    {
+        if (string.Equals(kind, TokenKinds.Tag, StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = TokenKind.Tag;
+            return true;
+        }
+
+        if (string.Equals(kind, TokenKinds.Artist, StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = TokenKind.Artist;
+            return true;
+        }
+
+        parsed = default;
+        return false;
+    }
 }

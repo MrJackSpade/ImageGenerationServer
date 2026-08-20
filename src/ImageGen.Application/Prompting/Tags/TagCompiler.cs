@@ -215,9 +215,18 @@ public sealed record Choice(IReadOnlyList<PromptExpr> Options) : PromptExpr
 
     /// <inheritdoc/>
     public override string ResolveChoices(Func<int, int> pick) =>
-        Options[Clamp(pick(Options.Count), Options.Count)].ResolveChoices(pick);
+        Options[RequireIndex(pick(Options.Count), Options.Count)].ResolveChoices(pick);
 
-    private static int Clamp(int idx, int count) => idx < 0 ? 0 : idx >= count ? count - 1 : idx;
+    private static int RequireIndex(int index, int count)
+    {
+        if ((uint)index >= (uint)count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index), index, $"The choice picker must return an index from 0 through {count - 1}.");
+        }
+
+        return index;
+    }
 }
 
 /// <summary>A <c>{{a|b}}</c> group: one output per option (multiplies the combos).</summary>

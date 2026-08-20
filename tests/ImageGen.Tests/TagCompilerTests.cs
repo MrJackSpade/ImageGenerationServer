@@ -76,6 +76,12 @@ public sealed class TagCompilerTests
     public void A_choice_group_picks_one_option(int chosen, string expected) =>
         Assert.Equal(expected, Assert.Single(TagGroup.Parse("{x|y} hair").Generate(_ => chosen)).RawResolved);
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(2)]
+    public void An_injected_choice_picker_must_return_a_real_option_index(int chosen) =>
+        _ = Assert.Throws<ArgumentOutOfRangeException>(() => TagGroup.Parse("{x|y}").Generate(_ => chosen));
+
     [Fact]
     public void A_choice_does_not_multiply_the_combos() => Assert.Equal(1, TagGroup.Parse("{x|y|z}").ComboCount);
 

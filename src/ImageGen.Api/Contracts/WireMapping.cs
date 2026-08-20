@@ -18,6 +18,8 @@ public static class WireMapping
 
     public static TokenKind ParseKind(string kind) => TokenKindWire.Parse(kind);
 
+    public static bool TryParseKind(string? kind, out TokenKind parsed) => TokenKindWire.TryParse(kind, out parsed);
+
     public static string KindToString(TokenKind kind) => kind.ToWire();
 
     public static IReadOnlyList<Mark> MarksFromMap(Dictionary<string, string>? marks)
