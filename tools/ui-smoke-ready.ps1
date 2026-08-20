@@ -34,6 +34,14 @@ $Root = $BaseUrl.TrimEnd('/')
 
 # --- what is incomplete right now ---------------------------------------------------------------
 $integrity = & pwsh -NoProfile -File "$PSScriptRoot\check-model-integrity.ps1" 2>&1
+$integrityExit = $LASTEXITCODE
+# Exit 1 is the checker's documented data result (one or more files are incomplete), which this script maps back
+# to the workflows that use them. Exit 2 is an operational failure such as an unreadable directory: no complete
+# file list exists, so continuing would turn an unknown model into a false "ready" result.
+if ($integrityExit -notin 0, 1) {
+    $detail = ($integrity | Out-String).Trim()
+    throw "model integrity check could not inspect the complete model tree (exit $integrityExit):`n$detail"
+}
 $incomplete = @($integrity |
     Select-String 'TRUNCATED\s+(.+)$|UNREADABLE\s+(.+)$|BROKEN\s+(.+)$|OVERLONG\s+(.+)$' |
     ForEach-Object { Split-Path (($_.Matches.Groups[1..4] | Where-Object Value | Select-Object -First 1).Value.Trim()) -Leaf })

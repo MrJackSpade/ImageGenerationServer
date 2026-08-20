@@ -245,7 +245,7 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Create the release
+      - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -255,12 +255,19 @@ jobs:
           # became the "latest" release and every install was told to "upgrade" to a throwaway build.
           prerelease=""
           case "$version" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$version" artifacts/* \
-            --repo "${{ github.repository }}" \
-            --title "$version" \
-            $prerelease \
-            --generate-notes \
-            --notes "Self-contained builds -- nothing to install but a ComfyUI to talk to.
+          if gh release view "$version" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            # A rerun after a partial publish owns these RID assets. Replace them deliberately; an unqualified upload
+            # fails on the first existing filename and leaves the release in the same partial state.
+            gh release upload "$version" artifacts/* \
+              --repo "${{ github.repository }}" \
+              --clobber
+          else
+            gh release create "$version" artifacts/* \
+              --repo "${{ github.repository }}" \
+              --title "$version" \
+              $prerelease \
+              --generate-notes \
+              --notes "Self-contained builds -- nothing to install but a ComfyUI to talk to.
 
           | Archive | For |
           | --- | --- |
@@ -272,3 +279,4 @@ jobs:
           <http://localhost:8080>.
 
           You supply the image models -- see [INSTALL.md](INSTALL.md) and [docs/MODELS.md](docs/MODELS.md)."
+          fi

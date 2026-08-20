@@ -4,7 +4,8 @@
 Run this against a LIVE tagmodel/server.py (default http://127.0.0.1:8000) BEFORE deleting it. The output is committed
 as tests/ImageGen.Tests/tagmodel-parity.json and read by TagModelParityTests.
 
-    python tools/capture-tagmodel-parity.py --url http://127.0.0.1:8000 --out tests/ImageGen.Tests/tagmodel-parity.json
+    python tools/capture-tagmodel-parity.py --url http://127.0.0.1:8000 --timeout-seconds 300 \
+        --out tests/ImageGen.Tests/tagmodel-parity.json
 
 Only DETERMINISTIC behaviour is captured. Suggest is fully determined by the model given (tags, q, k). Generation is
 captured at temp=0 only, where it is greedy and therefore reproducible; sampled generation drew from PyTorch's
@@ -43,9 +44,16 @@ GREEDY_CASES = [
 ]
 
 
-def get(url, path, params):
+def positive_seconds(value):
+    seconds = float(value)
+    if seconds <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return seconds
+
+
+def get(url, path, params, timeout_seconds):
     query = urllib.parse.urlencode(params)
-    with urllib.request.urlopen(f"{url}{path}?{query}", timeout=300) as response:
+    with urllib.request.urlopen(f"{url}{path}?{query}", timeout=timeout_seconds) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -53,10 +61,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default="http://127.0.0.1:8000")
     ap.add_argument("--out", default="tests/ImageGen.Tests/tagmodel-parity.json")
+    ap.add_argument(
+        "--timeout-seconds", type=positive_seconds, required=True,
+        help="per-request timeout chosen for this capture environment (required; there is no project-wide guess)")
     args = ap.parse_args()
     url = args.url.rstrip("/")
 
-    health = get(url, "/api/health", {})
+    health = get(url, "/api/health", {}, args.timeout_seconds)
     print(f"server: vocab {health['vocab']:,} out_head {health['out_head']:,} dual_head={health['dual_head']}")
     if health["dual_head"]:
         raise SystemExit("this server has dual_head=True; the exported ONNX graph is not its full scoring path")
@@ -65,14 +76,15 @@ def main():
 
     for case in SUGGEST_CASES:
         body = get(url, "/api/suggest", {
-            "tags": ",".join(case["tags"]), "q": case["q"], "k": case["k"], "mode": "likely"})
+            "tags": ",".join(case["tags"]), "q": case["q"], "k": case["k"], "mode": "likely"},
+            args.timeout_seconds)
         snapshot["suggest"].append({**case, "results": body["results"], "total": body["total"]})
         print(f"suggest tags={case['tags']} q='{case['q']}' -> {len(body['results'])} results")
 
     for case in GREEDY_CASES:
         body = get(url, "/api/random_prompt", {
             "seed": ",".join(case["seed"]), "types": ",".join(case["types"]),
-            "temp": 0, "n": 1})
+            "temp": 0, "n": 1}, args.timeout_seconds)
         snapshot["greedy"].append({
             **case,
             "tags": body["prompts"][0],

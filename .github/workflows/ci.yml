@@ -26,6 +26,9 @@ jobs:
       - run: dotnet restore ImageGen.slnx
       - run: dotnet build ImageGen.slnx -c Release --no-restore
       - run: dotnet test tests/ImageGen.Tests -c Release --no-build
+      # Standard-library-only policy tests for destructive/release scripts and config migration. Run once here;
+      # they do not depend on the database matrix and duplicating them in sqlserver adds no coverage.
+      - run: python -m unittest discover -s tests/tooling -p 'test_*.py' -v
 
   sqlserver:
     # The same tests against a real SQL Server. "Runs on either engine" is a claim, and the only proof of it is

@@ -35,27 +35,70 @@ function Head ($t) { Write-Host ''; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok   ($t) { Write-Host "   $t" -ForegroundColor Green }
 function Note ($t) { Write-Host "   $t" }
 
+function Assert-ExistingReleaseRoot([string] $Path) {
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if (-not $item.PSIsContainer) { throw "release root '$Path' is not a directory" }
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "refusing to replace release root '$Path': it is a junction or symbolic link"
+    }
+
+    $full = [IO.Path]::GetFullPath($item.FullName).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $volume = [IO.Path]::GetPathRoot($full).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    if ($full -eq $volume -or $full -eq [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\', '/')) {
+        throw "refusing to recursively replace unsafe release root '$full'"
+    }
+
+    # These are independently staged parts of the published payload. Requiring all three makes a typo such as a
+    # model or repository directory fail before Remove-Item, while still recognizing payloads from older releases.
+    $markers = @(
+        (Join-Path $full 'imagegen\README.md'),
+        (Join-Path $full 'imagegen\start.bat'),
+        (Join-Path $full 'imagegen\bin\ImageGen.Web.dll')
+    )
+    $missing = @($markers | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
+    if ($missing.Count) {
+        throw "refusing to replace '$full': it does not look like a local-release payload (missing $($missing -join ', '))"
+    }
+
+    # Do not recurse across links during deletion. The release archive does not contain any, and an unexpected one
+    # could point at data outside this disposable payload root.
+    $links = @(Get-ChildItem -LiteralPath $full -Force -Recurse -ErrorAction Stop | Where-Object {
+        ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+    })
+    if ($links.Count) { throw "refusing to replace '$full': it contains a junction or symbolic link" }
+}
+
 if (-not (Get-Command gh -EA SilentlyContinue)) { throw 'the GitHub CLI (gh) is required to run the workflow.' }
 & gh auth status 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'gh is not authenticated. Run: gh auth login' }
 
 # An uncommitted change is invisible to the workflow, so a run against a dirty tree tests something that is not
 # what is on disk -- silently, and looking exactly like a run that worked.
-if (& git -C $RepoRoot status --porcelain) { throw 'the working tree is dirty. The workflow builds a pushed ref, so commit first.' }
+$gitStatus = & git -C $RepoRoot status --porcelain
+if ($LASTEXITCODE -ne 0) { throw 'could not read git working-tree status' }
+if ($gitStatus) { throw 'the working tree is dirty. The workflow builds a pushed ref, so commit first.' }
 
-$branch   = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD).Trim()
+$branchOutput = & git -C $RepoRoot rev-parse --abbrev-ref HEAD
+if ($LASTEXITCODE -ne 0) { throw 'could not resolve the current branch' }
+$branch = ($branchOutput | Out-String).Trim()
 # The FULL sha: gh reports headSha as the full 40 characters, so matching against the abbreviated form never
 # equals it -- the reuse check silently missed every already-built run. The short form is kept only for display.
-$sha      = (& git -C $RepoRoot rev-parse HEAD).Trim()
-$shortSha = (& git -C $RepoRoot rev-parse --short HEAD).Trim()
+$shaOutput = & git -C $RepoRoot rev-parse HEAD
+if ($LASTEXITCODE -ne 0) { throw 'could not resolve HEAD' }
+$sha = ($shaOutput | Out-String).Trim()
+$shortShaOutput = & git -C $RepoRoot rev-parse --short HEAD
+if ($LASTEXITCODE -ne 0) { throw 'could not resolve the short HEAD revision' }
+$shortSha = ($shortShaOutput | Out-String).Trim()
 
 # The run for this tag AT THIS COMMIT, if the build has already happened. Re-running the script must not mean
 # re-running a six-minute build to fetch bytes that already exist. The selection is done here in PowerShell over
 # gh's JSON, not in a jq filter passed to gh: that filter had to carry literal quotes across two argument parsers
 # and lost, reducing to `\"` -- syntax gojq rejects -- so every call errored to nothing and nothing was ever reused.
 function Find-Run ($tag, $sha) {
-    $runs = & gh run list --workflow release.yml --limit 20 `
-        --json databaseId,headBranch,headSha,status,conclusion | ConvertFrom-Json
+    $json = & gh run list --workflow release.yml --limit 20 `
+        --json databaseId,headBranch,headSha,status,conclusion
+    if ($LASTEXITCODE -ne 0) { throw 'could not list release workflow runs' }
+    $runs = $json | ConvertFrom-Json
     ($runs | Where-Object {
         $_.headBranch -eq $tag -and $_.headSha -eq $sha -and $_.conclusion -eq 'success'
     } | Select-Object -First 1).databaseId
@@ -73,8 +116,17 @@ else {
 
     # Recycled: the publish job creates a release and would fail on a name that already exists, and the tag has
     # to point at THIS commit for the build to be of this code.
-    & gh release delete $Tag --repo (& gh repo view --json nameWithOwner -q .nameWithOwner) --yes --cleanup-tag 2>&1 | Out-Null
+    $repoOutput = & gh repo view --json nameWithOwner -q .nameWithOwner
+    if ($LASTEXITCODE -ne 0) { throw 'could not resolve the GitHub repository name' }
+    $repo = ($repoOutput | Out-String).Trim()
+    if (-not $repo) { throw 'GitHub returned an empty repository name' }
+    $deleteOutput = & gh release delete $Tag --repo $repo --yes --cleanup-tag 2>&1
+    $deleteExit = $LASTEXITCODE
+    if ($deleteExit -ne 0 -and (($deleteOutput | Out-String) -notmatch '(?i)release not found')) {
+        throw "could not delete the previous $Tag release: $(($deleteOutput | Out-String).Trim())"
+    }
     & git -C $RepoRoot tag -f $Tag | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "could not move local tag $Tag to $shortSha" }
 
     <#
       Pushing the tag IS the trigger -- release.yml runs on push of `v*`. It was also dispatched explicitly here,
@@ -87,8 +139,10 @@ else {
     if ($LASTEXITCODE -ne 0) { throw 'tag push failed' }
 
     while (-not $runId) {
-        $runs = & gh run list --workflow release.yml --limit 20 `
-            --json databaseId,headBranch,headSha,event | ConvertFrom-Json
+        $json = & gh run list --workflow release.yml --limit 20 `
+            --json databaseId,headBranch,headSha,event
+        if ($LASTEXITCODE -ne 0) { throw 'could not list release workflow runs while waiting for the tag build' }
+        $runs = $json | ConvertFrom-Json
         $runId = ($runs | Where-Object {
             $_.headBranch -eq $Tag -and $_.headSha -eq $sha -and $_.event -eq 'push'
         } | Select-Object -First 1).databaseId
@@ -109,10 +163,16 @@ if ($LASTEXITCODE -ne 0) { throw "could not download the $Rid artifact from run 
 $archive = Get-ChildItem $staging -File | Select-Object -First 1
 if (-not $archive) { throw "run $runId produced no archive" }
 
-if (Test-Path $Root) { Remove-Item $Root -Recurse -Force }
+if (Test-Path -LiteralPath $Root) {
+    Assert-ExistingReleaseRoot $Root
+    Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction Stop
+}
 New-Item -ItemType Directory -Force -Path $Root | Out-Null
 if ($archive.Extension -eq '.zip') { Expand-Archive $archive.FullName -DestinationPath $Root -Force }
-else { & tar -xzf $archive.FullName -C $Root }
+else {
+    & tar -xzf $archive.FullName -C $Root
+    if ($LASTEXITCODE -ne 0) { throw "could not extract $($archive.Name) into $Root" }
+}
 Remove-Item $staging -Recurse -Force
 
 $payload = Join-Path $Root 'imagegen'

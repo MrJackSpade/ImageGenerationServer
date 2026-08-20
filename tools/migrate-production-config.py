@@ -13,6 +13,7 @@ this script has any reason to echo.
 import io
 import json
 import os
+import re
 import sys
 
 # old dotted key -> new dotted key
@@ -58,13 +59,54 @@ def nest(flat):
     return root
 
 
+def infer_database_provider(connection_string):
+    """Return the provider only when the connection string identifies it unambiguously."""
+    conn = str(connection_string).strip()
+    lower = conn.lower()
+
+    # These are SQL Server-specific connection-string keys. `Data Source` by itself is deliberately absent: both
+    # providers own it, so treating every value as either engine would simply move the old guess to another branch.
+    sql_server_key = re.search(
+        r"(?:^|;)\s*(?:server|initial\s+catalog|integrated\s+security|trusted[_ ]connection|"
+        r"user\s+id|uid|attachdbfilename)\s*=", lower)
+    sql_server_tcp_source = re.search(r"(?:^|;)\s*data\s+source\s*=\s*tcp:", lower)
+    if sql_server_key or sql_server_tcp_source:
+        return "SqlServer"
+
+    values = {}
+    for part in conn.split(";"):
+        if not part.strip():
+            continue
+        if "=" not in part:
+            raise ValueError("connection string contains a segment without '='")
+        key, value = part.split("=", 1)
+        values[key.strip().lower().replace("_", " ")] = value.strip()
+
+    sqlite_source = values.get("filename") or values.get("data source")
+    if sqlite_source:
+        sqlite_source = sqlite_source.strip().strip('"').strip("'")
+        source = sqlite_source.lower()
+        is_sqlite_file = (
+            source == ":memory:" or source.startswith("file:") or
+            "/" in sqlite_source or "\\" in sqlite_source or
+            source.endswith((".db", ".sqlite", ".sqlite3"))
+        )
+        if is_sqlite_file:
+            return "Sqlite"
+
+    raise ValueError(
+        "ConnectionStrings:ImageGen does not unambiguously identify SQLite or SQL Server; "
+        "set Database:Provider explicitly before migrating")
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     path = sys.argv[1]
     apply = "--apply" in sys.argv
 
-    flat = flatten(json.load(io.open(path, encoding="utf-8-sig")))
+    with io.open(path, encoding="utf-8-sig") as source:
+        flat = flatten(json.load(source))
     out, renamed, dropped = {}, [], []
 
     for key, value in flat.items():
@@ -97,8 +139,10 @@ def main():
     pinned = False
     if "Database:Provider" not in out:
         conn = str(out.get("ConnectionStrings:ImageGen", ""))
-        looks_sqlserver = any(t in conn.lower() for t in ("server=", "initial catalog=", "data source=tcp"))
-        out["Database:Provider"] = "SqlServer" if looks_sqlserver else "Sqlite"
+        try:
+            out["Database:Provider"] = infer_database_provider(conn)
+        except ValueError as error:
+            raise SystemExit(f"refusing to write configuration: {error}") from error
         pinned = True
 
     for old, new in renamed:
@@ -116,10 +160,12 @@ def main():
     text = json.dumps(nest(out), indent=2, ensure_ascii=False) + "\n"
     if apply:
         os.replace(path, path + ".bak")
-        io.open(path, "w", encoding="utf-8", newline="\n").write(text)
+        with io.open(path, "w", encoding="utf-8", newline="\n") as destination:
+            destination.write(text)
         print(f"\nwrote {path}  (previous file kept at {path}.bak)")
     else:
-        io.open(path + ".new", "w", encoding="utf-8", newline="\n").write(text)
+        with io.open(path + ".new", "w", encoding="utf-8", newline="\n") as destination:
+            destination.write(text)
         print(f"\nwrote {path}.new  — nothing else changed. Re-run with --apply to swap it in.")
 
 

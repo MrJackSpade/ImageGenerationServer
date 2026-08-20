@@ -161,7 +161,17 @@ function Test-Gguf {
 
 # --- run ----------------------------------------------------------------------------------------
 
-$files = Get-ChildItem $Root -Recurse -File -Include *.safetensors, *.gguf -EA SilentlyContinue
+try {
+    # This list is the integrity gate's universe. An unreadable directory must not silently disappear from it.
+    $files = @(Get-ChildItem -LiteralPath $Root -Force -Recurse -File -ErrorAction Stop |
+        Where-Object { $_.Extension -in '.safetensors', '.gguf' })
+}
+catch {
+    # Write-Error is terminating under this script's ErrorActionPreference=Stop and would replace the deliberate
+    # operational-failure code with PowerShell's generic 1 before ui-smoke-ready can distinguish it.
+    [Console]::Error.WriteLine("Could not completely enumerate model root '$Root': $($_.Exception.Message)")
+    exit 2
+}
 "checking $($files.Count) model files under $Root"
 
 $bad = 0

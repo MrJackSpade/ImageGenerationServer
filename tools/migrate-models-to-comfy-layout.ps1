@@ -310,13 +310,39 @@ if (Test-Path $yaml) {
 #>
 $comfyModels = Join-Path $ComfyRoot 'models'
 if (Test-Path $comfyModels) {
-    $weights = @(Get-ChildItem $comfyModels -Recurse -File -Include *.safetensors, *.gguf, *.ckpt, *.pth, *.pt, *.bin -EA SilentlyContinue)
+    $comfyModelsItem = Get-Item -LiteralPath $comfyModels -Force -ErrorAction Stop
+    if (($comfyModelsItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        Die "$comfyModels is a junction or symbolic link. Resolve it by hand; this script will not recurse into or delete it."
+    }
+
+    # This enumeration is the proof that deleting the directory cannot hide a weight. `SilentlyContinue` here used
+    # to turn an access-denied subtree into an apparently empty directory. Reparse-point directories are refused as
+    # well: Get-ChildItem deliberately does not promise to traverse every junction, so their contents cannot be
+    # included in the proof.
+    try {
+        $comfyContents = @(Get-ChildItem -LiteralPath $comfyModels -Force -Recurse -ErrorAction Stop)
+    }
+    catch {
+        Die "Could not completely enumerate $comfyModels ($($_.Exception.Message)). Nothing was deleted."
+    }
+    $nestedLinks = @($comfyContents | Where-Object {
+        $_.PSIsContainer -and (($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
+    })
+    if ($nestedLinks.Count) {
+        Warn "$comfyModels contains $($nestedLinks.Count) nested junction(s) or symbolic link(s):"
+        $nestedLinks | ForEach-Object { Warn "     $($_.FullName)" }
+        Die "Resolve those paths by hand. This script will not delete a tree whose full contents cannot be proved."
+    }
+
+    $weights = @($comfyContents | Where-Object {
+        -not $_.PSIsContainer -and $_.Extension.ToLowerInvariant() -in $WeightExtensions
+    })
     if ($weights.Count) {
         Warn "$comfyModels still holds $($weights.Count) weight file(s):"
         $weights | ForEach-Object { Warn "     $($_.FullName)" }
         Die "Move those onto $ModelsRoot first. This script will not decide what happens to them."
     }
-    Remove-Item $comfyModels -Recurse -Force
+    Remove-Item -LiteralPath $comfyModels -Recurse -Force -ErrorAction Stop
 }
 & cmd /c mklink /J "$comfyModels" "$ModelsRoot" | Out-Null
 if (-not (Test-Path $comfyModels)) { Die "The junction was not created." }
