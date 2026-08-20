@@ -41,7 +41,10 @@ public sealed class ImageDeletionRepository(IDbConnectionFactory connectionFacto
         await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
 
         // 1. The user's own references to this image.
-        foreach (string? table in new[] { "dbo.ImageBookmark", "dbo.ArtistDisplay", "dbo.ImageView" })
+        foreach (string? table in new[]
+        {
+            "dbo.ImageBookmark", "dbo.ArtistDisplay", "dbo.TagDisplay", "dbo.LoraDisplay", "dbo.ImageView",
+        })
         {
             await using DbCommand cmd = conn.Command(
                 $"DELETE FROM {table} WHERE UserId = @userId AND GatewayImageId = @img;", tx);

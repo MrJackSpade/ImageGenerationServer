@@ -249,12 +249,12 @@ let editActiveJobId = null;   // the one job the live tracker owns (for cancel +
 // in-flight job to recover on return, and which workflow ids belong to this mode (so recover claims only its own job).
 function editModeSpec(mode) {
   if (mode === "outpaint") {
-    return { bar: $outpaintBar, eta: $outpaintEta, show: showOutpaintBar,
+    return { bar: $outpaintBar, eta: $outpaintEta, result: $outpaintResult, show: showOutpaintBar,
       onSlot: s => { outpaintBase = s.id; renderOutpaintResult(s.id); setupOutpaintStage(); outStagedBase = outpaintBase; },
       onNoneMade: () => renderOutpaintResult(outpaintBase),
       sourceId: () => outpaintBase, mine: id => outpaintWorkflowIds().has(id) };
   }
-  return { bar: $bar, eta: $eta, show: showProgressBar,   // chat = edit + animate
+  return { bar: $bar, eta: $eta, result: $result, show: showProgressBar,   // chat = edit + animate
     // The slot's own media/hasAudio (server-stated) back up the EDIT_MODELS lookup: an adopted job's model can be
     // absent from this page's map, and a miss must not render a clip as a still <img>.
     onSlot: s => showEditResult(s.id, "", EDIT_MODELS[s.model] || { media: s.media, hasAudio: s.hasAudio }, s.notice), onNoneMade: () => { $result.innerHTML = ""; },
@@ -268,6 +268,7 @@ function editModeSpec(mode) {
 function editPanel(spec) {
   return {
     eta: spec.eta,
+    previewTarget: spec.result,
     show: spec.show,
     onProgress: f => { const pct = Math.round(Math.min(1, f) * 100); const b = spec.bar.querySelector("i"); if (b) b.style.width = pct + "%"; document.title = `⏳ ${pct}% · Edit · Make a Picture`; },
     onSlot: s => { spec.onSlot(s); document.dispatchEvent(new CustomEvent("imagegen:generated", { detail: { id: s.id } })); },   // Recent reconciles from history
@@ -1183,7 +1184,7 @@ function startEditRecover() {
       // else is bar-only. A generate job has no sourceImageId, so it never matches an editor source — exactly right.
       const mine = job.sourceImageId === spec.sourceId() && spec.mine(job.model);
       return {
-        eta: p.eta, onProgress: p.onProgress,
+        eta: p.eta, onProgress: p.onProgress, previewTarget: mine ? p.previewTarget : undefined,
         onSlot: mine ? p.onSlot : undefined,   // the one divergence: paint only THIS surface's own finished image
         // The panel's activeStatus stays null for a lone image (a fresh submit's opening "Generating…" carries it); on
         // ADOPTION the opening line is "Reconnecting…", so a single-job poll MUST emit its own live status or the

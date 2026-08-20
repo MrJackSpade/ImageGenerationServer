@@ -42,7 +42,6 @@
       "value": "simple",
       "visibility": "hidden"
     },
-    "negative_supported": false,
     "native_pixels": {
       "value": 1048576,
       "visibility": "hidden"

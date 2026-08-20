@@ -26,13 +26,15 @@ rm -f "$CONTROL_DIR/comfy-restarting"
 
 COMFY_PID=
 
-# --enable-cors-header is REQUIRED: the app's browser client talks to /forge on this container, but ComfyUI's own
-# endpoints are reached directly for progress and previews, and it refuses cross-origin requests without it.
+# --preview-method auto enables ComfyUI's inexpensive latent-to-RGB sampler frames; the app's single upstream socket
+# owner-filters and forwards them into the progress panel. 512 is ComfyUI's own default, stated explicitly so changing
+# an upstream default cannot silently change this container's preview bandwidth.
+# --enable-cors-header remains for the app's HTTP bridge and local diagnostic tooling.
 # Bound to 127.0.0.1 because only the app in this same container should reach it -- the queue gate is a guard, not a
 # reason to expose the backend.
 start_comfy() {
     cd "$COMFY_DIR"
-    "$COMFY_PY" -X utf8 main.py --listen 127.0.0.1 --port 8188 --enable-cors-header &
+    "$COMFY_PY" -X utf8 main.py --listen 127.0.0.1 --port 8188 --enable-cors-header --preview-method auto --preview-size 512 &
     COMFY_PID=$!
     printf '%s' "$COMFY_PID" > "$CONTROL_DIR/comfy.pid"
     log "ComfyUI started (pid $COMFY_PID)"

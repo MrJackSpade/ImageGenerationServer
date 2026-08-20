@@ -42,7 +42,6 @@
       "value": "simple",
       "visibility": "hidden"
     },
-    "negative_supported": false,
     "lora": "krea2-anypaint-lora",
     "lora_strength": {
       "value": 1.0,

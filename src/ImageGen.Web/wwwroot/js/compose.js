@@ -535,15 +535,31 @@ function collectComposerParamPrefs() {
 // The composer's Generate — and the detail card's Reload — go through the SAME shared submit component every edit mode
 // uses. It owns the click / hold-to-count / queue-while-busy gestures, POSTs one /enqueue job with N slots, tracks it,
 // and cancels it. This file supplies ONLY what to submit (buildComposerItems) and how to render progress (composePanel).
+function composerCreatingStatus(_recorded, total, job, activeJobs) {
+  const batchTotal = Math.max(1, Number(total) || 1);
+  const batchProgress = Math.min(batchTotal, Math.max(0, Number(job && job.progress) || 0));
+  const position = Math.min(batchProgress + 1, batchTotal);
+  // The composer reports generation work, not an edit that happens to share the user's active feed. A fresh submit
+  // and live recovery both read this same server-sourced list, so queue-more/reload/cancel cannot leave a local count.
+  const generations = (Array.isArray(activeJobs) ? activeJobs : []).filter(j => j && j.kind === "generate");
+  const relevant = job && job.kind === "generate" ? generations : [job].filter(Boolean);
+  const remaining = relevant.length
+    ? relevant.reduce((sum, j) => sum + Math.max(0, (Number(j.total) || 0) - (Number(j.progress) || 0)), 0)
+    : Math.max(0, batchTotal - batchProgress);
+  const current = batchTotal > 1 ? `Creating ${position}/${batchTotal}` : "Creating";
+  return remaining > 1 ? `${current} · ${remaining} remaining` : `${current}…`;
+}
+
 const composePanel = {
   eta: $("eta"),
+  previewTarget: $result,
   show: b => { if (b) showBar(0.02); else hideBar(); },
   onProgress: showBar,   // also drives the tab-title/favicon ring
   // `meta` is THIS submission's context (prompt/model/shapes), threaded by the control — so a queue-more job (its own
   // meta) can never make the running job record its slots against the wrong prompt/model.
   onSlot: (s, meta) => recordResult({ id: s.id, effectivePrompt: s.effectivePrompt, marks: s.marks, notice: s.notice }, meta.prompt, meta.model, meta.modelId, (meta.slotAspects && meta.slotAspects[s.index]) || ""),
   onRunning: showRunningModel,   // multi-model runs show which workflow is rendering now (see showRunningModel)
-  activeStatus: (recorded, total) => `Creating ${Math.min(recorded + 1, total)} of ${total}…`,   // 1-indexed: the one being made now
+  activeStatus: composerCreatingStatus,
   // The job's OWN final status, not this tab's cancel flag: it may have been stopped from another device, and the
   // missing images weren't ones that "couldn't be made" — they weren't asked for any more.
   finalStatus: (made, total, cancelled, errors) => cancelled ? (made ? `Cancelled — made ${made} of ${total}.` : "Cancelled.")
@@ -1223,10 +1239,11 @@ function startLiveSync() {
     onAdopt: () => { setBusy(true); showBar(0.02); },
     options: job => ({
       eta: $("eta"),
+      previewTarget: $result,
       onProgress: showBar,
       onRunning: showRunningModel,
       onSlot: s => showAdoptedResult(job, s),
-      activeStatus: (recorded, total) => total > 1 ? `Creating ${Math.min(recorded + 1, total)} of ${total}…` : "Generating…",
+      activeStatus: composerCreatingStatus,
       finalStatus: composePanel.finalStatus,
       setStatus,
       onCancelHandle: h => { activeGen = h; },

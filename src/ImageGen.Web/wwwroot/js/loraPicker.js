@@ -148,12 +148,19 @@
         const tile = grid.querySelector(`.lp-tile[data-lora="${cssEsc(l.name)}"]`);
         if (tile) { tile.classList.toggle("loading", l.ready === false); tile.innerHTML = tileInner(l); }
       }
+      // A file whose physical name did not match may become a match when its CivitAI name lands. Patching only
+      // already-rendered tiles cannot reveal it, so refresh the flat search results without disturbing picked state.
+      if (changed && search.trim()) render();
       return changed;
     }
     function cssEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, "\\$&"); }
 
     // Incompatible LoRAs are hidden unless the toggle is on. (Unknown compatibility — compatible !== false — always shows.)
     const showable = l => showIncompatible || l.compatible !== false;
+    // Search both identities: the renderer's physical filename and CivitAI's human name. Metadata arrives
+    // asynchronously, so render() is also re-run from applyMeta while a query is active.
+    const matchesSearch = (l, q) => l.name.toLowerCase().includes(q)
+      || String(l.displayName || "").toLowerCase().includes(q);
 
     function render() {
       grid.innerHTML = ""; crumb.innerHTML = "";
@@ -162,7 +169,7 @@
       // Global search: a flat list across the WHOLE tree, regardless of the current folder.
       if (q) {
         crumb.textContent = `Search: “${search}”`;
-        const matches = all.filter(l => l.name.toLowerCase().includes(q) && showable(l));
+        const matches = all.filter(l => matchesSearch(l, q) && showable(l));
         matches.forEach(l => grid.appendChild(loraTile(l)));
         if (!matches.length) grid.appendChild(empty("No LoRAs match."));
         return;

@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging;
 using System.IO.Compression;
 using System.Net;
 using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 
 namespace ImageGen.Api.Endpoints;
@@ -162,15 +161,6 @@ public static class ForgeApi
         public const string PublicShort = "public, max-age=300";
     }
 
-    /// <summary>JSON property names read off the backend's progress frames.</summary>
-    private static class JsonFields
-    {
-        /// <summary>The frame's payload object.</summary>
-        public const string Data = "data";
-        /// <summary>The backend prompt id carried inside <see cref="Data"/>.</summary>
-        public const string PromptId = "prompt_id";
-    }
-
     /// <summary>Keys the /forge auth filter stashes per-request values under in <c>HttpContext.Items</c>.</summary>
     private static class RequestItems
     {
@@ -203,13 +193,6 @@ public static class ForgeApi
     {
         /// <summary>Comma-space, joining CivitAI trained words into a prompt list.</summary>
         public const string CommaSpace = ", ";
-    }
-
-    /// <summary>WebSocket close-frame status descriptions sent downstream.</summary>
-    private static class CloseReasons
-    {
-        /// <summary>Sent when the backend progress socket can't be opened for this client's /ws.</summary>
-        public const string ProgressBackendUnavailable = "progress backend unavailable";
     }
 
     /// <summary>Map the render endpoints onto the /forge group.</summary>
@@ -1763,10 +1746,9 @@ public static class ForgeApi
 
     private static void MapProgressSocket(RouteGroupBuilder app)
     {
-        // Forward the backend's own progress WebSocket, filtered to this user's jobs and translated (backend prompt_id
-        // → our jobId). The SPA connects here for live progress.
-        _ = app.Map(Routes.Ws, async (HttpContext ctx, IComfyClient comfy, RenderOrchestrator queue,
-            ILogger<IComfyClient> log) =>
+        // Subscribe this authenticated browser to the process-wide Comfy event stream. The singleton upstream listener
+        // already translated prompt ids and filtered frames to their owner; this endpoint owns only downstream I/O.
+        _ = app.Map(Routes.Ws, async (HttpContext ctx, IRenderProgressStream events, ILogger<IRenderProgressStream> log) =>
         {
             if (!ctx.WebSockets.IsWebSocketRequest)
             {
@@ -1776,28 +1758,18 @@ public static class ForgeApi
 
             long me = OwnerOf(ctx.Request);
             using WebSocket downstream = await ctx.WebSockets.AcceptWebSocketAsync();
-            WebSocket upstream;
+            using RenderProgressSubscription subscription = events.Subscribe(me);
+            using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+            Task send = PumpProgressFrames(subscription.Reader, downstream, log, lifetime.Token);
+            Task receive = DrainClientSocket(downstream, log, lifetime.Token);
+            _ = await Task.WhenAny(send, receive);
+            await lifetime.CancelAsync();
+
             try
             {
-                upstream = await comfy.ConnectProgressSocketAsync(ctx.RequestAborted);
+                await Task.WhenAll(send, receive);
             }
-            catch (Exception ex)
-            {
-                // The downstream socket is already accepted, so there is no status code left to answer with — closing
-                // it IS the only signal available, and the client's own reconnect loop handles that. Doing it mutely
-                // would be a mistake: a backend whose progress socket had stopped accepting connections would look
-                // exactly like an idle one, and the page would never show progress again.
-                log.LogWarning(ex, "Could not open the ComfyUI progress socket; closing this client's /ws.");
-                await downstream.CloseAsync(WebSocketCloseStatus.EndpointUnavailable,
-                    CloseReasons.ProgressBackendUnavailable, CancellationToken.None);
-                return;
-            }
-
-            using (upstream)
-            {
-                _ = await Task.WhenAny(PumpTranslating(upstream, downstream, queue, me, log, ctx.RequestAborted),
-                                   Pump(downstream, upstream, log, ctx.RequestAborted));
-            }
+            catch (Exception ex) when (IsSocketShutdown(ex)) { /* ordinary disconnect */ }
         });
     }
 
@@ -1809,137 +1781,55 @@ public static class ForgeApi
         => ex is WebSocketException or OperationCanceledException or ObjectDisposedException
            or System.IO.IOException or System.Net.Sockets.SocketException;
 
-    private static async Task Pump(WebSocket from, WebSocket to, ILogger log, CancellationToken ct)
+    private static async Task PumpProgressFrames(
+        System.Threading.Channels.ChannelReader<RenderProgressFrame> frames,
+        WebSocket socket,
+        ILogger log,
+        CancellationToken ct)
     {
-        byte[] buf = new byte[64 * 1024];
         try
         {
-            while (from.State == WebSocketState.Open)
+            await foreach (RenderProgressFrame frame in frames.ReadAllAsync(ct))
             {
-                WebSocketReceiveResult r = await from.ReceiveAsync(buf, ct);
+                if (socket.State != WebSocketState.Open)
+                {
+                    return;
+                }
+
+                await socket.SendAsync(frame.Bytes,
+                    frame.Binary ? WebSocketMessageType.Binary : WebSocketMessageType.Text, true, ct);
+            }
+        }
+        catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped */ }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Progress socket send failed; this client's live progress has stopped.");
+        }
+    }
+
+    private static async Task DrainClientSocket(WebSocket socket, ILogger log, CancellationToken ct)
+    {
+        byte[] buf = new byte[1024];
+        try
+        {
+            while (socket.State == WebSocketState.Open)
+            {
+                WebSocketReceiveResult r = await socket.ReceiveAsync(buf, ct);
                 if (r.MessageType == WebSocketMessageType.Close)
                 {
-                    if (to.State == WebSocketState.Open)
+                    if (socket.State == WebSocketState.CloseReceived)
                     {
-                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
+                        await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
                     }
 
                     return;
                 }
-
-                if (to.State == WebSocketState.Open)
-                {
-                    await to.SendAsync(new ArraySegment<byte>(buf, 0, r.Count), r.MessageType, r.EndOfMessage, ct);
-                }
             }
         }
-        catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped — let the other pump finish */ }
+        catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped */ }
         catch (Exception ex)
         {
-            log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped.");
-        }
-    }
-
-    private static async Task PumpTranslating(WebSocket from, WebSocket to, RenderOrchestrator queue, long me,
-        ILogger log, CancellationToken ct)
-    {
-        byte[] buf = new byte[64 * 1024];
-        bool currentIsMine = false;
-        try
-        {
-            while (from.State == WebSocketState.Open)
-            {
-                WebSocketReceiveResult r = await from.ReceiveAsync(buf, ct);
-                if (r.MessageType == WebSocketMessageType.Close)
-                {
-                    if (to.State == WebSocketState.Open)
-                    {
-                        await to.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, ct);
-                    }
-
-                    return;
-                }
-
-                if (to.State != WebSocketState.Open)
-                {
-                    continue;
-                }
-
-                if (r.MessageType == WebSocketMessageType.Text && r.EndOfMessage)
-                {
-                    string text = Encoding.UTF8.GetString(buf, 0, r.Count);
-                    WsFrameDecision decision = FilterFrame(text, queue, me);
-                    if (decision.OwnerIsMe.HasValue)
-                    {
-                        currentIsMine = decision.OwnerIsMe.Value;
-                    }
-
-                    if (!decision.Forward)
-                    {
-                        continue;
-                    }
-
-                    byte[] outBytes = Encoding.UTF8.GetBytes(decision.OutText);
-                    await to.SendAsync(outBytes, WebSocketMessageType.Text, true, ct);
-                }
-                else if (currentIsMine)
-                {
-                    await to.SendAsync(new ArraySegment<byte>(buf, 0, r.Count), r.MessageType, r.EndOfMessage, ct);
-                }
-            }
-        }
-        catch (Exception ex) when (IsSocketShutdown(ex)) { /* connection dropped — let the other pump finish */ }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Progress socket pump failed; this client's live progress has stopped.");
-        }
-    }
-
-    /// <summary>The decision for one upstream text frame: whether to forward it, the (id-translated) text to send, and
-    /// — when the frame carries a known prompt_id — whether that prompt is mine (gates binary previews).</summary>
-    private readonly record struct WsFrameDecision(
-        bool Forward, string OutText,
-        [property: AllowNullable("null = the frame carries no known prompt_id, so ownership is unknowable; distinct from an explicit false")] bool? OwnerIsMe);
-
-    private static WsFrameDecision FilterFrame(string text, RenderOrchestrator queue, long me)
-    {
-        // Only a JsonException is caught, and ONLY around the parse. This is the gate that decides whether another
-        // user's render progress reaches this socket; running the whole body under a bare catch whose fallback was
-        // "forward as-is" would make it a privacy filter that failed OPEN on any exception at all, including one
-        // thrown after the frame had been identified as somebody else's. A frame that is not JSON carries no
-        // prompt_id and so is not attributable to anyone; that, and only that, is the shared-status case below.
-        JsonDocument doc;
-        try
-        {
-            doc = JsonDocument.Parse(text);
-        }
-        catch (JsonException)
-        {
-            return new WsFrameDecision(true, text, null);
-        }
-
-        using (doc)
-        {
-            if (!doc.RootElement.TryGetProperty(JsonFields.Data, out JsonElement data) || data.ValueKind != JsonValueKind.Object
-                || !data.TryGetProperty(JsonFields.PromptId, out JsonElement pid) || pid.ValueKind != JsonValueKind.String)
-            {
-                return new WsFrameDecision(true, text, null);        // no prompt_id — a general backend status frame
-            }
-
-            string comfyId = pid.GetString() ?? throw new JsonException("prompt_id is present but not a string value.");
-            long? owner = queue.OwnerForComfy(comfyId);
-            if (owner is not long o)
-            {
-                return new WsFrameDecision(false, text, false);   // unattributable — withhold
-            }
-
-            if (o != me)
-            {
-                return new WsFrameDecision(false, text, false);
-            }
-
-            string? jobId = queue.JobIdForComfy(comfyId);
-            return new WsFrameDecision(true, jobId is not null ? text.Replace(comfyId, jobId) : text, true);
+            log.LogError(ex, "Progress socket receive failed; this client's live progress has stopped.");
         }
     }
 

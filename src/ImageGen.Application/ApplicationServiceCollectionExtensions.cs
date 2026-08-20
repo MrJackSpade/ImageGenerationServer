@@ -52,6 +52,13 @@ public static class ApplicationServiceCollectionExtensions
         // The orchestrator is where live step-progress frames land (it owns the promptId → slot map), so the sink is
         // the same instance under its port.
         _ = services.AddSingleton<IStepProgressSink>(sp => sp.GetRequiredService<RenderOrchestrator>());
+        _ = services.AddSingleton<IRenderProgressRouteResolver>(sp => sp.GetRequiredService<RenderOrchestrator>());
+
+        // One fan-out joins the renderer's SINGLE client-id socket to every authenticated browser subscriber. Both
+        // ports resolve to the same instance: Comfy writes raw frames, while /forge/ws reads owner-filtered frames.
+        _ = services.AddSingleton<RenderProgressEvents>();
+        _ = services.AddSingleton<IRenderProgressPublisher>(sp => sp.GetRequiredService<RenderProgressEvents>());
+        _ = services.AddSingleton<IRenderProgressStream>(sp => sp.GetRequiredService<RenderProgressEvents>());
 
         // Per-model recent-average render timings (#200): a machine-scoped SQL read that used to run live inside both
         // /forge/workflows and the ~2s-polled /forge/queue. Flushed on job finalization (RenderOrchestrator), backstop

@@ -52,7 +52,6 @@ public sealed class PixelizeWorkflow : EditWorkflow<PixelizeParams>
         new() { Key = WorkflowParamKeys.Width,           Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render width", Help = "Explicit render width; 0 = model default" },
         new() { Key = WorkflowParamKeys.Height,          Type = ParamType.Int,  Min = 0, Max = 4096, Label = "Render height", Help = "Explicit render height; 0 = model default" },
         new() { Key = WorkflowParamKeys.SnapResolution, Type = ParamType.Bool, Label = "Snap res", Help = "Override the render size to a clean integer multiple of VRES" },
-        new() { Key = WorkflowParamKeys.OutScale,   Type = ParamType.Int,    Min = 1, Max = 16, Label = "Output upscale" },
         new() { Key = WorkflowParamKeys.Palette,     Type = ParamType.Enum, Choices = PixelPalettes.Choices, Label = "Palette" },
         new() { Key = WorkflowParamKeys.ProjMethod, Type = ParamType.Enum,   Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Projection", Help = "Per-step projection method (median = crisp + straight edges)" },
         new() { Key = WorkflowParamKeys.FinalMethod,Type = ParamType.Enum,   Choices = ComfyWidgetChoices.PixelizeMethods, Label = "Cell method", Help = "Final-render cell method (median = crisp + straight; box = smoother)" },

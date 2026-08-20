@@ -19,10 +19,6 @@
       "value": 256,
       "visibility": "hidden"
     },
-    "block": {
-      "value": 1,
-      "visibility": "hidden"
-    },
     "palette": {
       "value": "adaptive",
       "visibility": "exposed"

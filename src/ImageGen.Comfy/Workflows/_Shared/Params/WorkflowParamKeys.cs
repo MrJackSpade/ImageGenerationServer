@@ -102,7 +102,6 @@ internal static class WorkflowParamKeys
     public const string Negative = "negative";
     public const string NegativeSupported = "negative_supported";
     public const string OffloadDevice = "offload_device";
-    public const string OutScale = "out_scale";
     public const string PadBottom = "pad_bottom";
     public const string PadBottomPct = "pad_bottom_pct";
     public const string PadLeft = "pad_left";

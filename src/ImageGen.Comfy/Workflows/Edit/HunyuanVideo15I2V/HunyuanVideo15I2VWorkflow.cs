@@ -8,6 +8,8 @@ namespace ImageGen.Comfy.Edit.HunyuanVideo15I2V;
 /// Uncensored base; animates anime natively. LoRA-aware via ApplyLora. Validated live (shift 7, cfg 1).</summary>
 public sealed class HunyuanVideo15I2VWorkflow : EditWorkflow<HunyuanVideo15I2VParams>
 {
+    public override IReadOnlyList<Type> ParameterContracts =>
+        [typeof(HunyuanVideo15I2VParams), typeof(HunyuanVideo15I2VNoSrParams), typeof(HunyuanVideo15I2VSrParams)];
     public override bool NormalizesSourceResolution => true;
     public override string Name => "hunyuanvideo15-i2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;

@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Text.Json.Serialization;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -11,11 +14,20 @@ namespace ImageGen.Comfy;
 /// </summary>
 public abstract class Workflow<TParams> : IWorkflow
 {
+    private static readonly IReadOnlyList<Type> ContractTypes =
+    [
+        typeof(TParams),
+        .. typeof(TParams).GetCustomAttributes<JsonDerivedTypeAttribute>()
+            .Select(a => a.DerivedType)
+            .Distinct(),
+    ];
+
     public abstract string Name { get; }
     public abstract WorkflowKind Kind { get; }
     public abstract WorkflowMedia Media { get; }
     public abstract bool PromptDirectsMotion { get; }
     public abstract IReadOnlyList<ParamSpec> Schema { get; }
+    public virtual IReadOnlyList<Type> ParameterContracts => ContractTypes;
 
     public virtual WorkflowMedia SourceMedia => WorkflowMedia.Image;
     public virtual PromptSemantics PromptSemantics => PromptSemantics.Instruction;

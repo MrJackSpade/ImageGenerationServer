@@ -83,6 +83,23 @@ public sealed class RenderPhaseTests
         Assert.Equal(RenderPhase.Error, RenderPhases.Of(job));
     }
 
+    /// <summary>A blob that landed but could not be linked into history remains addressable by id, yet the slot is a
+    /// visible failure rather than a false success. This is the non-outage history-write path from #243.</summary>
+    [Fact]
+    public void A_history_write_defect_keeps_the_stored_image_but_does_not_mark_the_slot_done()
+    {
+        RenderJob job = JobWith(SlotState.Queued);
+        RenderSlot slot = Assert.Single(job.Slots);
+
+        RenderOrchestrator.ApplyHistoryWriteFailure(slot, "stored-image", 640, 480);
+
+        Assert.Equal(SlotState.Error, slot.State);
+        Assert.Equal("stored-image", slot.ImageId);
+        Assert.Equal(640, slot.Width);
+        Assert.Equal(480, slot.Height);
+        Assert.Contains("could not be added to history", slot.Error);
+    }
+
     /// <summary>A generation the user stopped is CANCELLED, not failed. Nothing went wrong — they did that.</summary>
     [Fact]
     public void A_stopped_generation_is_cancelled_not_error()

@@ -12,7 +12,11 @@ namespace ImageGen.Comfy;
 /// views serve REAL sampler-step progress for the render on the GPU — the browser-facing /ws proxy is per-user and
 /// filtered, so a cross-user surface (the queue page) can't draw from it; this listener is the one unfiltered observer.
 /// </summary>
-public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink sink, ILogger<ComfyProgressListener> log)
+public sealed class ComfyProgressListener(
+    IComfyClient comfy,
+    IStepProgressSink sink,
+    IRenderProgressPublisher events,
+    ILogger<ComfyProgressListener> log)
     : BackgroundService
 {
     /// <summary>How long to wait before re-dialing the progress socket after it drops or refuses — keeps a down/restarting
@@ -62,6 +66,7 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
     {
         byte[] buf = new byte[64 * 1024];
         using MemoryStream message = new();
+        string? currentPromptId = null;
         while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
         {
             WebSocketReceiveResult r = await ws.ReceiveAsync(buf, ct);
@@ -76,11 +81,23 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
                 continue;
             }
 
-            // Binary frames are preview images — no step data — and non-progress text frames are simply not this
-            // listener's; both are drained above and dropped here.
             if (r.MessageType == WebSocketMessageType.Text)
             {
-                Observe(Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length));
+                string text = Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
+                string? promptId = Observe(text);
+                if (!string.IsNullOrEmpty(promptId))
+                {
+                    currentPromptId = promptId;
+                }
+
+                events.PublishText(text, promptId);
+            }
+            else if (r.MessageType == WebSocketMessageType.Binary)
+            {
+                // Legacy ComfyUI preview frames carry no prompt id. Its progress hook sends the prompt-bearing text
+                // frame immediately before the binary image on this one ordered socket, so associate it with that
+                // current prompt. The publisher resolves ownership and withholds it if the route is no longer live.
+                events.PublishBinary(message.GetBuffer().AsMemory(0, (int)message.Length), currentPromptId);
             }
 
             message.SetLength(0);
@@ -90,7 +107,7 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
     /// <summary>Parse one text frame and report its step fraction, if it carries one. Two frame shapes carry progress:
     /// <c>progress</c> (flat value/max) and <c>progress_state</c> (per-node values; the RUNNING node's is the live
     /// one). Anything else — status frames, execution events, non-JSON — carries no fraction and is dropped.</summary>
-    private void Observe(string text)
+    private string? Observe(string text)
     {
         JsonDocument doc;
         try
@@ -99,7 +116,7 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
         }
         catch (JsonException)
         {
-            return;   // not JSON — ComfyUI's own free-form frames carry no step data
+            return null;   // not JSON — ComfyUI's own free-form frames carry no prompt id or step data
         }
 
         using (doc)
@@ -109,7 +126,7 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
                 || !data.TryGetProperty(Frame.PromptId, out JsonElement pid) || pid.ValueKind != JsonValueKind.String
                 || pid.GetString() is not { Length: > 0 } promptId)
             {
-                return;
+                return null;
             }
 
             double? fraction = type.GetString() switch
@@ -122,6 +139,8 @@ public sealed class ComfyProgressListener(IComfyClient comfy, IStepProgressSink 
             {
                 sink.ReportStepFraction(promptId, f);
             }
+
+            return promptId;
         }
     }
 

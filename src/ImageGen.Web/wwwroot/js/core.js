@@ -488,6 +488,57 @@ function newBatchProgress() {
   };
 }
 
+// ComfyUI's legacy preview-image WebSocket payload: two big-endian uint32 values (binary event type, then image
+// format), followed by the encoded image. The app deliberately does not negotiate preview metadata yet, so event 1 is
+// the only preview shape the pinned renderer sends; unknown binary events fail closed here.
+const COMFY_PREVIEW_HEADER_BYTES = 8;
+const COMFY_PREVIEW_IMAGE_EVENT = 1;
+const COMFY_PREVIEW_JPEG = 1;
+const COMFY_PREVIEW_PNG = 2;
+
+// Owns the temporary object URL and DOM for one trackJobBatch invocation. A durable onSlot result always clears this
+// card before the page renders its real image/actions; cancellation, failure and no-change completion clear it too.
+function livePreviewPainter(target) {
+  let revision = 0, url = null, card = null, image = null, prior = null;
+  const clear = () => {
+    revision++;
+    if (url) URL.revokeObjectURL(url);
+    url = null;
+    // Keep the last durable result underneath this temporary card. If the new render fails/cancels, clearing the
+    // preview restores it; if a slot succeeds, onSlot replaces it immediately after this call.
+    if (card && card.parentNode === target) target.replaceChildren(...(prior || []));
+    card = null; image = null; prior = null;
+  };
+  const show = async payload => {
+    if (!target || payload == null) return;
+    const mine = ++revision;
+    const blob = payload instanceof Blob ? payload : new Blob([payload]);
+    if (blob.size <= COMFY_PREVIEW_HEADER_BYTES) return;
+
+    let header;
+    try { header = await blob.slice(0, COMFY_PREVIEW_HEADER_BYTES).arrayBuffer(); }
+    catch (e) { console.debug("preview header could not be read:", e); return; }
+    if (mine !== revision) return;   // a newer sampler frame decoded first
+    const view = new DataView(header);
+    if (view.getUint32(0) !== COMFY_PREVIEW_IMAGE_EVENT) return;
+    const format = view.getUint32(4);
+    const type = format === COMFY_PREVIEW_JPEG ? "image/jpeg" : format === COMFY_PREVIEW_PNG ? "image/png" : null;
+    if (!type) return;
+
+    const nextUrl = URL.createObjectURL(blob.slice(COMFY_PREVIEW_HEADER_BYTES, blob.size, type));
+    if (mine !== revision) { URL.revokeObjectURL(nextUrl); return; }
+    if (!card) {
+      card = document.createElement("div"); card.className = "result-card live-preview";
+      image = document.createElement("img"); image.alt = "Live generation preview";
+      const badge = document.createElement("div"); badge.className = "live-preview-badge"; badge.textContent = "Live preview";
+      prior = [...target.childNodes]; card.append(image, badge); target.replaceChildren(card);
+    }
+    const previous = url; url = nextUrl; image.src = nextUrl;
+    if (previous) URL.revokeObjectURL(previous);
+  };
+  return { show, clear };
+}
+
 // The ONE render-progress/preview engine (#145), shared by every page so status·ETA·bar·cancel·preview behave
 // identically and can never drift again. Tracks ONE multi-slot job to completion: opens /ws for live fraction, polls
 // /jobs, records each finished slot (diffing on slot id, skipping `changed === false` no-ops), drives the bar via
@@ -497,9 +548,12 @@ function newBatchProgress() {
 // The page supplies only what is page-specific, via `o`:
 //   onProgress(fraction)                paint the bar (0..1)
 //   onSlot(slot)                        render one finished slot into the preview box
+//   previewTarget                       optional element where live ComfyUI preview frames render temporarily
 //   onRunning(slot|null, job)           optional: called each poll with the running slot (e.g. show its model)
 //   eta                                 optional .eta element to drive on running-slot change
-//   activeStatus(recorded, total)       optional -> status string while running (null = leave)
+//   activeStatus(recorded, total, job, activeJobs)
+//                                       optional -> status string while running (null = leave). The current job and
+//                                       full active feed let a surface show both batch-local and queue-wide progress.
 //   finalStatus(made, total, cancelled, errors) -> status string on finish (null = leave); `errors` is the array of
 //                                       real server error messages from slots that FAILED (empty when none failed)
 //   setStatus(text)                     write the page's status line
@@ -508,17 +562,19 @@ function newBatchProgress() {
 function trackJobBatch(jobId, o) {
   const N = o.total || 1;
   return new Promise(resolve => {
-    let settled = false, timer = null, ws = null, runningId = null, lastEtaIdx = -1;
+    let settled = false, timer = null, ws = null, runningId = null, frameJobId = null, lastEtaIdx = -1;
     const recorded = new Set();
     // Failed slots, keyed by slot index → the server's real error text. A slot that ERRORS produces no image, so it
     // never lands in `recorded`; without capturing it here the only signal a page gets is a zero made-count, which
     // reads identically to a genuine no-change edit. Keyed so a straggler seen twice (poll + final fetch) counts once.
     const failed = new Map();
     const prog = newBatchProgress();
+    const preview = livePreviewPainter(o.previewTarget);
     const draw = () => { if (o.onProgress) o.onProgress(prog.value(N)); };
     const recordSlot = s => {
       if (!s || !s.id || s.changed === false || recorded.has(s.id)) return;
       recorded.add(s.id);
+      preview.clear();
       if (o.onSlot) o.onSlot(s);
     };
     const recordFailure = s => { if (s && s.status === "error") failed.set(s.index, s.error || "The render failed."); };
@@ -526,6 +582,7 @@ function trackJobBatch(jobId, o) {
       if (settled) return; settled = true;
       if (timer) clearInterval(timer);
       try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); }
+      preview.clear();
       document.removeEventListener("visibilitychange", onVis);
       if (o.eta) stopEta(o.eta);
       const status = o.finalStatus ? o.finalStatus(recorded.size, N, cancelled, [...failed.values()]) : null;
@@ -537,14 +594,19 @@ function trackJobBatch(jobId, o) {
       if (settled || ws) return;
       try {
         ws = new WebSocket(gwWs("/ws"));
+        ws.binaryType = "blob";
         ws.onmessage = ev => {
-          if (typeof ev.data !== "string") return;
+          if (typeof ev.data !== "string") {
+            if (frameJobId === jobId) preview.show(ev.data);
+            return;
+          }
           let m; try { m = JSON.parse(ev.data); } catch (e) { console.debug("batch ws non-JSON:", e); return; }
           const id = m.data && m.data.prompt_id;
+          if (id) frameJobId = id;
           if (id && id === runningId) { const f = wsFraction(m); if (f != null) { prog.fraction(f); draw(); } }
           if (m.type === "executed" || m.type === "execution_error" || m.type === "execution_success") poll();
         };
-        ws.onclose = () => { ws = null; }; ws.onerror = () => { try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; };
+        ws.onclose = () => { ws = null; frameJobId = null; }; ws.onerror = () => { try { ws && ws.close(); } catch (e) { console.debug("ws close failed:", e); } ws = null; frameJobId = null; };
       } catch (e) { console.debug("batch ws open failed:", e); ws = null; }
     }
     async function poll() {
@@ -563,7 +625,7 @@ function trackJobBatch(jobId, o) {
       if (o.eta && runSlot && runSlot.index !== lastEtaIdx) { lastEtaIdx = runSlot.index; startEta(o.eta, job.expectedSeconds, job.startedAt); }
       (job.slots || []).forEach(s => { if (s.status === "done") recordSlot(s); else if (s.status === "error") recordFailure(s); });
       prog.finished(recorded.size); draw();
-      if (o.activeStatus && o.setStatus) { const t = o.activeStatus(recorded.size, N); if (t != null) o.setStatus(t); }
+      if (o.activeStatus && o.setStatus) { const t = o.activeStatus(recorded.size, N, job, res.jobs || []); if (t != null) o.setStatus(t); }
     }
     const onVis = () => { if (document.visibilityState === "visible" && !settled) { poll(); openWs(); } };
     if (o.onCancelHandle) o.onCancelHandle({ cancel: async () => { try { await fetch(`${GATEWAY}/cancel/${encodeURIComponent(jobId)}`, { method: "POST" }); } catch (e) { console.debug("cancel request failed:", e); } } });
@@ -626,7 +688,8 @@ function attachLiveRecover(o) {
 //   onBusy(bool)                        the page marks itself busy/idle (and shows/hides its Cancel button)
 //   onActiveGen(handle|null)            the page stores the { cancel } handle so its Cancel button reaches this job
 //   panel                               the progress/preview wiring for trackJobBatch: show(bool), onProgress(f),
-//                                       onSlot(slot, meta), onRunning?(slot, job, meta), eta, activeStatus?, finalStatus,
+//                                       onSlot(slot, meta), previewTarget?, onRunning?(slot, job, meta), eta,
+//                                       activeStatus?, finalStatus,
 //                                       onSettle? — onSlot/onRunning receive the built `meta` so a queue-more submission
 //                                       (its own job + meta) can never corrupt the running job's rendering.
 //   onJob?(jobId, items, meta)          e.g. record a pending-job row for cross-device pickup
@@ -656,7 +719,7 @@ function attachEnqueueSubmit(o) {
       if (o.onJob) o.onJob(jobId, items, meta);
       await trackJobBatch(jobId, {
         total: resp.total || items.length,
-        eta: o.panel.eta, onProgress: o.panel.onProgress,
+        eta: o.panel.eta, onProgress: o.panel.onProgress, previewTarget: o.panel.previewTarget,
         onSlot: s => o.panel.onSlot(s, meta),
         onRunning: o.panel.onRunning ? (s, job) => o.panel.onRunning(s, job, meta) : undefined,
         activeStatus: o.panel.activeStatus, finalStatus: o.panel.finalStatus, setStatus: o.setStatus,

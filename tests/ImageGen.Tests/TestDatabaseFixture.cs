@@ -78,6 +78,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public IPendingJobRepository Pending => new PendingJobRepository(ConnectionFactory, Cipher);
     public IArtistDisplayRepository ArtistDisplays => new ArtistDisplayRepository(ConnectionFactory, Cipher);
     public ITagDisplayRepository TagDisplays => new TagDisplayRepository(ConnectionFactory, Cipher);
+    public ILoraDisplayRepository LoraDisplays => new LoraDisplayRepository(ConnectionFactory, Cipher);
     public IBannedTokenRepository Bans => new BannedTokenRepository(ConnectionFactory, Cipher);
     public IImageBlobRepository Blobs => new ImageBlobRepository(ConnectionFactory);
     public IJobRepository Jobs => new JobRepository(ConnectionFactory, Cipher, TimeProvider.System, Dialect);

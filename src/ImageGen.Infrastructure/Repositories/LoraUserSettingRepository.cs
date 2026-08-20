@@ -55,7 +55,11 @@ public sealed class LoraUserSettingRepository(IDbConnectionFactory connectionFac
 
         foreach ((string? enc, string? tw, bool aa) in raw)
         {
-            string plain = byCipher.TryGetValue(enc, out string? p) ? p : await _cipher.DecryptDeterministicAsync(userId, enc, ct);
+            if (!byCipher.TryGetValue(enc, out string? plain))
+            {
+                throw new InvalidOperationException("The database returned a LoRA setting outside the requested ciphertext set.");
+            }
+
             result[plain] = new LoraUserSetting { UserId = userId, LoraName = plain, TriggerWords = tw, AutoAttach = aa };
         }
 

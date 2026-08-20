@@ -451,6 +451,20 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
             GatewayImageId = imageId,
             SetAtUtc = DateTime.UtcNow,
         }, Ct);
+        await fixture.TagDisplays.SetAsync(new TagDisplay
+        {
+            UserId = user.Id,
+            TagName = "water-lilies",
+            GatewayImageId = imageId,
+            SetAtUtc = DateTime.UtcNow,
+        }, Ct);
+        await fixture.LoraDisplays.SetAsync(new LoraDisplay
+        {
+            UserId = user.Id,
+            LoraName = "styles/impressionist.safetensors",
+            GatewayImageId = imageId,
+            SetAtUtc = DateTime.UtcNow,
+        }, Ct);
 
         Assert.True(await fixture.ImageDeletions.DeleteEverywhereAsync(user.Id, imageId, Ct));
 
@@ -458,6 +472,8 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
         Assert.Null(await fixture.Blobs.GetAsync(imageId, Ct));
         Assert.False(await fixture.Bookmarks.IsImageBookmarkedAsync(user.Id, imageId, Ct));
         Assert.Null(await fixture.ArtistDisplays.GetAsync(user.Id, "monet", Ct));
+        Assert.Null(await fixture.TagDisplays.GetAsync(user.Id, "water-lilies", Ct));
+        Assert.Null(await fixture.LoraDisplays.GetAsync(user.Id, "styles/impressionist.safetensors", Ct));
     }
 
     /// <summary>One user's delete must not reach into another user's rows, even for the same image id.</summary>

@@ -15,7 +15,7 @@
   const catalog = {};   // configId -> { name, avgSeconds }
   const nameOf = id => (catalog[id] && catalog[id].name) || id;
 
-  let page = 1, total = 0, pollTimer = null;
+  let page = 1, total = 0, pollTimer = null, seq = 0;
   // The operator-set foreground-idle delay (minutes) before background jobs run — carried on each /queue response so a
   // background row can read "waiting for idle (Nm)". 0 until the first response lands.
   let bgIdleMinutes = 0;
@@ -43,6 +43,7 @@
   // Fetch a page. `live` true keeps the per-second countdown alive (signature-deduped render); false forces a fresh
   // rebuild (used when navigating, so the list always reflects the page just asked for).
   async function fetchPage(p, live) {
+    const mine = ++seq;
     // DIAGNOSTIC: separate the network+server time (the DB page query lives behind this) from the DOM render time,
     // and log it on every poll so a one-off slow first load is distinguishable from persistent latency.
     const t = performance.now();
@@ -53,6 +54,7 @@
       data = r.ok ? await r.json() : null;
     }
     catch (e) { console.error(`[queue] /queue?page=${p} THREW after ${Math.round(performance.now() - t)}ms:`, e); return; }
+    if (mine !== seq) return; // a newer poll/navigation started while this request was in flight
     if (!data) { console.warn(`[queue] /queue?page=${p} returned no data (response not ok)`); return; }
     page = data.page || p; total = data.total || 0;
     bgIdleMinutes = data.backgroundIdleMinutes || 0;

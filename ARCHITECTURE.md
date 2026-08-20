@@ -460,14 +460,18 @@ run, VRAM- + presence-gated, with each configuration's UI-exposed parameters) ·
 
 ### 7.4 The `/ws` progress proxy
 
-ComfyUI has one global progress socket. The gateway connects **upstream** once (as its `client_id`),
-accepts **downstream** browser sockets, and for each downstream:
+`ComfyProgressListener` owns the process's single upstream ComfyUI socket (as its `client_id`). It publishes
+complete text and binary messages into an in-process bounded fan-out; `/forge/ws` browser sockets subscribe to
+that stream and never open competing upstream connections. For each downstream, the fan-out:
 
-- Forwards only frames whose `prompt_id` maps to **this user's** job (`OwnerForComfy`), and **rewrites**
+- Forwards only frames whose `prompt_id` resolves to **this user's** job (`ResolveProgressRoute`), and **rewrites**
   the ComfyUI `prompt_id` to our `jobId` (the browser never sees ComfyUI ids).
-- Gates binary preview frames so a user can't see another user's in-progress thumbnail.
+- Associates ComfyUI's legacy binary preview message with the prompt-bearing event immediately before it, then
+  gates the preview so a user can't see another user's in-progress thumbnail.
+- Drops the oldest messages for a stalled subscriber instead of letting one tab block renderer progress; `/jobs`
+  polling remains the authoritative completion path.
 
-The filtering relies on the in-memory `_comfyToJob`/owner maps — i.e. it only works for jobs *this
+The filtering relies on the in-memory `_comfyToSlot` route map — i.e. it only works for jobs *this
 instance* submitted (§8).
 
 ### 7.5 Server-side persistence (`PendingJobReconciler`)

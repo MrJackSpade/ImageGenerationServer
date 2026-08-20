@@ -1,0 +1,91 @@
+using System.Text;
+using ImageGen.Application.Rendering;
+
+namespace ImageGen.Tests;
+
+/// <summary>The process-wide ComfyUI socket is also a privacy boundary: text and binary previews must reach only the
+/// job owner, unknown prompt ids must fail closed, and general status frames retain their harmless broadcast shape.</summary>
+public sealed class RenderProgressEventsTests
+{
+    private sealed class Routes(params (string ComfyId, long Owner, string JobId)[] entries) : IRenderProgressRouteResolver
+    {
+        private readonly Dictionary<string, RenderProgressRoute> _routes = entries.ToDictionary(
+            e => e.ComfyId, e => new RenderProgressRoute(e.Owner, e.JobId), StringComparer.Ordinal);
+
+        public RenderProgressRoute? ResolveProgressRoute(string comfyPromptId) =>
+            _routes.TryGetValue(comfyPromptId, out RenderProgressRoute route) ? route : null;
+    }
+
+    private static string TextOf(RenderProgressFrame frame) => Encoding.UTF8.GetString(frame.Bytes);
+
+    [Fact]
+    public void Prompt_text_is_translated_and_delivered_only_to_its_owner()
+    {
+        RenderProgressEvents events = new(new Routes(("comfy-1", 7, "job-42")));
+        using RenderProgressSubscription mine = events.Subscribe(7);
+        using RenderProgressSubscription theirs = events.Subscribe(8);
+
+        events.PublishText("{\"type\":\"progress\",\"data\":{\"prompt_id\":\"comfy-1\"}}", "comfy-1");
+
+        Assert.True(mine.Reader.TryRead(out RenderProgressFrame? frame));
+        Assert.False(frame.Binary);
+        Assert.Contains("job-42", TextOf(frame), StringComparison.Ordinal);
+        Assert.DoesNotContain("comfy-1", TextOf(frame), StringComparison.Ordinal);
+        Assert.False(theirs.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void Binary_preview_is_delivered_only_to_its_owner()
+    {
+        RenderProgressEvents events = new(new Routes(("comfy-1", 7, "job-42")));
+        using RenderProgressSubscription mine = events.Subscribe(7);
+        using RenderProgressSubscription theirs = events.Subscribe(8);
+        byte[] preview = [0, 0, 0, 1, 0, 0, 0, 1, 0xff, 0xd8, 0xff];
+
+        events.PublishBinary(preview, "comfy-1");
+
+        Assert.True(mine.Reader.TryRead(out RenderProgressFrame? frame));
+        Assert.True(frame.Binary);
+        Assert.Equal(preview, frame.Bytes);
+        Assert.False(theirs.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void Unknown_prompt_text_and_binary_fail_closed()
+    {
+        RenderProgressEvents events = new(new Routes());
+        using RenderProgressSubscription subscriber = events.Subscribe(7);
+
+        events.PublishText("{\"data\":{\"prompt_id\":\"unknown\"}}", "unknown");
+        events.PublishBinary(new byte[] { 1, 2, 3 }, "unknown");
+
+        Assert.False(subscriber.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void General_backend_status_is_broadcast_to_authenticated_subscribers()
+    {
+        RenderProgressEvents events = new(new Routes());
+        using RenderProgressSubscription first = events.Subscribe(7);
+        using RenderProgressSubscription second = events.Subscribe(8);
+
+        events.PublishText("{\"type\":\"status\"}", comfyPromptId: null);
+
+        Assert.True(first.Reader.TryRead(out RenderProgressFrame? one));
+        Assert.True(second.Reader.TryRead(out RenderProgressFrame? two));
+        Assert.Equal(TextOf(one), TextOf(two));
+    }
+
+    [Fact]
+    public void Disposing_a_subscription_completes_and_removes_it()
+    {
+        RenderProgressEvents events = new(new Routes());
+        RenderProgressSubscription subscription = events.Subscribe(7);
+
+        subscription.Dispose();
+        events.PublishText("status", comfyPromptId: null);
+
+        Assert.True(subscription.Reader.Completion.IsCompleted);
+        Assert.False(subscription.Reader.TryRead(out _));
+    }
+}

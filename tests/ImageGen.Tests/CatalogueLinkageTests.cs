@@ -1,6 +1,8 @@
 using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ImageGen.Tests;
 
@@ -74,8 +76,58 @@ public sealed class CatalogueLinkageTests
             + "so they cannot run at all:\n  " + string.Join("\n  ", unknown.Order()));
     }
 
+    /// <summary>Every key shipped under a configuration's <c>params</c> must be named by at least one real consumer:
+    /// the workflow schema (including normalize-only controls), its typed build DTO, or the renderer-level
+    /// <see cref="SubmissionCommon"/> DTO. System.Text.Json otherwise drops a misspelled/dead key silently.</summary>
+    [Fact]
+    public void Every_configuration_parameter_is_named_by_a_schema_or_typed_consumer()
+    {
+        WorkflowRegistry registry = Registry();
+        HashSet<string> common = WireKeys(typeof(SubmissionCommon));
+        List<string> unread = [];
+
+        foreach ((string id, JsonElement root) in Configurations())
+        {
+            IWorkflow? workflow = registry.Find(root.GetProperty("workflow").RequireString());
+            if (workflow is null || !root.TryGetProperty("params", out JsonElement parameters))
+            {
+                continue; // the workflow-name direction above reports an unknown workflow more clearly
+            }
+
+            HashSet<string> consumed = workflow.Schema.Select(s => s.Key).ToHashSet(StringComparer.Ordinal);
+            consumed.UnionWith(common);
+            foreach (Type dto in workflow.ParameterContracts)
+            {
+                consumed.UnionWith(WireKeys(dto));
+            }
+
+            if (workflow.SupportsEditQuality)
+            {
+                consumed.UnionWith(EditQuality.Schema.Select(s => s.Key));
+            }
+
+            foreach (JsonProperty parameter in parameters.EnumerateObject())
+            {
+                if (!consumed.Contains(parameter.Name))
+                {
+                    unread.Add($"{id}.params.{parameter.Name}");
+                }
+            }
+        }
+
+        Assert.True(unread.Count == 0,
+            "These shipped configuration parameters are named by neither the workflow schema, its typed params DTO, "
+            + "nor SubmissionCommon. They are silently discarded before graph construction:\n  "
+            + string.Join("\n  ", unread.Order(StringComparer.Ordinal)));
+    }
+
     private static WorkflowRegistry Registry() =>
         new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+
+    private static HashSet<string> WireKeys(Type type) => type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+        .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name)
+        .OfType<string>()
+        .ToHashSet(StringComparer.Ordinal);
 
     private static IEnumerable<(string Id, JsonElement Root)> Configurations()
     {

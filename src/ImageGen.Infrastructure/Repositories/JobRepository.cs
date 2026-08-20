@@ -465,7 +465,13 @@ WHERE JobId = @jobId
         // The two value bags are stored as JSON text; re-emit them as JSON rather than as a quoted string.
         static JsonElement? Raw(string? stored)
         {
-            return string.IsNullOrWhiteSpace(stored) ? null : JsonDocument.Parse(stored).RootElement.Clone();
+            if (string.IsNullOrWhiteSpace(stored))
+            {
+                return null;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(stored);
+            return document.RootElement.Clone();
         }
     }
 

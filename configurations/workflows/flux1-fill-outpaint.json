@@ -40,7 +40,6 @@
       "value": "normal",
       "visibility": "hidden"
     },
-    "negative_supported": false,
     "max_dimension": {
       "value": 1536,
       "visibility": "hidden"

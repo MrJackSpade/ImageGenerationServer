@@ -5,6 +5,8 @@ namespace ImageGen.Comfy.Generation.HunyuanVideo15T2V;
 /// (real CFG, negatives work). The text→video sibling of the 480p i2v editor already in the catalog.</summary>
 public sealed class HunyuanVideo15T2VWorkflow : Txt2ImgWorkflow<HunyuanVideo15T2VParams>
 {
+    public override IReadOnlyList<Type> ParameterContracts =>
+        [typeof(HunyuanVideo15T2VParams), typeof(HunyuanVideo15T2VNoSrParams), typeof(HunyuanVideo15T2VSrParams)];
     public override string Name => "hunyuanvideo15-t2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     public override IReadOnlyList<ParamSpec> Schema => [.. Txt2ImgWorkflowBase.SharedSchema, .. HunyuanSr.Schema];

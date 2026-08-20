@@ -364,6 +364,9 @@ select#model:focus,select#editModel:focus{outline:none;border-color:var(--accent
 /* --- result card ------------------------------------------------------------ */
 #result{margin-top:22px;margin-bottom:22px}
 .result-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;animation:rise .35s ease}
+.result-card.live-preview{position:relative}
+.result-card.live-preview img{cursor:default}
+.live-preview-badge{position:absolute;left:10px;bottom:10px;padding:5px 9px;border-radius:999px;background:rgba(0,0,0,.68);color:#fff;font-size:11px;font-weight:600;letter-spacing:.03em;pointer-events:none}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* Inline preview only (NOT the lightbox/detail modal): never render larger than the viewport — a bigger
    inline image is pointless since it can't be seen without scrolling. Fit within 100vh/100vw, keep ratio. */

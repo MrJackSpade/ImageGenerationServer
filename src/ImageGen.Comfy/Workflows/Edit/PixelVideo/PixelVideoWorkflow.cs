@@ -33,6 +33,7 @@ public sealed class PixelVideoWorkflow : IWorkflow
     public bool NormalizesSourceResolution => _inner.NormalizesSourceResolution;
     public bool SupportsEditQuality => false;
     public IReadOnlyList<ParamSpec> Schema { get; }
+    public IReadOnlyList<Type> ParameterContracts => [.. _inner.ParameterContracts, typeof(PixelVideoParams)];
 
     public (int Width, int Height) EtaRenderSize(
         IReadOnlyDictionary<string, object?> p,

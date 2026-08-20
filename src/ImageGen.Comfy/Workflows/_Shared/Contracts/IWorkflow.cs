@@ -72,6 +72,11 @@ public interface IWorkflow
     /// selectively fills and exposes.</summary>
     IReadOnlyList<ParamSpec> Schema { get; }
 
+    /// <summary>The typed DTO contracts that deserialize values from this workflow's merged parameter bag. Most
+    /// workflows have one; decorators can expose both their inner contract and their own. This is metadata for
+    /// configuration validation, so a shipped key cannot be silently ignored by System.Text.Json.</summary>
+    IReadOnlyList<Type> ParameterContracts => [];
+
     /// <summary>The model's stepped frame-count rule (valid clip length = Base + k*Step), or null for stills /
     /// models that accept any length. Metadata read at enqueue by <see cref="Normalize"/>. Stepped video models
     /// (LTX = (1,8), Wan = (1,4)) set it; everything else leaves it null.</summary>

@@ -14,7 +14,10 @@ public sealed class WorkflowRegistry
         _byName = new Dictionary<string, IWorkflow>(StringComparer.OrdinalIgnoreCase);
         foreach (IWorkflow w in workflows)
         {
-            _byName[w.Name] = w;   // last registration wins on a duplicate name
+            if (!_byName.TryAdd(w.Name, w))
+            {
+                throw new InvalidOperationException($"Duplicate workflow name '{w.Name}'.");
+            }
         }
     }
 

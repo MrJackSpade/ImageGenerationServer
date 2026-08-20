@@ -31,7 +31,7 @@ namespace ImageGen.Application.Rendering;
 /// <see cref="IServiceScopeFactory"/>.
 /// </summary>
 [AllowMagicStrings("log and exception message templates and human-readable failure-reason strings")]
-public sealed class RenderOrchestrator : IStepProgressSink
+public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRouteResolver
 {
     /// <summary>How many consecutive polls the backend must fail to list a submitted prompt (while no result has
     /// landed) before it is declared LOST. Debounces the history-flush race; NOT a render deadline.</summary>
@@ -90,6 +90,10 @@ public sealed class RenderOrchestrator : IStepProgressSink
     private DateTimeOffset _lastForegroundActivityUtc = DateTimeOffset.UtcNow;
     private readonly Dictionary<string, RenderSlot> _comfyToSlot = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _signal = new(0);
+    /// <summary>Serializes the durable Active→Cancelled transition with rehydration's durable-read→live-publish
+    /// transition. Without this, a stale active-list row can be published after cancellation and later persisted back
+    /// over the cancelled row.</summary>
+    private readonly SemaphoreSlim _rehydrateMutation = new(1, 1);
     private readonly string _machine = Environment.MachineName;
     private RenderSlot? _running;
 
@@ -407,31 +411,15 @@ public sealed class RenderOrchestrator : IStepProgressSink
         }
     }
 
-    /// <summary>Reverse-map a backend prompt id to our jobId (or null) — lets the /ws proxy translate upstream frames.</summary>
-    public string? JobIdForComfy(string? comfyPromptId)
+    /// <inheritdoc />
+    public RenderProgressRoute? ResolveProgressRoute(string comfyPromptId)
     {
-        if (string.IsNullOrEmpty(comfyPromptId))
-        {
-            return null;
-        }
-
+        _ = Ensure.NotNullOrEmpty(comfyPromptId);
         lock (_lock)
         {
-            return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? s) ? s.Job.JobId : null;
-        }
-    }
-
-    /// <summary>The user who owns the job behind a backend prompt id (or null) — lets /ws forward only own progress.</summary>
-    public long? OwnerForComfy(string? comfyPromptId)
-    {
-        if (string.IsNullOrEmpty(comfyPromptId))
-        {
-            return null;
-        }
-
-        lock (_lock)
-        {
-            return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? s) ? s.Job.Owner : null;
+            return _comfyToSlot.TryGetValue(comfyPromptId, out RenderSlot? slot)
+                ? new RenderProgressRoute(slot.Job.Owner, slot.Job.JobId)
+                : null;
         }
     }
 
@@ -547,32 +535,44 @@ public sealed class RenderOrchestrator : IStepProgressSink
     /// <summary>
     /// Cancel a job this instance OWNS whose row is still Active but which no worker holds — one stranded by a crash,
     /// or by a rehydrate pass that never reached it. Nothing is rendering it (that is what stranded means), so the row
-    /// is simply failed. Returns false when the job is live here (<see cref="Cancel"/> handles those), belongs to
-    /// another instance (invariant #4 — only its owner may advance it), or has already resolved.
+    /// is simply cancelled. If rehydration made it live while this call waited, this method delegates to
+    /// <see cref="Cancel"/> inside the same transition gate. Returns false when it belongs to another instance
+    /// (invariant #4 — only its owner may advance it), or has already resolved.
     /// </summary>
     public async Task<bool> CancelStrandedAsync(string jobId, CancellationToken ct)
     {
-        lock (_lock)
+        await _rehydrateMutation.WaitAsync(ct);
+        try
         {
-            if (_jobs.ContainsKey(jobId))
+            bool live;
+            lock (_lock)
+            {
+                live = _jobs.ContainsKey(jobId);
+            }
+
+            if (live)
+            {
+                return Cancel(jobId);
+            }
+
+            JobRecord? rec = await _jobRepo.GetAsync(jobId, ct);
+            if (rec is null || rec.Status != JobStatus.Active)
             {
                 return false;
             }
-        }   // live here — not stranded
 
-        JobRecord? rec = await _jobRepo.GetAsync(jobId, ct);
-        if (rec is null || rec.Status != JobStatus.Active)
-        {
-            return false;
+            if (!string.Equals(rec.MachineName, _machine, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            await _jobRepo.CancelAsync(jobId, ct);
+            return true;
         }
-
-        if (!string.Equals(rec.MachineName, _machine, StringComparison.OrdinalIgnoreCase))
+        finally
         {
-            return false;
+            _ = _rehydrateMutation.Release();
         }
-
-        await _jobRepo.CancelAsync(jobId, ct);
-        return true;
     }
 
     /// <summary>
@@ -1559,7 +1559,11 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
                     string editId = await StoreImageAsync(outBytes, contentType, w, h, ct);
                     await PersistSpriteDataAsync(editId, img, ct);
-                    await WriteHistoryAsync(slot, editId, ct);
+                    if (!await TryWriteHistoryAsync(slot, editId, w, h, ct))
+                    {
+                        return;
+                    }
+
                     SlotDone(slot, editId, w, h, changed: true, score: diff is double sd ? Math.Round(sd, 3) : null);
                     return;
                 }
@@ -1567,7 +1571,11 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
             string id = await StoreImageAsync(img.Png, contentType, w, h, ct);
             await PersistSpriteDataAsync(id, img, ct);
-            await WriteHistoryAsync(slot, id, ct);
+            if (!await TryWriteHistoryAsync(slot, id, w, h, ct))
+            {
+                return;
+            }
+
             SlotDone(slot, id, w, h);
         }
         catch (RenderValidationException ex)
@@ -1686,6 +1694,35 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
             slot.State = SlotState.Done;
         }
+    }
+
+    private void SlotHistoryFailed(RenderSlot slot, string imageId, int width, int height)
+    {
+        lock (_lock)
+        {
+            ApplyHistoryWriteFailure(slot, imageId, width, height);
+        }
+    }
+
+    /// <summary>Keep the already-stored image addressable from the failed job while making the durable-history defect
+    /// visible. The slot must not read Done: there is no history row through which the library can collect the blob.</summary>
+    internal static void ApplyHistoryWriteFailure(RenderSlot slot, string imageId, int width, int height)
+    {
+        if (slot.Terminal)
+        {
+            return;
+        }
+
+        slot.ImageId = imageId;
+        slot.Width = width;
+        slot.Height = height;
+        if (slot.RenderDimensions is { } dimensions)
+        {
+            slot.RenderDimensions = dimensions with { Output = new PixelDimensions(width, height) };
+        }
+
+        slot.Error = "The image was saved, but it could not be added to history. It remains available from this job.";
+        slot.State = SlotState.Error;
     }
 
     private void SlotEditNoChange(RenderSlot slot, double score)
@@ -1829,64 +1866,74 @@ public sealed class RenderOrchestrator : IStepProgressSink
     /// on its own merits, but treating an outage that way leaves an image sitting in blob storage with no history
     /// row: it exists, and it is invisible in the library, permanently. The bytes survived and the record of them
     /// didn't, which is the worse half of losing it.</para>
-    /// <para>Anything else still only logs: a render that produced a real image must not be failed for a bad write.</para>
     /// </summary>
     private async Task WriteHistoryAsync(RenderSlot slot, string imageId, CancellationToken ct)
     {
+        string modelId = slot.Model;
+        string friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
+        // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
+        // without going through RunSlotAsync's prompt build — the same fallback shape the EffectivePrompt line uses.
+        string raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
+        string? rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
+        string prompt = slot.EffectivePrompt ?? raw;
+        // What the user typed travels separately for a generate because enqueue resolves {a|b}/{{a|b}} before the
+        // slot runs. Edits retain their resolved instruction here, matching their pre-existing history contract.
+        string? original = slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().OriginalPrompt;
+        // A generate that reached here rendered, and a render only happens once NormalizeAspect has accepted the
+        // aspect at submit (it throws on anything but square/landscape/portrait) — so a null here is not a missing
+        // value to fill with "square", it is a broken invariant. Edits carry no aspect: "" is their real value.
+        string aspect = slot.IsEdit ? "" : (slot.RequireGen().Aspect
+            ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
+        IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
+            ? Array.Empty<Mark>()
+            : slot.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), slot.GeneratedTokens?.Contains(kv.Key) == true)).ToList();
+        // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
+        // and Reload reproduces the exact stack; empty for edits and for generations that used none.
+        IReadOnlyList<LoraSelection>? genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
+        IReadOnlyList<HistoryLora> loras = genLoras is not { Count: > 0 }
+            ? Array.Empty<HistoryLora>()
+            : genLoras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
+
+        HistoryEntry entry = new()
+        {
+            UserId = slot.Job.Owner,
+            GatewayImageId = imageId,
+            Prompt = prompt,
+            RawPrompt = raw,
+            RawNegativePrompt = rawNegative,
+            OriginalPrompt = original,
+            ModelFriendly = friendly,
+            ModelId = modelId,
+            Aspect = aspect,
+            CreatedAtUtc = DateTime.UtcNow,
+            Marks = marks,
+            Loras = loras,
+        };
+
+        // A fresh scope per ATTEMPT: the repository is scoped, and a scope built before an outage would be reused
+        // across every retry of a wait that can span the whole outage.
+        await AwaitingDatabaseAsync(async c =>
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+            _ = await scope.ServiceProvider.GetRequiredService<IHistoryRepository>().AddAsync(entry, c);
+        }, $"recording image {imageId} in history", ct);
+    }
+
+    /// <summary>Record history before declaring success. Non-outage data defects are terminal and visible, while the
+    /// stored image id remains on the slot so it can still be opened from the job result.</summary>
+    private async Task<bool> TryWriteHistoryAsync(RenderSlot slot, string imageId, int width, int height, CancellationToken ct)
+    {
         try
         {
-            string modelId = slot.Model;
-            string friendly = _catalog.ResolveInfo(modelId)?.FriendlyName ?? modelId;
-            // The raw (marker-form) prompt falls back to the submitted spec only for a slot that produced an image
-            // without going through RunSlotAsync's prompt build — the same fallback shape the EffectivePrompt line uses.
-            string raw = slot.RawPrompt ?? (slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().Prompt);
-            string? rawNegative = slot.RawNegativePrompt ?? (slot.IsEdit ? slot.RequireEdit().NegativePrompt : slot.RequireGen().NegativePrompt);
-            string prompt = slot.EffectivePrompt ?? raw;
-            // What the user typed travels separately for a generate because enqueue resolves {a|b}/{{a|b}} before the
-            // slot runs. Edits retain their resolved instruction here, matching their pre-existing history contract.
-            string? original = slot.IsEdit ? slot.RequireEdit().Instruction : slot.RequireGen().OriginalPrompt;
-            // A generate that reached here rendered, and a render only happens once NormalizeAspect has accepted the
-            // aspect at submit (it throws on anything but square/landscape/portrait) — so a null here is not a missing
-            // value to fill with "square", it is a broken invariant. Edits carry no aspect: "" is their real value.
-            string aspect = slot.IsEdit ? "" : (slot.RequireGen().Aspect
-                ?? throw new InvalidOperationException("A rendered generate reached history with no aspect, which NormalizeAspect should have made impossible at submit."));
-            IReadOnlyList<Mark> marks = slot.Marks is not { Count: > 0 }
-                ? Array.Empty<Mark>()
-                : slot.Marks.Select(kv => new Mark(kv.Key, TokenKindWire.Parse(kv.Value), slot.GeneratedTokens?.Contains(kv.Key) == true)).ToList();
-            // The user LoRA stack this image was generated with (generates only). Recorded so the viewer lists them
-            // and Reload reproduces the exact stack; empty for edits and for generations that used none.
-            IReadOnlyList<LoraSelection>? genLoras = slot.IsEdit ? null : slot.RequireGen().Loras;
-            IReadOnlyList<HistoryLora> loras = genLoras is not { Count: > 0 }
-                ? Array.Empty<HistoryLora>()
-                : genLoras.Select(l => new HistoryLora(l.Name, l.Weight)).ToList();
-
-            HistoryEntry entry = new()
-            {
-                UserId = slot.Job.Owner,
-                GatewayImageId = imageId,
-                Prompt = prompt,
-                RawPrompt = raw,
-                RawNegativePrompt = rawNegative,
-                OriginalPrompt = original,
-                ModelFriendly = friendly,
-                ModelId = modelId,
-                Aspect = aspect,
-                CreatedAtUtc = DateTime.UtcNow,
-                Marks = marks,
-                Loras = loras,
-            };
-
-            // A fresh scope per ATTEMPT: the repository is scoped, and a scope built before an outage would be reused
-            // across every retry of a wait that can span the whole outage.
-            await AwaitingDatabaseAsync(async c =>
-            {
-                using IServiceScope scope = _scopeFactory.CreateScope();
-                _ = await scope.ServiceProvider.GetRequiredService<IHistoryRepository>().AddAsync(entry, c);
-            }, $"recording image {imageId} in history", ct);
+            await WriteHistoryAsync(slot, imageId, ct);
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException && !_db.IsUnavailable(ex))
         {
-            _log.LogError(ex, "History write failed for image {ImageId} (job {JobId}).", imageId, slot.Job.JobId);
+            _log.LogError(ex, "History write failed for image {ImageId} (job {JobId}); the slot will expose the defect.",
+                imageId, slot.Job.JobId);
+            SlotHistoryFailed(slot, imageId, width, height);
+            return false;
         }
     }
 
@@ -2102,7 +2149,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
     /// prompt id and is re-queued to RESUME polling; an unsubmitted slot renders fresh; a slot whose request payload
     /// was lost is failed so the job can still finalize. Returns false on any failure — the caller retries until a
     /// pass succeeds, and jobs already in memory are skipped so retries cannot duplicate.</summary>
-    private async Task<bool> RehydrateAsync(CancellationToken ct)
+    internal async Task<bool> RehydrateAsync(CancellationToken ct)
     {
         IReadOnlyList<JobRecord> active;
         try
@@ -2125,56 +2172,7 @@ public sealed class RenderOrchestrator : IStepProgressSink
         {
             foreach (JobRecord rec in active)
             {
-                lock (_lock)
-                {
-                    if (_jobs.ContainsKey(rec.JobId))
-                    {
-                        continue;   // already live — a retry after a partial pass
-                    }
-                }
-
-                // One unresumable job must not sink the pass. Rehydration is ordered oldest-first, so a row that
-                // throws every time (a malformed slot set, a command timeout on a huge batch) would otherwise be
-                // retried at the head of the queue forever, and every job behind it would stay Active with nothing
-                // running — unfinishable, and uncancellable because Cancel only knows in-memory jobs. Fail that one
-                // job and carry on: a job this instance cannot bring back is over, and its row should say so.
-                try
-                {
-                    resumed += await RehydrateJobAsync(rec);
-                }
-                // An unreachable database is not a property of THIS job — it affects every job equally, and the pass
-                // itself cannot continue without it. Rethrow so the outer retry waits for the connection instead of
-                // converting recoverable work into permanently failed work, one job at a time. (FailAsync needs the
-                // database too, so trying to fail the job here would throw anyway.)
-                catch (Exception ex) when (_db.IsUnavailable(ex))
-                {
-                    _log.LogWarning(ex, "Rehydrate reached job {JobId} with the database unreachable; the pass will retry.", rec.JobId);
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _log.LogError(ex, "Job {JobId} could not be resumed; marking it failed.", rec.JobId);
-                    await _jobRepo.FailAsync(rec.JobId, "could not be resumed after restart", ct);
-                    // The throw may have landed after the job was published to the maps, so drop it AND any slots of
-                    // it already queued — from BOTH tiers (a background job's slots resume onto _bgByOwner). The row now
-                    // says failed, and a slot left in either queue is still Queued, so PickFromTier's lazy-drop would
-                    // NOT skip it — it would render work the database has already failed and that Cancel no longer knows.
-                    lock (_lock)
-                    {
-                        _ = _jobs.Remove(rec.JobId);
-                        if (_byOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? fgQ))
-                        {
-                            _byOwner[rec.UserId] = new Queue<RenderSlot>(
-                                fgQ.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
-                        }
-
-                        if (_bgByOwner.TryGetValue(rec.UserId, out Queue<RenderSlot>? bgQ))
-                        {
-                            _bgByOwner[rec.UserId] = new Queue<RenderSlot>(
-                                bgQ.Where(s => !string.Equals(s.Job.JobId, rec.JobId, StringComparison.Ordinal)));
-                        }
-                    }
-                }
+                resumed += await RehydrateActiveRecordAsync(rec, ct);
             }
         }
         catch (Exception ex)
@@ -2195,6 +2193,74 @@ public sealed class RenderOrchestrator : IStepProgressSink
 
         _log.LogInformation("Rehydrated {Jobs} active job(s), {Slots} slot(s) resumed.", active.Count, resumed);
         return true;
+    }
+
+    /// <summary>Re-read and publish one row atomically with respect to stranded cancellation. The list handed to this
+    /// method is only a candidate set; its Active state may already be stale by the time this job is reached.</summary>
+    private async Task<int> RehydrateActiveRecordAsync(JobRecord listed, CancellationToken ct)
+    {
+        await _rehydrateMutation.WaitAsync(ct);
+        try
+        {
+            lock (_lock)
+            {
+                if (_jobs.ContainsKey(listed.JobId))
+                {
+                    return 0;   // already live — a retry after a partial pass
+                }
+            }
+
+            JobRecord? current = await _jobRepo.GetAsync(listed.JobId, ct);
+            if (current is null || current.Status != JobStatus.Active
+                || !string.Equals(current.MachineName, _machine, StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+
+            // One unresumable job must not sink the pass. Rehydration is ordered oldest-first, so a malformed row at
+            // the head is failed and removed from the live maps, allowing later jobs to resume.
+            try
+            {
+                return await RehydrateJobAsync(current);
+            }
+            catch (Exception ex) when (_db.IsUnavailable(ex))
+            {
+                _log.LogWarning(ex, "Rehydrate reached job {JobId} with the database unreachable; the pass will retry.", current.JobId);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Job {JobId} could not be resumed; marking it failed.", current.JobId);
+                await _jobRepo.FailAsync(current.JobId, "could not be resumed after restart", ct);
+                RemoveRehydratedJob(current);
+                return 0;
+            }
+        }
+        finally
+        {
+            _ = _rehydrateMutation.Release();
+        }
+    }
+
+    private void RemoveRehydratedJob(JobRecord record)
+    {
+        // RehydrateJobAsync may have thrown after publication. Drop the job and its queued slots from both tiers so
+        // work whose durable row was failed cannot still render.
+        lock (_lock)
+        {
+            _ = _jobs.Remove(record.JobId);
+            if (_byOwner.TryGetValue(record.UserId, out Queue<RenderSlot>? fgQ))
+            {
+                _byOwner[record.UserId] = new Queue<RenderSlot>(
+                    fgQ.Where(s => !string.Equals(s.Job.JobId, record.JobId, StringComparison.Ordinal)));
+            }
+
+            if (_bgByOwner.TryGetValue(record.UserId, out Queue<RenderSlot>? bgQ))
+            {
+                _bgByOwner[record.UserId] = new Queue<RenderSlot>(
+                    bgQ.Where(s => !string.Equals(s.Job.JobId, record.JobId, StringComparison.Ordinal)));
+            }
+        }
     }
 
     /// <summary>Rebuild one persisted job into the in-memory queue and return how many of its slots were re-queued.

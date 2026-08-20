@@ -2,13 +2,14 @@ using ImageGen.Comfy;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace ImageGen.Tests;
 
 /// <summary>
 /// Completeness + no-drift for the #102 bounds: every param a workflow's SCHEMA declares a <c>Min</c>/<c>Max</c> for
-/// AND that its typed params DTO actually reads must carry a matching <c>[Range]</c> on that DTO member — so the bound
+/// must be read by its typed params DTO and carry a matching <c>[Range]</c> on that DTO member — so the bound
 /// the UI slider shows is the bound the server enforces, on every workflow, not just a hand-picked few. A schema bound
 /// with no attribute (or an attribute whose numbers disagree) is the gap this fails on, naming each offender.
 /// </summary>
@@ -19,37 +20,44 @@ public sealed class WorkflowParamBoundsCoverageTests
     {
         WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
             .GetRequiredService<WorkflowRegistry>();
+        Dictionary<string, HashSet<string>> configured = ConfiguredKeys();
 
         List<string> gaps = [];
         foreach (IWorkflow wf in registry.All)
         {
-            Type? dto = ParamsType(wf.GetType());
-            if (dto is null)
+            Dictionary<string, List<PropertyInfo>> byWireKey = [];
+            foreach (Type contract in wf.ParameterContracts.Append(typeof(SubmissionCommon)))
             {
-                continue;   // a workflow not built on Workflow<TParams> exposes no typed DTO to annotate
-            }
-
-            Dictionary<string, PropertyInfo> byWireKey = [];
-            foreach (PropertyInfo p in dto.GetProperties())
-            {
-                if (p.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jn)
+                foreach (PropertyInfo p in contract.GetProperties())
                 {
-                    byWireKey[jn.Name] = p;
+                    if (p.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jn)
+                    {
+                        if (!byWireKey.TryGetValue(jn.Name, out List<PropertyInfo>? properties))
+                        {
+                            byWireKey[jn.Name] = properties = [];
+                        }
+
+                        properties.Add(p);
+                    }
                 }
             }
 
             foreach (ParamSpec spec in wf.Schema)
             {
-                if (spec.Min is null && spec.Max is null)
-                {
-                    continue;
-                }
-                // Only params the DTO actually READS need enforcement; one the workflow ignores is inert (STJ drops it).
-                if (!byWireKey.TryGetValue(spec.Key, out PropertyInfo? prop))
+                if ((spec.Min is null && spec.Max is null)
+                    || !configured.GetValueOrDefault(wf.Name, []).Contains(spec.Key))
                 {
                     continue;
                 }
 
+                if (!byWireKey.TryGetValue(spec.Key, out List<PropertyInfo>? properties))
+                {
+                    gaps.Add($"{wf.Name}.{spec.Key}: schema declares [{spec.Min}, {spec.Max}] but its typed DTO does not read the key");
+                    continue;
+                }
+
+                PropertyInfo prop = properties.FirstOrDefault(p => p.GetCustomAttribute<RangeAttribute>() is not null)
+                    ?? properties[0];
                 RangeAttribute? range = prop.GetCustomAttribute<RangeAttribute>();
                 if (range is null)
                 {
@@ -75,19 +83,36 @@ public sealed class WorkflowParamBoundsCoverageTests
             + "so a value past the slider reaches the graph unchecked:\n  " + string.Join("\n  ", gaps.OrderBy(x => x)));
     }
 
-    private static Type? ParamsType(Type? t)
+    private static Dictionary<string, HashSet<string>> ConfiguredKeys()
     {
-        while (t is not null)
+        Dictionary<string, HashSet<string>> result = new(StringComparer.Ordinal);
+        foreach (string file in Directory.EnumerateFiles(Path.Combine(RepoRoot(), "configurations", "workflows"), "*.json"))
         {
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Workflow<>))
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(file));
+            JsonElement root = doc.RootElement;
+            if (!root.TryGetProperty("params", out JsonElement parameters))
             {
-                return t.GetGenericArguments()[0];
+                continue;
             }
 
-            t = t.BaseType;
+            string workflow = root.GetProperty("workflow").RequireString();
+            HashSet<string> keys = result.GetValueOrDefault(workflow)
+                ?? (result[workflow] = new(StringComparer.Ordinal));
+            keys.UnionWith(parameters.EnumerateObject().Select(p => p.Name));
         }
 
-        return null;
+        return result;
+    }
+
+    private static string RepoRoot()
+    {
+        string? dir = AppContext.BaseDirectory;
+        while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "workflows")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        return dir ?? throw new DirectoryNotFoundException("repo root not found.");
     }
 
     private static double? ToDouble(object? o) => o is null ? null : Convert.ToDouble(o);
