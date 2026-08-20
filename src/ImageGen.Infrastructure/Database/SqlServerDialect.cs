@@ -21,7 +21,7 @@ public sealed class SqlServerDialect : ISqlDialect
 
     /// <inheritdoc />
     public string UpsertJob => @"
-MERGE dbo.Job AS t
+MERGE dbo.Job WITH (HOLDLOCK) AS t
 USING (SELECT @jobId AS JobId) AS s ON t.JobId = s.JobId
 WHEN MATCHED THEN UPDATE SET
     Model = @model, Prompt = @prompt, Total = @total, Status = @status, FinishedAtUtc = @finished
@@ -31,7 +31,7 @@ WHEN NOT MATCHED THEN
 
     /// <inheritdoc />
     public string UpsertJobSlot => @"
-MERGE dbo.JobSlot AS t
+MERGE dbo.JobSlot WITH (HOLDLOCK) AS t
 USING (SELECT @jobId AS JobId, @idx AS SlotIndex) AS s ON t.JobId = s.JobId AND t.SlotIndex = s.SlotIndex
 WHEN MATCHED THEN UPDATE SET
     IsEdit = @isEdit, IsBackground = @isBackground, State = @state, ComfyPromptId = @comfy, ImageId = @imageId, Width = @width, Height = @height,

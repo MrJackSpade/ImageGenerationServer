@@ -1,3 +1,4 @@
+using ImageGen.Domain;
 using ImageGen.Domain.Entities;
 using ImageGen.Domain.Repositories;
 
@@ -231,6 +232,22 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         Assert.NotNull(after);
         Assert.True(after.Slots.Single(s => s.SlotIndex == 0).IsBackground);
         Assert.False(after.Slots.Single(s => s.SlotIndex == 1).IsBackground);
+    }
+
+    /// <summary>The single-statement pager emits its total-only sentinel when the requested window has no rows.</summary>
+    [Fact]
+    public async Task Empty_job_page_still_reports_the_same_query_total()
+    {
+        User user = await fixture.NewUserAsync("job-empty-page-total");
+        string jobId = Guid.NewGuid().ToString("N");
+        await fixture.Jobs.UpsertAsync(
+            Job(user.Id, jobId, machine: "BOX-PAGE", slots: [Slot(jobId, 0, JobSlotState.Queued)]), Ct);
+
+        PagedResult<JobRecord> page =
+            await fixture.Jobs.ListPageAsync("BOX-PAGE", user.Id, page: 2, pageSize: 1, Ct);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(1, page.Total);
     }
 
     private static JobRecord Job(long userId, string jobId, string machine = "BOX-A", List<JobSlotRecord>? slots = null) => new()

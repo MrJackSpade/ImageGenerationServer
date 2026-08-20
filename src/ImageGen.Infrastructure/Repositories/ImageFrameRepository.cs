@@ -18,8 +18,12 @@ public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory)
     public async Task AddFramesAsync(string imageId, IReadOnlyList<byte[]> frames, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
-        // Replace any prior set (a re-store of the same id) so this is idempotent.
-        await using (DbCommand del = conn.Command("DELETE FROM dbo.ImageFrame WHERE ImageId = @id;"))
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
+
+        // Replace any prior set (a re-store of the same id) so this is idempotent. The delete and every insert are
+        // one transaction: a failed insert restores the previous complete set, and readers never observe a prefix of
+        // the replacement while it is being written.
+        await using (DbCommand del = conn.Command("DELETE FROM dbo.ImageFrame WHERE ImageId = @id;", tx))
         {
             _ = del.AddParam("@id", imageId);
             _ = await del.ExecuteNonQueryAsync(ct);
@@ -28,12 +32,14 @@ public sealed class ImageFrameRepository(IDbConnectionFactory connectionFactory)
         for (int i = 0; i < frames.Count; i++)
         {
             await using DbCommand cmd = conn.Command(
-                "INSERT INTO dbo.ImageFrame (ImageId, FrameIndex, Bytes) VALUES (@id, @idx, @b);");
+                "INSERT INTO dbo.ImageFrame (ImageId, FrameIndex, Bytes) VALUES (@id, @idx, @b);", tx);
             _ = cmd.AddParam("@id", imageId);
             _ = cmd.AddParam("@idx", i);
             _ = cmd.AddLargeParam("@b", frames[i]);
             _ = await cmd.ExecuteNonQueryAsync(ct);
         }
+
+        await tx.CommitAsync(ct);
     }
 
     public async Task<int> GetFrameCountAsync(string imageId, CancellationToken ct)

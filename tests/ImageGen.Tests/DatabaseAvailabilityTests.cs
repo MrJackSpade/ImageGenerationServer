@@ -1,6 +1,8 @@
 using ImageGen.Application.Platform;
 using ImageGen.Infrastructure.Database;
 using Microsoft.Data.SqlClient;
+using System.ComponentModel;
+using System.Net.Sockets;
 
 namespace ImageGen.Tests;
 
@@ -63,4 +65,29 @@ public sealed class DatabaseAvailabilityTests
     public void A_wrapped_outage_is_still_an_outage() =>
         Assert.True(_availability.IsUnavailable(
             new InvalidOperationException("while saving", new TimeoutException())));
+
+    /// <summary>SQL authentication failures mean the server answered and rejected the login. Retrying them as an
+    /// outage would hold every accepted render forever after a password or default-database configuration error.</summary>
+    [Theory]
+    [InlineData(18456)]
+    [InlineData(4064)]
+    public void Permanent_login_rejections_are_not_unavailable(int number) =>
+        Assert.False(SqlDatabaseAvailability.IsUnavailableNumber(number));
+
+    /// <summary>Known connection failures remain retryable after removing authentication from the allowlist.</summary>
+    [Theory]
+    [InlineData(53)]
+    [InlineData(10060)]
+    public void Transport_sql_numbers_remain_unavailable(int number) =>
+        Assert.True(SqlDatabaseAvailability.IsUnavailableNumber(number));
+
+    /// <summary>A bare Win32 failure can be SSPI/Kerberos rejecting credentials, so it is not proof of an outage.
+    /// Socket failures are the transport-specific subtype and remain retryable.</summary>
+    [Fact]
+    public void Only_transport_specific_Win32_failures_are_unavailable()
+    {
+        Assert.False(_availability.IsUnavailable(new Win32Exception(0, "The target principal name is incorrect.")));
+        Assert.True(_availability.IsUnavailable(new Win32Exception(1225, "The remote computer refused the network connection.")));
+        Assert.True(_availability.IsUnavailable(new SocketException(10061)));
+    }
 }

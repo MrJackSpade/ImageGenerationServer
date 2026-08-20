@@ -81,6 +81,7 @@ public sealed class TestDatabaseFixture : IAsyncLifetime
     public ILoraDisplayRepository LoraDisplays => new LoraDisplayRepository(ConnectionFactory, Cipher);
     public IBannedTokenRepository Bans => new BannedTokenRepository(ConnectionFactory, Cipher);
     public IImageBlobRepository Blobs => new ImageBlobRepository(ConnectionFactory);
+    public IImageFrameRepository Frames => new ImageFrameRepository(ConnectionFactory);
     public IJobRepository Jobs => new JobRepository(ConnectionFactory, Cipher, TimeProvider.System, Dialect);
     public IImageDeletionRepository ImageDeletions => new ImageDeletionRepository(ConnectionFactory);
     public IImageViewRepository ImageViews => new ImageViewRepository(ConnectionFactory);

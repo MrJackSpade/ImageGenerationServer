@@ -98,22 +98,31 @@ public sealed class HistoryRepository(IDbConnectionFactory connectionFactory, IU
         return new PagedResult<HistoryEntry>(items, total, page, pageSize);
     }
 
-    /// <summary>One page taken in SQL: the database counts and skips, and only the page's rows come back.</summary>
-    private async Task<(List<HistoryEntry> Rows, int Total)> OffsetPageAsync(
+    /// <summary>One page and its total from one SQL statement. A synthetic null-entry row participates in the same
+    /// windowed count and is always returned as the total sentinel, so an empty or out-of-range page needs no second
+    /// COUNT statement and cannot observe a different set of rows.</summary>
+    private static async Task<(List<HistoryEntry> Rows, int Total)> OffsetPageAsync(
         DbConnection conn, string where, long userId, string? artistEnc, string? tagEnc, string? model,
         int page, int pageSize, CancellationToken ct)
     {
-        int total;
-        await using (DbCommand countCmd = conn.Command($"SELECT COUNT(*) FROM dbo.HistoryEntry h {where};"))
-        {
-            AddFilterParams(countCmd, userId, artistEnc, tagEnc, model);
-            total = await countCmd.ScalarInt32Async(ct);
-        }
-
+        int total = 0;
         List<HistoryEntry> rows = [];
-        string pageSql = $@"SELECT {Prefixed(Sql.EntryColumns, "h")} FROM dbo.HistoryEntry h {where}
-ORDER BY h.CreatedAtUtc DESC, h.Id DESC
-{_dialect.Paginate("@skip", "@take")};";
+        string pageSql = $@"
+WITH PageSource AS (
+    SELECT {Prefixed(Sql.EntryColumns, "h")}, 0 AS IsTotalRow
+    FROM dbo.HistoryEntry h {where}
+    UNION ALL
+    SELECT NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1
+), Numbered AS (
+    SELECT {Sql.EntryColumns}, IsTotalRow,
+           SUM(CASE WHEN IsTotalRow = 0 THEN 1 ELSE 0 END) OVER () AS PageTotal,
+           ROW_NUMBER() OVER (PARTITION BY IsTotalRow ORDER BY CreatedAtUtc DESC, Id DESC) AS RowPosition
+    FROM PageSource
+)
+SELECT {Sql.EntryColumns}, PageTotal
+FROM Numbered
+WHERE IsTotalRow = 1 OR (RowPosition > @skip AND RowPosition <= @skip + @take)
+ORDER BY IsTotalRow, RowPosition;";
         await using (DbCommand pageCmd = conn.Command(pageSql))
         {
             AddFilterParams(pageCmd, userId, artistEnc, tagEnc, model);
@@ -122,7 +131,11 @@ ORDER BY h.CreatedAtUtc DESC, h.Id DESC
             await using DbDataReader reader = await pageCmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                rows.Add(MapEntry(reader));
+                total = reader.AsInt32(11);
+                if (!reader.IsDBNull(0))
+                {
+                    rows.Add(MapEntry(reader));
+                }
             }
         }
 

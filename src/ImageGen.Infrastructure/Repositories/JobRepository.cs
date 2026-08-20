@@ -212,13 +212,6 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
 
-        int total;
-        await using (DbCommand cmd = conn.Command("SELECT COUNT(*) FROM dbo.Job WHERE MachineName = @machine;"))
-        {
-            _ = cmd.AddParam("@machine", machineName);
-            total = await cmd.ScalarInt32Async(ct);
-        }
-
         // ORDERING: unfinished work FIRST, in the order the queue will actually serve it (oldest enqueued renders
         // next), then finished jobs newest-first.
         //
@@ -227,14 +220,32 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
         // BOTTOM of the backlog — page 3 of a 64-job burst — while page 1, the only page the client polls, would hold
         // 25 jobs that cannot change until the drain is nearly over. The queue page would look frozen for as long as
         // the backlog takes, and any live row a user scrolled to would be on a page that never refreshes.
+        // Number, count and select in one statement snapshot. A synthetic null-job row is always returned as the
+        // total sentinel, so even an empty page reports its total without a second COUNT that can race an insert.
+        const string pageSql = @"
+WITH PageSource AS (
+    SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc, 0 AS IsTotalRow
+    FROM dbo.Job WHERE MachineName = @machine
+    UNION ALL
+    SELECT NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1
+), Numbered AS (
+    SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc,
+           IsTotalRow,
+           SUM(CASE WHEN IsTotalRow = 0 THEN 1 ELSE 0 END) OVER () AS PageTotal,
+           ROW_NUMBER() OVER (PARTITION BY IsTotalRow
+                              ORDER BY CASE WHEN Status = 0 THEN 0 ELSE 1 END,
+                                      CASE WHEN Status = 0 THEN CreatedAtUtc END ASC,
+                                      CreatedAtUtc DESC, JobId DESC) AS RowPosition
+    FROM PageSource
+)
+SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc, PageTotal
+FROM Numbered
+WHERE IsTotalRow = 1 OR (IsTotalRow = 0 AND RowPosition > @offset AND RowPosition <= @offset + @take)
+ORDER BY IsTotalRow, RowPosition;";
+
+        int total = 0;
         List<JobRecord> jobs = [];
-        await using (DbCommand cmd = conn.Command(
-            "SELECT JobId, UserId, MachineName, Model, Prompt, Total, Status, CreatedAtUtc, FinishedAtUtc " +
-            "FROM dbo.Job WHERE MachineName = @machine " +
-            "ORDER BY CASE WHEN Status = 0 THEN 0 ELSE 1 END, " +          // active first
-            "         CASE WHEN Status = 0 THEN CreatedAtUtc END ASC, " +  // ...in service order (oldest renders next)
-            "         CreatedAtUtc DESC, JobId DESC " +                    // finished: newest first
-            _dialect.Paginate("@offset", "@take") + ";"))
+        await using (DbCommand cmd = conn.Command(pageSql))
         {
             _ = cmd.AddParam("@machine", machineName);
             _ = cmd.AddParam("@offset", (page - 1) * pageSize);
@@ -242,7 +253,11 @@ WHERE s.JobId = (SELECT {_dialect.TopPrefix("@take")}JobId FROM dbo.Job WHERE Us
             await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                jobs.Add(MapJob(reader));
+                total = reader.AsInt32(9);
+                if (!reader.IsDBNull(0))
+                {
+                    jobs.Add(MapJob(reader));
+                }
             }
         }
 

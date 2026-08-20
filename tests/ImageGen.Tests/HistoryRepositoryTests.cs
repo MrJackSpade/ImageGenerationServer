@@ -39,6 +39,20 @@ public sealed class HistoryRepositoryTests(TestDatabaseFixture fixture)
             () => fixture.History.GetPageAsync(new HistoryQuery(user.Id, 0, 40), Ct));
     }
 
+    /// <summary>The single-statement pager emits its total-only sentinel when the requested window has no rows.</summary>
+    [Fact]
+    public async Task Empty_page_still_reports_the_same_query_total()
+    {
+        User user = await fixture.NewUserAsync("hist-empty-page-total");
+        _ = await fixture.History.AddAsync(Entry(user.Id, "only-row"), Ct);
+
+        PagedResult<HistoryEntry> page =
+            await fixture.History.GetPageAsync(new HistoryQuery(user.Id, Page: 2, PageSize: 1), Ct);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(1, page.Total);
+    }
+
     [Fact]
     public async Task The_raw_prompt_survives_the_round_trip_verbatim()
     {
