@@ -8,9 +8,6 @@ namespace ImageGen.Application.Services;
 public sealed class HistoryService(
     IHistoryRepository history, IImageDeletionRepository deletions, IJobRepository jobs)
 {
-    /// <summary>Page size used to collect a recents window bigger than one repository page.</summary>
-    private const int RecentsPageSize = 200;
-
     private readonly IHistoryRepository _history = history;
     private readonly IImageDeletionRepository _deletions = deletions;
     private readonly IJobRepository _jobs = jobs;
@@ -41,7 +38,7 @@ public sealed class HistoryService(
         List<HistoryEntry> items = new(window);
         for (int page = 1; items.Count < window; page++)
         {
-            int size = Math.Min(RecentsPageSize, window);
+            int size = Math.Min(HistoryQuery.MaxPageSize, window);
             PagedResult<HistoryEntry> result = await _history.GetPageAsync(new HistoryQuery(userId, page, size), ct);
             items.AddRange(result.Items);
             if (result.Items.Count < size)

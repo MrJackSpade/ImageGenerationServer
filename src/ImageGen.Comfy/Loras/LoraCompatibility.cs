@@ -24,11 +24,21 @@ namespace ImageGen.Comfy;
 /// </summary>
 public static class LoraCompatibility
 {
-    /// <summary>Parsed, cached feature sets for one model file, keyed by (path, length, last-write). Header parsing is
-    /// cheap but pointless to repeat every time the picker opens; the cache makes a re-open free.</summary>
+    /// <summary>Parsed feature sets for one model file.</summary>
     private sealed record FileDims(HashSet<long> AllDims, HashSet<long> LoraFeatureDims, bool ClipCapable);
 
-    private static readonly ConcurrentDictionary<string, FileDims> Cache = new();
+    /// <summary>One mutable version slot per path. Resaving a file replaces this slot instead of appending another
+    /// (path,length,mtime) key forever.</summary>
+    private sealed class FileCacheEntry
+    {
+        public object SyncRoot { get; } = new();
+        public long Length { get; set; }
+        public long LastWriteTicks { get; set; }
+        public FileDims? Dims { get; set; }
+    }
+
+    private static readonly ConcurrentDictionary<string, FileCacheEntry> Cache = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
     /// <summary>Tensor-name substrings, file extensions, and safetensors header keys matched during dimension
     /// derivation. Values are the exact tokens the formats use, kept verbatim.</summary>
@@ -87,6 +97,7 @@ public static class LoraCompatibility
             info = new FileInfo(path);
             if (!info.Exists)
             {
+                _ = Cache.TryRemove(path, out _);
                 return null;
             }
         }
@@ -95,21 +106,43 @@ public static class LoraCompatibility
             return null;
         }
 
-        string key = $"{path}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
-        if (Cache.TryGetValue(key, out FileDims? cached))
+        FileCacheEntry entry = Cache.GetOrAdd(path, static _ => new FileCacheEntry());
+        lock (entry.SyncRoot)
         {
-            return cached;
-        }
+            try
+            {
+                // Refresh inside the per-path lock so two callers cannot publish different versions out of order.
+                info.Refresh();
+                if (!info.Exists)
+                {
+                    _ = Cache.TryRemove(path, out _);
+                    return null;
+                }
 
-        Dictionary<string, long[]>? shapes = ReadShapes(path);
-        if (shapes is null)
-        {
-            return null;
-        }
+                long length = info.Length;
+                long ticks = info.LastWriteTimeUtc.Ticks;
+                if (entry.Dims is not null && entry.Length == length && entry.LastWriteTicks == ticks)
+                {
+                    return entry.Dims;
+                }
 
-        FileDims dims = Derive(shapes);
-        Cache[key] = dims;
-        return dims;
+                Dictionary<string, long[]>? shapes = ReadShapes(path);
+                if (shapes is null)
+                {
+                    return null;
+                }
+
+                FileDims dims = Derive(shapes);
+                entry.Length = length;
+                entry.LastWriteTicks = ticks;
+                entry.Dims = dims;
+                return dims;
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     private static FileDims Derive(IReadOnlyDictionary<string, long[]> shapes)

@@ -250,7 +250,10 @@ public sealed class SnapshotCacheTests
                 Task.FromResult(sp.GetRequiredService<ISnapshot<string>>().PeekCurrent().Length), new SnapshotOptions());
         });
 
-        // Warm processes A before B (registration/FIFO order), so B peeks A's freshly-settled value.
+        // GetAsync may race the background warm when this test runs alone; settle A explicitly before exercising
+        // B's PeekCurrent dependency. The behavior under test is that B never awaits/rebuilds A from inside the
+        // single worker, not scheduler timing between host startup and this assertion.
+        Assert.Equal("AAAA", await h.Snapshot<string>().GetAsync(CancellationToken.None));
         Assert.Equal(4, await h.Snapshot<int>().GetAsync(CancellationToken.None));
 
         // Invalidating both and reading B still completes — B peeks A's held value rather than awaiting its rebuild.

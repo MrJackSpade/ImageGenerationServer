@@ -91,6 +91,31 @@ public sealed class LoraCompatibilityTests : IDisposable
         Assert.True(LoraCompatibility.Evaluate(ok, dims).Compatible);
     }
 
+    [Fact]
+    public void Resaving_a_model_path_replaces_the_cached_version()
+    {
+        string path = Safetensors("resaved.safetensors", new()
+        {
+            ["model.weight"] = [320, 2048],
+        });
+        File.SetLastWriteTimeUtc(path, new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        IReadOnlySet<long>? first = LoraCompatibility.CheckpointDims(path);
+        Assert.NotNull(first);
+        Assert.Contains(2048, first);
+
+        _ = Safetensors("resaved.safetensors", new()
+        {
+            ["model.weight"] = [320, 768],
+        });
+        File.SetLastWriteTimeUtc(path, new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        IReadOnlySet<long>? second = LoraCompatibility.CheckpointDims(path);
+        Assert.NotNull(second);
+        Assert.Contains(768, second);
+        Assert.DoesNotContain(2048, second);
+    }
+
     /// <summary>Write a minimal safetensors file: the 8-byte length + JSON header only (no tensor data — the parser
     /// reads the header alone).</summary>
     private string Safetensors(string file, Dictionary<string, long[]> tensors)

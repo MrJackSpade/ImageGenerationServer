@@ -33,6 +33,16 @@ namespace ImageGen.Application.Rendering;
 [AllowMagicStrings("log and exception message templates and human-readable failure-reason strings")]
 public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRouteResolver
 {
+    /// <summary>The one database-outage retry policy shared by startup rehydration and accepted-work persistence.</summary>
+    private static class DatabaseRetry
+    {
+        public static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan MaximumDelay = TimeSpan.FromMinutes(5);
+
+        public static TimeSpan Next(TimeSpan current) =>
+            TimeSpan.FromSeconds(Math.Min(current.TotalSeconds * 2, MaximumDelay.TotalSeconds));
+    }
+
     /// <summary>How many consecutive polls the backend must fail to list a submitted prompt (while no result has
     /// landed) before it is declared LOST. Debounces the history-flush race; NOT a render deadline.</summary>
     private const int LivenessVanishThreshold = 3;
@@ -889,7 +899,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         // duplicate slots.
         _ = Task.Run(async () =>
         {
-            TimeSpan delay = TimeSpan.FromSeconds(5);
+            TimeSpan delay = DatabaseRetry.InitialDelay;
             while (!ct.IsCancellationRequested && !await RehydrateAsync(ct))
             {
                 _log.LogWarning("Rehydrate will retry in {Delay}s.", delay.TotalSeconds);
@@ -902,7 +912,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     return;
                 }
 
-                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 300));
+                delay = DatabaseRetry.Next(delay);
             }
         }, ct);
 
@@ -2083,7 +2093,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     /// </summary>
     private async Task<T> AwaitingDatabaseAsync<T>(Func<CancellationToken, Task<T>> operation, string what, CancellationToken ct)
     {
-        TimeSpan delay = TimeSpan.FromSeconds(5);
+        TimeSpan delay = DatabaseRetry.InitialDelay;
         DateTimeOffset since = DateTimeOffset.UtcNow;
         while (true)
         {
@@ -2097,7 +2107,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     "Database unreachable while {What}. Holding the work (not failing it) and retrying in {Delay}s; waiting {Waited} so far.",
                     what, delay.TotalSeconds, DateTimeOffset.UtcNow - since);
                 await Task.Delay(delay, ct);
-                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 300));
+                delay = DatabaseRetry.Next(delay);
             }
         }
     }
