@@ -152,6 +152,10 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
     /// then make the slots schedulable and wake the worker. One item = a lone job; many = a batch.</summary>
     public async Task<RenderJob> EnqueueJobAsync(long owner, IReadOnlyList<RenderItem> items)
     {
+        // Validate at the owning boundary, not only at HTTP callers: a zero-slot job is vacuously terminal, persists
+        // as Error, never signals the worker, and can never be removed by AfterSlotAsync because it has no slots.
+        _ = Ensure.NotEmpty(items);
+
         // The prompt DSL is resolved HERE, not on the client: Comfy-compatible '{a|b}' picks one option and
         // '{{a|b}}' fans an item into one slot per combo. Generation and edit therefore share the exact same syntax,
         // including direct API calls, and Comfy receives concrete text rather than frontend-only dynamic syntax.

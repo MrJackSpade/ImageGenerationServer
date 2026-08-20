@@ -18,6 +18,17 @@ namespace ImageGen.Tests;
 public sealed class RenderRehydrateCancellationTests
 {
     [Fact]
+    public async Task Enqueue_refuses_an_empty_item_list_before_touching_collaborators()
+    {
+        RenderOrchestrator queue = Queue(Proxy<IJobRepository>());
+
+        ArgumentException ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => queue.EnqueueJobAsync(owner: 7, items: []));
+
+        Assert.Equal("items", ex.ParamName);
+    }
+
+    [Fact]
     public async Task A_stranded_cancel_cannot_be_republished_from_a_stale_rehydrate_list()
     {
         PausingJobRepository jobs = new();
