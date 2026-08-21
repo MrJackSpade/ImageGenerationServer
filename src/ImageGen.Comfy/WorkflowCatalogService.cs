@@ -345,7 +345,7 @@ public sealed partial class WorkflowCatalogService(
             && wf.Media == WorkflowMedia.Image
             && WorkflowResolutionPolicy.IsEnabled(overrides);
         bool allowUntrainedFrameCounts = wf.Media == WorkflowMedia.Video
-            && wf.FrameRule is not null
+            && cfg.Params.ContainsKey(WorkflowParamKeys.Length)
             && WorkflowFrameCountPolicy.IsEnabled(overrides);
 
         // Every parameter the CONFIGURATION sets, not just the ones exposed per generation. The exposed ones are
@@ -390,7 +390,7 @@ public sealed partial class WorkflowCatalogService(
         {
             // Stepped video length now has one cross-workflow policy below. Keep reading the old H3 override as a
             // migration fallback, but do not render two overlapping checkboxes.
-            if (wf.Media == WorkflowMedia.Video && wf.FrameRule is not null
+            if (wf.Media == WorkflowMedia.Video
                 && string.Equals(paramKey, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
@@ -490,8 +490,7 @@ public sealed partial class WorkflowCatalogService(
 
         // Every stepped video workflow gets one machine-owned escape hatch. It removes both the configured trained
         // range and temporal-cadence snap; the generated request carries only the resulting positive frame count.
-        if (wf.Media == WorkflowMedia.Video && wf.FrameRule is not null
-            && cfg.Params.ContainsKey(WorkflowParamKeys.Length))
+        if (wf.Media == WorkflowMedia.Video && cfg.Params.ContainsKey(WorkflowParamKeys.Length))
         {
             object? frameOverride = overrides.TryGetValue(WorkflowFrameCountText.SettingKey, out JsonElement fc)
                 ? fc
@@ -712,10 +711,11 @@ public sealed partial class WorkflowCatalogService(
                 ? PromptTemplates.Schema
                 : null);
         object? value = machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value;
-        bool explicitFramePolicy = wf.Media == WorkflowMedia.Video
-            && wf.FrameRule is not null
+        bool videoLength = wf.Media == WorkflowMedia.Video
             && string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
-            && machine.ContainsKey(WorkflowFrameCountText.SettingKey);
+            && cfg.Params.ContainsKey(WorkflowParamKeys.Length);
+        bool allowUntrainedFrameCounts = videoLength && WorkflowFrameCountPolicy.IsEnabled(machine);
+        bool explicitFramePolicy = videoLength && machine.ContainsKey(WorkflowFrameCountText.SettingKey);
         ConfigParamRangeOverride? activeRange = !explicitFramePolicy
             && WorkflowRangeOverridePolicy.IsEnabled(machine, kv.Key)
                 ? kv.Value.RangeOverride
@@ -725,8 +725,6 @@ public sealed partial class WorkflowCatalogService(
             && wf.FrameRule is { } fr
             && TryFps(cfg, machine, out double fps))
         {
-            bool allowUntrainedFrameCounts = wf.Media == WorkflowMedia.Video
-                && WorkflowFrameCountPolicy.IsEnabled(machine);
             double frames = ParamsCodec.AsDouble(value);
             double? minFrames = kv.Value.Min ?? spec?.Min;
             double? maxFrames = kv.Value.Max ?? spec?.Max;
@@ -752,13 +750,13 @@ public sealed partial class WorkflowCatalogService(
             kv.Key,
             (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
             value,
-            kv.Value.Min ?? spec?.Min,
-            kv.Value.Max ?? spec?.Max,
-            kv.Value.Step ?? spec?.Step,
+            allowUntrainedFrameCounts ? 1 : kv.Value.Min ?? spec?.Min,
+            allowUntrainedFrameCounts ? null : kv.Value.Max ?? spec?.Max,
+            allowUntrainedFrameCounts ? 1 : kv.Value.Step ?? spec?.Step,
             spec?.Label ?? kv.Key,
-            spec?.Help,
+            allowUntrainedFrameCounts ? WorkflowFrameCountText.Warning : spec?.Help,
             spec?.Choices,
-            ProjectRangeOverride(activeRange));
+            allowUntrainedFrameCounts ? null : ProjectRangeOverride(activeRange));
     }
 
     private static WorkflowParamRangeOverride? ProjectRangeOverride(

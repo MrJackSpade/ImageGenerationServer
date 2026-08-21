@@ -29,6 +29,13 @@ public static class FrameNormalization
         List<string> notices = [];
         if (rule is not { } fr)
         {
+            if (allowUntrainedFrameCounts
+                && p.TryGetValue(WorkflowParamKeys.Length, out object? unconstrainedRaw)
+                && unconstrainedRaw is not null)
+            {
+                EnsurePositive(ParamsCodec.AsInt(unconstrainedRaw));
+            }
+
             return notices;
         }
 

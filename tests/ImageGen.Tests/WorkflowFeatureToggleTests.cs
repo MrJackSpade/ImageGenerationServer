@@ -169,7 +169,7 @@ public sealed class WorkflowFeatureToggleTests
     }
 
     [Fact]
-    public void Every_stepped_video_workflow_has_one_untrained_frame_count_setting()
+    public void Every_video_workflow_with_a_length_has_one_untrained_frame_count_setting()
     {
         (WorkflowCatalog catalog, WorkflowCatalogService service, WorkflowRegistry registry) = Build();
         List<string> missing = [];
@@ -177,7 +177,7 @@ public sealed class WorkflowFeatureToggleTests
         foreach (WorkflowConfiguration config in catalog.AllConfigs())
         {
             IWorkflow? workflow = registry.Find(config.WorkflowName);
-            if (workflow is not { Media: WorkflowMedia.Video, FrameRule: not null }
+            if (workflow is not { Media: WorkflowMedia.Video }
                 || !config.Params.ContainsKey(WorkflowParamKeys.Length))
             {
                 continue;
@@ -212,6 +212,37 @@ public sealed class WorkflowFeatureToggleTests
         Assert.Equal(WorkflowParamKeys.DurationSeconds, exposed.Key);
         Assert.Equal(0.01, exposed.Step);
         Assert.Null(exposed.Max);
+        Assert.Contains("any positive frame count", Assert.IsType<string>(exposed.Help),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Cadence_free_video_workflows_expose_arbitrary_positive_frames_when_enabled()
+    {
+        (WorkflowCatalog catalog, WorkflowCatalogService service, WorkflowRegistry registry) = Build();
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["sdxl-i2v"] = new Dictionary<string, string>
+            {
+                ["param.allowUntrainedFrameCounts"] = "true",
+            },
+        });
+        WorkflowConfiguration config = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("sdxl-i2v"));
+        IWorkflow workflow = Assert.IsAssignableFrom<IWorkflow>(registry.Find(config.WorkflowName));
+        Assert.Null(workflow.FrameRule);
+
+        WorkflowSettings settings = Assert.IsType<WorkflowSettings>(service.GetSettings(config.Id));
+        Assert.True(settings.AllowUntrainedFrameCounts);
+        ConfigSetting setting = Assert.Single(settings.Settings, s => s.Key == "allowUntrainedFrameCounts");
+        Assert.True(Assert.IsType<JsonElement>(setting.Override).GetBoolean());
+
+        IReadOnlyDictionary<string, JsonElement> machine = catalog.ParamOverridesFor(config.Id);
+        KeyValuePair<string, ConfigParam> length = config.Params.Single(p => p.Key == WorkflowParamKeys.Length);
+        WorkflowExposedParam exposed = WorkflowCatalogService.ExposedParam(length, workflow, config, machine);
+        Assert.Equal(WorkflowParamKeys.Length, exposed.Key);
+        Assert.Equal(1, exposed.Min);
+        Assert.Null(exposed.Max);
+        Assert.Equal(1, exposed.Step);
         Assert.Contains("any positive frame count", Assert.IsType<string>(exposed.Help),
             StringComparison.OrdinalIgnoreCase);
     }

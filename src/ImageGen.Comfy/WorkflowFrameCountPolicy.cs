@@ -32,7 +32,7 @@ internal static class WorkflowFrameCountPolicy
     /// <summary>A slot warning when the preserved count violates the configured trained range or temporal cadence.</summary>
     public static string? WarningFor(
         WorkflowConfiguration config,
-        FrameRule rule,
+        FrameRule? rule,
         IReadOnlyDictionary<string, object?> values)
     {
         if (!values.TryGetValue(WorkflowParamKeys.Length, out object? raw) || raw is null)
@@ -44,12 +44,16 @@ internal static class WorkflowFrameCountPolicy
         ConfigParam? parameter = config.Params.GetValueOrDefault(WorkflowParamKeys.Length);
         bool outsideRange = (parameter?.Min is double min && frames < min)
             || (parameter?.Max is double max && frames > max);
-        if (!outsideRange && rule.IsValid(frames))
+        bool outsideCadence = rule is not null && !rule.IsValid(frames);
+        if (!outsideRange && !outsideCadence)
         {
             return null;
         }
 
-        return $"{frames} frames is outside this model's trained range or {rule.Step}n+{rule.Base} cadence. "
+        string contract = rule is null
+            ? "trained range"
+            : $"trained range or {rule.Step}n+{rule.Base} cadence";
+        return $"{frames} frames is outside this model's {contract}. "
             + "This workflow allows it, but ComfyUI may reject it and the render may fail, degrade, or not produce a video.";
     }
 

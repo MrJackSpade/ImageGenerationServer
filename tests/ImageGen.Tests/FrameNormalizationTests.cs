@@ -192,4 +192,25 @@ public sealed class FrameNormalizationTests
         _ = Assert.Throws<ImageGen.Application.Rendering.RenderValidationException>(() =>
             FrameNormalization.Apply(new FrameRule(1, 4), p, allowUntrainedFrameCounts: true));
     }
+
+    [Fact]
+    public void Cadence_free_video_policy_preserves_a_positive_frame_count()
+    {
+        Dictionary<string, object?> p = Bag((WorkflowParamKeys.Length, 23));
+
+        IReadOnlyList<string> notices = FrameNormalization.Apply(
+            null, p, allowUntrainedFrameCounts: true);
+
+        Assert.Equal(23, p[WorkflowParamKeys.Length]);
+        Assert.Empty(notices);
+    }
+
+    [Fact]
+    public void Cadence_free_video_policy_still_rejects_zero_frames()
+    {
+        Dictionary<string, object?> p = Bag((WorkflowParamKeys.Length, 0));
+
+        _ = Assert.Throws<ImageGen.Application.Rendering.RenderValidationException>(() =>
+            FrameNormalization.Apply(null, p, allowUntrainedFrameCounts: true));
+    }
 }

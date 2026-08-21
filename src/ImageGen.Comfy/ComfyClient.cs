@@ -860,7 +860,8 @@ public sealed class ComfyClient : IComfyClient
         NormalizeContext context)
     {
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(config.Id);
-        bool frameCountPolicyApplies = workflow.Media == WorkflowMedia.Video && workflow.FrameRule is not null;
+        bool frameCountPolicyApplies = workflow.Media == WorkflowMedia.Video
+            && config.Params.ContainsKey(WorkflowParamKeys.Length);
         bool allowUntrainedFrameCounts = frameCountPolicyApplies
             && WorkflowFrameCountPolicy.IsEnabled(machine);
         NormalizeContext effectiveContext = new()
@@ -875,8 +876,7 @@ public sealed class ComfyClient : IComfyClient
         WorkflowRangeOverridePolicy.Validate(
             config, machine, values, allowUntrainedFrameCounts, frameCountPolicyApplies);
         if (allowUntrainedFrameCounts
-            && workflow.FrameRule is { } frameRule
-            && WorkflowFrameCountPolicy.WarningFor(config, frameRule, values) is { } warning)
+            && WorkflowFrameCountPolicy.WarningFor(config, workflow.FrameRule, values) is { } warning)
         {
             notices.Add(warning);
         }

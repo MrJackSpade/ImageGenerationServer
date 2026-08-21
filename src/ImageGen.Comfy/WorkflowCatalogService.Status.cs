@@ -304,7 +304,8 @@ public sealed partial class WorkflowCatalogService
             WorkflowConfiguration? config = _catalog.FindConfig(configId);
             IWorkflow? workflow = config is null ? null : _registry.Find(config.WorkflowName);
             IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(configId);
-            if (config is not null && workflow?.FrameRule is { } frameRule
+            if (config is not null && workflow?.Media == WorkflowMedia.Video
+                && config.Params.ContainsKey(WorkflowParamKeys.Length)
                 && machine.TryGetValue(WorkflowParamKeys.Length, out JsonElement length))
             {
                 int frames = ParamsCodec.AsInt(length);
@@ -314,7 +315,7 @@ public sealed partial class WorkflowCatalogService
                 };
                 string? warning = frames <= 0
                     ? $"{frames} frames is not positive"
-                    : WorkflowFrameCountPolicy.WarningFor(config, frameRule, values);
+                    : WorkflowFrameCountPolicy.WarningFor(config, workflow.FrameRule, values);
                 if (warning is not null)
                 {
                     throw new ArgumentException(
