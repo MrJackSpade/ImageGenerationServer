@@ -125,6 +125,9 @@ file static class LoaderWireText
 /// the model nor hard-rejects the job (which would block a mixed-model batch where each model has its own rule).</summary>
 public sealed record FrameRule(int Base, int Step)
 {
+    /// <summary>Whether <paramref name="n"/> is a positive member of this cadence.</summary>
+    public bool IsValid(int n) => n > 0 && Step > 0 && n >= Base && (n - Base) % Step == 0;
+
     /// <summary>The smallest valid length that is &gt;= <paramref name="n"/> — i.e. round UP to the next
     /// <see cref="Base"/> + k*<see cref="Step"/>. Always rounding up (never down) means the snap never renders FEWER
     /// frames than asked, and is consistent across step sizes (30 → 33 for both an 8n+1 and a 4n+1 model). Already-valid
@@ -215,6 +218,8 @@ public sealed class NormalizeContext
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
     public ResolvedRequirements? Requirements { get; init; }
+    /// <summary>True when this video workflow explicitly passes positive frame counts through without cadence snap.</summary>
+    public bool AllowUntrainedFrameCounts { get; init; }
     /// <summary>True only on the submit-time pass (source dims + requirements available); false at enqueue.</summary>
     public bool AtSubmit { get; init; }
     /// <summary>The enqueue pass: params only, no source/requirements — frame snap fires, submit-only snaps skip.</summary>
@@ -255,12 +260,15 @@ public static class ParamsCodec
     /// bounds (<see cref="ValidateBounds"/>) before the typed object is handed back. A value outside a declared
     /// <c>[Range]</c> (steps, cfg, …) is refused HERE, at the single typed boundary every submission crosses, rather
     /// than reaching the graph — so a <c>steps: 5000</c> sent past the UI slider fails fast, naming the value and its
-    /// bound.</summary>
-    public static T Deserialize<T>(IReadOnlyDictionary<string, object?> bag)
+    /// bound. <paramref name="ignoredBoundKey"/> is the narrow workflow-policy seam for a single explicitly opted-out
+    /// wire field; required members, coercion, and every other bound remain enforced.</summary>
+    public static T Deserialize<T>(
+        IReadOnlyDictionary<string, object?> bag,
+        string? ignoredBoundKey = null)
     {
         T dto = JsonSerializer.Deserialize<T>(JsonSerializer.SerializeToElement(bag), ParamsJsonOptions)
             ?? throw new RenderValidationException($"The merged parameters could not be read as {typeof(T).Name}.");
-        ValidateBounds(dto);
+        ValidateBounds(dto, ignoredBoundKey);
         return dto;
     }
 
@@ -270,7 +278,7 @@ public static class ParamsCodec
     /// is skipped (an absent optional param is "unspecified", not out of range). Every violation is collected and
     /// reported together, each naming the wire key, the offending value, and the permitted range.</summary>
     [AllowMagicStrings("human-readable out-of-range parameter refusal message")]
-    private static void ValidateBounds(object dto)
+    private static void ValidateBounds(object dto, string? ignoredBoundKey)
     {
         List<ValidationResult> results = [];
         if (Validator.TryValidateObject(dto, new ValidationContext(dto), results, validateAllProperties: true))
@@ -287,6 +295,11 @@ public static class ParamsCodec
             {
                 PropertyInfo? prop = member.Length > 0 ? t.GetProperty(member) : null;
                 string key = prop?.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? (member.Length > 0 ? member : t.Name);
+                if (string.Equals(key, ignoredBoundKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 RangeAttribute? range = prop?.GetCustomAttribute<RangeAttribute>();
                 if (prop is not null && range is not null)
                 {
@@ -299,8 +312,11 @@ public static class ParamsCodec
             }
         }
 
-        throw new RenderValidationException(
-            $"This request has out-of-range parameter value(s): {string.Join("; ", problems)}.");
+        if (problems.Count > 0)
+        {
+            throw new RenderValidationException(
+                $"This request has out-of-range parameter value(s): {string.Join("; ", problems)}.");
+        }
     }
 
     /// <summary>Coerce a raw param value (a CLR primitive or a parsed <see cref="JsonElement"/>) to an int — for the
@@ -451,6 +467,9 @@ public sealed class ResolvedRequirements
     /// <summary>True when this image-generation workflow's machine setting explicitly permits positive dimensions
     /// outside <see cref="Resolution"/>. The envelope remains present for warnings; graph sizing skips its clamp.</summary>
     public bool AllowUntrainedResolution { get; init; }
+    /// <summary>True when this video workflow deliberately passes a positive frame count through without applying the
+    /// DTO's trained length bound. ComfyUI remains authoritative for its own node validation.</summary>
+    public bool AllowUntrainedFrameCounts { get; init; }
 
     /// <summary>The resolved filename for text encoder <paramref name="index"/>, or a refusal naming it — a REQUIRED
     /// encoder slot fails loudly rather than loading an empty name that only "works" on a machine that happens to hold

@@ -395,6 +395,7 @@ public sealed class WorkflowCatalog : IDisposable
                 ControlNet = string.IsNullOrEmpty(cfg.Requirements.ControlNet) ? null : Name(cfg.Requirements.ControlNet),
                 Resolution = cfg.Resolution,
                 AllowUntrainedResolution = WorkflowResolutionPolicy.IsEnabled(machine),
+                AllowUntrainedFrameCounts = WorkflowFrameCountPolicy.IsEnabled(machine),
             };
         }
     }

@@ -853,14 +853,34 @@ public sealed class ComfyClient : IComfyClient
     /// <summary>Run the workflow's normalizer, then enforce the range selected on this workflow's settings page.
     /// Normalization comes first because video duration is submitted in seconds and becomes the configured frame
     /// parameter here; validating the pre-normalized bag would miss that user-facing alias.</summary>
-    private IReadOnlyList<string> NormalizeAndValidate(
+    private List<string> NormalizeAndValidate(
         IWorkflow workflow,
         WorkflowConfiguration config,
         Dictionary<string, object?> values,
         NormalizeContext context)
     {
-        IReadOnlyList<string> notices = workflow.Normalize(values, context);
-        WorkflowRangeOverridePolicy.Validate(config, _catalog.ParamOverridesFor(config.Id), values);
+        IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(config.Id);
+        bool frameCountPolicyApplies = workflow.Media == WorkflowMedia.Video && workflow.FrameRule is not null;
+        bool allowUntrainedFrameCounts = frameCountPolicyApplies
+            && WorkflowFrameCountPolicy.IsEnabled(machine);
+        NormalizeContext effectiveContext = new()
+        {
+            SourceWidth = context.SourceWidth,
+            SourceHeight = context.SourceHeight,
+            Requirements = context.Requirements,
+            AtSubmit = context.AtSubmit,
+            AllowUntrainedFrameCounts = allowUntrainedFrameCounts,
+        };
+        List<string> notices = [.. workflow.Normalize(values, effectiveContext)];
+        WorkflowRangeOverridePolicy.Validate(
+            config, machine, values, allowUntrainedFrameCounts, frameCountPolicyApplies);
+        if (allowUntrainedFrameCounts
+            && workflow.FrameRule is { } frameRule
+            && WorkflowFrameCountPolicy.WarningFor(config, frameRule, values) is { } warning)
+        {
+            notices.Add(warning);
+        }
+
         return notices;
     }
 

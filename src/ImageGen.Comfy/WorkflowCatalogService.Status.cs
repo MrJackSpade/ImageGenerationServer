@@ -295,6 +295,35 @@ public sealed partial class WorkflowCatalogService
             GuardAspectAgainstEnvelope(configId, aspectOverride.GetRawText(), forceTrainedEnvelope: true);
         }
 
+        // Likewise, an arbitrary saved default frame count must be corrected before the escape hatch is disabled;
+        // otherwise the workflow would persist a default which its ordinary range/cadence immediately rewrites or
+        // rejects. An explicit false also supersedes a legacy H3 allowRangeOverride.length value.
+        if (string.Equals(settingKey, SettingKeys.UntrainedFrameCounts, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(settingValue, bool.TrueString, StringComparison.OrdinalIgnoreCase))
+        {
+            WorkflowConfiguration? config = _catalog.FindConfig(configId);
+            IWorkflow? workflow = config is null ? null : _registry.Find(config.WorkflowName);
+            IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(configId);
+            if (config is not null && workflow?.FrameRule is { } frameRule
+                && machine.TryGetValue(WorkflowParamKeys.Length, out JsonElement length))
+            {
+                int frames = ParamsCodec.AsInt(length);
+                Dictionary<string, object?> values = new(StringComparer.OrdinalIgnoreCase)
+                {
+                    [WorkflowParamKeys.Length] = frames,
+                };
+                string? warning = frames <= 0
+                    ? $"{frames} frames is not positive"
+                    : WorkflowFrameCountPolicy.WarningFor(config, frameRule, values);
+                if (warning is not null)
+                {
+                    throw new ArgumentException(
+                        $"Reset the saved frame count before disabling this setting: {warning}",
+                        nameof(settingValue));
+                }
+            }
+        }
+
         if (string.Equals(settingKey, SettingKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(settingValue))
         {

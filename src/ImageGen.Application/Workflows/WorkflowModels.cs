@@ -334,7 +334,8 @@ public sealed record ResolutionEnvelope(int MinW, int MinH, int MaxW, int MaxH, 
 /// <summary>Everything editable about one workflow on this machine.</summary>
 public sealed record WorkflowSettings(
     string Id, string FriendlyName, IReadOnlyList<ConfigSetting> Settings, ResolutionEnvelope? Resolution,
-    bool AllowUntrainedResolution = false);
+    bool AllowUntrainedResolution = false,
+    bool AllowUntrainedFrameCounts = false);
 
 /// <summary>The whole picture: what this machine can run, and what it needs pointing at.</summary>
 /// <param name="Workflows">Every workflow, ready or not.</param>

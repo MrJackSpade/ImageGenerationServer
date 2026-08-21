@@ -44,18 +44,20 @@ public abstract class Workflow<TParams> : IWorkflow
         ? OutputSizePolicies.ExplicitRequested
         : NormalizesSourceResolution ? OutputSizePolicies.NormalizedNative : OutputSizePolicies.ExactSource;
 
-    /// <summary>Pre-build parameter normalization — the seconds→frames conversion and frame-count snap (enqueue +
-    /// submit). Bag-based because it runs BEFORE the DTO is deserialized (it mutates the values that then feed the
-    /// DTO). Mirrors the <see cref="IWorkflow.Normalize"/> default via the shared <see cref="FrameNormalization"/>.</summary>
+    /// <summary>Pre-build parameter normalization — the seconds→frames conversion and ordinary frame-count snap
+    /// (enqueue + submit), or opt-in positive pass-through. Bag-based because it runs before the DTO is deserialized:
+    /// it mutates the values that then feed the DTO. Mirrors the <see cref="IWorkflow.Normalize"/> default via the
+    /// shared <see cref="FrameNormalization"/>.</summary>
     public virtual IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
-        => FrameNormalization.Apply(FrameRule, p);
+        => FrameNormalization.Apply(FrameRule, p, ctx.AllowUntrainedFrameCounts);
 
     /// <summary>The non-generic build entry the renderer dispatches to: deserialize the merged bag into this workflow's
     /// <typeparamref name="TParams"/> at the <see cref="ParamsCodec"/> boundary, then build the TYPED graph. This is the
     /// single seam where the loosely-typed bag becomes a DTO — a workflow itself sees neither a string key on the way in
     /// nor a <c>Dictionary&lt;string, object&gt;</c> on the way out.</summary>
     public ComfyWorkflowGraph Build(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, WorkflowInputs inputs)
-        => Build(ParamsCodec.Deserialize<TParams>(p), req, inputs);
+        => Build(ParamsCodec.Deserialize<TParams>(p,
+            req.AllowUntrainedFrameCounts && Media == WorkflowMedia.Video ? WorkflowParamKeys.Length : null), req, inputs);
 
     /// <summary>Build the ComfyUI graph — typed params in, a typed graph of typed nodes out.</summary>
     protected abstract ComfyWorkflowGraph Build(TParams p, ResolvedRequirements req, WorkflowInputs inputs);
@@ -64,7 +66,8 @@ public abstract class Workflow<TParams> : IWorkflow
     /// <typeparamref name="TParams"/> (same <see cref="ParamsCodec"/> pass as <see cref="Build"/>) and hand off to the
     /// typed overload, so a workflow never touches a string key here either.</summary>
     (int Width, int Height) IWorkflow.EtaRenderSize(IReadOnlyDictionary<string, object?> p, ResolvedRequirements req, int sourceWidth, int sourceHeight, double? editMegapixels)
-        => EtaRenderSize(ParamsCodec.Deserialize<TParams>(p), req, sourceWidth, sourceHeight,
+        => EtaRenderSize(ParamsCodec.Deserialize<TParams>(p,
+            req.AllowUntrainedFrameCounts && Media == WorkflowMedia.Video ? WorkflowParamKeys.Length : null), req, sourceWidth, sourceHeight,
             editMegapixels ?? EditQuality.Resolve(this, p));
 
     /// <summary>Quality-aware ETA seam. Workflows supporting the shared selector override this; all others retain

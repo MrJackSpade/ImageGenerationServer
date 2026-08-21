@@ -344,6 +344,9 @@ public sealed partial class WorkflowCatalogService(
         bool allowUntrainedResolution = wf.Kind == WorkflowKind.Generate
             && wf.Media == WorkflowMedia.Image
             && WorkflowResolutionPolicy.IsEnabled(overrides);
+        bool allowUntrainedFrameCounts = wf.Media == WorkflowMedia.Video
+            && wf.FrameRule is not null
+            && WorkflowFrameCountPolicy.IsEnabled(overrides);
 
         // Every parameter the CONFIGURATION sets, not just the ones exposed per generation. The exposed ones are
         // what a caller may vary on a single render; these are what this machine renders with by default, which is
@@ -360,6 +363,8 @@ public sealed partial class WorkflowCatalogService(
                     ?? (string.Equals(kv.Key, WorkflowParamKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)
                         ? PromptTemplates.Schema
                         : null);
+                bool arbitraryFrames = allowUntrainedFrameCounts
+                    && string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase);
                 return new ConfigSetting(
                     kv.Key,
                     spec?.Label ?? kv.Key,
@@ -369,9 +374,9 @@ public sealed partial class WorkflowCatalogService(
                     string.Equals(kv.Key, WorkflowParamKeys.Aspect, StringComparison.OrdinalIgnoreCase)
                         ? ControlTokens.Aspect
                         : (spec?.Type ?? ParamType.String).ToString().ToLowerInvariant(),
-                    kv.Value.Min ?? spec?.Min,
-                    kv.Value.Max ?? spec?.Max,
-                    kv.Value.Step ?? spec?.Step,
+                    arbitraryFrames ? 1 : kv.Value.Min ?? spec?.Min,
+                    arbitraryFrames ? null : kv.Value.Max ?? spec?.Max,
+                    arbitraryFrames ? 1 : kv.Value.Step ?? spec?.Step,
                     spec?.Choices,
                     kv.Value.Value,
                     overrides.TryGetValue(kv.Key, out JsonElement o) ? o : null,
@@ -383,6 +388,14 @@ public sealed partial class WorkflowCatalogService(
         // is stored through the same per-config override path as custom size and the tag generator.
         foreach ((string paramKey, ConfigParam parameter) in cfg.Params.Where(p => p.Value.RangeOverride is not null))
         {
+            // Stepped video length now has one cross-workflow policy below. Keep reading the old H3 override as a
+            // migration fallback, but do not render two overlapping checkboxes.
+            if (wf.Media == WorkflowMedia.Video && wf.FrameRule is not null
+                && string.Equals(paramKey, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (parameter.RangeOverride is not { } alternate)
             {
                 continue;
@@ -475,13 +488,37 @@ public sealed partial class WorkflowCatalogService(
             settings.Insert(customIndex >= 0 ? customIndex + 1 : settings.Count, untrainedResolution);
         }
 
+        // Every stepped video workflow gets one machine-owned escape hatch. It removes both the configured trained
+        // range and temporal-cadence snap; the generated request carries only the resulting positive frame count.
+        if (wf.Media == WorkflowMedia.Video && wf.FrameRule is not null
+            && cfg.Params.ContainsKey(WorkflowParamKeys.Length))
+        {
+            object? frameOverride = overrides.TryGetValue(WorkflowFrameCountText.SettingKey, out JsonElement fc)
+                ? fc
+                : overrides.TryGetValue(
+                    WorkflowRangeOverridePolicy.SettingKey(WorkflowParamKeys.Length), out JsonElement legacy)
+                    ? legacy
+                    : null;
+            ConfigSetting untrainedFrames = new(
+                WorkflowFrameCountText.SettingKey,
+                WorkflowFrameCountText.Label,
+                WorkflowFrameCountText.Warning,
+                ControlTokens.Bool, null, null, null, null,
+                Shipped: false,
+                Override: frameOverride);
+            int lengthIndex = settings.FindIndex(s =>
+                string.Equals(s.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase));
+            settings.Insert(lengthIndex >= 0 ? lengthIndex + 1 : settings.Count, untrainedFrames);
+        }
+
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
         ModelResolution? r = cfg.Resolution ?? wf.ResolutionEnvelope;
         return new WorkflowSettings(
             cfg.Id, cfg.FriendlyName ?? cfg.Id, settings,
             r is null ? null : new ResolutionEnvelope(r.MinW, r.MinH, r.MaxW, r.MaxH, r.Step),
-            allowUntrainedResolution);
+            allowUntrainedResolution,
+            allowUntrainedFrameCounts);
     }
 
     /// <inheritdoc/>
@@ -675,14 +712,21 @@ public sealed partial class WorkflowCatalogService(
                 ? PromptTemplates.Schema
                 : null);
         object? value = machine.TryGetValue(kv.Key, out JsonElement o) ? o : kv.Value.Value;
-        ConfigParamRangeOverride? activeRange = WorkflowRangeOverridePolicy.IsEnabled(machine, kv.Key)
-            ? kv.Value.RangeOverride
-            : null;
+        bool explicitFramePolicy = wf.Media == WorkflowMedia.Video
+            && wf.FrameRule is not null
+            && string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
+            && machine.ContainsKey(WorkflowFrameCountText.SettingKey);
+        ConfigParamRangeOverride? activeRange = !explicitFramePolicy
+            && WorkflowRangeOverridePolicy.IsEnabled(machine, kv.Key)
+                ? kv.Value.RangeOverride
+                : null;
 
         if (string.Equals(kv.Key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
             && wf.FrameRule is { } fr
             && TryFps(cfg, machine, out double fps))
         {
+            bool allowUntrainedFrameCounts = wf.Media == WorkflowMedia.Video
+                && WorkflowFrameCountPolicy.IsEnabled(machine);
             double frames = ParamsCodec.AsDouble(value);
             double? minFrames = kv.Value.Min ?? spec?.Min;
             double? maxFrames = kv.Value.Max ?? spec?.Max;
@@ -690,16 +734,18 @@ public sealed partial class WorkflowCatalogService(
                 WorkflowParamKeys.DurationSeconds,
                 ParamType.Double.ToString().ToLowerInvariant(),
                 Math.Round(frames / fps, 2),
-                Math.Round((minFrames ?? fr.Base) / fps, 2),
-                maxFrames is { } hi ? Math.Round(hi / fps, 2) : null,
+                allowUntrainedFrameCounts ? Math.Max(0.01, Math.Round(1 / fps, 2)) : Math.Round((minFrames ?? fr.Base) / fps, 2),
+                allowUntrainedFrameCounts ? null : maxFrames is { } hi ? Math.Round(hi / fps, 2) : null,
                 // Step by the model's real frame cadence (in hundredths of a second), not a flat step — so the control
                 // shows the exact increments this model actually renders instead of pretending to a resolution it
                 // hasn't got. The exact frame is settled by the nearest-cadence snap at generation.
-                Math.Max(0.01, Math.Round(fr.Step / fps, 2)),
+                allowUntrainedFrameCounts ? 0.01 : Math.Max(0.01, Math.Round(fr.Step / fps, 2)),
                 "Length (seconds)",
-                "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
+                allowUntrainedFrameCounts
+                    ? WorkflowFrameCountText.Warning
+                    : "Steps by this model’s frame cadence; the exact length snaps to the nearest it can render.",
                 null,
-                ProjectRangeOverride(activeRange, fps));
+                allowUntrainedFrameCounts ? null : ProjectRangeOverride(activeRange, fps));
         }
 
         return new WorkflowExposedParam(
@@ -785,6 +831,9 @@ public sealed partial class WorkflowCatalogService(
         /// <summary>The per-machine setting key for allowing positive image-generation dimensions outside the model's
         /// documented training envelope.</summary>
         public const string UntrainedResolution = ParamPrefix + WorkflowResolutionText.SettingKey;
+
+        /// <summary>The stored setting key for arbitrary positive video frame counts.</summary>
+        public const string UntrainedFrameCounts = ParamPrefix + WorkflowFrameCountText.SettingKey;
     }
 
     /// <summary>Control tokens the settings page uses to pick an input widget.</summary>

@@ -80,8 +80,8 @@ public sealed class WorkflowFeatureToggleTests
         (WorkflowCatalog catalog, WorkflowCatalogService service, _) = Build();
         ConfigSetting shipped = Assert.Single(
             Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v")).Settings,
-            s => s.Key == "allowRangeOverride.length");
-        Assert.Equal("Allow untested lengths", shipped.Label);
+            s => s.Key == "allowUntrainedFrameCounts");
+        Assert.Equal("Allow untrained frame counts", shipped.Label);
         Assert.False(Assert.IsType<bool>(shipped.Shipped));
         Assert.Null(shipped.Override);
 
@@ -93,10 +93,18 @@ public sealed class WorkflowFeatureToggleTests
             },
         });
 
+        WorkflowSettings enabledSettings = Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v"));
         ConfigSetting enabled = Assert.Single(
-            Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v")).Settings,
-            s => s.Key == "allowRangeOverride.length");
+            enabledSettings.Settings,
+            s => s.Key == "allowUntrainedFrameCounts");
         Assert.True(Assert.IsType<JsonElement>(enabled.Override).GetBoolean());
+        Assert.True(enabledSettings.AllowUntrainedFrameCounts);
+        ConfigSetting length = Assert.Single(enabledSettings.Settings, s => s.Key == WorkflowParamKeys.Length);
+        Assert.Equal(1, length.Min);
+        Assert.Null(length.Max);
+        Assert.Equal(1, length.Step);
+        WorkflowConfiguration config = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("minimax-h3-t2v"));
+        Assert.True(catalog.Resolve(config).AllowUntrainedFrameCounts);
     }
 
     [Theory]
@@ -158,6 +166,54 @@ public sealed class WorkflowFeatureToggleTests
 
         WorkflowConfiguration config = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("flux1-dev"));
         Assert.True(catalog.Resolve(config).AllowUntrainedResolution);
+    }
+
+    [Fact]
+    public void Every_stepped_video_workflow_has_one_untrained_frame_count_setting()
+    {
+        (WorkflowCatalog catalog, WorkflowCatalogService service, WorkflowRegistry registry) = Build();
+        List<string> missing = [];
+
+        foreach (WorkflowConfiguration config in catalog.AllConfigs())
+        {
+            IWorkflow? workflow = registry.Find(config.WorkflowName);
+            if (workflow is not { Media: WorkflowMedia.Video, FrameRule: not null }
+                || !config.Params.ContainsKey(WorkflowParamKeys.Length))
+            {
+                continue;
+            }
+
+            WorkflowSettings settings = Assert.IsType<WorkflowSettings>(service.GetSettings(config.Id));
+            if (settings.Settings.Count(s => s.Key == "allowUntrainedFrameCounts") != 1)
+            {
+                missing.Add(config.Id);
+            }
+
+            Assert.DoesNotContain(settings.Settings, s => s.Key == "allowRangeOverride.length");
+        }
+
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void Untrained_frame_policy_exposes_arbitrary_positive_seconds_in_the_generation_control()
+    {
+        (WorkflowCatalog catalog, _, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration config = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("wan22-t2v-a14b"));
+        IWorkflow workflow = Assert.IsAssignableFrom<IWorkflow>(registry.Find(config.WorkflowName));
+        Dictionary<string, JsonElement> machine = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["allowUntrainedFrameCounts"] = JsonSerializer.SerializeToElement(true),
+        };
+        KeyValuePair<string, ConfigParam> length = config.Params.Single(p => p.Key == WorkflowParamKeys.Length);
+
+        WorkflowExposedParam exposed = WorkflowCatalogService.ExposedParam(length, workflow, config, machine);
+
+        Assert.Equal(WorkflowParamKeys.DurationSeconds, exposed.Key);
+        Assert.Equal(0.01, exposed.Step);
+        Assert.Null(exposed.Max);
+        Assert.Contains("any positive frame count", Assert.IsType<string>(exposed.Help),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class UnreachableSnapshot<T> : ISnapshot<T>

@@ -8,18 +8,23 @@ namespace ImageGen.Comfy;
 /// <list type="number">
 /// <item>Video length entered in SECONDS → frames. The composer offers a stepped video model's length as seconds
 /// (issue #194); the graph reads <c>length</c> in frames. Converts with the model's own <c>fps</c> then snaps to the
-/// cadence, so the seconds a user types always land on a valid clip length.</item>
+/// cadence, so the seconds a user types ordinarily land on a valid clip length.</item>
 /// <item>A length given directly in FRAMES → snapped to the cadence, the long-standing behaviour.</item>
 /// </list>
 /// Both run on the loose bag before it is deserialized into a typed params DTO, and both are idempotent so the
-/// submit pass is a no-op once the enqueue pass has already normalized.
+/// submit pass is a no-op once the enqueue pass has already normalized. A workflow-owned opt-in preserves the raw
+/// positive count after seconds conversion and leaves acceptance to ComfyUI/the model.
 /// </summary>
 public static class FrameNormalization
 {
     /// <summary>Apply the seconds→frames conversion and cadence snap to <paramref name="p"/> in place, returning one
-    /// human-readable notice per user-visible adjustment (none when nothing changed, or when the workflow declares no
-    /// <see cref="FrameRule"/>).</summary>
-    public static IReadOnlyList<string> Apply(FrameRule? rule, IDictionary<string, object?> p)
+    /// human-readable notice per user-visible adjustment (none when nothing changed, when the workflow declares no
+    /// <see cref="FrameRule"/>, or when the config-aware caller deliberately preserves an untrained count and owns the
+    /// warning).</summary>
+    public static IReadOnlyList<string> Apply(
+        FrameRule? rule,
+        IDictionary<string, object?> p,
+        bool allowUntrainedFrameCounts = false)
     {
         List<string> notices = [];
         if (rule is not { } fr)
@@ -41,7 +46,8 @@ public static class FrameNormalization
                 // NEAREST, not up: the composer offers seconds in tenths but the model's lengths come in coarser
                 // steps, so a chosen second falls between two valid lengths. Rounding to the closest is the honest
                 // answer — and the notice states the length actually rendered so the value isn't silently swapped.
-                int frames = fr.SnapNearest(rawFrames);
+                EnsurePositive(rawFrames);
+                int frames = allowUntrainedFrameCounts ? rawFrames : fr.SnapNearest(rawFrames);
                 p[WorkflowParamKeys.Length] = frames;
                 if (frames != rawFrames)
                 {
@@ -55,7 +61,8 @@ public static class FrameNormalization
         if (p.TryGetValue(WorkflowParamKeys.Length, out object? raw) && raw is not null)
         {
             int req = ParamsCodec.AsInt(raw);
-            if (req > 0)
+            EnsurePositive(req);
+            if (!allowUntrainedFrameCounts)
             {
                 int snapped = fr.Snap(req);
                 if (snapped != req)
@@ -67,5 +74,14 @@ public static class FrameNormalization
         }
 
         return notices;
+    }
+
+    private static void EnsurePositive(int frames)
+    {
+        if (frames <= 0)
+        {
+            throw new ImageGen.Application.Rendering.RenderValidationException(
+                $"'length' must be greater than zero, but was {frames}.");
+        }
     }
 }

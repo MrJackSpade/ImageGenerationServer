@@ -44,10 +44,18 @@ internal static class WorkflowRangeOverridePolicy
     public static void Validate(
         WorkflowConfiguration config,
         IReadOnlyDictionary<string, JsonElement> machine,
-        IReadOnlyDictionary<string, object?> values)
+        IReadOnlyDictionary<string, object?> values,
+        bool allowUntrainedFrameCounts = false,
+        bool frameCountPolicyApplies = false)
     {
         foreach ((string key, ConfigParam parameter) in config.Params)
         {
+            if (allowUntrainedFrameCounts
+                && string.Equals(key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (parameter.RangeOverride is not { } alternate
                 || !values.TryGetValue(key, out object? raw)
                 || raw is null)
@@ -55,7 +63,10 @@ internal static class WorkflowRangeOverridePolicy
                 continue;
             }
 
-            bool enabled = IsEnabled(machine, key);
+            bool explicitFramePolicy = frameCountPolicyApplies
+                && string.Equals(key, WorkflowParamKeys.Length, StringComparison.OrdinalIgnoreCase)
+                && machine.ContainsKey(WorkflowFrameCountText.SettingKey);
+            bool enabled = !explicitFramePolicy && IsEnabled(machine, key);
             double? min = enabled ? alternate.Min ?? parameter.Min : parameter.Min;
             double? max = enabled ? alternate.Max ?? parameter.Max : parameter.Max;
             double value = ParamsCodec.AsDouble(raw);

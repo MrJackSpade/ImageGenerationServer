@@ -209,6 +209,41 @@ public sealed class RequestSizeValidationTests
     }
 
     [Fact]
+    public void Queue_passes_an_off_cadence_frame_count_only_for_an_opted_in_video_workflow()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        ComfyClient client = Client(catalog);
+        Dictionary<string, JsonElement> requested = new()
+        {
+            [WorkflowParamKeys.Length] = JsonSerializer.SerializeToElement(82),
+        };
+
+        QueueNormalizationResult trained = client.NormalizeForQueue(
+            "hunyuanvideo-t2v", RenderKind.Generate, requested);
+        IReadOnlyDictionary<string, JsonElement> trainedOverrides =
+            Assert.IsAssignableFrom<IReadOnlyDictionary<string, JsonElement>>(trained.Overrides);
+        Assert.Equal(85, trainedOverrides[WorkflowParamKeys.Length].GetInt32());
+        Assert.Contains("frame count must be 4n+1", Assert.IsType<string>(trained.Notice));
+
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["hunyuanvideo-t2v"] = new Dictionary<string, string>
+            {
+                ["param.allowUntrainedFrameCounts"] = "true",
+            },
+        });
+
+        QueueNormalizationResult untrained = client.NormalizeForQueue(
+            "hunyuanvideo-t2v", RenderKind.Generate, requested);
+        IReadOnlyDictionary<string, JsonElement> untrainedOverrides =
+            Assert.IsAssignableFrom<IReadOnlyDictionary<string, JsonElement>>(untrained.Overrides);
+        Assert.Equal(82, untrainedOverrides[WorkflowParamKeys.Length].GetInt32());
+        Assert.Contains("ComfyUI may reject it", Assert.IsType<string>(untrained.Notice));
+    }
+
+    [Fact]
     public void A_custom_size_inside_the_envelope_passes() =>
         Assert.Null(Service().ValidateRequestedSize("flux1-dev", null, Size(1024, 768)));
 

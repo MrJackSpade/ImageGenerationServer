@@ -154,4 +154,42 @@ public sealed class FrameNormalizationTests
 
         Assert.Equal(afterFirst, p[WorkflowParamKeys.Length]);
     }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(6)]
+    [InlineData(82)]
+    public void Untrained_frame_policy_preserves_positive_off_cadence_counts(int frames)
+    {
+        Dictionary<string, object?> p = Bag((WorkflowParamKeys.Length, frames));
+
+        IReadOnlyList<string> notices = FrameNormalization.Apply(
+            new FrameRule(1, 4), p, allowUntrainedFrameCounts: true);
+
+        Assert.Equal(frames, p[WorkflowParamKeys.Length]);
+        Assert.Empty(notices);
+    }
+
+    [Fact]
+    public void Untrained_frame_policy_converts_seconds_without_cadence_snapping()
+    {
+        Dictionary<string, object?> p = Bag(
+            (WorkflowParamKeys.DurationSeconds, 2.5),
+            (WorkflowParamKeys.Fps, 24));
+
+        _ = FrameNormalization.Apply(new FrameRule(1, 8), p, allowUntrainedFrameCounts: true);
+
+        Assert.Equal(60, p[WorkflowParamKeys.Length]);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void No_frame_policy_allows_a_nonpositive_count(int frames)
+    {
+        Dictionary<string, object?> p = Bag((WorkflowParamKeys.Length, frames));
+
+        _ = Assert.Throws<ImageGen.Application.Rendering.RenderValidationException>(() =>
+            FrameNormalization.Apply(new FrameRule(1, 4), p, allowUntrainedFrameCounts: true));
+    }
 }

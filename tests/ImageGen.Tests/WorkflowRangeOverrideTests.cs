@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace ImageGen.Tests;
 
-/// <summary>The field-level alternate range contract and MiniMax-H3's recommended-versus-node-safe boundary.</summary>
+/// <summary>The field-level alternate range contract and migration of MiniMax-H3 onto arbitrary frame pass-through.</summary>
 public sealed class WorkflowRangeOverrideTests
 {
     private static readonly string[] H3Configurations =
@@ -19,7 +19,7 @@ public sealed class WorkflowRangeOverrideTests
     ];
 
     [Fact]
-    public void Every_h3_variant_projects_the_extended_range_only_when_its_workflow_enabled_it()
+    public void Every_h3_variant_projects_arbitrary_positive_frames_when_its_legacy_setting_is_enabled()
     {
         WorkflowCatalog catalog = Catalog();
         WorkflowRegistry registry = Registry();
@@ -46,9 +46,18 @@ public sealed class WorkflowRangeOverrideTests
                 {
                     ["allowRangeOverride.length"] = JsonSerializer.SerializeToElement(true),
                 });
-            WorkflowParamRangeOverride alternate = Assert.IsType<WorkflowParamRangeOverride>(enabled.RangeOverride);
-            Assert.Null(alternate.Min);
-            Assert.Equal(149.67, alternate.Max);
+            Assert.Equal(0.01, enabled.Step);
+            Assert.Null(enabled.Max);
+            Assert.Null(enabled.RangeOverride);
+
+            WorkflowExposedParam explicitlyDisabled = WorkflowCatalogService.ExposedParam(length, wf, cfg,
+                new Dictionary<string, JsonElement>
+                {
+                    ["allowRangeOverride.length"] = JsonSerializer.SerializeToElement(true),
+                    ["allowUntrainedFrameCounts"] = JsonSerializer.SerializeToElement(false),
+                });
+            Assert.Equal(15.08, explicitlyDisabled.Max);
+            Assert.Equal(0.71, explicitlyDisabled.Step);
         }
     }
 
@@ -71,22 +80,31 @@ public sealed class WorkflowRangeOverrideTests
     }
 
     [Theory]
-    [InlineData(362)]  // final value in the recommended range
-    [InlineData(379)]  // first cadence-valid value above it
-    [InlineData(3592)] // final cadence-valid value under ComfyUI's 3600-frame node ceiling
-    public void H3_accepts_recommended_and_opted_in_lengths_through_the_node_safe_boundary(int length)
+    [InlineData(362)]
+    [InlineData(379)]
+    [InlineData(3592)]
+    public void H3_dto_retains_its_default_node_safe_boundary(int length)
     {
         MiniMaxH3Params p = ParamsCodec.Deserialize<MiniMaxH3Params>(H3Bag(length));
         Assert.Equal(length, p.Length);
     }
 
     [Fact]
-    public void H3_rejects_a_length_past_the_node_safe_boundary()
+    public void H3_dto_rejects_past_its_default_boundary_without_the_workflow_policy()
     {
-        RenderValidationException ex = Assert.Throws<RenderValidationException>(() =>
+        _ = Assert.Throws<RenderValidationException>(() =>
             ParamsCodec.Deserialize<MiniMaxH3Params>(H3Bag(3593)));
-        Assert.Contains(WorkflowParamKeys.Length, ex.Message);
-        Assert.Contains("3592", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3593)]
+    [InlineData(4000)]
+    public void H3_policy_bypasses_only_the_length_bound_for_ComfyUI_to_accept_or_reject(int length)
+    {
+        MiniMaxH3Params p = ParamsCodec.Deserialize<MiniMaxH3Params>(
+            H3Bag(length), WorkflowParamKeys.Length);
+        Assert.Equal(length, p.Length);
     }
 
     private static Dictionary<string, object?> H3Bag(int length) => new()

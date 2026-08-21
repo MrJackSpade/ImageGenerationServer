@@ -108,9 +108,10 @@ public interface IWorkflow
     /// the placeholder card before the render starts), and again at SUBMIT with the source dims + resolved
     /// requirements (<see cref="NormalizeContext.AtSubmit"/>) for snaps that need them. May MUTATE <paramref name="p"/>
     /// in place; returns one human-readable notice per USER-VISIBLE change (yellow text on the cards). Snapping rather
-    /// than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing.</summary>
+    /// than hard-rejecting is intentional — it keeps a mixed-model batch (each model with its own rule) flowing. A
+    /// workflow-owned untrained-frame policy may instead preserve the positive value and warn.</summary>
     IReadOnlyList<string> Normalize(IDictionary<string, object?> p, NormalizeContext ctx)
-        => FrameNormalization.Apply(FrameRule, p);
+        => FrameNormalization.Apply(FrameRule, p, ctx.AllowUntrainedFrameCounts);
 
 
 
