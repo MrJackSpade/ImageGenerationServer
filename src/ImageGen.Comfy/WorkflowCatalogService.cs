@@ -264,16 +264,22 @@ public sealed partial class WorkflowCatalogService(
         // — a broken link is an authoring error regardless of eligibility, and a target must be marked hidden.
         HashSet<string> maskTargets = MaskLinkTargets();
 
-        // Shared display name (within a kind + effect + edit section) → keep the first. The section is part of the
-        // identity for the same reason the effect is: "Anima" under the Redraw header and a plain "Anima" editor are
-        // different offerings, not duplicates.
+        // Shared display name (within a RESOLVED kind + effect + edit section) → keep the first. The resolved kind is
+        // important here: the workflow class only says Edit, while media/config capabilities refine that to Upscale,
+        // Animate, VideoEdit, etc. Using the class kind collapsed SeedVR2's still-image Upscale and video-source
+        // VideoEdit into one row; whichever config happened to enumerate first made the other picker lose SeedVR2.
         return [.. eligible
-            .GroupBy(e => $"{e.wf.Kind} {e.cfg.EffectType} {e.cfg.EditGroup} {(e.cfg.FriendlyName ?? e.cfg.Id).ToLowerInvariant()}")
+            .GroupBy(e => PickerIdentity(e.cfg, e.wf))
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
                 avgs.SecondsFor(e.cfg.Id) is double s ? (int?)Math.Round(s) : null,
                 maskTargets.Contains(e.cfg.Id)))];
     }
+
+    /// <summary>The visible picker identity used to collapse true aliases without merging workflows routed to
+    /// different media tabs. Kind must be the fully resolved kind, not the coarse kind declared by the class.</summary>
+    internal static string PickerIdentity(WorkflowConfiguration cfg, IWorkflow wf) =>
+        $"{ResolveKind(cfg, wf)} {cfg.EffectType} {cfg.EditGroup} {(cfg.FriendlyName ?? cfg.Id).ToLowerInvariant()}";
 
     /// <summary>
     /// Validate every configuration's <see cref="WorkflowConfiguration.MaskWorkflow"/> link and return the set of ids

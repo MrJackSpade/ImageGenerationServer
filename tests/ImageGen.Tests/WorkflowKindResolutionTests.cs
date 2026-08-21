@@ -74,6 +74,34 @@ public sealed class WorkflowKindResolutionTests
     }
 
     [Fact]
+    public void Picker_identity_keeps_still_and_video_seedvr2_in_their_own_dropdowns()
+    {
+        WorkflowConfiguration still = new()
+        {
+            Id = "seedvr2-upscale",
+            WorkflowName = "seedvr2-upscale",
+            FriendlyName = "SeedVR2",
+            EditGroup = "Upscale",
+        };
+        WorkflowConfiguration video = new()
+        {
+            Id = "seedvr2-upscale-video",
+            WorkflowName = "seedvr2-upscale-video",
+            FriendlyName = "SeedVR2",
+            EditGroup = "Upscale",
+        };
+
+        string stillIdentity = WorkflowCatalogService.PickerIdentity(
+            still, new StubWorkflow(WorkflowKind.Edit));
+        string videoIdentity = WorkflowCatalogService.PickerIdentity(
+            video, new StubWorkflow(WorkflowKind.Edit, WorkflowMedia.Video, WorkflowMedia.Video));
+
+        Assert.NotEqual(stillIdentity, videoIdentity);
+        Assert.StartsWith("Upscale ", stillIdentity, StringComparison.Ordinal);
+        Assert.StartsWith("VideoEdit ", videoIdentity, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_reference_taking_workflow_gets_the_ref_tag_first()
     {
         // "Ref" is DERIVED from the reference capability, not authored — and it leads, so it reads first in the picker.
