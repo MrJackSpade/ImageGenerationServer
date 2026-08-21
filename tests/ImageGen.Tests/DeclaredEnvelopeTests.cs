@@ -18,6 +18,15 @@ public sealed class DeclaredEnvelopeTests
     /// <summary>ImageScaleToTotalPixels declares megapixels min 0.01 — 10,000 pixels of area.</summary>
     private const int MinBudgetPixels = 10_000;
 
+    [Fact]
+    public void Untrained_resolution_policy_preserves_an_exact_off_grid_custom_size()
+    {
+        ModelResolution envelope = new() { MinW = 512, MinH = 512, MaxW = 1536, MaxH = 1536, Step = 16 };
+
+        Assert.Equal((1001, 777), RenderSizing.Resolve((1001, 777), null, envelope, allowUntrained: true));
+        Assert.Equal((1447, 1123), RenderSizing.Resolve((1001, 777), 1.55, envelope, allowUntrained: true));
+    }
+
     /// <summary>
     /// Krea's official ComfyUI workflow describes its supported range as 1–2 megapixels, not a 1024px minimum on
     /// each side. The shipped ~1MP portrait/landscape presets therefore establish the 768px short-edge floor used by

@@ -588,13 +588,14 @@ public sealed class ComfyClient : IComfyClient
         string normAspect = ComfyGraph.NormalizeAspect(aspect);
         WorkflowInputs inputs = new() { Positive = pos, Negative = neg, Aspect = normAspect, Loras = loraStack };
         // The RESOLVED render size (exactly what Build sizes the latent to) via the coupled W/H/M snap (#186): when a
-        // megapixels control is exposed the size is the W/H ratio scaled to that budget and clamped to the envelope;
-        // otherwise it's the aspect-map/flat-W/H size. Refuse one outside the model's documented envelope HERE, before
-        // the graph is built — the submit-path twin of the settings-write guard — so an out-of-range width/height sent
-        // past the UI (on the non-megapixels path, which does NOT clamp) fails fast with the model's own numbers.
+        // megapixels control is exposed the size is the W/H ratio scaled to that budget and ordinarily clamped to the
+        // envelope; otherwise it's the aspect-map/flat-W/H size. The workflow setting is the sole escape hatch for an
+        // image generator; video generation retains its trained size contract.
         ModelResolution? env = resolved.Resolution ?? wf.ResolutionEnvelope;
-        (int ew, int eh) = RenderSizing.Resolve(common.Dims(normAspect), common.Megapixels, env);
-        ResolutionGuard.EnsureWithin(env, ew, eh);
+        bool allowUntrainedResolution = wf.Media == WorkflowMedia.Image && resolved.AllowUntrainedResolution;
+        (int ew, int eh) = RenderSizing.Resolve(
+            common.Dims(normAspect), common.Megapixels, env, allowUntrainedResolution);
+        ResolutionGuard.EnsureAllowed(env, ew, eh, allowUntrainedResolution);
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         // ETA signature: the same resolved render size + the EtaVariable time drivers, from the merged/normalized
         // values the graph was built from.
@@ -825,6 +826,19 @@ public sealed class ComfyClient : IComfyClient
             if (overrides.ContainsKey(WorkflowParamKeys.Width) && overrides.ContainsKey(WorkflowParamKeys.Height))
             {
                 _ = v.Remove(WorkflowParamKeys.Aspect);
+
+                // With the per-workflow untrained-resolution policy enabled, typed Custom W/H are authoritative.
+                // The composer's two-decimal megapixel value can otherwise rescale an odd/off-grid pair. Drop that
+                // budget only for a genuine Custom pair; clicked aspect dimensions keep their ordinary behavior.
+                IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
+                if (wf.Kind == WorkflowKind.Generate
+                    && wf.Media == WorkflowMedia.Image
+                    && WorkflowResolutionPolicy.IsEnabled(machine)
+                    && RequestSize.TryExplicit(overrides, out int customW, out int customH)
+                    && !RequestSize.MatchesAspectDims(cfg, machine, customW, customH))
+                {
+                    _ = v.Remove(WorkflowParamKeys.Megapixels);
+                }
             }
         }
 
@@ -877,25 +891,35 @@ public sealed class ComfyClient : IComfyClient
         Dictionary<string, object?> before = new(merged, StringComparer.OrdinalIgnoreCase);
         List<string> notices = [.. NormalizeAndValidate(wf, cfg, merged, NormalizeContext.Empty)];   // enqueue pass: params only (frame snap), no source/requirements
 
-        // #212: a genuine CUSTOM size (explicit width/height matching none of this config's aspect-map dims) that the
-        // model cannot render is snapped to the nearest size it supports HERE, with a notice on the slot — a multi-model
-        // fan-out shares one typed size, and the model it doesn't fit must not sink the whole batch at submit. Dims that
-        // DO match a map entry are an aspect resolution (a ratio source, deliberately allowed outside the envelope).
-        if (kind == RenderKind.Generate
-            && RequestSize.TryExplicit(overrides, out int reqW, out int reqH)
-            && !RequestSize.MatchesAspectDims(cfg, _catalog.ParamOverridesFor(cfg.Id), reqW, reqH)
-            && ResolutionGuard.SnapToSupported(_catalog.Resolve(cfg).Resolution ?? wf.ResolutionEnvelope, reqW, reqH) is { } snap)
+        ResolvedRequirements resolved = _catalog.Resolve(cfg);
+        ModelResolution? envelope = resolved.Resolution ?? wf.ResolutionEnvelope;
+        IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
+        if (kind == RenderKind.Generate && wf.Media == WorkflowMedia.Image
+            && RequestSize.TryExplicit(overrides, out int reqW, out int reqH))
         {
-            merged[WorkflowParamKeys.Width] = snap.W;
-            merged[WorkflowParamKeys.Height] = snap.H;
-            // A custom size rides with megapixels = its exact area (#186); left at the ORIGINAL area, the render-path
-            // budget snap would rescale the corrected pair right back toward the unsupported size.
-            if (overrides is not null && overrides.ContainsKey(WorkflowParamKeys.Megapixels))
+            ResolutionGuard.EnsurePositive(reqW, reqH);
+            if (resolved.AllowUntrainedResolution)
             {
-                merged[WorkflowParamKeys.Megapixels] = Math.Round(snap.W * (double)snap.H / (1024 * 1024), 2);
+                if (WorkflowResolutionPolicy.WarningFor(envelope, reqW, reqH) is { } warning)
+                {
+                    notices.Add(warning);
+                }
             }
+            // #212: a genuine CUSTOM size ordinarily snaps to the nearest trained size. In multi-model fan-out,
+            // each disabled workflow normalizes its own slot while an opted-in workflow keeps the exact pair above.
+            else if (!RequestSize.MatchesAspectDims(cfg, machine, reqW, reqH)
+                && ResolutionGuard.SnapToSupported(envelope, reqW, reqH) is { } snap)
+            {
+                merged[WorkflowParamKeys.Width] = snap.W;
+                merged[WorkflowParamKeys.Height] = snap.H;
+                // Left at the original area, megapixels would rescale the corrected pair back toward the bad size.
+                if (overrides is not null && overrides.ContainsKey(WorkflowParamKeys.Megapixels))
+                {
+                    merged[WorkflowParamKeys.Megapixels] = Math.Round(snap.W * (double)snap.H / (1024 * 1024), 2);
+                }
 
-            notices.Add(snap.Notice);
+                notices.Add(snap.Notice);
+            }
         }
 
         if (notices.Count == 0)

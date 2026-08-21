@@ -139,6 +139,20 @@ public sealed class ParamBoundsValidationTests
     [Fact]
     public void A_null_envelope_is_not_second_guessed() => ResolutionGuard.EnsureWithin(null, 99999, 99999);
 
+    [Theory]
+    [InlineData(64, 4096)]
+    [InlineData(1001, 777)]
+    public void An_enabled_workflow_allows_positive_sizes_outside_the_trained_envelope(int w, int h) =>
+        ResolutionGuard.EnsureAllowed(Env, w, h, allowUntrained: true);
+
+    [Theory]
+    [InlineData(0, 1024)]
+    [InlineData(1024, 0)]
+    [InlineData(-1, 1024)]
+    public void Untrained_resolution_policy_never_allows_nonpositive_dimensions(int w, int h) =>
+        Assert.Throws<RenderValidationException>(() =>
+            ResolutionGuard.EnsureAllowed(Env, w, h, allowUntrained: true));
+
     /// <summary>RenderSizeViolation is the submit-path shape the catalog's request-size check (a composer Custom size)
     /// delegates to, so /enqueue can refuse an unsupported width/height up front with the model's own numbers.</summary>
     [Fact]

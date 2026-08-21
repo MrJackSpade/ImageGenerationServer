@@ -1,9 +1,13 @@
+using ImageGen.Application.Media;
 using ImageGen.Application.Snapshots;
+using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
 using ImageGen.Comfy.Snapshots;
 using ImageGen.Domain;
 using ImageGen.Domain.Repositories;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Reflection;
 using System.Text.Json;
 
 namespace ImageGen.Tests;
@@ -85,6 +89,34 @@ public sealed class RequestSizeValidationTests
         [WorkflowParamKeys.Height] = JsonSerializer.SerializeToElement(h),
     };
 
+    private static ComfyClient Client(WorkflowCatalog catalog)
+    {
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
+            .GetRequiredService<WorkflowRegistry>();
+        return new ComfyClient(
+            new NeverHttpFactory(), new NeverEndpoint(), catalog, registry,
+            DispatchProxy.Create<IMediaProcessor, NeverProxy>(),
+            DispatchProxy.Create<ISnapshot<ComfyFilesByKind>, NeverProxy>(),
+            NullLogger<ComfyClient>.Instance);
+    }
+
+    private sealed class NeverHttpFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new NotSupportedException();
+    }
+
+    private sealed class NeverEndpoint : IComfyEndpoint
+    {
+        public string BaseUrl => throw new NotSupportedException();
+        public string GateToken => throw new NotSupportedException();
+    }
+
+    public class NeverProxy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            throw new NotSupportedException($"Unexpected call to {targetMethod?.Name}.");
+    }
+
     [Fact]
     public void An_aspect_and_an_explicit_size_together_are_refused()
     {
@@ -125,6 +157,55 @@ public sealed class RequestSizeValidationTests
 
         Assert.Null(ResolutionGuard.SnapToSupported(env, 1024, 768));
         Assert.Null(ResolutionGuard.SnapToSupported(null, 2000, 2000));
+    }
+
+    [Fact]
+    public void Queue_preserves_and_warns_for_an_untrained_size_only_when_that_workflow_opted_in()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        ComfyClient client = Client(catalog);
+        Dictionary<string, JsonElement> requested = Size(2000, 2000);
+
+        QueueNormalizationResult trained = client.NormalizeForQueue("flux1-dev", RenderKind.Generate, requested);
+        IReadOnlyDictionary<string, JsonElement> trainedOverrides =
+            Assert.IsAssignableFrom<IReadOnlyDictionary<string, JsonElement>>(trained.Overrides);
+        Assert.Equal(1440, trainedOverrides[WorkflowParamKeys.Width].GetInt32());
+        Assert.Contains("nearest", Assert.IsType<string>(trained.Notice));
+
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["flux1-dev"] = new Dictionary<string, string>
+            {
+                ["param.allowUntrainedResolution"] = "true",
+            },
+        });
+
+        QueueNormalizationResult untrained = client.NormalizeForQueue("flux1-dev", RenderKind.Generate, requested);
+        IReadOnlyDictionary<string, JsonElement> untrainedOverrides =
+            Assert.IsAssignableFrom<IReadOnlyDictionary<string, JsonElement>>(untrained.Overrides);
+        Assert.Equal(2000, untrainedOverrides[WorkflowParamKeys.Width].GetInt32());
+        Assert.Equal(2000, untrainedOverrides[WorkflowParamKeys.Height].GetInt32());
+        Assert.Contains("outside this model's trained resolution range", Assert.IsType<string>(untrained.Notice));
+    }
+
+    [Fact]
+    public void Queue_rejects_nonpositive_dimensions_even_when_the_workflow_opted_in()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["flux1-dev"] = new Dictionary<string, string>
+            {
+                ["param.allowUntrainedResolution"] = "true",
+            },
+        });
+
+        _ = Assert.Throws<RenderValidationException>(() =>
+            Client(catalog).NormalizeForQueue("flux1-dev", RenderKind.Generate, Size(0, 1024)));
     }
 
     [Fact]

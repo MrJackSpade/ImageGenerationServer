@@ -341,6 +341,9 @@ public sealed partial class WorkflowCatalogService(
         }
 
         IReadOnlyDictionary<string, JsonElement> overrides = _catalog.ParamOverridesFor(cfg.Id);
+        bool allowUntrainedResolution = wf.Kind == WorkflowKind.Generate
+            && wf.Media == WorkflowMedia.Image
+            && WorkflowResolutionPolicy.IsEnabled(overrides);
 
         // Every parameter the CONFIGURATION sets, not just the ones exposed per generation. The exposed ones are
         // what a caller may vary on a single render; these are what this machine renders with by default, which is
@@ -443,7 +446,7 @@ public sealed partial class WorkflowCatalogService(
         {
             ConfigSetting customSize = new(
                 SettingKeys.CustomSize, "Custom size on the generation page",
-                "When on, the generation page offers a Custom aspect with width/height boxes for this workflow, validated against its resolution envelope.",
+                "When on, the generation page offers a Custom aspect with width/height boxes for this workflow, validated against its resolution envelope. Allowing untrained resolutions also turns Custom sizing on.",
                 ControlTokens.Bool, null, null, null, null,
                 Shipped: null,
                 Override: overrides.TryGetValue(SettingKeys.CustomSize, out JsonElement cs) ? (object?)cs : null);
@@ -457,14 +460,28 @@ public sealed partial class WorkflowCatalogService(
             {
                 settings.Add(customSize);
             }
+
+            ConfigSetting untrainedResolution = new(
+                WorkflowResolutionText.SettingKey,
+                WorkflowResolutionText.Label,
+                WorkflowResolutionText.Warning,
+                ControlTokens.Bool, null, null, null, null,
+                Shipped: false,
+                Override: overrides.TryGetValue(WorkflowResolutionText.SettingKey, out JsonElement ur)
+                    ? (object?)ur
+                    : null);
+            int customIndex = settings.FindIndex(s =>
+                string.Equals(s.Key, SettingKeys.CustomSize, StringComparison.OrdinalIgnoreCase));
+            settings.Insert(customIndex >= 0 ? customIndex + 1 : settings.Count, untrainedResolution);
         }
 
         // The declared envelope travels with the settings, so the size boxes are bounded by what the model says
         // it supports instead of by a guess.
-        ModelResolution? r = cfg.Resolution;
+        ModelResolution? r = cfg.Resolution ?? wf.ResolutionEnvelope;
         return new WorkflowSettings(
             cfg.Id, cfg.FriendlyName ?? cfg.Id, settings,
-            r is null ? null : new ResolutionEnvelope(r.MinW, r.MinH, r.MaxW, r.MaxH, r.Step));
+            r is null ? null : new ResolutionEnvelope(r.MinW, r.MinH, r.MaxW, r.MaxH, r.Step),
+            allowUntrainedResolution);
     }
 
     /// <inheritdoc/>
@@ -553,6 +570,9 @@ public sealed partial class WorkflowCatalogService(
         // This machine's overrides win here too. Reporting the SHIPPED value while rendering the overridden one
         // would put the composer and the graph into disagreement — the control would read 40 steps and produce 12.
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
+        bool allowUntrainedResolution = wf.Kind == WorkflowKind.Generate
+            && wf.Media == WorkflowMedia.Image
+            && WorkflowResolutionPolicy.IsEnabled(machine);
         List<WorkflowExposedParam> exposed = [.. cfg.Params
             .Where(kv => kv.Value.Visibility == ParamVisibility.Exposed)
             .Select(kv => ExposedParam(kv, wf, cfg, machine))];
@@ -626,7 +646,7 @@ public sealed partial class WorkflowCatalogService(
             LoraFolder: OverrideString(machine, SettingKeys.TargetLoraFolder),
             // Opt-in per-machine toggle: when set, the composer offers a "Custom" aspect with width/height boxes for
             // this workflow. Read from the same per-machine override store as the settings toggle that sets it.
-            CustomSizeEnabled: OverrideBool(machine, SettingKeys.CustomSize),
+            CustomSizeEnabled: allowUntrainedResolution || OverrideBool(machine, SettingKeys.CustomSize),
             // Per-machine random-prompt toggle. Defaults on for the workflows whose tagging block enabled the feature
             // before the toggle existed; prose workflows remain off until explicitly enabled.
             TagGeneratorEnabled: EffectiveBool(machine, SettingKeys.TagGenerator, c.Tagging?.Tags == true),
@@ -761,6 +781,10 @@ public sealed partial class WorkflowCatalogService(
         /// <summary>The per-machine setting key for whether the composer offers the built-in random tag generator for
         /// this workflow. Independent of the card's booru tagging syntax.</summary>
         public const string TagGenerator = "tagGenerator";
+
+        /// <summary>The per-machine setting key for allowing positive image-generation dimensions outside the model's
+        /// documented training envelope.</summary>
+        public const string UntrainedResolution = ParamPrefix + WorkflowResolutionText.SettingKey;
     }
 
     /// <summary>Control tokens the settings page uses to pick an input widget.</summary>

@@ -8,7 +8,8 @@ namespace ImageGen.Comfy;
 /// <para>When a configuration exposes no <c>megapixels</c> control the base size is returned unchanged — exactly
 /// today's <c>p.Dims(...)</c> behavior. When megapixels IS set the base size supplies only the aspect RATIO: it is
 /// scaled to the megapixel budget via <see cref="BudgetScale.Snap"/> on the envelope's step and clamped into the
-/// model's <see cref="ModelResolution"/> envelope.</para>
+/// model's <see cref="ModelResolution"/> envelope. An image workflow that explicitly permits untrained resolutions
+/// uses a one-pixel grid without the trained-range clamp.</para>
 ///
 /// <para>The base size is the ALREADY-aspect-resolved size (<c>Dims(aspect)</c>): the aspect map's entry for the
 /// requested shape, or — when the composer's Custom size dropped the aspect map for this request (<c>MergeParamsDict</c>)
@@ -24,13 +25,27 @@ internal static class RenderSizing
 {
     /// <summary>The resolved render size: <paramref name="baseDims"/> verbatim when <paramref name="megapixels"/> is
     /// null (no megapixels control), otherwise <paramref name="baseDims"/>' aspect ratio scaled to the budget and
-    /// clamped into <paramref name="env"/>. A set megapixels with no envelope to snap to is a broken configuration and
-    /// is refused — the size cannot be computed without the model's resolution step.</summary>
-    public static (int w, int h) Resolve((int w, int h) baseDims, double? megapixels, ModelResolution? env)
+    /// clamped into <paramref name="env"/>. With <paramref name="allowUntrained"/>, a one-pixel grid is used and the
+    /// trained envelope is retained only as warning metadata. Otherwise, megapixels without an envelope is refused.</summary>
+    public static (int w, int h) Resolve(
+        (int w, int h) baseDims,
+        double? megapixels,
+        ModelResolution? env,
+        bool allowUntrained = false)
     {
+        ResolutionGuard.EnsurePositive(baseDims.w, baseDims.h);
         if (megapixels is not double mp)
         {
             return baseDims;
+        }
+
+        if (allowUntrained)
+        {
+            // The megapixel control still scales an ordinary aspect, but there is deliberately no trained-range clamp
+            // or model grid. A typed Custom W/H has its derived megapixels removed before this seam so it stays exact.
+            (int width, int height) = BudgetScale.Snap(baseDims.w, baseDims.h, mp, resolutionSteps: 1);
+            ResolutionGuard.EnsurePositive(width, height);
+            return (width, height);
         }
 
         ModelResolution envelope = env

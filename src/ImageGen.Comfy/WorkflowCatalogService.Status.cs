@@ -166,14 +166,18 @@ public sealed partial class WorkflowCatalogService
     /// Refuse a render size the model does not document. Uses the envelope the CONFIGURATION declares — no bound is
     /// invented here, and a configuration that declares none is not second-guessed.
     /// </summary>
-    private void GuardAspectAgainstEnvelope(string configId, string json)
+    private void GuardAspectAgainstEnvelope(string configId, string json, bool forceTrainedEnvelope = false)
     {
         WorkflowConfiguration? cfg = _catalog.FindConfig(configId);
-        if (cfg?.Resolution is not { } env)
+        if (cfg is null)
         {
             return;
         }
 
+        IWorkflow? wf = _registry.Find(cfg.WorkflowName);
+        ModelResolution? env = cfg.Resolution ?? wf?.ResolutionEnvelope;
+        bool allowUntrained = !forceTrainedEnvelope
+            && WorkflowResolutionPolicy.IsEnabled(_catalog.ParamOverridesFor(cfg.Id));
         string name = cfg.FriendlyName ?? cfg.Id;
 
         using JsonDocument doc = System.Text.Json.JsonDocument.Parse(json);
@@ -186,9 +190,15 @@ public sealed partial class WorkflowCatalogService
 
             int w = aspect.Value[0].GetInt32(), h = aspect.Value[1].GetInt32();
 
+            if (ResolutionGuard.PositiveViolation(w, h, $"{aspect.Name} ({name})") is { } positive)
+            {
+                throw new ArgumentException(positive + ".");
+            }
+
             // Same envelope check the submit path runs (ResolutionGuard) — the write path just throws the type the
             // settings API maps to a 400 and names the model in the subject.
-            if (ResolutionGuard.Violation(env, w, h, $"{aspect.Name} ({name})") is { } msg)
+            if (!allowUntrained && env is not null
+                && ResolutionGuard.Violation(env, w, h, $"{aspect.Name} ({name})") is { } msg)
             {
                 throw new ArgumentException(msg + ".");
             }
@@ -273,6 +283,16 @@ public sealed partial class WorkflowCatalogService
             && !string.IsNullOrWhiteSpace(settingValue))
         {
             GuardAspectAgainstEnvelope(configId, settingValue);
+        }
+
+        // Do not let an operator turn the escape hatch off while this workflow's saved aspect map still needs it;
+        // that would persist a workflow which immediately fails every ordinary aspect render. Reset/fix the sizes
+        // first, then disable the policy.
+        if (string.Equals(settingKey, SettingKeys.UntrainedResolution, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(settingValue, bool.TrueString, StringComparison.OrdinalIgnoreCase)
+            && _catalog.ParamOverridesFor(configId).TryGetValue(WorkflowParamKeys.Aspect, out JsonElement aspectOverride))
+        {
+            GuardAspectAgainstEnvelope(configId, aspectOverride.GetRawText(), forceTrainedEnvelope: true);
         }
 
         if (string.Equals(settingKey, SettingKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase)

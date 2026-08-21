@@ -448,6 +448,9 @@ public sealed class ResolvedRequirements
     /// <summary>The checkpoint model's documented resolution envelope (null if the model has no resolution block),
     /// for snapping the render size onto a clean grid multiple.</summary>
     public ModelResolution? Resolution { get; init; }
+    /// <summary>True when this image-generation workflow's machine setting explicitly permits positive dimensions
+    /// outside <see cref="Resolution"/>. The envelope remains present for warnings; graph sizing skips its clamp.</summary>
+    public bool AllowUntrainedResolution { get; init; }
 
     /// <summary>The resolved filename for text encoder <paramref name="index"/>, or a refusal naming it — a REQUIRED
     /// encoder slot fails loudly rather than loading an empty name that only "works" on a machine that happens to hold

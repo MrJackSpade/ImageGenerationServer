@@ -375,6 +375,10 @@ public sealed class WorkflowCatalog : IDisposable
         ReloadIfChanged();
         lock (_lock)
         {
+            IReadOnlyDictionary<string, JsonElement> machine =
+                _paramOverrides.TryGetValue(cfg.Id, out Dictionary<string, JsonElement>? configured)
+                    ? configured
+                    : new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             // A slot resolves to whatever THIS MACHINE has bound to it. An unbound slot yields an empty filename;
             // presence-gating will already have hidden the configuration, and the diagnostics list says which slot.
             string Name(string? rid)
@@ -390,6 +394,7 @@ public sealed class WorkflowCatalog : IDisposable
                 MotionModel = string.IsNullOrEmpty(cfg.Requirements.MotionModel) ? null : Name(cfg.Requirements.MotionModel),
                 ControlNet = string.IsNullOrEmpty(cfg.Requirements.ControlNet) ? null : Name(cfg.Requirements.ControlNet),
                 Resolution = cfg.Resolution,
+                AllowUntrainedResolution = WorkflowResolutionPolicy.IsEnabled(machine),
             };
         }
     }

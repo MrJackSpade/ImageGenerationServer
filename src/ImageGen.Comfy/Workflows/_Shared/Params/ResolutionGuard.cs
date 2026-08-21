@@ -6,21 +6,28 @@ namespace ImageGen.Comfy;
 
 /// <summary>
 /// The one place a resolved render size is checked against a model's documented <see cref="ModelResolution"/>
-/// envelope. Used on BOTH the settings-write path (where an operator types an aspect map) and the SUBMIT path (the
-/// final resolved width/height, from the aspect map or flat width/height, just before the graph is built) — so a size
-/// the model cannot render is refused with the model's own numbers instead of failing minutes later at the GPU.
-/// <para>No bound is invented here: a configuration that declares no envelope is not second-guessed
-/// (<see cref="EnsureWithin"/> no-ops on a null envelope).</para>
+/// envelope. Used on both the settings-write and submit paths. The per-workflow image-generation escape hatch skips
+/// the trained envelope but still comes through here for the universal positive-dimension rule.
+/// <para>No bound is invented when a configuration declares no envelope.</para>
 /// </summary>
 [AllowMagicStrings("human-readable render-size refusal messages")]
 internal static class ResolutionGuard
 {
+    /// <summary>The universal dimension rule, independent of any model envelope.</summary>
+    public static string? PositiveViolation(int w, int h, string subject) => w > 0 && h > 0
+        ? null
+        : $"{subject} is {w}x{h}; width and height must both be greater than zero";
 
     /// <summary>Null when (<paramref name="w"/>,<paramref name="h"/>) is within <paramref name="env"/>; otherwise a
     /// reason naming the violated side range or step multiple, with the model's own numbers. <paramref name="subject"/>
     /// names what the size belongs to (an aspect entry on the write path, "the render size" at submit).</summary>
     public static string? Violation(ModelResolution env, int w, int h, string subject)
     {
+        if (PositiveViolation(w, h, subject) is { } positive)
+        {
+            return positive;
+        }
+
         if (w < env.MinW || w > env.MaxW || h < env.MinH || h > env.MaxH)
         {
             return $"{subject} is {w}x{h}, outside what this model supports ({env.MinW}-{env.MaxW} wide, {env.MinH}-{env.MaxH} tall)";
@@ -73,7 +80,28 @@ internal static class ResolutionGuard
     /// null envelope (the configuration declares none) is left alone.</summary>
     public static void EnsureWithin(ModelResolution? env, int w, int h)
     {
+        EnsurePositive(w, h);
         if (RenderSizeViolation(env, w, h) is { } msg)
+        {
+            throw new RenderValidationException(msg + ".");
+        }
+    }
+
+    /// <summary>Enforce positive dimensions and, unless the workflow explicitly allows untrained resolutions, its
+    /// documented envelope.</summary>
+    public static void EnsureAllowed(ModelResolution? env, int w, int h, bool allowUntrained)
+    {
+        EnsurePositive(w, h);
+        if (!allowUntrained && RenderSizeViolation(env, w, h) is { } msg)
+        {
+            throw new RenderValidationException(msg + ".");
+        }
+    }
+
+    /// <summary>Refuse zero or negative dimensions without inventing any upper bound or grid.</summary>
+    public static void EnsurePositive(int w, int h)
+    {
+        if (PositiveViolation(w, h, "the render size") is { } msg)
         {
             throw new RenderValidationException(msg + ".");
         }

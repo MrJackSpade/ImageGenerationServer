@@ -228,7 +228,11 @@ public abstract class Txt2ImgWorkflow<TParams> : Workflow<TParams> where TParams
     /// configuration's own <see cref="ResolvedRequirements.Resolution"/>, else this workflow's declared
     /// <see cref="IWorkflow.ResolutionEnvelope"/>.</summary>
     protected (int w, int h) RenderSize(Txt2ImgParams p, ResolvedRequirements req, WorkflowInputs inputs) =>
-        RenderSizing.Resolve(p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)), p.Megapixels, req.Resolution ?? ResolutionEnvelope);
+        RenderSizing.Resolve(
+            p.Dims(ComfyGraph.NormalizeAspect(inputs.Aspect)),
+            p.Megapixels,
+            req.Resolution ?? ResolutionEnvelope,
+            req.AllowUntrainedResolution && Media == WorkflowMedia.Image);
 
     /// <summary>Transform the positive conditioning after text-encode/guidance (default identity). Node "13" is reserved.</summary>
     protected virtual Output<Slot.Conditioning> PostEncodePositive(ComfyWorkflowGraph g, Output<Slot.Conditioning> positive, TParams p) => positive;

@@ -278,7 +278,13 @@
     }
     row.appendChild(label);
 
-    if (s.type === "aspect") { row.appendChild(aspectEditor(s, settingsData && settingsData.resolution)); return row; }
+    if (s.type === "aspect") {
+      row.appendChild(aspectEditor(
+        s,
+        settingsData && settingsData.resolution,
+        settingsData && settingsData.allowUntrainedResolution === true));
+      return row;
+    }
 
     // Per-ACCOUNT show/hide for this param on the generation page (#191) — beside the per-MACHINE value field on
     // purpose: "what the box renders with" vs "what I see". Only params the catalogue marks toggleable (not locked,
@@ -355,7 +361,7 @@
   // resolution block — HunyuanVideo 1.5 720p wants a minimum side of 480 in multiples of 16 — and a box that
   // offered 64 in steps of 8 would be contradicting the model it is configuring. Without a declaration the
   // browser's own validation is left alone rather than a guess being substituted for it.
-  function aspectEditor(s, env) {
+  function aspectEditor(s, env, allowUntrained) {
     const map = eff(s) || {};
     const box = document.createElement("div");
     box.className = "wf-aspect";
@@ -368,9 +374,13 @@
       for (const [el, v, lo, hi] of [[w, pair[0], env && env.minW, env && env.maxW],
                                       [h, pair[1], env && env.minH, env && env.maxH]]) {
         el.type = "number"; el.className = "fld-input";
-        if (lo) el.min = lo;
-        if (hi) el.max = hi;
-        if (env && env.step) el.step = env.step;
+        if (allowUntrained) {
+          el.min = 1; el.step = 1;
+        } else {
+          if (lo) el.min = lo;
+          if (hi) el.max = hi;
+          if (env && env.step) el.step = env.step;
+        }
         el.value = v == null ? "" : v;
       }
       inputs[name] = [w, h];
@@ -378,11 +388,14 @@
       cell.append(nm, w, x, h);
       box.appendChild(cell);
     }
-    if (env) {
+    if (env || allowUntrained) {
       const note = document.createElement("p");
       note.className = "wf-aspect-note";
-      note.textContent = `This model supports ${env.minW}–${env.maxW} wide and ${env.minH}–${env.maxH} tall, `
-        + `in multiples of ${env.step}.`;
+      note.textContent = allowUntrained
+        ? (env
+          ? `Any positive size is allowed. This model was trained for ${env.minW}–${env.maxW} wide and ${env.minH}–${env.maxH} tall, in multiples of ${env.step}; other sizes may fail, degrade output, or exhaust memory.`
+          : "Any positive size is allowed; unusual sizes may fail, degrade output, or exhaust memory.")
+        : `This model supports ${env.minW}–${env.maxW} wide and ${env.minH}–${env.maxH} tall, in multiples of ${env.step}.`;
       box.appendChild(note);
     }
     const save = document.createElement("button");

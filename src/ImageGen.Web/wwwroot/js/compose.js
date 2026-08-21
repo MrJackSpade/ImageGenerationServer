@@ -175,8 +175,8 @@ const $aspectCustom = $("aspectCustom");
 // The width/height actually submitted (#209): always in the DOM, written by an aspect click, read at submit. The single
 // source of the render size — a revealed width/height field is this same value, shown.
 const $genW = $("genW"), $genH = $("genH");
-let customActive = false, customEnv = null;
-const ENV_CACHE = new Map();   // config id -> resolution envelope (null = the config declares none)
+let customActive = false, customEnv = null, customAllowUntrained = false;
+const ENV_CACHE = new Map();   // config id -> { resolution, allowUntrained }
 
 // The single generate workflow whose custom sizing we'd offer, or null (0 or 2+ picked, or it hasn't enabled it).
 function customCapable() { const m = primaryModel(); return (m && m.kind === "generate" && m.customSizeEnabled) ? m : null; }
@@ -250,29 +250,44 @@ function layoutSizeFields() {
 // Bound the size fields by the model's declared envelope and attach the same note the settings size editor shows.
 // The envelope is fetched once per config and re-applied on every re-render for that config.
 async function applyEnvelope(m) {
+  customEnv = null;
+  customAllowUntrained = false;
   if (!ENV_CACHE.has(m.id)) {
     try {
       const r = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/settings`);
       if (!r.ok) return;
-      ENV_CACHE.set(m.id, (await r.json()).resolution || null);
+      const data = await r.json();
+      ENV_CACHE.set(m.id, { resolution: data.resolution || null, allowUntrained: data.allowUntrainedResolution === true });
     } catch (e) { console.debug("custom size envelope load failed:", e); return; }
   }
   const pm = primaryModel();
   if (!pm || pm.id !== m.id) return;   // the selection moved while the fetch was in flight
-  customEnv = ENV_CACHE.get(m.id);
-  if (!customEnv) return;
+  const policy = ENV_CACHE.get(m.id);
+  customEnv = policy.resolution;
+  customAllowUntrained = policy.allowUntrained;
   const wEl = sizeField("width"), hEl = sizeField("height");
-  for (const [el, lo, hi] of [[wEl, customEnv.minW, customEnv.maxW], [hEl, customEnv.minH, customEnv.maxH]]) {
+  for (const [el, lo, hi] of [[wEl, customEnv && customEnv.minW, customEnv && customEnv.maxW], [hEl, customEnv && customEnv.minH, customEnv && customEnv.maxH]]) {
     if (!el) continue;
-    el.min = lo; el.max = hi; el.step = customEnv.step;
+    if (customAllowUntrained) {
+      el.min = 1; el.step = 1; el.removeAttribute("max");
+    } else {
+      if (lo != null) el.min = lo; else el.removeAttribute("min");
+      if (hi != null) el.max = hi; else el.removeAttribute("max");
+      if (customEnv && customEnv.step) el.step = customEnv.step; else el.removeAttribute("step");
+    }
   }
   // The note rides under the height field so the bounds sit next to the boxes they bound.
   const box = document.getElementById("modelParams");
   if (hEl && box) {
     let note = box.querySelector("#customSizeNote");
     if (!note) { note = document.createElement("p"); note.id = "customSizeNote"; note.className = "wf-aspect-note"; (hEl.closest(".mp-size-row") || hEl.closest(".mp-field")).after(note); }
-    note.textContent =
-      `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`;
+    note.textContent = customAllowUntrained
+      ? (customEnv
+        ? `Any positive size is allowed. This model was trained for ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}; other sizes may fail, degrade output, or exhaust memory.`
+        : "Any positive size is allowed; unusual sizes may fail, degrade output, or exhaust memory.")
+      : (customEnv
+        ? `This model supports ${customEnv.minW}–${customEnv.maxW} wide and ${customEnv.minH}–${customEnv.maxH} tall, in multiples of ${customEnv.step}.`
+        : "Width and height must be positive.");
   }
   decorateMpSlider();
   updateSizeControlsVisibility();   // the note lands async — re-hide it if a multi-pick is active
@@ -282,8 +297,17 @@ async function applyEnvelope(m) {
 // envelope, as an area: smallest supported W×H to largest, so every slider position is a size the model can render.
 // Built only once the envelope is known; a config that declares none keeps the plain number input.
 function decorateMpSlider() {
-  const f = $mpField(); if (!f || !customEnv) return;
+  const f = $mpField(); if (!f) return;
   const wrap = f.closest(".mp-field"); if (!wrap) return;
+  const existing = wrap.querySelector(".mp-slider");
+  if (customAllowUntrained || !customEnv) {
+    if (existing) {
+      const row = existing.closest(".mp-num-row");
+      existing.remove();
+      if (row) row.replaceWith(f);
+    }
+    return;
+  }
   const lo = Math.ceil((customEnv.minW * customEnv.minH) / (1024 * 1024) * 100) / 100;
   const hi = Math.floor((customEnv.maxW * customEnv.maxH) / (1024 * 1024) * 100) / 100;
   let slider = wrap.querySelector(".mp-slider");
@@ -323,7 +347,7 @@ function syncMpFromWH() {
 }
 function rescaleWHtoMp(mp) {
   const w = customDim($genW), h = customDim($genH);
-  const step = customEnv && customEnv.step;
+  const step = customAllowUntrained ? 1 : customEnv && customEnv.step;
   if (!(w > 0 && h > 0) || !(mp > 0) || !step) return false;   // no envelope step yet → skip the cosmetic rescale (the server snap is authoritative)
   const scale = Math.sqrt((mp * 1024 * 1024) / (w * h));
   writeSize(Math.max(step, Math.round(w * scale / step) * step), Math.max(step, Math.round(h * scale / step) * step));

@@ -73,6 +73,20 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains("inp.rangeWarningRefresh = refreshWarning;", core, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Untrained_resolution_is_workflow_owned_and_changes_both_size_editors()
+    {
+        string compose = Js("compose.js");
+        string detail = Js("workflow-detail.js");
+
+        Assert.Contains("data.allowUntrainedResolution === true", compose, StringComparison.Ordinal);
+        Assert.Contains("el.min = 1; el.step = 1; el.removeAttribute(\"max\")", compose, StringComparison.Ordinal);
+        Assert.Contains("other sizes may fail, degrade output, or exhaust memory", compose, StringComparison.Ordinal);
+        Assert.Contains("settingsData.allowUntrainedResolution === true", detail, StringComparison.Ordinal);
+        Assert.Contains("el.min = 1; el.step = 1", detail, StringComparison.Ordinal);
+        Assert.Contains("other sizes may fail, degrade output, or exhaust memory", detail, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;

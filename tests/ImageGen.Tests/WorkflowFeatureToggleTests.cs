@@ -24,7 +24,7 @@ public sealed class WorkflowFeatureToggleTests
         return dir ?? throw new DirectoryNotFoundException("configurations/workflows not found.");
     }
 
-    private static (WorkflowCatalog Catalog, WorkflowCatalogService Service) Build()
+    private static (WorkflowCatalog Catalog, WorkflowCatalogService Service, WorkflowRegistry Registry) Build()
     {
         WorkflowCatalog catalog = new(
             new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
@@ -41,7 +41,7 @@ public sealed class WorkflowFeatureToggleTests
             catalog, registry, probes, snapshots, new UnreachableSnapshot<GenTimingAverages>(),
             new UnreachableOverrideRepository(), new UnreachableVariantRepository(),
             NullLogger<WorkflowCatalogService>.Instance);
-        return (catalog, service);
+        return (catalog, service, registry);
     }
 
     [Theory]
@@ -50,7 +50,7 @@ public sealed class WorkflowFeatureToggleTests
     [InlineData("krea2-turbo", false)]
     public void Tag_generator_defaults_to_the_previous_tagging_capability(string configId, bool expected)
     {
-        (_, WorkflowCatalogService service) = Build();
+        (_, WorkflowCatalogService service, _) = Build();
 
         Assert.Equal(expected, Assert.IsType<WorkflowInfo>(service.ResolveInfo(configId)).TagGeneratorEnabled);
         ConfigSetting setting = Assert.Single(
@@ -63,7 +63,7 @@ public sealed class WorkflowFeatureToggleTests
     [Fact]
     public void Tag_generator_override_can_enable_prose_and_disable_an_existing_tag_workflow()
     {
-        (WorkflowCatalog catalog, WorkflowCatalogService service) = Build();
+        (WorkflowCatalog catalog, WorkflowCatalogService service, _) = Build();
         catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
         {
             ["krea2-turbo"] = new Dictionary<string, string> { ["param.tagGenerator"] = "true" },
@@ -77,7 +77,7 @@ public sealed class WorkflowFeatureToggleTests
     [Fact]
     public void Extended_length_is_a_workflow_setting_not_a_generation_control()
     {
-        (WorkflowCatalog catalog, WorkflowCatalogService service) = Build();
+        (WorkflowCatalog catalog, WorkflowCatalogService service, _) = Build();
         ConfigSetting shipped = Assert.Single(
             Assert.IsType<WorkflowSettings>(service.GetSettings("minimax-h3-t2v")).Settings,
             s => s.Key == "allowRangeOverride.length");
@@ -105,8 +105,59 @@ public sealed class WorkflowFeatureToggleTests
     [InlineData("ltx23-i2v", false)]
     public void Audio_capability_follows_the_configuration_audio_vae_slot(string configId, bool expected)
     {
-        (_, WorkflowCatalogService service) = Build();
+        (_, WorkflowCatalogService service, _) = Build();
         Assert.Equal(expected, Assert.IsType<WorkflowInfo>(service.ResolveInfo(configId)).HasAudio);
+    }
+
+    [Fact]
+    public void Every_image_generation_workflow_has_an_untrained_resolution_setting()
+    {
+        (WorkflowCatalog catalog, WorkflowCatalogService service, WorkflowRegistry registry) = Build();
+        List<string> missing = [];
+
+        foreach (WorkflowConfiguration config in catalog.AllConfigs())
+        {
+            IWorkflow? workflow = registry.Find(config.WorkflowName);
+            if (workflow is not { Kind: WorkflowKind.Generate, Media: WorkflowMedia.Image })
+            {
+                continue;
+            }
+
+            WorkflowSettings settings = Assert.IsType<WorkflowSettings>(service.GetSettings(config.Id));
+            ConfigSetting? toggle = settings.Settings.SingleOrDefault(s => s.Key == "allowUntrainedResolution");
+            if (toggle is null)
+            {
+                missing.Add(config.Id);
+                continue;
+            }
+
+            Assert.Equal("Allow untrained resolutions", toggle.Label);
+            Assert.False(Assert.IsType<bool>(toggle.Shipped));
+            Assert.False(settings.AllowUntrainedResolution);
+        }
+
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void Enabling_untrained_resolutions_is_a_workflow_policy_and_implies_custom_sizing()
+    {
+        (WorkflowCatalog catalog, WorkflowCatalogService service, _) = Build();
+        catalog.SetParamOverrides(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["flux1-dev"] = new Dictionary<string, string>
+            {
+                ["param.allowUntrainedResolution"] = "true",
+            },
+        });
+
+        WorkflowSettings settings = Assert.IsType<WorkflowSettings>(service.GetSettings("flux1-dev"));
+        ConfigSetting toggle = Assert.Single(settings.Settings, s => s.Key == "allowUntrainedResolution");
+        Assert.True(settings.AllowUntrainedResolution);
+        Assert.True(Assert.IsType<JsonElement>(toggle.Override).GetBoolean());
+
+        WorkflowConfiguration config = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("flux1-dev"));
+        Assert.True(catalog.Resolve(config).AllowUntrainedResolution);
     }
 
     private sealed class UnreachableSnapshot<T> : ISnapshot<T>
