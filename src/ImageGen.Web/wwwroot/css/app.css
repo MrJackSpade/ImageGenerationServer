@@ -967,12 +967,14 @@ body.auth .page{max-width:none;padding:0}
 .wf-setting textarea.fld-input{max-width:52rem;min-height:11rem;resize:vertical;font-family:var(--mono);line-height:1.4}
 .wf-setting input[type=checkbox].fld-input{width:auto;justify-self:start}
 .wf-setting.is-overridden .fld-label{color:var(--accent-hi)}
-/* A model binding is global per (machine,slot): changing it from one workflow's page changes it for every workflow
-   that shares the slot. The detail-page picker names those workflows in red under the control so it's never silent. */
+/* Workflow model pins inherit from the machine-wide shared default until explicitly pinned. */
+.wf-binding-source{grid-column:2;margin:0!important}
+.wf-binding-action{grid-column:3;grid-row:1/3;justify-self:end}
 .wf-slot-shared{grid-column:1/-1;margin:2px 0 0;color:var(--danger);font-size:12.5px;line-height:1.35}
 @media (max-width:640px){
   /* One column on a phone: 9rem of label plus a control is narrower than either wants. */
   .wf-setting{grid-template-columns:1fr;gap:2px;padding:8px 10px}
+  .wf-binding-source,.wf-binding-action{grid-column:1;grid-row:auto;justify-self:start}
 }
 /* The per-account show/hide checkbox at the row's end (#191). */
 .wf-vis{justify-self:end;margin:0}

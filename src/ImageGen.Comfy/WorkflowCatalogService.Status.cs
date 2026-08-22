@@ -49,7 +49,7 @@ public sealed partial class WorkflowCatalogService
 
         // A bound file that ComfyUI no longer reports is as missing as one that was never bound — the weights were
         // moved or deleted, and saying "bound" would be a lie the picker then contradicts.
-        bool Satisfied(string slotId)
+        bool Satisfied(string configId, string slotId)
         {
             if (_catalog.FindRequirement(slotId) is not { } r)
             {
@@ -61,9 +61,10 @@ public sealed partial class WorkflowCatalogService
                 return presentNodes.Contains(r.Node);
             }
 
-            return bindings.TryGetValue(slotId, out ModelBinding? bound)
+            string? effective = _catalog.ResolveBinding(configId, slotId).EffectiveFile;
+            return effective is not null
                 && byKind.TryGetValue(r.Kind, out IReadOnlyList<string>? files)
-                && files.Contains(bound.FileName, StringComparer.OrdinalIgnoreCase);
+                && files.Contains(effective, StringComparer.OrdinalIgnoreCase);
         }
 
         List<WorkflowStatus> workflows = [];
@@ -82,7 +83,7 @@ public sealed partial class WorkflowCatalogService
             List<string> required = [.. cfg.Requirements.All()
                 .Concat(_catalog.ModelRefSlots(wf, cfg))
                 .Distinct(StringComparer.OrdinalIgnoreCase)];
-            List<string> missing = [.. required.Where(id => !Satisfied(id))];
+            List<string> missing = [.. required.Where(id => !Satisfied(cfg.Id, id))];
 
             workflows.Add(new WorkflowStatus(
                 cfg.Id,
@@ -141,11 +142,22 @@ public sealed partial class WorkflowCatalogService
                 continue;
             }
 
-            IReadOnlyList<string> sharedWith = SlotSharing.Others(status.Workflows, configId, slotId);
+            IReadOnlyList<string> sharedWith = SlotSharing.Others(
+                status.Workflows, configId, slotId, w => !_catalog.ResolveBinding(w.Id, slotId).IsPinned);
 
+            EffectiveModelBinding effective = _catalog.ResolveBinding(configId, slotId);
+            string source = effective.IsPinned
+                ? ModelBindingSourceTokens.Pinned
+                : effective.SharedFile is not null
+                    ? ModelBindingSourceTokens.Shared
+                    : ModelBindingSourceTokens.Unbound;
             slots.Add(byId.TryGetValue(slotId, out ModelSlotStatus? s)
-                ? new ConfigSlotStatus(s.Id, s.Label, s.Kind, s.BoundFile, s.IsAuto, s.Candidates, s.Available, sharedWith)
-                : new ConfigSlotStatus(slotId, slotId, string.Empty, null, false, [], [], sharedWith));
+                ? new ConfigSlotStatus(
+                    s.Id, s.Label, s.Kind, effective.SharedFile, effective.PinnedFile, effective.EffectiveFile, source,
+                    !effective.IsPinned && s.IsAuto, s.Candidates, s.Available, sharedWith)
+                : new ConfigSlotStatus(
+                    slotId, slotId, string.Empty, effective.SharedFile, effective.PinnedFile, effective.EffectiveFile,
+                    source, false, [], [], sharedWith));
         }
 
         return slots;
@@ -160,6 +172,56 @@ public sealed partial class WorkflowCatalogService
         // Block-until-rebuilt gives the write its old synchronous behavior without the duplicated inline re-read/push.
         _snapshots.Bindings.Invalidate();
         _ = await _snapshots.Bindings.GetAsync(ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<WorkflowBindingResult> SetConfigBindingAsync(
+        string configId, string slotId, string fileName, CancellationToken ct)
+    {
+        (Requirement requirement, _) = ValidateConfigSlot(configId, slotId);
+        IReadOnlyList<string> available = (await _probes.FilesByKind.GetAsync(ct)).ForKind(requirement.Kind);
+        string selected = available.FirstOrDefault(f => string.Equals(f, fileName?.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? throw new ArgumentException(
+                $"File '{fileName}' is not available for slot '{slotId}' ({requirement.Kind}).", nameof(fileName));
+
+        WorkflowBindingResult result = await _overrides.SetConfigBindingAsync(
+            Environment.MachineName, configId, slotId, selected, ct);
+        _snapshots.Bindings.Invalidate();
+        _ = await _snapshots.Bindings.GetAsync(ct);
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async Task UseSharedBindingAsync(string configId, string slotId, CancellationToken ct)
+    {
+        _ = ValidateConfigSlot(configId, slotId);
+        await _overrides.ClearConfigBindingAsync(Environment.MachineName, configId, slotId, ct);
+        _snapshots.Bindings.Invalidate();
+        _ = await _snapshots.Bindings.GetAsync(ct);
+    }
+
+    /// <summary>Validate that a configuration exists and actually asks for the requested file-backed slot.</summary>
+    private (Requirement Requirement, WorkflowConfiguration Config) ValidateConfigSlot(string configId, string slotId)
+    {
+        WorkflowConfiguration cfg = _catalog.FindConfig(configId)
+            ?? throw new ArgumentException($"Unknown workflow '{configId}'.", nameof(configId));
+        IWorkflow wf = _registry.Find(cfg.WorkflowName)
+            ?? throw new ArgumentException($"Workflow '{cfg.WorkflowName}' is not registered.", nameof(configId));
+        bool usesSlot = cfg.Requirements.All().Concat(_catalog.ModelRefSlots(wf, cfg))
+            .Contains(slotId, StringComparer.OrdinalIgnoreCase);
+        if (!usesSlot)
+        {
+            throw new ArgumentException($"Workflow '{configId}' does not use model slot '{slotId}'.", nameof(slotId));
+        }
+
+        Requirement requirement = _catalog.FindRequirement(slotId)
+            ?? throw new ArgumentException($"Unknown model slot '{slotId}'.", nameof(slotId));
+        if (!string.IsNullOrWhiteSpace(requirement.Node))
+        {
+            throw new ArgumentException($"Slot '{slotId}' is a node pack, not a model file.", nameof(slotId));
+        }
+
+        return (requirement, cfg);
     }
 
     /// <summary>

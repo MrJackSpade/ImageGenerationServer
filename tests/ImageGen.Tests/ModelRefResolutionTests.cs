@@ -1,5 +1,6 @@
 using ImageGen.Application.Rendering;
 using ImageGen.Comfy;
+using ImageGen.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -50,6 +51,36 @@ public sealed class ModelRefResolutionTests
 
         catalog.ResolveModelRefs(wf, "animatediff-sd15", v);
         Assert.Equal("v3-sd15-mm.safetensors", v["motion_model"]);
+    }
+
+    [Fact]
+    public void Workflow_pins_win_for_requirement_graphs_and_model_ref_parameters_even_when_shared_changes()
+    {
+        (WorkflowCatalog catalog, IWorkflow wf) = Build(bindEverything: true);
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig("animatediff-sd15"));
+        string checkpointSlot = Assert.IsType<string>(cfg.Requirements.Checkpoint);
+        Dictionary<string, ModelBinding> shared = catalog.AllRequirements().ToDictionary(
+            r => r.Id, r => new ModelBinding(r.Id, $"shared-{r.Id}.safetensors", false),
+            StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> pins = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [cfg.Id] = new Dictionary<string, ConfigModelBindingOverride>(StringComparer.OrdinalIgnoreCase)
+            {
+                [checkpointSlot] = new(cfg.Id, checkpointSlot, "pinned-checkpoint.safetensors", DateTime.UtcNow),
+                ["v3-sd15-mm"] = new(cfg.Id, "v3-sd15-mm", "pinned-motion.safetensors", DateTime.UtcNow),
+            },
+        };
+        catalog.SetBindings(shared, pins);
+
+        Dictionary<string, object?> values = Bag(("motion_model", "v3-sd15-mm"));
+        catalog.ResolveModelRefs(wf, cfg.Id, values);
+
+        Assert.Equal("pinned-motion.safetensors", values["motion_model"]);
+        Assert.Equal("pinned-checkpoint.safetensors", catalog.Resolve(cfg).Checkpoint);
+        EffectiveModelBinding effective = catalog.ResolveBinding(cfg.Id, checkpointSlot);
+        Assert.Equal($"shared-{checkpointSlot}.safetensors", effective.SharedFile);
+        Assert.Equal("pinned-checkpoint.safetensors", effective.PinnedFile);
+        Assert.True(effective.IsPinned);
     }
 
     [Fact]

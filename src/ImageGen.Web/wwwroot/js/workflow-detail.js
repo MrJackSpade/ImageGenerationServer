@@ -412,9 +412,8 @@
     return box;
   }
 
-  // The model-slot pickers for THIS workflow, set or unset — so a bound model can be CHANGED from the page you're
-  // already on, not only set from the library dialog when it's missing. A binding is global per (machine, slot):
-  // changing one here changes it for every workflow that references that slot, which is why a shared slot warns.
+  // The model-slot pickers for THIS workflow, set or unset. The first selection establishes a missing shared default;
+  // later selections are explicit workflow pins, and only "Use shared default" removes that intent.
   async function loadSlots() {
     const box = document.getElementById("mdSlots"); if (!box) return;
     let slots;
@@ -441,7 +440,7 @@
     const label = document.createElement("label");
     label.className = "fld-label";
     label.textContent = s.label;
-    if (!s.boundFile) {
+    if (!s.effectiveFile) {
       const em = document.createElement("span"); em.className = "wf-slot-empty"; em.textContent = " not set";
       label.appendChild(em);
     }
@@ -450,15 +449,38 @@
     const sel = document.createElement("select");
     sel.className = "fld-input slot-pick";
     sel.dataset.slot = s.id;
-    sel.innerHTML = slotOptionsHtml(s);
+    sel.innerHTML = slotOptionsHtml(s, false);
     sel.addEventListener("change", () => saveBinding(sel, s.id));
     row.appendChild(sel);
 
-    // Bindings are global per (machine, slot), so a change here fans out. Name the other workflows it touches, in red.
-    if (s.sharedWith && s.sharedWith.length) {
+    const state = document.createElement("p");
+    state.className = "settings-desc wf-binding-source";
+    state.textContent = s.source === "pinned"
+      ? "Pinned to this workflow."
+      : s.source === "shared"
+        ? "Using shared default."
+        : "No shared default has been set.";
+    row.appendChild(state);
+
+    if (s.source === "shared" && s.effectiveFile) {
+      const pin = document.createElement("button");
+      pin.type = "button"; pin.className = "settings-btn wf-binding-action"; pin.textContent = "Pin current model";
+      pin.addEventListener("click", () => saveBinding(sel, s.id));
+      row.appendChild(pin);
+    }
+    if (s.source === "pinned") {
+      const inherit = document.createElement("button");
+      inherit.type = "button"; inherit.className = "settings-btn wf-binding-action"; inherit.textContent = "Use shared default";
+      inherit.addEventListener("click", () => useShared(inherit, s.id));
+      row.appendChild(inherit);
+    }
+
+    // Only the first selection can fan out: once a shared default exists, this workflow's selection is a private pin.
+    if (!s.sharedFile) {
       const warn = document.createElement("p");
       warn.className = "wf-slot-shared";
-      warn.textContent = `Changing this model will also affect: ${s.sharedWith.join(", ")}`;
+      warn.textContent = "The first selection will establish the shared default"
+        + (s.sharedWith && s.sharedWith.length ? ` for workflows that inherit this slot, including: ${s.sharedWith.join(", ")}` : ".");
       row.appendChild(warn);
     }
     return row;
@@ -467,18 +489,32 @@
   async function saveBinding(sel, slotId) {
     sel.disabled = true;
     try {
-      const res = await fetch(`${GATEWAY}/catalog/binding`, {
+      const res = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(id)}/binding`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slotId, fileName: sel.value || null }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
-      toast(sel.value ? "Set" : "Cleared");
-      // A binding can flip this workflow — and the others sharing the slot — between runnable and not, so reload the
-      // whole page to show that consequence (the models page reloads for the same reason).
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || res.status);
+      toast(body.result === "shared-created" ? "Established the shared default" : "Pinned to this workflow");
       load();
     } catch (err) {
       toast(`Couldn't save that: ${err.message || err}`);
       sel.disabled = false;
+    }
+  }
+
+  async function useShared(btn, slotId) {
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(id)}/binding/${encodeURIComponent(slotId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+      toast("Using shared default");
+      load();
+    } catch (err) {
+      toast(`Couldn't save that: ${err.message || err}`);
+      btn.disabled = false;
     }
   }
 

@@ -2,10 +2,18 @@
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 using ImageGen.Domain.CodeAnalysis;
+using ImageGen.Domain.Repositories;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace ImageGen.Comfy;
+
+/// <summary>The centralized result of resolving one configuration's slot through pin → shared → unbound.</summary>
+public sealed record EffectiveModelBinding(string? SharedFile, string? PinnedFile)
+{
+    public string? EffectiveFile => PinnedFile ?? SharedFile;
+    public bool IsPinned => PinnedFile is not null;
+}
 
 /// <summary>
 /// The workflow catalog, loaded from <c>workflows.json</c> (the configurations) + <c>requirements.json</c> (the
@@ -45,6 +53,8 @@ public sealed class WorkflowCatalog : IDisposable
     private Dictionary<string, Requirement> _reqById = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Slot id -> the file bound to it on this machine. Refreshed with the catalog and after a UI edit.</summary>
     private Dictionary<string, string> _bindings = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Config id -> slot id -> explicit pin. Presence remains meaningful when its value equals shared.</summary>
+    private Dictionary<string, Dictionary<string, string>> _bindingOverrides = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, Dictionary<string, JsonElement>> _paramOverrides = new(StringComparer.OrdinalIgnoreCase);
     private (DateTime Newest, int Count) _wfStamp, _modelStamp;
     /// <summary>The directory-stamp pair whose load threw, so the same broken version is reported once instead of
@@ -142,6 +152,28 @@ public sealed class WorkflowCatalog : IDisposable
         lock (_lock)
         {
             _bindings = copy;
+            _bindingOverrides = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>Replaces the shared bindings and explicit workflow pins as one coherent snapshot.</summary>
+    public void SetBindings(
+        IReadOnlyDictionary<string, ModelBinding> bindings,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> overrides)
+    {
+        Dictionary<string, string> shared = bindings.ToDictionary(
+            kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Dictionary<string, string>> pins = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string configId, IReadOnlyDictionary<string, ConfigModelBindingOverride> slots) in overrides)
+        {
+            pins[configId] = slots.ToDictionary(
+                kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        lock (_lock)
+        {
+            _bindings = shared;
+            _bindingOverrides = pins;
         }
     }
 
@@ -262,6 +294,30 @@ public sealed class WorkflowCatalog : IDisposable
         }
     }
 
+    /// <summary>Resolve one workflow slot uniformly as explicit pin, then shared binding, then unbound.</summary>
+    public EffectiveModelBinding ResolveBinding(string configId, string? slotId)
+    {
+        ReloadIfChanged();
+        lock (_lock)
+        {
+            return ResolveBindingUnsafe(configId, slotId);
+        }
+    }
+
+    private EffectiveModelBinding ResolveBindingUnsafe(string configId, string? slotId)
+    {
+        if (string.IsNullOrWhiteSpace(slotId))
+        {
+            return new EffectiveModelBinding(null, null);
+        }
+
+        string? shared = _bindings.GetValueOrDefault(slotId);
+        string? pinned = _bindingOverrides.TryGetValue(configId, out Dictionary<string, string>? bySlot)
+            ? bySlot.GetValueOrDefault(slotId)
+            : null;
+        return new EffectiveModelBinding(shared, pinned);
+    }
+
     /// <summary>
     /// Replace every <see cref="ParamSpec.IsModelRef"/> value in a merged param bag — a SLOT ID — with the file this
     /// machine has bound to it, in place.
@@ -290,7 +346,7 @@ public sealed class WorkflowCatalog : IDisposable
                 continue;
             }
 
-            string file = ResolveSlot(slot);
+            string file = ResolveBinding(configId, slot).EffectiveFile ?? "";
             if (string.IsNullOrWhiteSpace(file))
             {
                 throw new RenderValidationException(
@@ -379,12 +435,9 @@ public sealed class WorkflowCatalog : IDisposable
                 _paramOverrides.TryGetValue(cfg.Id, out Dictionary<string, JsonElement>? configured)
                     ? configured
                     : new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-            // A slot resolves to whatever THIS MACHINE has bound to it. An unbound slot yields an empty filename;
-            // presence-gating will already have hidden the configuration, and the diagnostics list says which slot.
-            string Name(string? rid)
-            {
-                return rid is not null && _bindings.TryGetValue(rid, out string? f) ? f : "";
-            }
+            // A slot resolves through the workflow's explicit pin before the machine-wide shared binding. An unbound
+            // slot yields an empty filename; presence-gating has already hidden the configuration and diagnostics name it.
+            string Name(string? rid) => ResolveBindingUnsafe(cfg.Id, rid).EffectiveFile ?? "";
 
             return new ResolvedRequirements
             {

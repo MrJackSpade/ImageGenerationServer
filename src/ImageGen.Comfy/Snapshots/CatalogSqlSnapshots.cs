@@ -10,10 +10,14 @@ namespace ImageGen.Comfy.Snapshots;
 /// </summary>
 public sealed class BindingsSnapshot(
     IReadOnlyDictionary<string, ModelBinding> bindings,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> overrides,
     IReadOnlyDictionary<string, IReadOnlyList<string>> candidates)
 {
     /// <summary>Every model binding on this machine, keyed by slot id (after the recognition pass's auto-bindings).</summary>
     public IReadOnlyDictionary<string, ModelBinding> Bindings { get; } = bindings;
+
+    /// <summary>Explicit workflow pins, keyed by config id then slot id.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> Overrides { get; } = overrides;
 
     /// <summary>slotId → the recognition pass's candidate files for that slot.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> Candidates { get; } = candidates;
@@ -89,6 +93,8 @@ public sealed class CatalogSqlSnapshotSources(
         // rethrows that fault so bindings faults too — the intended degrade, exactly what a live GetStatus surfaced.
         ComfyFilesByKind present = _files.PeekCurrent();
         IReadOnlyDictionary<string, ModelBinding> bindings = await _overrides.BindingsAsync(machine, ct);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> configBindings =
+            await _overrides.BindingOverridesAsync(machine, ct);
 
         IReadOnlyList<Requirement> slots = _catalog.AllRequirements();
         IReadOnlyList<SlotMatch> matches = ModelMatcher.Match(
@@ -111,11 +117,11 @@ public sealed class CatalogSqlSnapshotSources(
             _log.LogInformation("Recognised {Count} model file(s) automatically on {Machine}.", auto.Count, machine);
         }
 
-        _catalog.SetBindings(bindings.ToDictionary(kv => kv.Key, kv => kv.Value.FileName, StringComparer.OrdinalIgnoreCase));
+        _catalog.SetBindings(bindings, configBindings);
 
         Dictionary<string, IReadOnlyList<string>> candidates =
             matches.ToDictionary(m => m.SlotId, m => m.Candidates, StringComparer.OrdinalIgnoreCase);
-        return new BindingsSnapshot(bindings, candidates);
+        return new BindingsSnapshot(bindings, configBindings, candidates);
     }
 
     /// <summary>Rebuild the param-overrides snapshot and push it into the catalog.</summary>

@@ -1,3 +1,4 @@
+using ImageGen.Domain.Repositories;
 using System.Text.Json;
 
 namespace ImageGen.Application.Workflows;
@@ -70,6 +71,14 @@ public interface IWorkflowCatalog
 
     /// <summary>Binds a file to a slot on this machine, or clears it when <paramref name="fileName"/> is blank.</summary>
     Task SetBindingAsync(string slotId, string? fileName, CancellationToken ct);
+
+    /// <summary>Selects a model from a workflow-scoped picker. Atomically establishes a missing shared default or,
+    /// when one already exists, creates/replaces an explicit workflow pin.</summary>
+    Task<WorkflowBindingResult> SetConfigBindingAsync(
+        string configId, string slotId, string fileName, CancellationToken ct);
+
+    /// <summary>Deletes one workflow pin so that slot resumes inheriting the machine-wide shared default.</summary>
+    Task UseSharedBindingAsync(string configId, string slotId, CancellationToken ct);
 
     /// <summary>Sets or clears one per-configuration setting override.</summary>
     Task SetOverrideAsync(string configId, string settingKey, string? settingValue, CancellationToken ct);

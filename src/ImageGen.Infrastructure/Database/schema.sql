@@ -958,3 +958,22 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'RenderDimensionsJson' AND Object_ID = Object_ID('dbo.JobSlot'))
     ALTER TABLE dbo.JobSlot ADD RenderDimensionsJson NVARCHAR(MAX) NULL;
 GO
+
+-- Explicit per-workflow model pins. ModelBinding remains the machine-wide shared default; a row here wins for exactly
+-- one configuration. The table intentionally starts empty so existing installs keep inheriting their current bindings.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ConfigModelBindingOverride' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.ConfigModelBindingOverride
+(
+    Id           BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ConfigModelBindingOverride PRIMARY KEY,
+    MachineName  NVARCHAR(128) NOT NULL,
+    ConfigId     NVARCHAR(128) NOT NULL,
+    SlotId       NVARCHAR(128) NOT NULL,
+    FileName     NVARCHAR(512) NOT NULL,
+    UpdatedAtUtc DATETIME2(3)  NOT NULL CONSTRAINT DF_ConfigModelBindingOverride_Updated DEFAULT SYSUTCDATETIME()
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ConfigModelBindingOverride_Machine_Config_Slot')
+CREATE UNIQUE INDEX UX_ConfigModelBindingOverride_Machine_Config_Slot
+    ON dbo.ConfigModelBindingOverride (MachineName, ConfigId, SlotId);
+GO

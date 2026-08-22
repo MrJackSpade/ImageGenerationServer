@@ -79,6 +79,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("ModelPrompt", await ColumnsAsync(factory, "JobSlot"));    // 0.17.1 ADD COLUMN
             Assert.Contains("ModelManifestJson", await ColumnsAsync(factory, "JobSlot")); // 0.17.2 ADD COLUMN
             Assert.Contains("RenderDimensionsJson", await ColumnsAsync(factory, "JobSlot")); // 0.17.3 ADD COLUMN
+            Assert.NotEmpty(await ColumnsAsync(factory, "ConfigModelBindingOverride")); // 0.17.4 new table
         }
         finally
         {
@@ -141,6 +142,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
             Assert.Contains("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));   // 0.12.0 ADD COLUMN reached the pre-existing AppUser
             Assert.Contains("Removed", await ColumnsAsync(factory, "UserWorkflowTag"));   // 0.15.0 ADD COLUMN reached the pre-existing UserWorkflowTag
+            Assert.NotEmpty(await ColumnsAsync(factory, "ConfigModelBindingOverride"));   // 0.17.4 pin table starts empty
         }
         finally
         {

@@ -59,15 +59,19 @@ const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<":
 // models page, and a workflow's detail page): a "— not set —" clear option, then the recognised candidates A–Z, then
 // every other file of the slot's kind A–Z. A slot may be bound to ANY file of its kind — the patterns pre-fill, they
 // do not restrict. The caller wraps this in its own <select> so each surface keeps its own chrome.
-function slotOptionsHtml(s) {
+function slotOptionsHtml(s, allowClear = true) {
   const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" });
   const candidates = (s.candidates || []).slice().sort(byName);
   const rest = (s.available || []).filter(f => !(s.candidates || []).includes(f)).sort(byName);
+  const selected = s.effectiveFile || s.boundFile || "";
   const opt = (f, tag) => {
     const label = `${f}${tag || ""}`;
-    return `<option value="${escapeHtml(f)}" label="${escapeHtml(label)}"${f === s.boundFile ? " selected" : ""}>${escapeHtml(label)}</option>`;
+    return `<option value="${escapeHtml(f)}" label="${escapeHtml(label)}"${f === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
   };
-  return `<option value="" label="— not set —">— not set —</option>`
+  const empty = allowClear
+    ? `<option value="" label="— not set —">— not set —</option>`
+    : (selected ? "" : `<option value="" selected disabled>— choose a model —</option>`);
+  return empty
     + candidates.map(f => opt(f, " (recognised)")).join("")
     + rest.map(f => opt(f, "")).join("");
 }

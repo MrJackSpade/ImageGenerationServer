@@ -153,7 +153,8 @@
   // patch installs that pack, offer that instead.
   function slotField(s) {
     const patch = PATCHES_BY_SLOT.get(s.id);
-    const label = `<span class="fld-label">${escapeHtml(s.label)}${s.boundFile ? "" : ' <span class="wf-slot-empty">not set</span>'}</span>`;
+    const effective = s.effectiveFile || s.boundFile;
+    const label = `<span class="fld-label">${escapeHtml(s.label)}${effective ? "" : ' <span class="wf-slot-empty">not set</span>'}</span>`;
 
     if (patch) {
       const installed = patch.state === "Applied";
@@ -166,10 +167,21 @@
         </div>`;
     }
 
-    return `<label class="wf-slot">
+    const source = s.source === "pinned" ? "Pinned to this workflow."
+      : s.source === "shared" ? "Using shared default." : "No shared default has been set.";
+    const action = s.source === "pinned"
+      ? `<button type="button" class="settings-btn slot-use-shared" data-slot="${escapeHtml(s.id)}">Use shared default</button>`
+      : s.source === "shared" && effective
+        ? `<button type="button" class="settings-btn slot-pin-current" data-slot="${escapeHtml(s.id)}">Pin current model</button>`
+        : "";
+    const first = s.source === "unbound"
+      ? `<p class="wf-slot-shared">The first selection will establish the shared default for workflows that inherit this slot.</p>`
+      : "";
+    return `<div class="wf-slot">
         ${label}
-        <select class="fld-input slot-pick" data-slot="${escapeHtml(s.id)}">${slotOptionsHtml(s)}</select>
-      </label>`;
+        <select class="fld-input slot-pick" data-slot="${escapeHtml(s.id)}">${slotOptionsHtml(s, false)}</select>
+        <p class="settings-desc">${source}</p>${action}${first}
+      </div>`;
   }
 
   // Applying a patch puts the pack on disk. ComfyUI imports custom nodes at startup ONLY, so nothing it
@@ -199,7 +211,7 @@
     });
   }
 
-  function openSlotDialog(m) {
+  async function openSlotDialog(m) {
     if (!STATUS) { toast("The catalogue status isn’t loaded"); return; }
     if (!$modal) {
       $modal = document.createElement("div");
@@ -208,9 +220,19 @@
       $modal.addEventListener("click", e => { if (e.target === $modal) closeDialog(); });
     }
 
+    let configSlots;
+    try {
+      const response = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/slots`);
+      if (!response.ok) throw new Error(`the server answered ${response.status}`);
+      configSlots = await response.json();
+    } catch (e) {
+      toast(`Couldn't load this workflow's models: ${e.message || e}`);
+      return;
+    }
+    const scopedById = new Map(configSlots.map(s => [s.id, s]));
     const required = m.requiredSlots || m.missingSlots || [];
     const body = required.map(id => {
-      const s = slotById(id);
+      const s = scopedById.get(id) || slotById(id);   // node packs are intentionally absent from configSlots
       if (!s) return `<p class="muted">${escapeHtml(id)} — unknown slot.</p>`;
       return slotField(s);
     }).join("");
@@ -229,22 +251,46 @@
       sel.addEventListener("change", async () => {
         sel.disabled = true;
         try {
-          const res = await fetch(`${GATEWAY}/catalog/binding`, {
+          const res = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/binding`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ slotId: sel.dataset.slot, fileName: sel.value || null }),
           });
-          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
-          toast(sel.value ? "Set" : "Cleared");
+          const answer = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(answer.error || res.status);
+          toast(answer.result === "shared-created" ? "Established the shared default" : "Pinned to this workflow");
           dirty = true;
+          await openSlotDialog(m);
         } catch (err) {
           toast(`Couldn't save that: ${err.message || err}`);
         } finally { sel.disabled = false; }
       });
     });
+    $modal.querySelectorAll(".slot-pin-current").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const sel = Array.from($modal.querySelectorAll(".slot-pick"))
+          .find(candidate => candidate.dataset.slot === btn.dataset.slot);
+        if (sel) sel.dispatchEvent(new Event("change"));
+      });
+    });
+    $modal.querySelectorAll(".slot-use-shared").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          const res = await fetch(`${GATEWAY}/catalog/config/${encodeURIComponent(m.id)}/binding/${encodeURIComponent(btn.dataset.slot)}`, { method: "DELETE" });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+          toast("Using shared default");
+          dirty = true;
+          await openSlotDialog(m);
+        } catch (err) {
+          toast(`Couldn't save that: ${err.message || err}`);
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
-  // Binding a file can make this workflow — and others sharing the slot — runnable, which is the whole point, so
-  // the list is rebuilt on close rather than after every change while the dialog is still open.
+  // A selection can make this workflow runnable (and a first shared default can unlock other inheritors), so the
+  // list is rebuilt on close rather than after every change while the dialog is still open.
   let dirty = false;
   function closeDialog() {
     $modal.classList.add("hidden");

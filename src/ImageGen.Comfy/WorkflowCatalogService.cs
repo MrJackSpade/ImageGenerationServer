@@ -101,10 +101,23 @@ public sealed partial class WorkflowCatalogService(
         string variantId = NextVariantId(baseCfg.Id);
         string paramsJson = JsonSerializer.Serialize(SnapshotParams(baseCfg));
         await _variants.AddAsync(Environment.MachineName, new WorkflowVariant(variantId, fileBaseId, name, paramsJson), ct);
+        try
+        {
+            // Only explicit pins have rows, so copying the source rows naturally keeps inherited slots inherited.
+            await _overrides.CopyConfigBindingsAsync(Environment.MachineName, baseCfg.Id, variantId, ct);
+        }
+        catch
+        {
+            // Do not leave a half-created variant if its model intent could not be copied.
+            await _variants.DeleteAsync(Environment.MachineName, variantId, ct);
+            throw;
+        }
         // Flush the variants snapshot and await its rebuild, which re-reads and folds the new variant into the in-memory
         // catalog — so the caller (and the sync submit path) sees it immediately, without the old inline re-read/push.
         _snapshots.Variants.Invalidate();
+        _snapshots.Bindings.Invalidate();
         _ = await _snapshots.Variants.GetAsync(ct);
+        _ = await _snapshots.Bindings.GetAsync(ct);
         return variantId;
     }
 
@@ -121,11 +134,14 @@ public sealed partial class WorkflowCatalogService(
         await _variants.DeleteAsync(Environment.MachineName, variantId, ct);
         // Its per-variant tweaks are overrides keyed on the variant id; drop them so they can't outlive it.
         await _overrides.ClearOverridesAsync(Environment.MachineName, variantId, ct);
+        await _overrides.ClearConfigBindingsAsync(Environment.MachineName, variantId, ct);
         // Delete touched BOTH stores — flush both snapshots and await their rebuilds so the removal is observed.
         _snapshots.Variants.Invalidate();
         _snapshots.ParamOverrides.Invalidate();
+        _snapshots.Bindings.Invalidate();
         _ = await _snapshots.Variants.GetAsync(ct);
         _ = await _snapshots.ParamOverrides.GetAsync(ct);
+        _ = await _snapshots.Bindings.GetAsync(ct);
     }
 
     /// <summary>The shipped-file id a config is ultimately rooted at: itself when it is a file, else the base its
@@ -190,8 +206,8 @@ public sealed partial class WorkflowCatalogService(
         // Pure in-memory projection over the snapshot sources (#201): ZERO ComfyUI round trips and ZERO SQL reads on
         // this path. Each read blocks only if its source is mid-rebuild; a ComfyUI-unreachable fault rethrows the
         // loader's HttpRequestException, which the caller maps to a 502 exactly as the live probes did.
-        IReadOnlySet<string> present = (await _probes.FilesByKind.GetAsync(ct)).AllFiles;
-        IReadOnlyDictionary<string, ModelBinding> bindings = (await _snapshots.Bindings.GetAsync(ct)).Bindings;
+        ComfyFilesByKind presentFiles = await _probes.FilesByKind.GetAsync(ct);
+        _ = await _snapshots.Bindings.GetAsync(ct);
         IReadOnlySet<string> presentNodes = (await _probes.PresentNodes.GetAsync(ct)).Nodes;
         // ParamOverrides and Variants are consumed through the in-memory catalog (their rebuilds do the push).
         // Awaiting them here guarantees those pushes have landed before AllConfigs()/ParamOverridesFor() read below.
@@ -235,7 +251,10 @@ public sealed partial class WorkflowCatalogService(
                     return presentNodes.Contains(r.Node);
                 }
 
-                return bindings.TryGetValue(id, out ModelBinding? bound) && present.Contains(bound.FileName);
+                string? effective = _catalog.ResolveBinding(cfg.Id, id).EffectiveFile;
+                return effective is not null
+                    && presentFiles.ByKind.TryGetValue(r.Kind, out IReadOnlyList<string>? present)
+                    && present.Contains(effective, StringComparer.OrdinalIgnoreCase);
             });
             if (!ok)
             {

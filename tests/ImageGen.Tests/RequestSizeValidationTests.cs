@@ -67,6 +67,12 @@ public sealed class RequestSizeValidationTests
 
         public Task AddAutoBindingsAsync(string machineName, IReadOnlyDictionary<string, string> slotToFile, CancellationToken ct) => throw new NotSupportedException();
 
+        public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>>> BindingOverridesAsync(string machineName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<WorkflowBindingResult> SetConfigBindingAsync(string machineName, string configId, string slotId, string fileName, CancellationToken ct) => throw new NotSupportedException();
+        public Task ClearConfigBindingAsync(string machineName, string configId, string slotId, CancellationToken ct) => throw new NotSupportedException();
+        public Task CopyConfigBindingsAsync(string machineName, string sourceConfigId, string targetConfigId, CancellationToken ct) => throw new NotSupportedException();
+        public Task ClearConfigBindingsAsync(string machineName, string configId, CancellationToken ct) => throw new NotSupportedException();
+
         public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> OverridesAsync(string machineName, CancellationToken ct) => throw new NotSupportedException();
 
         public Task SetOverrideAsync(string machineName, string configId, string paramKey, string? value, CancellationToken ct) => throw new NotSupportedException();

@@ -64,6 +64,10 @@ public static class ForgeApi
         public const string LorasRefresh = "/loras/refresh";
         /// <summary><c>PUT /catalog/binding</c> — point a model slot at a file, or clear it.</summary>
         public const string CatalogBinding = "/catalog/binding";
+        /// <summary><c>PUT /catalog/config/{id}/binding</c> — establish shared or pin a workflow model.</summary>
+        public const string CatalogConfigBinding = "/catalog/config/{id}/binding";
+        /// <summary><c>DELETE /catalog/config/{id}/binding/{slotId}</c> — remove a pin and resume inheritance.</summary>
+        public const string CatalogConfigBindingBySlot = "/catalog/config/{id}/binding/{slotId}";
         /// <summary><c>PUT /catalog/override</c> — set or remove one per-configuration override.</summary>
         public const string CatalogOverride = "/catalog/override";
         /// <summary><c>POST /catalog/duplicate</c> — duplicate a workflow into a new DB-backed variant on this machine.</summary>
@@ -579,6 +583,45 @@ public static class ForgeApi
 
             await catalog.SetBindingAsync(body.SlotId, body.FileName, ct);
             return Results.NoContent();
+        });
+
+        // A workflow-scoped selection is deliberately not a global edit. The repository atomically creates the first
+        // shared default when none exists; otherwise it persists an explicit pin, even for a same-valued selection.
+        _ = app.MapPut(Routes.CatalogConfigBinding, async (
+            string id, BindingRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.SlotId) || string.IsNullOrWhiteSpace(body.FileName))
+            {
+                return Results.BadRequest(new { error = "slotId and fileName are required." });
+            }
+
+            try
+            {
+                WorkflowBindingResult result = await catalog.SetConfigBindingAsync(id, body.SlotId, body.FileName, ct);
+                return Results.Ok(new
+                {
+                    result = result == WorkflowBindingResult.SharedCreated ? "shared-created" : "workflow-pinned",
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        // Pin removal is always explicit. Selecting a shared-valued file never cleans a pin up implicitly.
+        _ = app.MapDelete(Routes.CatalogConfigBindingBySlot, async (
+            string id, string slotId, IWorkflowCatalog catalog, CancellationToken ct) =>
+        {
+            try
+            {
+                await catalog.UseSharedBindingAsync(id, slotId, ct);
+                return Results.NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
         });
 
         // One per-configuration setting override for this machine (param.<key> and synthetic UI settings). A blank value

@@ -651,3 +651,20 @@ ALTER TABLE dbo.JobSlot ADD COLUMN ModelManifestJson TEXT NULL;
 
 -- Input, resolved working, and actual output dimensions captured across a render's lifecycle.
 ALTER TABLE dbo.JobSlot ADD COLUMN RenderDimensionsJson TEXT NULL;
+
+
+-- --- 0.17.4 -----------------------------------------------------------------------------------------------------
+
+-- Explicit per-workflow model pins. ModelBinding remains the machine-wide shared default; a row here wins for exactly
+-- one configuration. This new table starts empty, preserving the inherited behavior of every existing installation.
+CREATE TABLE IF NOT EXISTS dbo.ConfigModelBindingOverride
+(
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    MachineName  TEXT NOT NULL,
+    ConfigId     TEXT NOT NULL,
+    SlotId       TEXT NOT NULL,
+    FileName     TEXT NOT NULL,
+    UpdatedAtUtc TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_ConfigModelBindingOverride_Machine_Config_Slot
+    ON ConfigModelBindingOverride (MachineName, ConfigId, SlotId);

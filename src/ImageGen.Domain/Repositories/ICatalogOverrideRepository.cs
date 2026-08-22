@@ -11,6 +11,21 @@ namespace ImageGen.Domain.Repositories;
 /// </param>
 public sealed record ModelBinding(string SlotId, string FileName, bool IsAuto);
 
+/// <summary>An explicit per-workflow model pin. Unlike a shared <see cref="ModelBinding"/>, its presence records
+/// durable user intent even when <see cref="FileName"/> currently equals the shared binding.</summary>
+public sealed record ConfigModelBindingOverride(
+    string ConfigId, string SlotId, string FileName, DateTime UpdatedAtUtc);
+
+/// <summary>The atomic outcome of selecting a model from a workflow-scoped picker.</summary>
+public enum WorkflowBindingResult
+{
+    /// <summary>The slot had no shared binding, so this selection established it and removed this workflow's old pin.</summary>
+    SharedCreated,
+
+    /// <summary>A shared binding already existed, so this selection created or replaced the workflow's explicit pin.</summary>
+    WorkflowPinned,
+}
+
 /// <summary>
 /// One per-configuration setting overridden on this machine.
 /// </summary>
@@ -45,6 +60,27 @@ public interface ICatalogOverrideRepository
     /// every subsequent load.
     /// </summary>
     Task AddAutoBindingsAsync(string machineName, IReadOnlyDictionary<string, string> slotToFile, CancellationToken ct);
+
+    /// <summary>Every explicit workflow model pin on this machine, keyed by config id then slot id.</summary>
+    Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>>> BindingOverridesAsync(
+        string machineName, CancellationToken ct);
+
+    /// <summary>
+    /// Atomically applies a workflow-scoped selection. If the slot has no shared binding, creates that shared manual
+    /// binding and removes this workflow's pin. Otherwise creates or replaces the explicit pin, including when the
+    /// selected filename equals the shared filename.
+    /// </summary>
+    Task<WorkflowBindingResult> SetConfigBindingAsync(
+        string machineName, string configId, string slotId, string fileName, CancellationToken ct);
+
+    /// <summary>Removes exactly one explicit pin so the workflow resumes inheriting the shared binding.</summary>
+    Task ClearConfigBindingAsync(string machineName, string configId, string slotId, CancellationToken ct);
+
+    /// <summary>Copies all explicit pins from one configuration to another. Inherited slots have no rows to copy.</summary>
+    Task CopyConfigBindingsAsync(string machineName, string sourceConfigId, string targetConfigId, CancellationToken ct);
+
+    /// <summary>Removes every explicit model pin for one configuration, used when deleting a variant.</summary>
+    Task ClearConfigBindingsAsync(string machineName, string configId, CancellationToken ct);
 
     /// <summary>Every per-configuration override on this machine, keyed by config id then setting key.</summary>
     Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>> OverridesAsync(

@@ -103,6 +103,87 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task First_workflow_selection_creates_a_shared_manual_binding_not_a_pin()
+    {
+        const string machine = "workflow-first";
+        WorkflowBindingResult result = await Repo.SetConfigBindingAsync(
+            machine, "cfg-a", "slot", "first.safetensors", Ct);
+
+        Assert.Equal(WorkflowBindingResult.SharedCreated, result);
+        ModelBinding shared = (await Repo.BindingsAsync(machine, Ct))["slot"];
+        Assert.Equal("first.safetensors", shared.FileName);
+        Assert.False(shared.IsAuto);
+        Assert.Empty(await Repo.BindingOverridesAsync(machine, Ct));
+    }
+
+    [Fact]
+    public async Task Existing_shared_binding_creates_a_durable_pin_even_when_the_value_matches()
+    {
+        const string machine = "workflow-same-pin";
+        await Repo.SetBindingAsync(machine, "slot", "same.safetensors", false, Ct);
+
+        WorkflowBindingResult result = await Repo.SetConfigBindingAsync(
+            machine, "cfg-a", "slot", "same.safetensors", Ct);
+        Assert.Equal(WorkflowBindingResult.WorkflowPinned, result);
+
+        await Repo.SetBindingAsync(machine, "slot", "changed.safetensors", false, Ct);
+        await Repo.SetBindingAsync(machine, "slot", null, false, Ct);
+        ConfigModelBindingOverride pin = (await Repo.BindingOverridesAsync(machine, Ct))["cfg-a"]["slot"];
+        Assert.Equal("same.safetensors", pin.FileName);
+    }
+
+    [Fact]
+    public async Task Only_explicit_use_shared_removes_a_pin()
+    {
+        const string machine = "workflow-clear-pin";
+        await Repo.SetBindingAsync(machine, "slot", "shared.safetensors", false, Ct);
+        _ = await Repo.SetConfigBindingAsync(machine, "cfg-a", "slot", "pinned.safetensors", Ct);
+
+        await Repo.ClearConfigBindingAsync(machine, "cfg-a", "slot", Ct);
+
+        Assert.Empty(await Repo.BindingOverridesAsync(machine, Ct));
+        Assert.Equal("shared.safetensors", (await Repo.BindingsAsync(machine, Ct))["slot"].FileName);
+    }
+
+    [Fact]
+    public async Task Copying_and_clearing_config_bindings_touch_only_explicit_pins()
+    {
+        const string machine = "workflow-copy-pins";
+        await Repo.SetBindingAsync(machine, "shared-only", "shared.safetensors", false, Ct);
+        _ = await Repo.SetConfigBindingAsync(machine, "source", "shared-only", "source-pin.safetensors", Ct);
+        _ = await Repo.SetConfigBindingAsync(machine, "source", "second", "new-shared.safetensors", Ct);
+
+        await Repo.CopyConfigBindingsAsync(machine, "source", "copy", Ct);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> pins =
+            await Repo.BindingOverridesAsync(machine, Ct);
+        Assert.Equal("source-pin.safetensors", pins["copy"]["shared-only"].FileName);
+        Assert.False(pins["copy"].ContainsKey("second"));
+
+        await Repo.ClearConfigBindingsAsync(machine, "copy", Ct);
+        pins = await Repo.BindingOverridesAsync(machine, Ct);
+        Assert.True(pins.ContainsKey("source"));
+        Assert.False(pins.ContainsKey("copy"));
+    }
+
+    [Fact]
+    public async Task Concurrent_first_workflow_selections_produce_one_shared_binding_and_one_pin()
+    {
+        const string machine = "workflow-concurrent-first";
+        Task<WorkflowBindingResult> a = Repo.SetConfigBindingAsync(machine, "cfg-a", "slot", "a.safetensors", Ct);
+        Task<WorkflowBindingResult> b = Repo.SetConfigBindingAsync(machine, "cfg-b", "slot", "b.safetensors", Ct);
+
+        WorkflowBindingResult[] outcomes = await Task.WhenAll(a, b);
+
+        _ = Assert.Single(outcomes, x => x == WorkflowBindingResult.SharedCreated);
+        _ = Assert.Single(outcomes, x => x == WorkflowBindingResult.WorkflowPinned);
+        _ = Assert.Single(await Repo.BindingsAsync(machine, Ct));
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, ConfigModelBindingOverride>> pins =
+            await Repo.BindingOverridesAsync(machine, Ct);
+        _ = Assert.Single(pins);
+        _ = Assert.Single(pins.Values.Single());
+    }
+
+    [Fact]
     public async Task Overrides_round_trip_keyed_by_config_and_setting()
     {
         const string machine = "ovr-roundtrip";

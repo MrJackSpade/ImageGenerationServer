@@ -272,14 +272,21 @@ public sealed record ModelSlotStatus(
     string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
     IReadOnlyList<string> Candidates, IReadOnlyList<string> Available);
 
-/// <summary>One model slot a single workflow uses, for the picker on that workflow's detail page: the slot's binding
-/// status (as <see cref="ModelSlotStatus"/>) plus the OTHER workflows that share it. Model bindings are global per
-/// <c>(machine, slot)</c>, so changing one from a workflow page changes it for every workflow referencing that slot —
-/// <see cref="SharedWith"/> names those so the change isn't silent.</summary>
-/// <param name="SharedWith">Display names of the OTHER workflows that also require this slot (this workflow excluded).
-/// Empty when the slot is used by this workflow alone — then no cross-workflow warning is shown.</param>
+/// <summary>Stable wire tokens describing which layer supplied a workflow's effective model.</summary>
+public static class ModelBindingSourceTokens
+{
+    public const string Shared = "shared";
+    public const string Pinned = "pinned";
+    public const string Unbound = "unbound";
+}
+
+/// <summary>One model slot a single workflow uses, for the picker on that workflow's detail page. A workflow pin wins
+/// over the machine-wide shared binding; pin presence is retained even when both filenames currently match.</summary>
+/// <param name="SharedWith">Display names of OTHER workflows that currently inherit this slot (this workflow excluded),
+/// for explaining who a first shared selection can affect. Explicitly pinned workflows are omitted.</param>
 public sealed record ConfigSlotStatus(
-    string Id, string Label, string Kind, string? BoundFile, bool IsAuto,
+    string Id, string Label, string Kind,
+    string? SharedFile, string? PinnedFile, string? EffectiveFile, string Source, bool IsAuto,
     IReadOnlyList<string> Candidates, IReadOnlyList<string> Available,
     IReadOnlyList<string> SharedWith);
 

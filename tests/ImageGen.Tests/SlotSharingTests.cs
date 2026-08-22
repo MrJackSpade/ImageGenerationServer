@@ -6,10 +6,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace ImageGen.Tests;
 
 /// <summary>
-/// A model binding is global per <c>(machine, slot)</c>, so changing it from one workflow's detail page changes it for
-/// every workflow that shares the slot. <see cref="SlotSharing.Others"/> is what the picker uses to warn about that
-/// fan-out (issue #195): the OTHER workflows that require a slot, current one excluded. These lock its semantics and
-/// prove the real catalogue actually contains both shared and single-use slots for it to matter.
+/// Shared model defaults fan out to workflows that inherit a slot, while pinned workflows are excluded.
+/// <see cref="SlotSharing.Others"/> names the OTHER matching workflows, current one excluded. These lock its ordering
+/// and de-duplication and prove the real catalogue contains both shared and single-use slots.
 /// </summary>
 public sealed class SlotSharingTests
 {
@@ -55,6 +54,19 @@ public sealed class SlotSharingTests
         ];
 
         Assert.Equal(["Wan T2V"], SlotSharing.Others(all, "a", "wan-vae"));
+    }
+
+    [Fact]
+    public void A_filter_can_exclude_workflows_that_are_explicitly_pinned()
+    {
+        List<WorkflowStatus> all =
+        [
+            Wf("current", "Current", "shared"),
+            Wf("inherits", "Inherits", "shared"),
+            Wf("pinned", "Pinned", "shared"),
+        ];
+
+        Assert.Equal(["Inherits"], SlotSharing.Others(all, "current", "shared", w => w.Id != "pinned"));
     }
 
     [Fact]
