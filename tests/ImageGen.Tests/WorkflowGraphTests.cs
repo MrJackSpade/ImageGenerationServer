@@ -146,7 +146,7 @@ public sealed class WorkflowGraphTests
     [InlineData("qwen-image-edit")]
     [InlineData("qwen-rapid-aio")]
     [InlineData("firered-image-edit")]
-    public void Qwen_reference_only_omits_image1_and_samples_an_empty_target_latent(string configId)
+    public void Qwen_reference_only_synthesizes_image1_and_preserves_image2_reference_role(string configId)
     {
         WorkflowInputs referenceOnly = new()
         {
@@ -161,27 +161,51 @@ public sealed class WorkflowGraphTests
         JsonElement root = doc.RootElement;
 
         Assert.False(root.TryGetProperty(EditNodes.Source, out _));
-        Assert.False(root.TryGetProperty("14", out _));
+        JsonElement blankImage1 = root.GetProperty("12");
+        Assert.Equal("EmptyImage", blankImage1.GetProperty("class_type").GetString());
+        Assert.Equal(1344, blankImage1.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(768, blankImage1.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.True(root.TryGetProperty("14", out _));
         JsonElement[] encodes = [.. root.EnumerateObject()
             .Where(n => n.Value.GetProperty("class_type").GetString() == "TextEncodeQwenImageEditPlus")
             .Select(n => n.Value.GetProperty("inputs"))];
         Assert.Equal(2, encodes.Length);
         Assert.All(encodes, e =>
         {
-            Assert.False(e.TryGetProperty("image1", out _));
+            Assert.Equal("12", e.GetProperty("image1")[0].GetString());
             Assert.True(e.TryGetProperty("image2", out _));
-            Assert.False(e.TryGetProperty("vae", out _));
+            Assert.True(e.TryGetProperty("vae", out _));
         });
-        Assert.False(root.TryGetProperty("70", out _));
-        Assert.False(root.TryGetProperty("72", out _));
+        Assert.True(root.TryGetProperty("70", out _));
+        Assert.True(root.TryGetProperty("72", out _));
 
         JsonElement empty = root.GetProperty("79");
         Assert.Equal("EmptySD3LatentImage", empty.GetProperty("class_type").GetString());
         Assert.Equal(1344, empty.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(768, empty.GetProperty("inputs").GetProperty("height").GetInt32());
-        Assert.Equal("13", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
-        Assert.Equal("71", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
+        Assert.Equal("70", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
+        Assert.Equal("72", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
         Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+    }
+
+    [Fact]
+    public void Qwen_reference_shape_fully_noises_the_synthesized_image1_latent()
+    {
+        WorkflowInputs referenceOnly = new()
+        {
+            Positive = "make a new image using picture 2 as reference",
+            TargetWidth = 1024,
+            TargetHeight = 1024,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+        };
+        string json = BuildJson("qwen-image-edit", referenceOnly);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+
+        Assert.Equal("12", root.GetProperty("13").GetProperty("inputs").GetProperty("image1")[0].GetString());
+        Assert.Equal("41", root.GetProperty("13").GetProperty("inputs").GetProperty("image2")[0].GetString());
+        Assert.Equal("14", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+        Assert.Equal(1.0, root.GetProperty("3").GetProperty("inputs").GetProperty("denoise").GetDouble());
     }
 
     [Fact]

@@ -142,9 +142,9 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             : null;
 
         Output<Slot.Latent> sampleLatent;
-        if (head.SourceLatent is { } sourceLatent && p.ReferenceAspect == ReferenceAspectNames.Reference)
+        if (p.ReferenceAspect == ReferenceAspectNames.Reference)
         {
-            sampleLatent = sourceLatent;
+            sampleLatent = head.SourceLatent;
         }
         else
         {
@@ -184,8 +184,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         Output<Slot.Image> output = VAEDecode.Out(Nodes.Decode);
         if (rect is (int px, int py, int pw, int ph))
         {
-            Output<Slot.Image> contextImage = head.Kontext
-                ?? throw new InvalidOperationException("A masked Qwen edit has no source conditioning image.");
+            Output<Slot.Image> contextImage = head.Kontext;
             // Undo the stride rounding, paste onto a white canvas at the rectangle's offset (both in source pixels),
             // then match the unmasked path's output dimensions exactly — GetImageSize reads the Kontext bucket node 11
             // chose, so a masked and an unmasked pose of the same portrait land on identical canvases and keep a

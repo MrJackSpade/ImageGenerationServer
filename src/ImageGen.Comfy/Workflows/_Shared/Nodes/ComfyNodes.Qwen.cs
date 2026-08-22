@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy;
 
@@ -15,10 +14,7 @@ public sealed record TextEncodeQwenImageEditPlus : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.TextEncodeQwenImageEditPlus;
     [JsonPropertyName("clip")] public required Output<Slot.Clip> Clip { get; init; }
-    [JsonPropertyName("image1")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [AllowNullable("null deliberately omits optional image1 for reference-only generation")]
-    public Output<Slot.Image>? Image1 { get; init; }
+    [JsonPropertyName("image1")] public required Output<Slot.Image> Image1 { get; init; }
     [JsonPropertyName("prompt")] public required string Prompt { get; init; }
 
     /// <summary>The dynamic tail inputs, in emit order: each configured reference slot (<c>image2</c>/<c>image3</c>/…)

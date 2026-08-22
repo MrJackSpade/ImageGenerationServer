@@ -65,8 +65,7 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
             Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
         QwenRefHeadOut head = QwenReferenceHead.Emit(g, aio: false, model0, clip0, vae0, inputs, p.ReferenceInputs,
             p.ReferenceMax, p.ReferenceLatentsMethod, editMp, sourceWidth, sourceHeight);
-        Output<Slot.Image> source = head.Kontext
-            ?? throw new RenderValidationException("Qwen inpaint requires a primary source image.");
+        Output<Slot.Image> source = head.Kontext;
 
         // The painted mask (white-on-black upload, or the source alpha as a fallback) at SOURCE resolution, resampled
         // to the Kontext bucket so it lines up with the head's image1/fill pixels. nearest-exact keeps it binary; a
