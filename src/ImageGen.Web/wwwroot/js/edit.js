@@ -486,9 +486,9 @@ function setReferenceAspect(value, persist = true) {
 function updateReferenceAspectPicker() {
   if (!$editAspectField) return;
   const models = effectiveEditModels();
-  // A mask is painted in source coordinates and the composite path requires the source aspect. Keep the user's last
-  // unmasked choice in memory, but hide/submit Reference until the mask is cleared.
-  $editAspectField.hidden = maskActive() || !models.length || !models.every(supportsReferenceOnly);
+  // Shape is a choice only for the synthesized-image1 path. A real image1 owns the edit canvas; masks likewise live
+  // in its coordinates. Keep the user's source-free choice in memory, but hide and submit Reference while either exists.
+  $editAspectField.hidden = !!editCurrent || maskActive() || !models.length || !models.every(supportsReferenceOnly);
 }
 if ($editAspect) $editAspect.addEventListener("click", e => {
   const b = e.target.closest("button[data-aspect]");
@@ -898,7 +898,7 @@ async function buildChatItems(n) {
       const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
       const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
       const itemOverrides = { ...overrides };
-      if (takesReferences(eff)) itemOverrides.reference_aspect = maskAttach ? "reference" : referenceAspect;
+      if (takesReferences(eff)) itemOverrides.reference_aspect = (editCurrent || maskAttach) ? "reference" : referenceAspect;
       // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
       items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
         imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
@@ -1158,6 +1158,7 @@ function applySourceMediaUi() {
     const next = Array.from($editTabs.querySelectorAll(".edit-tab")).find(t => !t.hidden);
     if (next && next.dataset.mode !== activeMode) setMode(next.dataset.mode);
   }
+  updateReferenceAspectPicker();   // real image1 hides shape; clearing it restores the source-free choice
   refreshTabSelect();   // the source-media split changed which tabs exist — rebuild the mobile mirror to match
 }
 // The mobile tab select (shown in place of the pill row on a phone) is DERIVED from the tab bar: one <option> per

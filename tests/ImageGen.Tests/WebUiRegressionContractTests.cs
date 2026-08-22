@@ -49,7 +49,7 @@ public sealed class WebUiRegressionContractTests
     }
 
     [Fact]
-    public void Reference_workflows_submit_the_shape_picker_and_masks_force_reference_shape()
+    public void Reference_only_shape_picker_requires_no_image1_and_real_sources_force_reference_shape()
     {
         string edit = Js("edit.js");
         string view = File.ReadAllText(Path.Combine(
@@ -58,9 +58,10 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains("id=\"editAspect\"", view, StringComparison.Ordinal);
         Assert.Contains("data-aspect=\"reference\"", view, StringComparison.Ordinal);
         Assert.Contains("models.every(supportsReferenceOnly)", edit, StringComparison.Ordinal);
+        Assert.Contains("$editAspectField.hidden = !!editCurrent || maskActive()", edit, StringComparison.Ordinal);
         Assert.Contains("models.length === 1", edit, StringComparison.Ordinal);
         Assert.Contains("editRefs.some(r => r.kind === \"image\")", edit, StringComparison.Ordinal);
-        Assert.Contains("itemOverrides.reference_aspect = maskAttach ? \"reference\" : referenceAspect", edit, StringComparison.Ordinal);
+        Assert.Contains("itemOverrides.reference_aspect = (editCurrent || maskAttach) ? \"reference\" : referenceAspect", edit, StringComparison.Ordinal);
     }
 
     [Fact]
