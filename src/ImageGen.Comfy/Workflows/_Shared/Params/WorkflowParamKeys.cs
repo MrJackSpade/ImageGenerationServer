@@ -120,6 +120,7 @@ internal static class WorkflowParamKeys
     public const string ProjectEvery = "project_every";
     public const string RebalanceMultiplier = "rebalance_multiplier";
     public const string Reference = "reference";
+    public const string ReferenceAspect = "reference_aspect";
     public const string ReferenceInputs = "reference_inputs";
     public const string ReferenceLatentsMethod = "reference_latents_method";
     public const string RefImageSize = "ref_image_size";

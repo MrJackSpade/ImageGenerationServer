@@ -49,6 +49,19 @@ public sealed class WebUiRegressionContractTests
     }
 
     [Fact]
+    public void Reference_workflows_submit_the_shape_picker_and_masks_force_reference_shape()
+    {
+        string edit = Js("edit.js");
+        string view = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "ImageGen.Web", "Views", "Edit", "Index.cshtml"));
+
+        Assert.Contains("id=\"editAspect\"", view, StringComparison.Ordinal);
+        Assert.Contains("data-aspect=\"reference\"", view, StringComparison.Ordinal);
+        Assert.Contains("models.every(takesReferences)", edit, StringComparison.Ordinal);
+        Assert.Contains("itemOverrides.reference_aspect = maskAttach ? \"reference\" : referenceAspect", edit, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Browser_submission_has_no_pending_job_side_channel_or_dead_batch_entry_point()
     {
         string core = Js("core.js");

@@ -675,11 +675,29 @@ public sealed class ComfyClient : IComfyClient
                 RenderModelManifestBuilder.Build(dict0, resolved0), Dimensions(wf, null, null, null, null));
         }
 
-        // Distinct filename per role — a fixed name for every upload would make source and references clobber each
-        // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
-        // serializes ComfyUI work so these fixed names can't race.
-        string uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
         List<ReferenceInput> refInputs = [];
+        Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
+        SubmissionCommon requested = ParamsCodec.Deserialize<SubmissionCommon>(dict);
+        (int Width, int Height)? cropRatio = ReferenceAspects.Ratio(requested.ReferenceAspect);
+        if (cropRatio is not null && cfg.Card.EditReferenceTypes.Count == 0)
+        {
+            throw new RenderValidationException("A fixed reference aspect can only be used with a workflow that accepts reference attachments.");
+        }
+
+        if (cropRatio is (int ratioW, int ratioH))
+        {
+            if (maskPng is { Length: > 0 })
+            {
+                throw new RenderValidationException("A masked edit must use the Reference aspect so its mask remains aligned with the uploaded image.");
+            }
+
+            sourcePng = _media.CropToAspect(sourcePng, ratioW, ratioH);
+            if (lastFramePng is { Length: > 0 })
+            {
+                lastFramePng = _media.CropToAspect(lastFramePng, ratioW, ratioH);
+            }
+        }
+
         if (references is { Count: > 0 })
         {
             int ri = 0;
@@ -696,14 +714,20 @@ public sealed class ComfyClient : IComfyClient
                 }
             }
         }
+
+        // Distinct filename per role — a fixed name for every upload would make source and references clobber each
+        // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
+        // serializes ComfyUI work so these fixed names can't race. Fixed reference shapes crop the primary upload
+        // BEFORE this point, so every existing graph naturally derives its latent canvas from the chosen ratio.
+        string uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
         // Inpaint: a SEPARATE white-on-black mask image (the source stays pristine — baking the mask into the source's
         // alpha would let PNG premultiplication zero the masked RGB, blacking out the region the model must preserve).
         string? maskName = maskPng is { Length: > 0 } ? await UploadImageAsync(maskPng, UploadName.EditMask, ct) : null;
         // i2v first/last-frame: the last frame the clip should end on, uploaded under its own role name so it never
         // collides with the source/refs/mask. Consumed via WorkflowInputs.EndImageName by workflows that support it.
         string? lastName = lastFramePng is { Length: > 0 } ? await UploadImageAsync(lastFramePng, UploadName.EditLast, ct) : null;
-        Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
-        ImageDimensions srcDim = _media.Identify(sourcePng);   // source dims drive the render-resolution snap (no UI width/height)
+
+        ImageDimensions srcDim = _media.Identify(sourcePng);   // chosen reference shape drives the render-resolution snap
         (int srcW, int srcH) = (srcDim.Width, srcDim.Height);
         ResolvedRequirements resolved = _catalog.Resolve(cfg);
         // Submit-pass normalization: snap the render resolution onto a clean ×VRES multiple (deliberate, no notice) now,

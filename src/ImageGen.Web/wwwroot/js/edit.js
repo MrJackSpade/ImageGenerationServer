@@ -19,6 +19,7 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $editRefs = $("editRefs"), $editRefBtn = $("editRefBtn"), $editRefFile = $("editRefFile"), $editRefHint = $("editRefHint"),
       $editLastFrame = $("editLastFrame"), $editLastFrameBtn = $("editLastFrameBtn"), $editLastFrameFile = $("editLastFrameFile"),
       $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"),
+      $editAspectField = $("editAspectField"), $editAspect = $("editAspect"),
       $editSrcFile = $("editSrcFile"),
       // mask painting (a modal off the source preview; the brush slider lives inside the modal toolbar)
       $maskModal = $("maskModal"), $maskModalStage = $("maskModalStage"), $brushSize = $("brushSize"),
@@ -114,7 +115,8 @@ const seedNegative = () => (seed.negativePrompt || "").trim();
 // the blob is restored on boot in loadEditModels. The instruction/prompt text is intentionally NOT retained: it's
 // tied to the specific source image being edited, so carrying a prior image's instruction to a new source is wrong.
 let editParamPrefs = {};            // flat { paramKey: value }, shared across every param panel (edit + outpaint)
-let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null;   // seeded from the account blob on boot
+let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null, savedReferenceAspect = null;   // seeded from the account blob on boot
+let referenceAspect = "reference";
 
 let prefsTimer = null;
 // False until the stored blob has actually been read. savePrefs writes the WHOLE editor state, so writing before we
@@ -130,6 +132,7 @@ function savePrefs() {
     params: editParamPrefs,
     brushSize: $brushSize ? $brushSize.value : null,
     loop: $editLoop ? $editLoop.checked : false,   // per-user, cross-device like the rest of the editor state
+    referenceAspect,
     // The pad amounts are NOT retained: like the instruction text they're tied to the specific source image, so
     // carrying a prior image's margins onto a new source would silently extend it by the wrong number of pixels.
   });
@@ -332,6 +335,7 @@ async function loadEditModels() {
           if (typeof p.outpaintWorkflowId === "string") savedOutpaintWorkflowId = p.outpaintWorkflowId;
           if (p.brushSize != null) savedBrushSize = p.brushSize;
           if (typeof p.loop === "boolean") savedLoop = p.loop;
+          if (["reference", "square", "landscape", "portrait"].includes(p.referenceAspect)) savedReferenceAspect = p.referenceAspect;
           // Selection (multi) restored if still installed.
           const ids = Array.isArray(p.modelIds) ? p.modelIds.filter(id => EDIT_MODELS[id]) : [];
           if (ids.length) selectedEditIds = ids;
@@ -459,12 +463,31 @@ function populateChatMenu() {
   updateEditNeg();
   updateInstructionPlaceholder();
   renderEditLastFrame();
+  updateReferenceAspectPicker();
 }
 
 function updateEditParams() {
   renderParamFields($("editParams"), effectiveEditModels());   // the sibling's params (mask_grow/blur) when masked
   restoreParams($("editParams"));   // prefill from the shared flat param map (carries across workflow switches)
 }
+const takesReferences = m => !!(m && m.edit && m.edit.reference);
+function setReferenceAspect(value, persist = true) {
+  if (!["reference", "square", "landscape", "portrait"].includes(value)) value = "reference";
+  referenceAspect = value;
+  if ($editAspect) for (const b of $editAspect.querySelectorAll("button[data-aspect]")) b.classList.toggle("active", b.dataset.aspect === value);
+  if (persist) savePrefs();
+}
+function updateReferenceAspectPicker() {
+  if (!$editAspectField) return;
+  const models = effectiveEditModels();
+  // A mask is painted in source coordinates and the composite path requires the source aspect. Keep the user's last
+  // unmasked choice in memory, but hide/submit Reference until the mask is cleared.
+  $editAspectField.hidden = maskActive() || !models.length || !models.every(takesReferences);
+}
+if ($editAspect) $editAspect.addEventListener("click", e => {
+  const b = e.target.closest("button[data-aspect]");
+  if (b) setReferenceAspect(b.dataset.aspect);
+});
 // Re-run everything that depends on the EFFECTIVE descriptor and the mask state: the param/refs/negative/prompt panel,
 // the pencil/clear overlay, the submit gate. Also collapses the multi-select to a single pick while a mask exists, so
 // the panel reflects exactly one effective descriptor (its params/refs/negative can't be an intersection of several).
@@ -478,6 +501,7 @@ function refreshMaskRouting() {
   updateEditParams();
   updateInstructionPlaceholder();
   updateEditNeg();
+  updateReferenceAspectPicker();
   updateMaskControls();
   updateSubmitEnabled();
 }
@@ -859,9 +883,11 @@ async function buildChatItems(n) {
       // The effective descriptor when masked: the sibling workflow (if any), whose negative capability also applies.
       const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
       const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
+      const itemOverrides = { ...overrides };
+      if (takesReferences(eff)) itemOverrides.reference_aspect = maskAttach ? "reference" : referenceAspect;
       // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
       items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
-        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides });
+        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
     }
   return items;
 }
@@ -1203,6 +1229,7 @@ function startEditRecover() {
     throw e;
   }
   if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders
+  setReferenceAspect(savedReferenceAspect || "reference", false);
   renderSrc(); renderEditRefs(); renderEditLastFrame();
   applySourceMediaUi();
   if (savedBrushSize != null) $brushSize.value = savedBrushSize;

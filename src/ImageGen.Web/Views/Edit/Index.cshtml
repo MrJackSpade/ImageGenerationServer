@@ -44,6 +44,19 @@
                         <div id="editModelMenu" class="model-menu" hidden role="listbox"></div>
                     </div>
                 </div>
+                @* Reference-driven workflows can choose a generated canvas shape. Reference is the safe/default path:
+                   it keeps the primary upload's aspect. Fixed shapes center-crop that upload before the workflow's
+                   ordinary model-specific resolution normalization. Hidden for masked edits so mask coordinates stay
+                   aligned to the untouched source. *@
+                <div class="field" id="editAspectField" hidden>
+                    <label class="fld-label">Shape</label>
+                    <div class="shape-options" id="editAspect">
+                        <button type="button" data-aspect="square">◻ Square</button>
+                        <button type="button" data-aspect="landscape">▭ Landscape</button>
+                        <button type="button" data-aspect="portrait">▯ Portrait</button>
+                        <button type="button" data-aspect="reference" class="active" title="Use the aspect ratio of the primary uploaded image">▣ Reference</button>
+                    </div>
+                </div>
                 @* edit.js hides this whole field when no selected editor consumes a prompt (the upscalers have no
                    text encoder) — offering a box whose text is silently discarded is worse than offering nothing. *@
                 <div class="field" id="instructionField">

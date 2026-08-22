@@ -400,6 +400,7 @@ public sealed record SubmissionCommon
     [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SnapResolution)] public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceAspect)] public string ReferenceAspect { get; init; } = ReferenceAspectNames.Reference;
 
     /// <summary>The ETA render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height (0,0
     /// when neither is set — the ETA falls back to the model average). Mirrors the size a workflow's Build lays out.</summary>

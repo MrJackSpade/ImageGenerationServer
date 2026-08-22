@@ -52,6 +52,10 @@ internal static class EditWorkflowBase
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
+        // Output shape for workflows that accept reference attachments. "reference" leaves the primary upload
+        // untouched; the other choices center-crop it before the graph applies its own working-resolution budget.
+        new() { Key = WorkflowParamKeys.ReferenceAspect, Type = ParamType.Enum, Default = ReferenceAspectNames.Reference,
+                Choices = ReferenceAspects.Choices },
         PromptTemplates.Schema,
         // How the sampler stitches reference latents into the conditioning — a per-MODEL contract, not a preference:
         // Qwen-Image handles index_timestep_zero, plain-Flux LongCat crashes on it and takes index (see
