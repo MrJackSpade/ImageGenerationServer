@@ -97,17 +97,41 @@ internal static class QwenReferenceHead
                 ComfyWidgets.ReferenceLatents.UxoUno or ComfyWidgets.ReferenceLatents.IndexTimestepZero => referenceLatentsMethod,
                 _ => throw new ArgumentException($"unknown reference_latents_method '{referenceLatentsMethod}'."),
             };
-            encRefs[Inputs.Vae] = vae0;
+            // TextEncodeQwenImageEditPlus's optional VAE encodes EVERY non-null image into reference_latents. That is
+            // the official edit path when image1 exists, but in a source-free request it would promote image2 into the
+            // first/only full latent and make the supposedly empty canvas reconstruct that attachment. Without image1,
+            // keep image2/image3 in the Qwen-VL image tokens only and leave the sampler's empty target truly independent.
+            bool emitReferenceLatents = kontext is not null;
+            if (emitReferenceLatents)
+            {
+                encRefs[Inputs.Vae] = vae0;
+            }
+
             g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = kontext, Prompt = instruction, Extra = encRefs };
-            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
-            cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
+            if (emitReferenceLatents)
+            {
+                g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
+                cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
+            }
+            else
+            {
+                cond = TextEncodeQwenImageEditPlus.Out(Nodes.Encode);
+            }
+
             // The official 2511 blueprint's negative is a second full encode — the SAME images and reference latents
             // with an EMPTY instruction — not a zeroed-out positive. With real CFG the contrast is then "with vs
             // without the instruction" over identical image conditioning; zeroing everything made CFG push away from
             // the references themselves, which read as the source and reference ghosting into each other (#218).
             g[Nodes.NegativeEncode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = kontext, Prompt = string.Empty, Extra = encRefs };
-            g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
-            negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
+            if (emitReferenceLatents)
+            {
+                g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
+                negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
+            }
+            else
+            {
+                negCond = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode);
+            }
         }
         else
         {

@@ -217,7 +217,10 @@ public sealed class PromptTemplateTests
                 JsonElement inputs = n.Value.GetProperty("inputs");
                 Assert.False(inputs.TryGetProperty("image1", out _));
                 Assert.True(inputs.TryGetProperty("image2", out _));
+                Assert.False(inputs.TryGetProperty("vae", out _));
             });
+        Assert.False(graph.TryGetProperty("70", out _));
+        Assert.False(graph.TryGetProperty("72", out _));
     }
 
     [Fact]

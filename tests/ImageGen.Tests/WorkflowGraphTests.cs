@@ -170,12 +170,17 @@ public sealed class WorkflowGraphTests
         {
             Assert.False(e.TryGetProperty("image1", out _));
             Assert.True(e.TryGetProperty("image2", out _));
+            Assert.False(e.TryGetProperty("vae", out _));
         });
+        Assert.False(root.TryGetProperty("70", out _));
+        Assert.False(root.TryGetProperty("72", out _));
 
         JsonElement empty = root.GetProperty("79");
         Assert.Equal("EmptySD3LatentImage", empty.GetProperty("class_type").GetString());
         Assert.Equal(1344, empty.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(768, empty.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal("13", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
+        Assert.Equal("71", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
         Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
     }
 
