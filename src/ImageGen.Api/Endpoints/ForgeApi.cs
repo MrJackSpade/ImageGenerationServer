@@ -843,6 +843,24 @@ public static class ForgeApi
                 return Results.BadRequest(new { error = "No valid jobs in the batch." });
             }
 
+            foreach (EditSpec edit in items.Select(i => i.Edit).OfType<EditSpec>())
+            {
+                if (string.IsNullOrWhiteSpace(edit.ImageId))
+                {
+                    WorkflowInfo? info = catalog.ResolveInfo(edit.Workflow);
+                    bool hasReference = edit.ReferenceIds?.Any(id => !string.IsNullOrWhiteSpace(id)) == true;
+                    if (info?.SupportsReferenceOnly != true || !hasReference)
+                    {
+                        return Results.BadRequest(new { error = "This workflow requires a primary image, or at least one attached image reference when reference-only generation is supported." });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(edit.MaskImageId) || !string.IsNullOrWhiteSpace(edit.LastFrameImageId))
+                    {
+                        return Results.BadRequest(new { error = "A mask or last frame cannot be submitted without a primary image." });
+                    }
+                }
+            }
+
             long owner = OwnerOf(http);
             // An image id is a capability only after the caller-scoped resolver says it is. Checking every source,
             // mask, end frame, and reference BEFORE persistence closes the copy oracle where a user could feed a
@@ -1043,7 +1061,11 @@ public static class ForgeApi
         HashSet<string> ids = new(StringComparer.Ordinal);
         foreach (EditSpec edit in items.Select(i => i.Edit).OfType<EditSpec>())
         {
-            _ = ids.Add(edit.ImageId);
+            if (!string.IsNullOrWhiteSpace(edit.ImageId))
+            {
+                _ = ids.Add(edit.ImageId);
+            }
+
             if (!string.IsNullOrWhiteSpace(edit.MaskImageId))
             {
                 _ = ids.Add(edit.MaskImageId);

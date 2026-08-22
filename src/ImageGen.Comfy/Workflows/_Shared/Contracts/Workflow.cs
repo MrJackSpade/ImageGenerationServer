@@ -40,6 +40,7 @@ public abstract class Workflow<TParams> : IWorkflow
     public virtual ModelResolution? ResolutionEnvelope => null;
     public virtual bool NormalizesSourceResolution => false;
     public virtual bool SupportsEditQuality => false;
+    public virtual bool SupportsReferenceOnly => false;
     public virtual string OutputSizePolicy => Kind == WorkflowKind.Generate
         ? OutputSizePolicies.ExplicitRequested
         : NormalizesSourceResolution ? OutputSizePolicies.NormalizedNative : OutputSizePolicies.ExactSource;

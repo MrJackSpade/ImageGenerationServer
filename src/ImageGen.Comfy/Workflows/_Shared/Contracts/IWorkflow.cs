@@ -98,6 +98,10 @@ public interface IWorkflow
     /// <summary>Whether this still-image editor consumes the shared Low/Medium/High MP quality contract.</summary>
     bool SupportsEditQuality => false;
 
+    /// <summary>True when attached image references are sufficient input without a primary source image. The graph
+    /// then creates its own empty/noise latent at the requested output aspect.</summary>
+    bool SupportsReferenceOnly => false;
+
     /// <summary>The workflow's output-size contract, persisted with each render's measured dimensions.</summary>
     string OutputSizePolicy => Kind == WorkflowKind.Generate
         ? OutputSizePolicies.ExplicitRequested

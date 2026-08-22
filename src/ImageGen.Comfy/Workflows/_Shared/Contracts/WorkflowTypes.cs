@@ -424,6 +424,10 @@ public sealed class WorkflowInputs
     /// derive the target aspect from the source without a UI width/height field.</summary>
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
+    /// <summary>The independently resolved sampler/output canvas. Usually this equals the normalized source shape;
+    /// reference-only generation and fixed aspect choices set it without reshaping any conditioning image.</summary>
+    public int TargetWidth { get; init; }
+    public int TargetHeight { get; init; }
     /// <summary>The selected per-configuration edit-quality working budget, in megapixels.</summary>
     [AllowNullable("null = this workflow does not support the edit-quality MP selector")]
     public double? EditMegapixels { get; init; }

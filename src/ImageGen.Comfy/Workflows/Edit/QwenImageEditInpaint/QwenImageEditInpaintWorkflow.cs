@@ -65,6 +65,8 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
             Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
         QwenRefHeadOut head = QwenReferenceHead.Emit(g, aio: false, model0, clip0, vae0, inputs, p.ReferenceInputs,
             p.ReferenceMax, p.ReferenceLatentsMethod, editMp, sourceWidth, sourceHeight);
+        Output<Slot.Image> source = head.Kontext
+            ?? throw new RenderValidationException("Qwen inpaint requires a primary source image.");
 
         // The painted mask (white-on-black upload, or the source alpha as a fallback) at SOURCE resolution, resampled
         // to the Kontext bucket so it lines up with the head's image1/fill pixels. nearest-exact keeps it binary; a
@@ -80,7 +82,7 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
             srcMask = LoadImage.MaskOut(EditNodes.Source);
         }
 
-        g[Nodes.MaskSize] = new GetImageSize { Image = head.Kontext };
+        g[Nodes.MaskSize] = new GetImageSize { Image = source };
         g[Nodes.MaskAsImage] = new MaskToImage { Mask = srcMask };
         g[Nodes.MaskScaled] = new ImageScaleFromSize
         {
@@ -101,7 +103,7 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
             Positive = head.Cond,
             Negative = head.NegCond,
             Vae = vae0,
-            Pixels = head.Kontext,
+            Pixels = source,
             Mask = softMask,
             NoiseMask = true,
         };
@@ -125,7 +127,7 @@ public sealed class QwenImageEditInpaintWorkflow : EditWorkflow<QwenImageEditInp
         // round-trip of it. The same soft mask crossfades the band, held at a hard 1 over the fill region.
         g[Nodes.Composite] = new ImageCompositeMasked
         {
-            Destination = head.Kontext,
+            Destination = source,
             Source = VAEDecode.Out(Nodes.Decode),
             X = 0,
             Y = 0,

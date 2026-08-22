@@ -739,7 +739,11 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         List<(string Id, string What)> inputs = [];
         foreach (EditSpec e in edits)
         {
-            inputs.Add((e.ImageId, "source image"));
+            if (!string.IsNullOrWhiteSpace(e.ImageId))
+            {
+                inputs.Add((e.ImageId, "source image"));
+            }
+
             if (!string.IsNullOrWhiteSpace(e.MaskImageId))
             {
                 inputs.Add((e.MaskImageId, "inpaint mask"));
@@ -1138,13 +1142,22 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             else if (slot.IsEdit)
             {
                 EditSpec edit = slot.RequireEdit();
-                try
+                WorkflowInfo? editInfo = _catalog.ResolveInfo(edit.Workflow);
+                if (!string.IsNullOrWhiteSpace(edit.ImageId))
                 {
-                    src = await GetImageBytesAsync(edit.ImageId, ct);
+                    try
+                    {
+                        src = await GetImageBytesAsync(edit.ImageId, ct);
+                    }
+                    catch (RenderInputNotFoundException)
+                    {
+                        FailSlot(slot, $"source image '{edit.ImageId}' not found");
+                        return;
+                    }
                 }
-                catch (RenderInputNotFoundException)
+                else if (editInfo?.SupportsReferenceOnly != true)
                 {
-                    FailSlot(slot, $"source image '{edit.ImageId}' not found");
+                    FailSlot(slot, $"'{edit.Workflow}' requires a primary source image");
                     return;
                 }
 
@@ -1202,8 +1215,6 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 }
                 // Finalize the instruction for tag-speaking editors (inpaint), as the generate path does. Non-tag
                 // editors have no tagging block, so Finalize passes the instruction through unchanged.
-                WorkflowInfo? editInfo = _catalog.ResolveInfo(edit.Workflow);
-
                 // Mask routing (implicit wire shape): a Kind=Inpaint workflow consumes the mask IN-GRAPH; a Kind=Edit
                 // workflow keeps the mask OUT of the graph and the server composites the masked region back afterwards
                 // (below, at the result block). Any other kind carrying a mask is a client bug — throw, never silently
@@ -1220,6 +1231,12 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
                 if (maskBytes is not null)
                 {
+                    if (src is null)
+                    {
+                        FailSlot(slot, "a painted mask requires a primary source image");
+                        return;
+                    }
+
                     bool serverComposite = string.Equals(editInfo?.Kind, WorkflowKindTokens.Edit, StringComparison.Ordinal);
                     if (!inGraphMask && !serverComposite)
                     {
@@ -1571,7 +1588,9 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     byte[] outBytes = img.Png;
                     if (serverComposite)
                     {
-                        byte[] original = src ?? await GetImageBytesAsync(edit.ImageId, ct);
+                        string sourceImageId = edit.ImageId
+                            ?? throw new InvalidOperationException("A server-composited mask has no source image id.");
+                        byte[] original = src ?? await GetImageBytesAsync(sourceImageId, ct);
                         byte[] maskPng = await GetImageBytesAsync(maskImageId, ct);
                         outBytes = _media.CompositeMasked(original, outBytes, maskPng, CompositeMaskGrowPx, CompositeMaskBlurPx);
                         // The composite is re-encoded PNG at the ORIGINAL (source) dimensions, which differ from the
@@ -2245,7 +2264,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         return new(
             sr.Workflow ?? "",
             sr.Prompt ?? "",
-            e.SourceImageId ?? "",
+            e.SourceImageId,
             sr.NegativePrompt,
             [.. e.ReferenceIds],
             Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),

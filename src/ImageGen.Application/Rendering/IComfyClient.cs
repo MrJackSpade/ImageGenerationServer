@@ -37,10 +37,11 @@ public interface IComfyClient
     Task<SubmitResult> SubmitGenerateAsync(string prompt, string? negativePrompt, string? configId, string? aspect,
         IReadOnlyDictionary<string, JsonElement>? overrides, IReadOnlyList<LoraSelection>? loras, CancellationToken ct);
 
-    /// <summary>Upload the source (and any references/mask/last-frame), build the edit graph, and POST it; return the
-    /// backend prompt id (no polling). <paramref name="negativePrompt"/> is the optional UI negative appended to the
-    /// edit model's default (null/blank = just the default); ignored by editors that use no negative conditioning.</summary>
-    Task<SubmitResult> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
+    /// <summary>Upload the optional source (and any references/mask/last-frame), build the edit graph, and POST it;
+    /// return the backend prompt id (no polling). Reference-only workflows accept a null source and supply their own
+    /// target latent. <paramref name="negativePrompt"/> is the optional UI negative appended to the edit model's
+    /// default (null/blank = just the default); ignored by editors that use no negative conditioning.</summary>
+    Task<SubmitResult> SubmitEditAsync(byte[]? sourcePng, string instruction, string? negativePrompt, string? configId,
         IReadOnlyList<ReferenceUpload>? references, IReadOnlyDictionary<string, JsonElement>? overrides,
         byte[]? maskPng, byte[]? lastFramePng, CancellationToken ct);
 

@@ -79,7 +79,7 @@
     ],
     "reference": {
       "max": 2,
-      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number."
+      "hint": "Image 1 is optional. With it, edit that image and use attachments as image 2/image 3. Without it, generate a new canvas from the attached references; refer to those as image 2/image 3."
     }
   },
   "resolution": {

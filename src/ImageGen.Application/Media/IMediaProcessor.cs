@@ -17,11 +17,6 @@ public interface IMediaProcessor
     /// throws if the format cannot be determined.</summary>
     ImageDimensions Identify(byte[] bytes);
 
-    /// <summary>Center-crop a still image to an exact integer aspect ratio and encode the result as PNG. Returns the
-    /// original bytes when it already has that ratio. Used by reference-driven workflows whose output canvas may be
-    /// Square/Landscape/Portrait instead of inheriting the primary upload's shape.</summary>
-    byte[] CropToAspect(byte[] bytes, int ratioWidth, int ratioHeight);
-
     /// <summary>Classify an uploaded file by its bytes: the authoritative MIME (an image/audio/video family, sniffed
     /// from the header — never the client's claim) plus pixel dimensions when it has them (null for audio). Throws when
     /// the bytes are not a recognised image, audio, or video file — the upload endpoint takes exactly those.</summary>

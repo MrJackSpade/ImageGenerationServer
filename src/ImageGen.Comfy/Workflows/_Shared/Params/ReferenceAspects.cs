@@ -11,8 +11,8 @@ internal static class ReferenceAspectNames
     public const string Portrait = "portrait";
 }
 
-/// <summary>Aspect choices offered by reference-driven workflows. The primary upload remains the authoritative
-/// reference; fixed shapes are implemented as a centered crop before model-specific resolution normalization.</summary>
+/// <summary>Output-canvas aspect choices offered by reference-only workflows. Conditioning uploads are never cropped;
+/// a fixed shape sizes an empty target latent, while Reference follows image1 or the first attached image.</summary>
 internal static class ReferenceAspects
 {
     public static readonly string[] Choices =

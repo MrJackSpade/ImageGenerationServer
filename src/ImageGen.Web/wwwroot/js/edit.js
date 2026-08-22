@@ -37,9 +37,9 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
 // failure: the rail's Edit button (GET /edit) exists precisely to open the editor with NO source and pick a file,
 // and every mode already renders a picker when its base is empty (renderSrc, setupOutpaintStage).
 //
-// Having a source is a precondition of APPLYING an edit, not of loading the editor, so the check lives at each
-// mode's submit control — its buildItems refuses with "Select a file to … first" (and the button is disabled anyway).
-// Asserting it here instead would throw at page init, aborting the whole script and taking the file picker with it:
+// Most modes require a source to APPLY an edit; reference-only workflows can instead use an attached image and an
+// empty target latent. The check therefore lives at each mode's submit control (and the button is disabled anyway).
+// Asserting a source here would throw at page init, aborting the whole script and taking the file picker with it:
 // the one entry point whose job is choosing a source would be the one that couldn't. Checking at the point of use
 // also catches what an init assertion can't, a source that goes away or is replaced mid-session.
 //
@@ -217,12 +217,16 @@ function setBusy(b) {
 }
 function cancelGeneration() { if (!busy || !activeGen) return; cancelRequested = true; setStatus("Cancelling…"); activeGen.cancel(); }
 
-// Each mode's submit is enabled only when that mode has BOTH a source image AND ≥1 available workflow — so it can't
-// be clicked (or hold-picked: the browser suppresses pointer events on a disabled button) into the "Select a file
-// first" error. Called whenever the source or the workflow set for a mode changes, and on mode switch. A running
-// batch keeps its source, so the button stays enabled while busy (a click then queues more).
+// Each mode's submit is enabled only when it has ≥1 available workflow and either a source or a valid reference-only
+// input. Called whenever the source/reference/workflow set changes and on mode switch. A running batch keeps its
+// inputs, so the button stays enabled while busy (a click then queues more).
 function updateSubmitEnabled() {
-  if ($editSend) $editSend.disabled = !editCurrent || editModels().length === 0 || editSubmitBlockedByMask();
+  const models = editModels();
+  // References are a single-workflow affordance (multi-select has no unambiguous capacity/slot contract).
+  const referenceOnlyReady = !editCurrent && models.length === 1
+    && models.every(m => m && m.supportsReferenceOnly)
+    && editRefs.some(r => r.kind === "image");
+  if ($editSend) $editSend.disabled = (!editCurrent && !referenceOnlyReady) || models.length === 0 || editSubmitBlockedByMask();
   if ($outpaintGo) $outpaintGo.disabled = !outpaintBase || outpaintModelList().length === 0;
 }
 
@@ -304,6 +308,7 @@ async function loadEditModels() {
         media: r.media === "video" ? "video" : "image", promptDirectsMotion: r.promptDirectsMotion !== false,
         sourceMedia: r.sourceMedia === "video" ? "video" : "image",
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to
+        supportsReferenceOnly: !!r.supportsReferenceOnly,
         hasAudio: !!r.hasAudio,   // clip carries a native audio track (H3) — offer an unmute control on the result
 
         baseTags: (r.card && r.card.tags) || [],   // definition tags (incl. the derived "Ref"); merged with the user delta for the picker chips
@@ -471,6 +476,7 @@ function updateEditParams() {
   restoreParams($("editParams"));   // prefill from the shared flat param map (carries across workflow switches)
 }
 const takesReferences = m => !!(m && m.edit && m.edit.reference);
+const supportsReferenceOnly = m => !!(takesReferences(m) && m.supportsReferenceOnly);
 function setReferenceAspect(value, persist = true) {
   if (!["reference", "square", "landscape", "portrait"].includes(value)) value = "reference";
   referenceAspect = value;
@@ -482,7 +488,7 @@ function updateReferenceAspectPicker() {
   const models = effectiveEditModels();
   // A mask is painted in source coordinates and the composite path requires the source aspect. Keep the user's last
   // unmasked choice in memory, but hide/submit Reference until the mask is cleared.
-  $editAspectField.hidden = maskActive() || !models.length || !models.every(takesReferences);
+  $editAspectField.hidden = maskActive() || !models.length || !models.every(supportsReferenceOnly);
 }
 if ($editAspect) $editAspect.addEventListener("click", e => {
   const b = e.target.closest("button[data-aspect]");
@@ -503,6 +509,7 @@ function refreshMaskRouting() {
   updateEditNeg();
   updateReferenceAspectPicker();
   updateMaskControls();
+  if (!editCurrent) renderSrc();   // workflow selection changes whether image 1 is labelled optional
   updateSubmitEnabled();
 }
 // The pencil (open the paint modal) and, when a mask exists, the clear-mask button — overlaid on the source preview.
@@ -587,7 +594,11 @@ function outpaintNegFor(model) { const t = $outpaintNeg ? $outpaintNeg.value.tri
 // Left pane shows the FIXED source image being edited. Clicking it opens the lightbox/detail.
 function renderSrc() {
   $editSrc.innerHTML = "";
-  if (!editCurrent) { $editSrc.appendChild(selectFileButton("Select a file to edit")); return; }
+  if (!editCurrent) {
+    const optional = editModels().length === 1 && editModels().every(supportsReferenceOnly);
+    $editSrc.appendChild(selectFileButton(optional ? "Add image 1 (optional)" : "Select a file to edit"));
+    return;
+  }
   let media;
   if (srcIsVideo) {
     // A clip source: play it looping (the mp4 endpoint transcodes our animated-webp clips and passes real containers through).
@@ -629,7 +640,7 @@ function clearSource() {
   maskId = null; if (maskEditor) maskEditor.clear();      // the painted mask was bound to the old source
   renderSrc(); renderEditLastFrame();
   applySourceMediaUi();
-  updateSubmitEnabled();   // no source now → every mode's submit disables
+  updateSubmitEnabled();
   if (activeMode === "video") setMode("edit");            // leave V2V-only mode — there's no clip to quantize now
   else if (activeMode === "outpaint") setupOutpaintStage();
 }
@@ -777,7 +788,7 @@ function makeRefUi({ modelOf, refs, els }) {
       const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { refs.splice(i, 1); render(); });
       chip.appendChild(x); els.list.appendChild(chip);
     });
-    els.list.classList.toggle("hidden", refs.length === 0); updateBtn(); updateHint();
+    els.list.classList.toggle("hidden", refs.length === 0); updateBtn(); updateHint(); updateSubmitEnabled();
   }
   async function handleFiles(files) {
     for (const f of Array.from(files || [])) {
@@ -862,7 +873,10 @@ attachDropUpload($editLastFrame, handleEditLastFrameFiles);
 async function buildChatItems(n) {
   const instruction = $instruction.value.trim();
   const models = editModels();
-  if (!models.length || !editCurrent) return [];
+  if (!models.length) return [];
+  const referenceOnly = !editCurrent && models.length === 1
+    && models.every(supportsReferenceOnly) && editRefs.some(r => r.kind === "image");
+  if (!editCurrent && !referenceOnly) return [];
   // "single" is about the number of MODELS: reference images, the end frame and the mask have no primary with 2+
   // checked (and a mask forces single-select anyway); the shared param panel applies to every selected model.
   const single = models.length === 1;
@@ -898,7 +912,9 @@ attachEnqueueSubmit({
   buildItems: async n => {
     const models = editModels();
     if (!models.length) { setStatus("Pick at least one workflow.", { error: true }); return []; }
-    if (!editCurrent) { setStatus("Select a file to edit first.", { error: true }); return []; }
+    if (!editCurrent && !(models.length === 1 && models.every(supportsReferenceOnly) && editRefs.some(r => r.kind === "image"))) {
+      setStatus("Add image 1, or attach an image reference for a reference-only workflow.", { error: true }); return [];
+    }
     // A pure-inpaint editor needs a mask (the button is disabled anyway; this is the belt-and-braces message).
     if (editSubmitBlockedByMask()) { setStatus("Draw a mask first — click the pencil on the source.", { error: true }); return []; }
     // Keep the attached references after Apply so repeated animate/edit runs reuse them (like the gen page keeps its

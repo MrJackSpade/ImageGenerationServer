@@ -56,37 +56,6 @@ public sealed class MediaProcessor(MediaOptions options) : IMediaProcessor
     }
 
     /// <inheritdoc/>
-    public byte[] CropToAspect(byte[] bytes, int ratioWidth, int ratioHeight)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ratioWidth);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ratioHeight);
-
-        using Image<Rgba32> image = Image.Load<Rgba32>(bytes);
-        if ((long)image.Width * ratioHeight == (long)image.Height * ratioWidth)
-        {
-            return bytes;
-        }
-
-        int scale = Math.Min(image.Width / ratioWidth, image.Height / ratioHeight);
-        if (scale < 1)
-        {
-            throw new ArgumentException(
-                $"The image is {image.Width}x{image.Height}, too small to crop to a {ratioWidth}:{ratioHeight} aspect ratio.",
-                nameof(bytes));
-        }
-
-        int width = scale * ratioWidth;
-        int height = scale * ratioHeight;
-
-        int x = (image.Width - width) / 2;
-        int y = (image.Height - height) / 2;
-        image.Mutate(op => op.Crop(new Rectangle(x, y, width, height)));
-        using MemoryStream output = new();
-        image.Save(output, new PngEncoder());
-        return output.ToArray();
-    }
-
-    /// <inheritdoc/>
     public ImageDimensions IdentifyVideo(byte[] bytes)
     {
         (int w, int h) = Mp4Probe.GetDimensions(bytes);

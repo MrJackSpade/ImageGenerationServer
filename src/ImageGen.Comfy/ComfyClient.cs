@@ -640,18 +640,14 @@ public sealed class ComfyClient : IComfyClient
         return loras;
     }
 
-    /// <summary>Upload the source PNG (and any references) to ComfyUI's input folder, build the configuration's edit
-    /// graph, POST it to <c>/prompt</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
-    public async Task<SubmitResult> SubmitEditAsync(byte[] sourcePng, string instruction, string? negativePrompt, string? configId,
+    /// <summary>Upload the optional source PNG and references to ComfyUI's input folder, build the configuration's
+    /// edit graph, POST it to <c>/prompt</c>, and return the <c>prompt_id</c> WITHOUT polling.</summary>
+    public async Task<SubmitResult> SubmitEditAsync(byte[]? sourcePng, string instruction, string? negativePrompt, string? configId,
         IReadOnlyList<ReferenceUpload>? references, IReadOnlyDictionary<string, JsonElement>? overrides, byte[]? maskPng = null,
         byte[]? lastFramePng = null, CancellationToken ct = default)
     {
-        if (sourcePng is null || sourcePng.Length == 0)
-        {
-            throw new RenderValidationException("A source image is required for editing.");
-        }
-
         (WorkflowConfiguration? cfg, IWorkflow? wf) = ResolveEdit(configId);
+        byte[] sourceBytes = sourcePng ?? [];
         // An empty instruction is valid: pixel-quantize ignores the prompt entirely, the pixelize workflows fall
         // back to their own style_prompt, and editors with a non-blank conditioning default handle it too.
 
@@ -660,7 +656,12 @@ public sealed class ComfyClient : IComfyClient
         // multi-frame-decode animated webp) and passing mp4/webm uploads through as-is — and build with SourceVideoName.
         if (wf.SourceMedia == WorkflowMedia.Video)
         {
-            string videoName = await UploadSourceVideoAsync(sourcePng, ct);
+            if (sourceBytes.Length == 0)
+            {
+                throw new RenderValidationException("A source video is required for this workflow.");
+            }
+
+            string videoName = await UploadSourceVideoAsync(sourceBytes, ct);
             Dictionary<string, object?> dict0 = MergeParamsDict(wf, cfg, overrides);
             ResolvedRequirements resolved0 = _catalog.Resolve(cfg);
             _ = NormalizeAndValidate(wf, cfg, dict0,
@@ -675,28 +676,47 @@ public sealed class ComfyClient : IComfyClient
                 RenderModelManifestBuilder.Build(dict0, resolved0), Dimensions(wf, null, null, null, null));
         }
 
-        List<ReferenceInput> refInputs = [];
         Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
         SubmissionCommon requested = ParamsCodec.Deserialize<SubmissionCommon>(dict);
-        (int Width, int Height)? cropRatio = ReferenceAspects.Ratio(requested.ReferenceAspect);
-        if (cropRatio is not null && cfg.Card.EditReferenceTypes.Count == 0)
+        (int Width, int Height)? requestedRatio = ReferenceAspects.Ratio(requested.ReferenceAspect);
+        if (requestedRatio is not null && !wf.SupportsReferenceOnly)
         {
-            throw new RenderValidationException("A fixed reference aspect can only be used with a workflow that accepts reference attachments.");
+            throw new RenderValidationException("A fixed reference aspect requires a workflow that supports reference-only generation.");
         }
 
-        if (cropRatio is (int ratioW, int ratioH))
+        bool hasSource = sourceBytes.Length > 0;
+        ReferenceUpload? firstImageReference = references?.FirstOrDefault(r => r.Kind == ReferenceKind.Image && r.Bytes is { Length: > 0 });
+        if (!hasSource)
         {
-            if (maskPng is { Length: > 0 })
+            if (!wf.SupportsReferenceOnly)
             {
-                throw new RenderValidationException("A masked edit must use the Reference aspect so its mask remains aligned with the uploaded image.");
+                throw new RenderValidationException("A primary source image is required for this workflow.");
             }
 
-            sourcePng = _media.CropToAspect(sourcePng, ratioW, ratioH);
-            if (lastFramePng is { Length: > 0 })
+            if (firstImageReference?.Bytes is not { Length: > 0 })
             {
-                lastFramePng = _media.CropToAspect(lastFramePng, ratioW, ratioH);
+                throw new RenderValidationException("Reference-only generation requires at least one attached image reference.");
+            }
+
+            if (maskPng is { Length: > 0 } || lastFramePng is { Length: > 0 })
+            {
+                throw new RenderValidationException("A mask or last frame cannot be used without a primary source image.");
             }
         }
+
+        byte[] firstReferenceBytes = firstImageReference?.Bytes ?? [];
+        ImageDimensions? sourceDim = hasSource ? _media.Identify(sourceBytes) : null;
+        ImageDimensions referenceDim = sourceDim ?? _media.Identify(firstReferenceBytes);
+        (int basisW, int basisH) = requestedRatio ?? (referenceDim.Width, referenceDim.Height);
+
+        ResolvedRequirements resolved = _catalog.Resolve(cfg);
+        _ = NormalizeAndValidate(wf, cfg, dict,
+            new NormalizeContext { SourceWidth = basisW, SourceHeight = basisH, Requirements = resolved, AtSubmit = true });
+        SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
+        double? editMegapixels = EditQuality.Resolve(wf, dict);
+        (int targetW, int targetH) = wf.EtaRenderSize(dict, resolved, basisW, basisH, editMegapixels);
+
+        List<ReferenceInput> refInputs = [];
 
         if (references is { Count: > 0 })
         {
@@ -715,11 +735,9 @@ public sealed class ComfyClient : IComfyClient
             }
         }
 
-        // Distinct filename per role — a fixed name for every upload would make source and references clobber each
-        // other in ComfyUI's input folder (overwrite=true). Role-indexed names keep them separate; the job queue
-        // serializes ComfyUI work so these fixed names can't race. Fixed reference shapes crop the primary upload
-        // BEFORE this point, so every existing graph naturally derives its latent canvas from the chosen ratio.
-        string uploadName = await UploadImageAsync(sourcePng, UploadName.EditSource, ct);
+        // Upload the source exactly as supplied. Output shape is a separate graph input; reference aspect selection
+        // never crops, stretches, or otherwise discards conditioning pixels.
+        string? uploadName = hasSource ? await UploadImageAsync(sourceBytes, UploadName.EditSource, ct) : null;
         // Inpaint: a SEPARATE white-on-black mask image (the source stays pristine — baking the mask into the source's
         // alpha would let PNG premultiplication zero the masked RGB, blacking out the region the model must preserve).
         string? maskName = maskPng is { Length: > 0 } ? await UploadImageAsync(maskPng, UploadName.EditMask, ct) : null;
@@ -727,26 +745,20 @@ public sealed class ComfyClient : IComfyClient
         // collides with the source/refs/mask. Consumed via WorkflowInputs.EndImageName by workflows that support it.
         string? lastName = lastFramePng is { Length: > 0 } ? await UploadImageAsync(lastFramePng, UploadName.EditLast, ct) : null;
 
-        ImageDimensions srcDim = _media.Identify(sourcePng);   // chosen reference shape drives the render-resolution snap
-        (int srcW, int srcH) = (srcDim.Width, srcDim.Height);
-        ResolvedRequirements resolved = _catalog.Resolve(cfg);
-        // Submit-pass normalization: snap the render resolution onto a clean ×VRES multiple (deliberate, no notice) now,
-        // so Build reads the cached size rather than recomputing it. Source dims + the model's envelope live here.
-        _ = NormalizeAndValidate(wf, cfg, dict,
-            new NormalizeContext { SourceWidth = srcW, SourceHeight = srcH, Requirements = resolved, AtSubmit = true });
-        SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         if (common.SnapResolution)
         {
-            _logger.LogInformation("Edit '{Config}': snap_resolution ON, source {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, srcW, srcH);
+            _logger.LogInformation("Edit '{Config}': snap_resolution ON, target basis {W}x{H} — render size snapped to a clean integer ×VRES multiple (or the request fails if it can't).", configId, basisW, basisH);
         }
 
         string renderedInstruction = PromptTemplates.Render(common.PromptTemplate, instruction, cfg.Id);
-        double? editMegapixels = EditQuality.Resolve(wf, dict);
-        WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName, SourceWidth = srcW, SourceHeight = srcH, EditMegapixels = editMegapixels, References = refInputs, MaskImageName = maskName, EndImageName = lastName };
+        WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName,
+            SourceWidth = sourceDim?.Width ?? 0, SourceHeight = sourceDim?.Height ?? 0,
+            TargetWidth = targetW, TargetHeight = targetH, EditMegapixels = editMegapixels,
+            References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         // ETA signature: the resolution the workflow ACTUALLY renders at (a budget-scaling editor pins the source to a
         // fixed ~MP size, so recording raw srcW/srcH would credit a large upload work it never does), plus the
         // EtaVariable time drivers — Frames (length) dominates for i2v.
-        (int etaW, int etaH) = wf.EtaRenderSize(dict, resolved, srcW, srcH, editMegapixels);
+        (int etaW, int etaH) = (targetW, targetH);
         // Raw-source editors have no graph-level sizing safety net: enforce the model's full declared envelope before
         // posting. Explicit normalizers accept arbitrary uploads and validate their own aspect-preserving working
         // canvas; generation-only minimum-side rectangles must not reject those source images.
@@ -755,7 +767,7 @@ public sealed class ComfyClient : IComfyClient
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction,
-            RenderModelManifestBuilder.Build(dict, resolved), Dimensions(wf, srcW, srcH, etaW, etaH));
+            RenderModelManifestBuilder.Build(dict, resolved), Dimensions(wf, sourceDim?.Width, sourceDim?.Height, etaW, etaH));
     }
 
     private static RenderDimensions Dimensions(IWorkflow wf, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) => new()

@@ -52,8 +52,8 @@ internal static class EditWorkflowBase
         // Reference images: how many extra images this editor accepts, and (Qwen) the encode-node slot names.
         new() { Key = WorkflowParamKeys.ReferenceMax,    Type = ParamType.Int },
         new() { Key = WorkflowParamKeys.ReferenceInputs, Type = ParamType.String },   // ["image2","image3"]
-        // Output shape for workflows that accept reference attachments. "reference" leaves the primary upload
-        // untouched; the other choices center-crop it before the graph applies its own working-resolution budget.
+        // Output shape for workflows that can sample a separate target latent. "reference" follows image1 (or the
+        // first attached image when image1 is omitted); fixed choices size the target without altering conditioning.
         new() { Key = WorkflowParamKeys.ReferenceAspect, Type = ParamType.Enum, Default = ReferenceAspectNames.Reference,
                 Choices = ReferenceAspects.Choices },
         PromptTemplates.Schema,

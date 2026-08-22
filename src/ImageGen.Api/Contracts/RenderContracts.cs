@@ -43,7 +43,7 @@ public static class RenderContractMapping
     {
         if (it.Edit)
         {
-            if (string.IsNullOrWhiteSpace(it.Workflow) || string.IsNullOrWhiteSpace(it.ImageId))
+            if (string.IsNullOrWhiteSpace(it.Workflow))
             {
                 return null;
             }

@@ -64,6 +64,20 @@ public sealed class EnqueueImageAuthorizationTests
         Assert.True(await ForgeApi.AllEditInputsReadableAsync(7, [generate], visibility, Ct));
     }
 
+    [Fact]
+    public async Task Reference_only_edit_authorizes_its_references_without_inventing_a_source_id()
+    {
+        const long owner = 7;
+        InMemoryUploadStore uploads = new();
+        string reference = uploads.Add(Upload(owner));
+        ImageVisibilityService visibility = new(
+            uploads, new FixedStoredVisibility(new HashSet<string>(StringComparer.Ordinal)));
+        EditSpec edit = new("qwen-image-edit", "use the reference", null, ReferenceIds: [reference]);
+
+        Assert.True(await ForgeApi.AllEditInputsReadableAsync(
+            owner, [RenderItem.ForEdit(edit)], visibility, Ct));
+    }
+
     private static UploadedImage Upload(long owner) => new([1, 2, 3], "image/png", 8, 8, owner);
 
     private sealed class FixedStoredVisibility(IReadOnlySet<string> readable) : IImageVisibilityRepository

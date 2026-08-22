@@ -1,6 +1,7 @@
 using ImageGen.Application.Rendering;
 using ImageGen.Application.Snapshots;
 using ImageGen.Comfy;
+using ImageGen.Domain;
 using ImageGen.Comfy.Snapshots;
 using ImageGen.Media;
 using Microsoft.Extensions.DependencyInjection;
@@ -163,6 +164,63 @@ public sealed class PromptTemplateTests
     }
 
     [Fact]
+    public async Task Qwen_reference_only_submission_uploads_only_the_reference_and_posts_an_empty_target_latent()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
+            .GetRequiredService<WorkflowRegistry>();
+        CapturePromptHandler handler = new();
+        ComfyClient client = new(
+            new FixedHttpClientFactory(new HttpClient(handler)),
+            new FixedEndpoint(),
+            catalog,
+            registry,
+            new MediaProcessor(new MediaOptions()),
+            new FixedSnapshot<ComfyFilesByKind>(new ComfyFilesByKind(
+                new Dictionary<RequirementKind, IReadOnlyList<string>>())),
+            NullLogger<ComfyClient>.Instance);
+        byte[] reference = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        Dictionary<string, JsonElement> overrides = new()
+        {
+            [WorkflowParamKeys.ReferenceAspect] = JsonSerializer.SerializeToElement(ReferenceAspectNames.Landscape),
+        };
+
+        SubmitResult submission = await client.SubmitEditAsync(
+            null,
+            "make a new landscape using this character",
+            null,
+            "qwen-image-edit",
+            [new ReferenceUpload(reference, ReferenceKind.Image, "image/png")],
+            overrides,
+            ct: CancellationToken.None);
+
+        Assert.Equal(1, handler.UploadCount);
+        Assert.Equal(1360, submission.Eta.Width);
+        Assert.Equal(768, submission.Eta.Height);
+        Assert.NotNull(handler.Body);
+        using JsonDocument request = JsonDocument.Parse(handler.Body);
+        JsonElement graph = request.RootElement.GetProperty("prompt");
+        Assert.False(graph.TryGetProperty(EditNodes.Source, out _));
+        JsonElement empty = graph.GetProperty("79").GetProperty("inputs");
+        Assert.Equal(submission.Eta.Width, empty.GetProperty("width").GetInt32());
+        Assert.Equal(submission.Eta.Height, empty.GetProperty("height").GetInt32());
+        JsonProperty[] encodes = [.. graph.EnumerateObject()
+            .Where(n => n.Value.GetProperty("class_type").GetString() == "TextEncodeQwenImageEditPlus")];
+        Assert.Equal(2, encodes.Length);
+        Assert.All(encodes,
+            n =>
+            {
+                JsonElement inputs = n.Value.GetProperty("inputs");
+                Assert.False(inputs.TryGetProperty("image1", out _));
+                Assert.True(inputs.TryGetProperty("image2", out _));
+            });
+    }
+
+    [Fact]
     public async Task A_raw_resolution_editor_refuses_an_out_of_envelope_upload_before_posting_a_prompt()
     {
         WorkflowCatalog catalog = new(
@@ -231,11 +289,13 @@ public sealed class PromptTemplateTests
     private sealed class CapturePromptHandler : HttpMessageHandler
     {
         public string? Body { get; private set; }
+        public int UploadCount { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             if (request.RequestUri?.AbsolutePath == "/upload/image")
             {
+                UploadCount++;
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("{\"name\":\"forgemcp_edit_src.png\"}", Encoding.UTF8, "application/json"),

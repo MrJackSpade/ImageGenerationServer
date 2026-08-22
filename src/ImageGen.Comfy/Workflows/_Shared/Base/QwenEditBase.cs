@@ -16,6 +16,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 {
     public override bool NormalizesSourceResolution => true;
     public override bool SupportsEditQuality => true;
+    public override bool SupportsReferenceOnly => true;
     /// <summary>True for the all-in-one rapid checkpoint (skips the standard 2511 sampling-fix nodes).</summary>
     protected abstract bool Aio { get; }
 
@@ -101,16 +102,18 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     protected override ComfyWorkflowGraph Build(QwenEditParams p, ResolvedRequirements req, WorkflowInputs inputs)
     {
         ComfyWorkflowGraph g = new();
-        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0);
+        LoadModel(g, p.Loader, p.WeightDtype, p.ClipType, req, inputs, out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0, sourceOptional: true);
         long seed = ComfyGraph.Seed(p.Seed);
 
         // The shared reference-encode head: Kontext-scale the source, load the references into image2/image3, and emit
         // the positive/negative TextEncodeQwenImageEditPlus encodes with their reference-latent stitch (+ the standard
         // 2511 ModelSamplingAuraFlow/CFGNorm sampling fix unless AIO). Everything below is this editor's own tail.
         double editMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
-        (int sourceWidth, int sourceHeight) = EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
-            editMp, EditWorkingResolution.NativeStep,
-            Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0));
+        (int sourceWidth, int sourceHeight) = inputs.SourceImageName is { Length: > 0 }
+            ? EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
+                editMp, EditWorkingResolution.NativeStep,
+                Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0))
+            : (inputs.TargetWidth, inputs.TargetHeight);
         QwenRefHeadOut head = QwenReferenceHead.Emit(g, Aio, model0, clip0, vae0, inputs, p.ReferenceInputs,
             p.ReferenceMax, p.ReferenceLatentsMethod, editMp, sourceWidth, sourceHeight);
         Output<Slot.Conditioning> cond = head.Cond;
@@ -126,15 +129,34 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         {
             return v ?? 0;   // a canvas-mask side %, absent = 0 (no mask on that side)
         }
-        // A Qwen edit's source is a still, so its dimensions are ALWAYS measured — a zero is a broken source, not a
-        // valid state. Refuse it rather than silently drop a requested canvas mask. (MaskGeom returns null when no
-        // mask side is set, so an unmasked edit still no-ops.)
-        _ = Ensure.GreaterThanZero(inputs.SourceWidth);
-        _ = Ensure.GreaterThanZero(inputs.SourceHeight);
-        (int X, int Y, int W, int H)? rect = MaskGeom(Pct(p.MaskLeftPct), Pct(p.MaskRightPct), Pct(p.MaskTopPct), Pct(p.MaskBottomPct),
-                            inputs.SourceWidth, inputs.SourceHeight);
 
-        Output<Slot.Latent> sampleLatent = head.SourceLatent;
+        bool hasCanvasMask = Pct(p.MaskLeftPct) != 0 || Pct(p.MaskRightPct) != 0 || Pct(p.MaskTopPct) != 0 || Pct(p.MaskBottomPct) != 0;
+        if (hasCanvasMask && inputs.SourceImageName is null)
+        {
+            throw new RenderValidationException("A canvas mask requires a primary source image.");
+        }
+
+        (int X, int Y, int W, int H)? rect = inputs.SourceImageName is { Length: > 0 }
+            ? MaskGeom(Pct(p.MaskLeftPct), Pct(p.MaskRightPct), Pct(p.MaskTopPct), Pct(p.MaskBottomPct),
+                Ensure.GreaterThanZero(inputs.SourceWidth), Ensure.GreaterThanZero(inputs.SourceHeight))
+            : null;
+
+        Output<Slot.Latent> sampleLatent;
+        if (head.SourceLatent is { } sourceLatent && p.ReferenceAspect == ReferenceAspectNames.Reference)
+        {
+            sampleLatent = sourceLatent;
+        }
+        else
+        {
+            g[Nodes.EmptyLatent] = new EmptyLatent(ComfyNodeTypes.EmptySD3LatentImage)
+            {
+                Width = Ensure.GreaterThanZero(inputs.TargetWidth),
+                Height = Ensure.GreaterThanZero(inputs.TargetHeight),
+                BatchSize = 1,
+            };
+            sampleLatent = EmptyLatent.Out(Nodes.EmptyLatent);
+        }
+
         if (rect is (int, int, int rw, int rh))
         {
             // Sample at the rectangle, aligned down to the VAE/patch stride; a blank white canvas is the starting
@@ -162,6 +184,8 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         Output<Slot.Image> output = VAEDecode.Out(Nodes.Decode);
         if (rect is (int px, int py, int pw, int ph))
         {
+            Output<Slot.Image> contextImage = head.Kontext
+                ?? throw new InvalidOperationException("A masked Qwen edit has no source conditioning image.");
             // Undo the stride rounding, paste onto a white canvas at the rectangle's offset (both in source pixels),
             // then match the unmasked path's output dimensions exactly — GetImageSize reads the Kontext bucket node 11
             // chose, so a masked and an unmasked pose of the same portrait land on identical canvases and keep a
@@ -169,7 +193,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             g[Nodes.RectResize] = new ImageScale { Image = VAEDecode.Out(Nodes.Decode), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = pw, Height = ph, Crop = ComfyWidgets.Crop.Disabled };
             g[Nodes.PasteCanvas] = new EmptyImageLiteral { Width = inputs.SourceWidth, Height = inputs.SourceHeight, BatchSize = 1, Color = CanvasMaskConstants.BlockedFillRgb };
             g[Nodes.Composite] = new ImageCompositePaste { Destination = EmptyImageLiteral.Out(Nodes.PasteCanvas), Source = ImageScale.Out(Nodes.RectResize), X = px, Y = py, ResizeSource = false };
-            g[Nodes.OutputSize] = new GetImageSize { Image = head.Kontext };
+            g[Nodes.OutputSize] = new GetImageSize { Image = contextImage };
             g[Nodes.OutputScale] = new ImageScaleFromSize { Image = ImageCompositePaste.Out(Nodes.Composite), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = GetImageSize.WidthOut(Nodes.OutputSize), Height = GetImageSize.HeightOut(Nodes.OutputSize), Crop = ComfyWidgets.Crop.Disabled };
             output = ImageScaleFromSize.Out(Nodes.OutputScale);
         }
@@ -183,6 +207,7 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
 /// (EditNodes.Model/Clip/Vae/Source). The per-reference load nodes stay computed ($"{40+i*2}").</summary>
 file static class Nodes
 {
+    public const string EmptyLatent = "79";
     public const string RectCanvas = "80";
     public const string RectEncode = "81";
     public const string Sampler = "3";
@@ -217,6 +242,7 @@ public sealed record QwenEditParams
     [AllowNullable("null = the config declares no reference-image cap; distinct from a real 0 cap")] public int? ReferenceMax { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceInputs)] public string[]? ReferenceInputs { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceLatentsMethod)] public required string ReferenceLatentsMethod { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ReferenceAspect)] public string ReferenceAspect { get; init; } = ReferenceAspectNames.Reference;
     [JsonPropertyName(WorkflowParamKeys.MaskLeftPct)]
     [Range(CanvasMaskConstants.MinSidePct, CanvasMaskConstants.MaxSidePct)]
     [AllowNullable("null = the config didn't set this mask/pad percentage; distinct from a real 0%")] public int? MaskLeftPct { get; init; }

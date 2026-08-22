@@ -89,6 +89,18 @@ public sealed class RenderContractMappingTests
         Assert.True(Assert.IsType<EnqueueItem>(item).ResolvePromptSyntax);
     }
 
+    [Fact]
+    public void Reference_only_edit_mapping_preserves_an_absent_primary_source()
+    {
+        RenderItem? item = new EnqueueItem(
+            Workflow: "qwen-image-edit", Edit: true, Instruction: "use the reference",
+            ImageId: null, ReferenceIds: ["ref-1"]).ToRenderItem();
+
+        EditSpec edit = Assert.IsType<EditSpec>(item?.Edit);
+        Assert.Null(edit.ImageId);
+        Assert.Equal(["ref-1"], edit.ReferenceIds);
+    }
+
     /// <summary>A submitted width/height IS a shape (#209): the recorded label follows the dims — wider is landscape,
     /// taller is portrait, equal is square.</summary>
     [Theory]

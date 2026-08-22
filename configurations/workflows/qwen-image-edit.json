@@ -105,7 +105,7 @@
     ],
     "reference": {
       "max": 2,
-      "hint": "Your photo is image 1; your attached references are image 2 and image 3. Refer to them by number. Example: 'put the dress from image 2 on the person in image 1.'"
+      "hint": "Image 1 is optional. With it, edit that image and use attachments as image 2/image 3. Without it, Qwen generates a new canvas from the attached references; refer to those as image 2/image 3."
     }
   },
   "resolution": {

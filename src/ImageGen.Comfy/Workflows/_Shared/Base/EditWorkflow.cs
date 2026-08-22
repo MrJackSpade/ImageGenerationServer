@@ -39,7 +39,8 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
     /// Byte-identical to <see cref="EditWorkflowBase.LoadModel"/>.</summary>
     protected static void LoadModel(ComfyWorkflowGraph g, string loaderWire, string? weightDtype, string? clipType,
         ResolvedRequirements req, WorkflowInputs inputs,
-        out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0)
+        out Output<Slot.Model> model0, out Output<Slot.Clip> clip0, out Output<Slot.Vae> vae0,
+        bool sourceOptional = false)
     {
         string file = req.RequiredCheckpoint();
         LoaderKind loader = LoaderKindWire.Parse(loaderWire);
@@ -63,7 +64,14 @@ public abstract class EditWorkflow<TParams> : Workflow<TParams>
             clip0 = BuildClipLoader(g, EditNodes.Clip, req.TextEncoders, clipType);
         }
 
-        g[EditNodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("This edit needs a source image, but none was provided.") };
+        if (inputs.SourceImageName is { Length: > 0 } source)
+        {
+            g[EditNodes.Source] = new LoadImage { Image = source };
+        }
+        else if (!sourceOptional)
+        {
+            throw new RenderValidationException("This edit needs a source image, but none was provided.");
+        }
     }
 
     /// <summary>The CLIP loader a model's encoders call for, chosen by HOW MANY it declares (1→CLIPLoader,

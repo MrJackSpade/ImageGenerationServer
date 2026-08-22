@@ -28,7 +28,8 @@ public sealed record WorkflowTagging(bool Tags, bool Artists, bool KeepArtistMar
 /// booru autocomplete/artist-formatting contract.</param>
 public sealed record WorkflowInfo(
     string FriendlyName, WorkflowTagging? Tagging, bool PreservesComposition, bool ProducesVideo = false,
-    WorkflowReference? Reference = null, bool HasAudio = false, string Kind = "", bool TagGeneratorEnabled = false);
+    WorkflowReference? Reference = null, bool HasAudio = false, string Kind = "", bool TagGeneratorEnabled = false,
+    bool SupportsReferenceOnly = false);
 
 /// <summary>The wire tokens for a workflow's resolved kind — the one vocabulary shared by the descriptor's
 /// <see cref="WorkflowDescriptor.Kind"/> badge/routing, <see cref="WorkflowInfo.Kind"/>, and the render orchestrator's
@@ -226,6 +227,8 @@ public sealed record WorkflowDescriptor(
     bool CustomSizeEnabled = false,
     bool TagGeneratorEnabled = false,
     bool IsVariant = false,
+    // Attached image references can drive this workflow with no primary source; the graph supplies an empty latent.
+    bool SupportsReferenceOnly = false,
     // The configuration's aspect→[w,h] dims map (this machine's override applied), or null for a config with none.
     // The composer writes a clicked shape's dims into its (possibly hidden) width/height controls from THIS map and
     // submits the dims, not an aspect name (#209); the server derives the ratio from the submitted width/height.

@@ -57,7 +57,9 @@ public sealed class WebUiRegressionContractTests
 
         Assert.Contains("id=\"editAspect\"", view, StringComparison.Ordinal);
         Assert.Contains("data-aspect=\"reference\"", view, StringComparison.Ordinal);
-        Assert.Contains("models.every(takesReferences)", edit, StringComparison.Ordinal);
+        Assert.Contains("models.every(supportsReferenceOnly)", edit, StringComparison.Ordinal);
+        Assert.Contains("models.length === 1", edit, StringComparison.Ordinal);
+        Assert.Contains("editRefs.some(r => r.kind === \"image\")", edit, StringComparison.Ordinal);
         Assert.Contains("itemOverrides.reference_aspect = maskAttach ? \"reference\" : referenceAspect", edit, StringComparison.Ordinal);
     }
 

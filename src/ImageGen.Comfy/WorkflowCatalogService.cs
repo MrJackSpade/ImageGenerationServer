@@ -46,7 +46,8 @@ public sealed partial class WorkflowCatalogService(
         IReadOnlyDictionary<string, JsonElement> machine = _catalog.ParamOverridesFor(cfg.Id);
         return new WorkflowInfo(
             friendly, ToTagging(card.Tagging), preserves, wf?.Media == WorkflowMedia.Video, BuildReference(card),
-            HasAudio(cfg, wf), kind, EffectiveBool(machine, SettingKeys.TagGenerator, card.Tagging?.Tags == true));
+            HasAudio(cfg, wf), kind, EffectiveBool(machine, SettingKeys.TagGenerator, card.Tagging?.Tags == true),
+            wf?.SupportsReferenceOnly == true && BuildReference(card)?.MaxImages > 0);
     }
 
     /// <summary>The workflow's reference capability, or null when it accepts no references — the single projection of a
@@ -694,6 +695,7 @@ public sealed partial class WorkflowCatalogService(
             TagGeneratorEnabled: EffectiveBool(machine, SettingKeys.TagGenerator, c.Tagging?.Tags == true),
             // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
             IsVariant: _catalog.IsVariant(cfg.Id),
+            SupportsReferenceOnly: wf.SupportsReferenceOnly && BuildReference(c)?.MaxImages > 0,
             // Each config's aspect→[w,h] map travels to the composer, which writes a clicked shape's dims into its
             // width/height controls and submits the dims (#209). Null for a config with no aspect map.
             Aspects: RequestSize.BuildAspectMap(cfg, machine),

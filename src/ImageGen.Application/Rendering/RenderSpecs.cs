@@ -53,14 +53,14 @@ public sealed record GenerateSpec(
 
 /// <summary>
 /// One image-edit request as the orchestrator renders and persists it. <see cref="Workflow"/> is the edit workflow
-/// configuration id; <see cref="ImageId"/> the source. In-memory only — the slot's spec is stored as typed columns,
+/// configuration id; <see cref="ImageId"/> the optional primary source. In-memory only — the slot's spec is stored as typed columns,
 /// so these names are not a durable contract (see <see cref="GenerateSpec"/>).
 /// </summary>
 /// <param name="ResolvePromptSyntax">False only when <paramref name="Instruction"/> is already concrete replay text.</param>
 public sealed record EditSpec(
     string Workflow,
     string Instruction,
-    string ImageId,
+    string? ImageId,
     string? NegativePrompt = null,
     List<string>? ReferenceIds = null,
     Dictionary<string, JsonElement>? Overrides = null,

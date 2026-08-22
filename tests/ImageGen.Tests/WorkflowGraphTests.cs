@@ -142,6 +142,67 @@ public sealed class WorkflowGraphTests
         Assert.Contains(string.Empty, prompts);
     }
 
+    [Theory]
+    [InlineData("qwen-image-edit")]
+    [InlineData("qwen-rapid-aio")]
+    [InlineData("firered-image-edit")]
+    public void Qwen_reference_only_omits_image1_and_samples_an_empty_target_latent(string configId)
+    {
+        WorkflowInputs referenceOnly = new()
+        {
+            Positive = "make a new portrait of this character",
+            TargetWidth = 1344,
+            TargetHeight = 768,
+            References = [new ReferenceInput("ref1.png", ReferenceKind.Image)],
+        };
+        string json = BuildJson(configId, referenceOnly,
+            new Dictionary<string, object?> { [WorkflowParamKeys.ReferenceAspect] = ReferenceAspectNames.Landscape });
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+
+        Assert.False(root.TryGetProperty(EditNodes.Source, out _));
+        Assert.False(root.TryGetProperty("14", out _));
+        JsonElement[] encodes = [.. root.EnumerateObject()
+            .Where(n => n.Value.GetProperty("class_type").GetString() == "TextEncodeQwenImageEditPlus")
+            .Select(n => n.Value.GetProperty("inputs"))];
+        Assert.Equal(2, encodes.Length);
+        Assert.All(encodes, e =>
+        {
+            Assert.False(e.TryGetProperty("image1", out _));
+            Assert.True(e.TryGetProperty("image2", out _));
+        });
+
+        JsonElement empty = root.GetProperty("79");
+        Assert.Equal("EmptySD3LatentImage", empty.GetProperty("class_type").GetString());
+        Assert.Equal(1344, empty.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(768, empty.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+    }
+
+    [Fact]
+    public void Qwen_fixed_shape_keeps_the_full_source_for_conditioning_and_separates_the_target_canvas()
+    {
+        WorkflowInputs source = new()
+        {
+            Positive = "make a new portrait",
+            SourceImageName = "src.png",
+            SourceWidth = 1200,
+            SourceHeight = 800,
+            TargetWidth = 1344,
+            TargetHeight = 768,
+        };
+        string json = BuildJson("qwen-image-edit", source,
+            new Dictionary<string, object?> { [WorkflowParamKeys.ReferenceAspect] = ReferenceAspectNames.Landscape });
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+
+        JsonElement scale = root.GetProperty("11").GetProperty("inputs");
+        Assert.Equal("disabled", scale.GetProperty("crop").GetString());
+        Assert.Equal(3 * scale.GetProperty("height").GetInt32(), 2 * scale.GetProperty("width").GetInt32());
+        Assert.Equal("11", root.GetProperty("13").GetProperty("inputs").GetProperty("image1")[0].GetString());
+        Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+    }
+
     /// <summary>LongCat-Image-Edit takes no separate reference images: the official ComfyUI blueprint is
     /// single-image (<c>TextEncodeQwenImageEdit</c>, not Plus) and the model's edit template has a single image
     /// slot, so extra references positionally collide and render as a double exposure (issue #218). The configs
