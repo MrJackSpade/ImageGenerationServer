@@ -650,6 +650,38 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
+    [Theory]
+    [InlineData("minimax-h3-ref2v")]
+    [InlineData("minimax-h3-ref2v-turbo")]
+    public void MiniMaxH3_ref2v_uses_the_independent_target_aspect_for_its_video_canvas(string configId)
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "a referenced subject in a new scene. Audio: ambience.",
+            SourceImageName = "portrait-reference.png",
+            SourceWidth = 768,
+            SourceHeight = 1344,
+            TargetWidth = 1344,
+            TargetHeight = 768,
+        };
+
+        string json = BuildJson(configId, inputs);
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement encode = doc.RootElement.EnumerateObject()
+            .Single(p => p.Value.GetProperty("class_type").GetString() == "MiniMaxH3ReferenceToVideo").Value;
+
+        Assert.Equal(1344, encode.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(768, encode.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.DoesNotContain("ImageScaleToTotalPixels", json);
+
+        (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(configId));
+        IWorkflow workflow = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
+        Assert.True(workflow.SupportsReferenceAspectWithSource);
+        ParamSpec aspect = Assert.Single(workflow.Schema, p => p.Key == WorkflowParamKeys.ReferenceAspect);
+        Assert.Equal(ReferenceAspectNames.Reference, aspect.Default);
+    }
+
     /// <summary>ref2va routes each reference to the node input for its media KIND: image stills to <c>ref_images</c>,
     /// a driving video (decoded to frames via LoadVideo→GetVideoComponents) to <c>ref_videos</c>, and a driving audio
     /// clip (LoadAudio) to <c>ref_audios</c> — #154's audio+video reference inputs, verified against the shipped node.</summary>

@@ -229,6 +229,8 @@ public sealed record WorkflowDescriptor(
     bool IsVariant = false,
     // Attached image references can drive this workflow with no primary source; the graph supplies an empty latent.
     bool SupportsReferenceOnly = false,
+    // A real primary image is reference conditioning rather than the output canvas, so shape remains user-selectable.
+    bool SupportsReferenceAspectWithSource = false,
     // The configuration's aspect→[w,h] dims map (this machine's override applied), or null for a config with none.
     // The composer writes a clicked shape's dims into its (possibly hidden) width/height controls from THIS map and
     // submits the dims, not an aspect name (#209); the server derives the ratio from the submitted width/height.

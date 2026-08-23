@@ -10,6 +10,7 @@ namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 {
     public override bool NormalizesSourceResolution => true;
+    public override bool SupportsReferenceAspectWithSource => true;
     public override string Name => "minimax-h3-ref2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>
@@ -35,6 +36,6 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.CkAttention, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
 
-    /// <summary>H3 pins the primary reference to the per-config <c>megapixels</c> budget, so the ETA keys on it.</summary>
+    /// <summary>H3 pins the independently shaped target canvas to the per-config <c>megapixels</c> budget.</summary>
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3Ref2VParams p) => (p.Megapixels, H3.BudgetSteps);
 }

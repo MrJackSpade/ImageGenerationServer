@@ -65,8 +65,9 @@ public sealed record MiniMaxH3FirstLastFrameToVideo : ComfyNode
 
 /// <summary>MiniMax-H3's conditioning+latent node in REFERENCE→video mode (ref2va): the prompt plus one or more
 /// reference images that condition the SUBJECT/IDENTITY (not a first frame), emitting the same (positive, joint
-/// video+audio latent) as the i2v/t2v node. The node resizes each reference internally (down only, per
-/// <c>ref_image_size</c>) and injects them as reference conditioning that rides every sampling step.
+/// video+audio latent) as the i2v/t2v node. Width/height are literal target-canvas dimensions independent of those
+/// references; the node resizes each reference internally (down only, per <c>ref_image_size</c>) and injects them as
+/// reference conditioning that rides every sampling step.
 ///
 /// <para>The references are the node's <c>COMFY_AUTOGROW_V3</c> input: on the wire each one is a FLAT, DOTTED key
 /// <c>ref_images.ref_image_{i}</c> at the top of the node's <c>inputs</c> (ComfyUI re-nests them into the
@@ -81,8 +82,8 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
     [JsonPropertyName("audio_vae")] public required Output<Slot.Vae> AudioVae { get; init; }
     [JsonPropertyName("prompt")] public required string Prompt { get; init; }
     [JsonPropertyName("length")] public required int Length { get; init; }
-    [JsonPropertyName("width")] public required Output<Slot.Int> Width { get; init; }
-    [JsonPropertyName("height")] public required Output<Slot.Int> Height { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
     [JsonPropertyName("ref_image_size")] public required string RefImageSize { get; init; }
 
     /// <summary>The node's four autogrow reference families, flattened into ONE extension-data map keyed by the exact

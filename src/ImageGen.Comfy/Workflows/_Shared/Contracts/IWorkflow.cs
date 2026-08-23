@@ -102,6 +102,11 @@ public interface IWorkflow
     /// graph synthesizes image1 as a blank canvas and fully noises its latent while preserving attachment slot roles.</summary>
     bool SupportsReferenceOnly => false;
 
+    /// <summary>True when a real primary image is conditioning-only rather than the output canvas, so the caller may
+    /// choose an output aspect independently of that image. Distinct from <see cref="SupportsReferenceOnly"/>: H3
+    /// reference-to-video still requires its primary reference, but that reference is not a first frame.</summary>
+    bool SupportsReferenceAspectWithSource => false;
+
     /// <summary>The workflow's output-size contract, persisted with each render's measured dimensions.</summary>
     string OutputSizePolicy => Kind == WorkflowKind.Generate
         ? OutputSizePolicies.ExplicitRequested

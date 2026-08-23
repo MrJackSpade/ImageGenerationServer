@@ -679,9 +679,9 @@ public sealed class ComfyClient : IComfyClient
         Dictionary<string, object?> dict = MergeParamsDict(wf, cfg, overrides);
         SubmissionCommon requested = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         (int Width, int Height)? requestedRatio = ReferenceAspects.Ratio(requested.ReferenceAspect);
-        if (requestedRatio is not null && !wf.SupportsReferenceOnly)
+        if (requestedRatio is not null && !wf.SupportsReferenceOnly && !wf.SupportsReferenceAspectWithSource)
         {
-            throw new RenderValidationException("A fixed reference aspect requires a workflow that supports reference-only generation.");
+            throw new RenderValidationException("A fixed reference aspect requires a workflow with an independently sized output canvas.");
         }
 
         bool hasSource = sourceBytes.Length > 0;

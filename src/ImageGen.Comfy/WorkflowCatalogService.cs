@@ -715,6 +715,7 @@ public sealed partial class WorkflowCatalogService(
             // A DB-backed duplicate, not a shipped file — the library marks it and offers Delete only on these.
             IsVariant: _catalog.IsVariant(cfg.Id),
             SupportsReferenceOnly: wf.SupportsReferenceOnly && BuildReference(c)?.MaxImages > 0,
+            SupportsReferenceAspectWithSource: wf.SupportsReferenceAspectWithSource && BuildReference(c)?.MaxImages > 0,
             // Each config's aspect→[w,h] map travels to the composer, which writes a clicked shape's dims into its
             // width/height controls and submits the dims (#209). Null for a config with no aspect map.
             Aspects: RequestSize.BuildAspectMap(cfg, machine),

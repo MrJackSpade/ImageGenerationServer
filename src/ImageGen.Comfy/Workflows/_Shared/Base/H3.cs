@@ -25,16 +25,16 @@ namespace ImageGen.Comfy;
 ///
 /// <para>The shared T2V/I2V/Ref2V graph is typed (#93). Each task has its own entry point taking only the sizing
 /// input that task actually uses (#208): <see cref="BuildT2V"/> takes the aspect map's resolved dims, while
-/// <see cref="BuildI2V"/>/<see cref="BuildRef2V"/> take the per-config <c>megapixels</c> budget the source is
-/// scaled to. The graph is otherwise identical — one H3 node, one distilled sampler chain, dual (video+audio)
+/// <see cref="BuildI2V"/> takes the source budget, while <see cref="BuildRef2V"/> receives the separately resolved
+/// target canvas (the references do not dictate its shape). The graph is otherwise identical — one H3 node, one distilled sampler chain, dual (video+audio)
 /// decode, one mp4-with-audio. The scalar knobs are read TYPED off each workflow's params record and passed in;
 /// <c>seed</c> is already resolved (<c>ComfyGraph.Seed</c>) and <c>sampler</c>/<c>scheduler</c> are the RAW Forge
 /// names (mapped here).</para>
 /// </summary>
 internal static class H3
 {
-    /// <summary>The i2v/ref2v source is scaled to the per-config <c>megapixels</c> budget on this 32-px grid and the
-    /// clip renders at that size (#186).</summary>
+    /// <summary>The i2v source and ref2v target canvas resolve to the per-config <c>megapixels</c> budget on this
+    /// 32-px grid and the clip renders at that size (#186).</summary>
     public const int BudgetSteps = 32;
 
     /// <summary>ComfyUI's H3 node accepts 5..3600 frames on a 17n+5 cadence. 3592 is the greatest value on that
@@ -153,9 +153,8 @@ internal static class H3
         return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
     }
 
-    /// <summary>Reference→video: the open image is the PRIMARY subject reference (ref_image_0) and sets the output
-    /// canvas (scaled to the per-config <paramref name="budgetMp"/>, exactly like i2v); any picker references follow as
-    /// ref_image_1…N. They condition the subject/identity — NOT a first frame.</summary>
+    /// <summary>Reference→video: the open image is the PRIMARY subject reference (ref_image_0), while the output canvas
+    /// is the independently resolved target size. Picker references follow as ref_image_1…N. None is a first frame.</summary>
     public static ComfyWorkflowGraph BuildRef2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
         string? lora, double loraStrength, bool ckAttention, double budgetMp, int refMax, string refImageSize)
@@ -163,11 +162,12 @@ internal static class H3
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
 
-        // The primary reference sets the output canvas; picker references enter the ref node's autogrow ref_images
-        // input, which resizes each internally (down only). The audio VAE is a direct input.
+        // The primary reference is conditioning only. Picker references enter the ref node's autogrow ref_images input,
+        // which resizes each internally (down only); output width/height come from the independently resolved target.
         g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
-        g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
-        g[H3Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource) };
+        (int targetW, int targetH) = inputs.TargetWidth > 0 && inputs.TargetHeight > 0
+            ? (inputs.TargetWidth, inputs.TargetHeight)
+            : BudgetScale.Snap(inputs.SourceWidth, inputs.SourceHeight, budgetMp, BudgetSteps);
 
         // Partition the typed references by media kind. Each family enters its own autogrow input on the
         // node: image stills → ref_images, driving videos → ref_videos (as decoded frame batches), driving
@@ -237,8 +237,8 @@ internal static class H3
             AudioVae = rig.AudioVae,
             Prompt = inputs.Positive,
             Length = length,
-            Width = GetImageSize.WidthOut(H3Nodes.SourceSize),
-            Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
+            Width = targetW,
+            Height = targetH,
             RefImageSize = refImageSize,
             RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, videoAudioEdges, audioEdges),
         };

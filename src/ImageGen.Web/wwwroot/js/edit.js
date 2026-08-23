@@ -325,6 +325,7 @@ async function loadEditModels() {
         sourceMedia: r.sourceMedia === "video" ? "video" : "image",
         supportsLastFrame: !!r.supportsLastFrame,   // i2v first/last-frame: offer an optional final frame to interpolate to
         supportsReferenceOnly: !!r.supportsReferenceOnly,
+        supportsReferenceAspectWithSource: !!r.supportsReferenceAspectWithSource,
         hasAudio: !!r.hasAudio,   // clip carries a native audio track (H3) — offer an unmute control on the result
 
         baseTags: (r.card && r.card.tags) || [],   // definition tags (incl. the derived "Ref"); merged with the user delta for the picker chips
@@ -499,6 +500,8 @@ function updateEditParams() {
 }
 const takesReferences = m => !!(m && m.edit && m.edit.reference);
 const supportsReferenceOnly = m => !!(takesReferences(m) && m.supportsReferenceOnly);
+const supportsChosenReferenceAspect = m => !!(takesReferences(m)
+  && (!editCurrent ? m.supportsReferenceOnly : m.supportsReferenceAspectWithSource));
 function setReferenceAspect(value, persist = true) {
   if (!["reference", "square", "landscape", "portrait"].includes(value)) value = "reference";
   referenceAspect = value;
@@ -508,9 +511,10 @@ function setReferenceAspect(value, persist = true) {
 function updateReferenceAspectPicker() {
   if (!$editAspectField) return;
   const models = effectiveEditModels();
-  // Shape is a choice only for the synthesized-image1 path. A real image1 owns the edit canvas; masks likewise live
-  // in its coordinates. Keep the user's source-free choice in memory, but hide and submit Reference while either exists.
-  $editAspectField.hidden = !!editCurrent || maskActive() || !models.length || !models.every(supportsReferenceOnly);
+  // Most real image1 inputs own the edit canvas, while a source-free reference workflow synthesizes its target. A
+  // reference-to-video workflow may explicitly declare that its real image1 is conditioning-only, not a first frame;
+  // it keeps the same shape choice. Masks always own real source coordinates and therefore force Reference.
+  $editAspectField.hidden = maskActive() || !models.length || !models.every(supportsChosenReferenceAspect);
 }
 if ($editAspect) $editAspect.addEventListener("click", e => {
   const b = e.target.closest("button[data-aspect]");
@@ -920,7 +924,8 @@ async function buildChatItems(n) {
       const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
       const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
       const itemOverrides = { ...overrides };
-      if (takesReferences(eff)) itemOverrides.reference_aspect = (editCurrent || maskAttach) ? "reference" : referenceAspect;
+      if (takesReferences(eff)) itemOverrides.reference_aspect = (maskAttach || (editCurrent && !eff.supportsReferenceAspectWithSource))
+        ? "reference" : referenceAspect;
       // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
       items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
         imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
