@@ -240,6 +240,12 @@ public sealed record PinBookmarksRequest
     public required bool PinBookmarks { get; init; }
 }
 
+/// <summary>Whether workflow tips and adult-content status are hidden on the generation page.</summary>
+public sealed record HideWorkflowTipsRequest
+{
+    public required bool HideWorkflowTips { get; init; }
+}
+
 /// <summary>A model's bans plus its id, for the Settings manager's grouped list.</summary>
 public sealed record ModelBansGroup
 {

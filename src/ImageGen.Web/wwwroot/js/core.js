@@ -984,6 +984,7 @@ const saveEditPrefs = json => Api.send("/api/settings/edit-prefs", "PUT", { edit
 const saveBookmarkPrefs = json => Api.send("/api/settings/bookmarks", "PUT", { bookmarkPrefs: json });
 // Whether autocomplete pins the user's matching bookmarks to the top — its own account boolean, on its own route.
 const savePinBookmarks = on => Api.send("/api/settings/pin-bookmarks", "PUT", { pinBookmarks: on });
+const saveHideWorkflowTips = on => Api.send("/api/settings/hide-workflow-tips", "PUT", { hideWorkflowTips: on });
 // Favorited workflow ids (JSON array string) + custom per-workflow tags (JSON map string, encrypted server-side).
 // Favourites, hidden workflows and per-workflow labels are RELATIONS server-side (rows, not blobs), so these send
 // and receive real arrays/maps.

@@ -75,6 +75,10 @@ public sealed class UserService(IUserRepository users, TimeProvider clock)
     public Task SetPinBookmarkSuggestionsAsync(long userId, bool pin, CancellationToken ct) =>
         _users.UpdatePinBookmarkSuggestionsAsync(userId, pin, ct);
 
+    /// <summary>Set whether workflow tips and adult-content status are hidden on the generation page.</summary>
+    public Task SetHideWorkflowTipsAsync(long userId, bool hide, CancellationToken ct) =>
+        _users.UpdateHideWorkflowTipsAsync(userId, hide, ct);
+
     /// <summary>Set (or clear, when blank) the user's opaque per-workflow parameter-visibility override blob.</summary>
     public Task SetParamVisibilityPrefsAsync(long userId, string? prefsJson, CancellationToken ct) =>
         _users.UpdateParamVisibilityPrefsAsync(userId, string.IsNullOrWhiteSpace(prefsJson) ? null : prefsJson, ct);

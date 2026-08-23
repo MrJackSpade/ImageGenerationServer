@@ -21,6 +21,10 @@ public sealed class ArtistController(ArtistService artists, ImageViewService vie
     [HttpGet("/artist/{name}")]
     public async Task<IActionResult> Index(string name, CancellationToken ct)
     {
+        // Escaped slashes remain escaped in an ASP.NET route value so they are not mistaken for path separators.
+        // Decode the artist token once it is safely inside the action; every lookup, heading and composer payload
+        // below must use the catalog's real artist name rather than the URL spelling.
+        name = Uri.UnescapeDataString(name);
         long userId = User.GetRequiredUserId();
         (string? displayId, bool isOverride) = await _artists.GetDisplayAsync(userId, name, ct);
         PagedResult<HistoryEntry> gens = await _artists.GetGensAsync(userId, name, 1, PageSize, ct);

@@ -94,6 +94,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'ParamVisibilityPrefs' AND
     ALTER TABLE dbo.AppUser ADD ParamVisibilityPrefs NVARCHAR(MAX) NULL;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = 'HideWorkflowTips' AND Object_ID = Object_ID('dbo.AppUser'))
+    ALTER TABLE dbo.AppUser ADD HideWorkflowTips BIT NOT NULL CONSTRAINT DF_AppUser_HideWorkflowTips DEFAULT 0;
+GO
+
 -- Per-user data-encryption key, kept in its OWN deliberately-obvious table (not on AppUser) so routine queries over
 -- user/history/bookmark data never pull key material into a result set, and the table name flags it as "don't SELECT".
 -- KeyMaterial is a random 32 bytes; the app derives subkeys (HKDF) for randomized + deterministic column encryption.

@@ -33,6 +33,7 @@ public static class SettingsEndpoints
                 bookmarkPrefs = user.BookmarkPrefs,
                 paramVisibilityPrefs = user.ParamVisibilityPrefs,
                 pinBookmarks = user.PinBookmarkSuggestions,
+                hideWorkflowTips = user.HideWorkflowTips,
                 favoriteWorkflowIds = workflows.Favorites,
                 customWorkflowTags = workflows.Tags,
                 removedWorkflowTags = workflows.RemovedTags,
@@ -191,6 +192,19 @@ public static class SettingsEndpoints
             await users.SetPinBookmarkSuggestionsAsync(userId, request.PinBookmarks, context.RequestAborted);
             return Results.NoContent();
         });
+
+        _ = api.MapPut(Routes.HideWorkflowTips, async (HttpContext context, UserService users) =>
+        {
+            HideWorkflowTipsRequest? request = await Json.ReadAsync<HideWorkflowTipsRequest>(context);
+            if (request is null)
+            {
+                return Results.BadRequest();
+            }
+
+            long userId = context.User.GetRequiredUserId();
+            await users.SetHideWorkflowTipsAsync(userId, request.HideWorkflowTips, context.RequestAborted);
+            return Results.NoContent();
+        });
     }
 
     /// <summary>Route templates for the settings endpoints.</summary>
@@ -228,5 +242,8 @@ public static class SettingsEndpoints
 
         /// <summary>Whether autocomplete pins the user's matching bookmarks to the top.</summary>
         public const string PinBookmarks = "/settings/pin-bookmarks";
+
+        /// <summary>Whether generation-page workflow tips and adult-content status are hidden.</summary>
+        public const string HideWorkflowTips = "/settings/hide-workflow-tips";
     }
 }

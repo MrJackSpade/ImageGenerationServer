@@ -50,6 +50,10 @@ public sealed class User
     /// it did before the toggle existed.</summary>
     public bool PinBookmarkSuggestions { get; init; }
 
+    /// <summary>Whether workflow-authored generation-page tips (good-for/note text and the derived adult-content
+    /// status) are hidden. A per-user display preference, off by default.</summary>
+    public bool HideWorkflowTips { get; init; }
+
     /// <summary>Opaque JSON of the user's per-workflow parameter-visibility overrides — a map of config id to a map of
     /// param key to bool (true = show the param on the generation page, false = hide it; absent = the shipped
     /// default). Stored and returned verbatim; the server never parses it (visibility is applied client-side, and the

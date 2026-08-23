@@ -135,6 +135,25 @@
   });
 })();
 
+// --- workflow tips (account toggle, on /settings/configurations) --------------------------------
+(function () {
+  const box = $("hideWorkflowTips");
+  if (!box) return;
+  fetchSettings()
+    .then(s => { box.checked = !!s.hideWorkflowTips; box.disabled = false; })
+    .catch(e => { console.error("Your settings couldn’t be loaded:", e); toast("Couldn’t load your settings — reload"); });
+  box.addEventListener("change", async () => {
+    try {
+      const r = await saveHideWorkflowTips(box.checked);
+      if (!r.ok) throw new Error(`the server answered ${r.status}`);
+    } catch (e) {
+      console.error("hide-workflow-tips save failed:", e);
+      box.checked = !box.checked;
+      toast("Couldn’t save");
+    }
+  });
+})();
+
 // --- free VRAM ----------------------------------------------------------------------------------
 // Asks the renderer to unload its models. It applies the request between prompts, so clicking this mid-render is
 // safe — nothing running is cancelled.

@@ -14,7 +14,7 @@ public sealed class UserRepository(IDbConnectionFactory connectionFactory, IUser
     {
         /// <summary>Select list for every user read. The ordinals in <see cref="MapUserAsync"/> are positional against
         /// this list — change one and renumber the other.</summary>
-        public const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs, PinBookmarkSuggestions, ParamVisibilityPrefs";
+        public const string Columns = "Id, Username, PasswordHash, DisplayName, CreatedAtUtc, ComposerPrefs, EditPrefs, ApiKey, GenerationTagTypes, BookmarkPrefs, PinBookmarkSuggestions, ParamVisibilityPrefs, HideWorkflowTips";
     }
 
     private readonly IDbConnectionFactory _connectionFactory = connectionFactory;
@@ -313,6 +313,15 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
         _ = await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task UpdateHideWorkflowTipsAsync(long userId, bool hide, CancellationToken ct)
+    {
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbCommand cmd = conn.Command("UPDATE dbo.AppUser SET HideWorkflowTips = @hide WHERE Id = @id;");
+        _ = cmd.AddParam("@hide", hide);
+        _ = cmd.AddParam("@id", userId);
+        _ = await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     private async Task<User> MapUserAsync(DbDataReader r, CancellationToken ct)
     {
         long userId = r.GetInt64(0);
@@ -333,6 +342,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = @username);
             BookmarkPrefs = await _cipher.DecryptNullableAsync(userId, bookmarkPrefs, ct),
             PinBookmarkSuggestions = r.AsBool(10),
             ParamVisibilityPrefs = r.IsDBNull(11) ? null : r.GetString(11),
+            HideWorkflowTips = r.AsBool(12),
         };
     }
 }

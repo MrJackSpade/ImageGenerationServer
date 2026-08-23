@@ -668,3 +668,11 @@ CREATE TABLE IF NOT EXISTS dbo.ConfigModelBindingOverride
 );
 CREATE UNIQUE INDEX IF NOT EXISTS dbo.UX_ConfigModelBindingOverride_Machine_Config_Slot
     ON ConfigModelBindingOverride (MachineName, ConfigId, SlotId);
+
+
+-- --- 0.17.5 -----------------------------------------------------------------------------------------------------
+
+-- Per-user display preference: hide workflow-authored good-for/help notes and the derived adult-content status on
+-- the generation page. New column on the pre-existing AppUser table, so it must remain an ALTER. Existing accounts
+-- keep the current visible behavior through the off-by-default value.
+ALTER TABLE dbo.AppUser ADD COLUMN HideWorkflowTips INTEGER NOT NULL DEFAULT 0;

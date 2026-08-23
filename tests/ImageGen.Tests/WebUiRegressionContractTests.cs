@@ -103,6 +103,30 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains("other sizes may fail, degrade output, or exhaust memory", detail, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Machine_tag_generator_toggle_also_enables_composer_autocomplete()
+    {
+        string compose = Js("compose.js");
+
+        Assert.Contains("c.tagging || (r.tagGeneratorEnabled ? { tags: true, artists: true } : null)", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Workflow_tip_preference_is_configurable_and_hides_the_entire_help_block()
+    {
+        string compose = Js("compose.js");
+        string settings = Js("settings.js");
+        string core = Js("core.js");
+        string view = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "ImageGen.Web", "Views", "Settings", "Configurations.cshtml"));
+
+        Assert.Contains("id=\"hideWorkflowTips\"", view, StringComparison.Ordinal);
+        Assert.Contains("saveHideWorkflowTips(box.checked)", settings, StringComparison.Ordinal);
+        Assert.Contains("/api/settings/hide-workflow-tips", core, StringComparison.Ordinal);
+        Assert.Contains("hideWorkflowTips = !!(prefs.settings && prefs.settings.hideWorkflowTips)", compose, StringComparison.Ordinal);
+        Assert.Contains("if (hideWorkflowTips || !m || !help)", compose, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;

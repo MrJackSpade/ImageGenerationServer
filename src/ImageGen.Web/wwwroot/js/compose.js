@@ -120,6 +120,7 @@ function nsfwFlag(raw) {
   if (r.startsWith("limited")) return { text: "Limited", cls: "nsfw-limited" };
   return { text: "Not documented", cls: "nsfw-unknown" };
 }
+let hideWorkflowTips = false;
 function updatePlaceholder() {
   const m = primaryModel();   // null when 0 or 2+ checked: the per-model panel/tip/autocomplete then stay hidden
   if ($randomArtistBar) $randomArtistBar.hidden = !(m && m.tagging && m.tagging.artists);
@@ -131,7 +132,7 @@ function updatePlaceholder() {
   const ex = m && exampleFor(m);
   $prompt.placeholder = ex || "Describe the picture you'd like to make…";
   const help = m && m.ui_help;
-  if (!m || !help) { $modelTip.textContent = ""; $modelTip.hidden = true; renderParams(m); return; }
+  if (hideWorkflowTips || !m || !help) { $modelTip.textContent = ""; $modelTip.hidden = true; renderParams(m); return; }
   const parts = [];
   if (help.good_for) parts.push(`<div><b>Good for:</b> ${escapeHtml(help.good_for)}</div>`);
   const nf = nsfwFlag(m.nsfw_capable);
@@ -411,7 +412,9 @@ function adaptWorkflow(r) {
     speed: { class: c.speed }, nsfw_capable: c.nsfwCapable,
     prompt: { example: c.example, required_prefix: c.requiredPrefix },
     ui_help: { good_for: c.uiGoodFor, note: c.uiNote, link: c.uiLink || null },
-    tagging: c.tagging || null,
+    // The machine-level Tag generator toggle enables the backend prose-tag path even when a workflow card has no
+    // native tagging declaration. Mirror that capability here so the same toggle also enables #/~ /! and @ helpers.
+    tagging: c.tagging || (r.tagGeneratorEnabled ? { tags: true, artists: true } : null),
     tagGeneratorEnabled: !!r.tagGeneratorEnabled,
     customSizeEnabled: !!r.customSizeEnabled,
     aspects: r.aspects || null   // this model's aspect→[w,h] map; clicking a shape writes its dims into W/H (#209)
@@ -463,6 +466,7 @@ async function loadModels() {
     // Read-only here (this page never writes favorites/hidden/tags), so an unreadable set degrades to the
     // un-personalized picker — which is honest, and loadWorkflowPrefs has already logged the reason.
     const prefs = await loadWorkflowPrefs();
+    hideWorkflowTips = !!(prefs.settings && prefs.settings.hideWorkflowTips);
     modelFavs = prefs.favs; modelHidden = prefs.hidden; modelTags = prefs.tags;
     for (const k in MODELS) delete MODELS[k];
     for (const m of models) MODELS[m.id] = m;   // MODELS keeps ALL (so reload-from-history works even for hidden)

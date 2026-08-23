@@ -80,6 +80,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("ModelManifestJson", await ColumnsAsync(factory, "JobSlot")); // 0.17.2 ADD COLUMN
             Assert.Contains("RenderDimensionsJson", await ColumnsAsync(factory, "JobSlot")); // 0.17.3 ADD COLUMN
             Assert.NotEmpty(await ColumnsAsync(factory, "ConfigModelBindingOverride")); // 0.17.4 new table
+            Assert.Contains("HideWorkflowTips", await ColumnsAsync(factory, "AppUser")); // 0.17.5 ADD COLUMN
         }
         finally
         {
@@ -120,6 +121,7 @@ public sealed class SqliteSchemaMigrationTests
                 "HiddenWorkflowIds TEXT NULL, GenerationTagTypes TEXT NULL, BookmarkPrefs TEXT NULL, ApiKey TEXT NULL, " +
                 "CONSTRAINT UQ_AppUser_Username UNIQUE (Username));");
             Assert.DoesNotContain("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));
+            Assert.DoesNotContain("HideWorkflowTips", await ColumnsAsync(factory, "AppUser"));
 
             // UserWorkflowTag as a pre-0.15.0 database has it: present, WITHOUT the 0.15.0 Removed column. Its CREATE
             // TABLE IF NOT EXISTS skips this table, so the 0.15.0 ADD COLUMN is the only path that column can arrive by.
@@ -141,6 +143,7 @@ public sealed class SqliteSchemaMigrationTests
             Assert.Contains("RenderWidth", await ColumnsAsync(factory, "GenTiming"));   // 0.11.0 ADD COLUMN reached the pre-existing GenTiming
             Assert.Contains("Frames", await ColumnsAsync(factory, "GenTiming"));
             Assert.Contains("PinBookmarkSuggestions", await ColumnsAsync(factory, "AppUser"));   // 0.12.0 ADD COLUMN reached the pre-existing AppUser
+            Assert.Contains("HideWorkflowTips", await ColumnsAsync(factory, "AppUser"));   // 0.17.5 ADD COLUMN reached the pre-existing AppUser
             Assert.Contains("Removed", await ColumnsAsync(factory, "UserWorkflowTag"));   // 0.15.0 ADD COLUMN reached the pre-existing UserWorkflowTag
             Assert.NotEmpty(await ColumnsAsync(factory, "ConfigModelBindingOverride"));   // 0.17.4 pin table starts empty
         }
