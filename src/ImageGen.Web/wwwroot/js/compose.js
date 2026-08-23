@@ -440,7 +440,7 @@ const modelPicker = createModelPicker({
   ],
   hint: "Long-press a style to pick several",
   onChange: () => updatePlaceholder(),               // any change refreshes the primary-model panel/tip/autocomplete
-  onCommit: () => { savePrefs(); closeTagPop(); },   // user change also persists prefs + drops the tag popup
+  onCommit: () => { savePrefs(true); closeTagPop(); },   // committed workflow pick persists immediately
 });
 const selectedModelIds = () => modelPicker.getSelectedIds();
 const selectedModels = () => modelPicker.getSelected();
@@ -543,7 +543,7 @@ function writeSize(w, h) {
 }
 // Capture on BOTH input (fires live per keystroke/spinner tick) and change (commit) — a number input only fires
 // "change" on blur, which can be missed, so "input" is what makes edits reliably persist.
-["input", "change"].forEach(ev => document.getElementById("modelParams").addEventListener(ev, () => { collectComposerParamPrefs(); savePrefs(); }));
+["input", "change"].forEach(ev => document.getElementById("modelParams").addEventListener(ev, () => { collectComposerParamPrefs(); savePrefs(ev === "change"); }));
 // width/height are the submitted size, model-derived per shape (#209) — never sticky by-name prefs, which would leak
 // one model's dims onto another model's revealed fields.
 function collectComposerParamPrefs() {
@@ -1073,9 +1073,25 @@ function recordResult(result, prompt, modelFriendly, modelId, aspect) {
 // The composer's draft state lives on the account, not in this browser, so a second machine restores the
 // same prompt/model/aspect/toggles. Writes are debounced (these fire on change/toggle, not per keystroke).
 let prefsTimer = null;
+// Keep the latest complete snapshot until the server confirms it. A refresh can happen inside the debounce window
+// (or while its PUT is in flight); pagehide resends this snapshot with fetch keepalive so the navigation cannot drop
+// the workflow or a just-adjusted exposed parameter.
+let pendingPrefsJson = null;
 // False until the stored blob has actually been read back (see boot). Gates every write below.
 let composerPrefsLoaded = false;
-function savePrefs() {
+function flushPrefs(keepalive = false) {
+  clearTimeout(prefsTimer); prefsTimer = null;
+  const json = pendingPrefsJson;
+  if (!json) return Promise.resolve();
+  return saveComposerPrefs(json, keepalive).then(r => {
+    if (!r.ok) throw new Error(`PUT composer prefs -> ${r.status}`);
+    if (pendingPrefsJson === json) pendingPrefsJson = null;
+  }).catch(e => {
+    console.error("Composer state could not be saved:", e);
+    if (!keepalive) toast("Couldn't save your composer draft");
+  });
+}
+function savePrefs(immediate = false) {
   // Never write before the stored draft has been read back. savePrefs sends the WHOLE composer state, so a save that
   // runs while the stored blob is unknown replaces the user's draft prompt with an empty box — the same hazard the
   // tagTypes note below guards, one level up.
@@ -1085,17 +1101,14 @@ function savePrefs() {
   // pick yet — still restores a sensible shape from the same blob.
   // tagTypes: null while the chips haven't been built (a save that early must not overwrite the stored draft with
   // "none of them" — the empty array is a real selection).
-  const json = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), custom: customActive, customW: customActive ? customDim($genW) || null : null, customH: customActive ? customDim($genH) || null : null, randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
+  pendingPrefsJson = JSON.stringify({ prompt: $prompt.value, negativePrompt: $negPrompt ? $negPrompt.value : "", modelIds: selectedModelIds(), aspect: primaryAspect(), aspects: aspects.slice(), custom: customActive, customW: customActive ? customDim($genW) || null : null, customH: customActive ? customDim($genH) || null : null, randomArtist: !!($randomArtist && $randomArtist.checked), randomPromptTemp: promptTempValue(), tagTypes: tagTypes() ?? tagTypesFromPrefs, params: paramPrefs, loras: loras.map(l => ({ name: l.name, weight: l.weight, triggers: l.triggers, autoAttach: l.autoAttach, displayName: l.displayName })) });
   clearTimeout(prefsTimer);
   // This blob holds the user's draft PROMPT, so a silent failure means they keep typing into a composer that is no
   // longer being kept, and find an older draft on the next load.
-  prefsTimer = setTimeout(() => {
-    saveComposerPrefs(json).catch(e => {
-      console.error("Composer state could not be saved:", e);
-      toast("Couldn't save your composer draft");
-    });
-  }, 400);
+  if (immediate) flushPrefs();
+  else prefsTimer = setTimeout(() => flushPrefs(), 400);
 }
+addEventListener("pagehide", () => { if (pendingPrefsJson) flushPrefs(true); });
 // The picked set, in pick order: [0] is the primary (what a single-shape record falls back to). Always non-empty.
 function setAspects(list) {
   const next = [];

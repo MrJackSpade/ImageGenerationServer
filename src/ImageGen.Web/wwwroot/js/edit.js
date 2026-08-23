@@ -131,16 +131,31 @@ let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, sav
 let referenceAspect = "reference";
 
 let prefsTimer = null;
+// Retain the latest complete snapshot until its PUT succeeds. pagehide flushes it with fetch keepalive, covering a
+// refresh during the debounce window (the workflow picker and exposed-parameter controls both feed this path).
+let pendingPrefsJson = null;
 // False until the stored blob has actually been read. savePrefs writes the WHOLE editor state, so writing before we
 // know what was stored replaces the user's saved editor with this page's defaults — see loadEditModels.
 let editPrefsLoaded = false;
 // One blob captures the full editor state (read live from the UI), like the composer's savePrefs.
-function savePrefs() {
+function flushPrefs(keepalive = false) {
+  clearTimeout(prefsTimer); prefsTimer = null;
+  const json = pendingPrefsJson;
+  if (!json) return Promise.resolve();
+  return saveEditPrefs(json, keepalive).then(r => {
+    if (!r.ok) throw new Error(`PUT editor prefs -> ${r.status}`);
+    if (pendingPrefsJson === json) pendingPrefsJson = null;
+  }).catch(e => {
+    console.error("Editor settings could not be saved:", e);
+    if (!keepalive) toast("Couldn't save your editor settings");
+  });
+}
+function savePrefs(immediate = false) {
   if (!editPrefsLoaded) return;   // never overwrite settings we failed to read
   // The shared picker currently displays chatBucket. Snapshot it before serializing so a tab switch cannot save the
   // new tab while leaving the old tab's most recent click behind.
   selectedEditIdsByMode[chatBucket] = editSelIds();
-  const json = JSON.stringify({
+  pendingPrefsJson = JSON.stringify({
     mode: activeMode,
     modelIdsByMode: selectedEditIdsByMode,
     modelIds: editSelIds(),   // legacy fallback for an older client reading this account blob
@@ -155,18 +170,15 @@ function savePrefs() {
   clearTimeout(prefsTimer);
   // A silently-swallowed save would leave the editor looking exactly like one whose settings were being kept, and the
   // next page load would quietly come back with older state. Say it once, where the user is looking.
-  prefsTimer = setTimeout(() => {
-    saveEditPrefs(json).catch(e => {
-      console.error("Editor settings could not be saved:", e);
-      toast("Couldn't save your editor settings");
-    });
-  }, 400);
+  if (immediate) flushPrefs();
+  else prefsTimer = setTimeout(() => flushPrefs(), 400);
 }
+addEventListener("pagehide", () => { if (pendingPrefsJson) flushPrefs(true); });
 // Apply the shared flat param map onto the just-rendered fields in `box` (every panel reads the one map).
 function restoreParams(box) { applyParamPrefs(box, editParamPrefs); }
 // Merge the current field values in `box` into the shared flat map, then persist. Merge (not replace) so values for
 // keys that only appear on other panels/workflows survive.
-function persistParams(box) { collectParamPrefs(box, editParamPrefs); savePrefs(); }
+function persistParams(box) { collectParamPrefs(box, editParamPrefs); savePrefs(true); }
 
 let activeMode = "edit", chatBucket = "edit";          // chatBucket ∈ {edit, redraw, upscale, effects (image), animate, video}
 // Chat (Edit/Refine/Upscale/Effects/Animate/Video) is a MULTI-select picker (the shared createModelPicker) mirroring the gen page:
@@ -476,7 +488,7 @@ editPicker = createModelPicker({
   },
   hint: "Long-press a workflow to pick several and compare",
   onChange: ids => { selectedEditIdsByMode[chatBucket] = ids; refreshMaskRouting(); },
-  onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
+  onCommit: () => savePrefs(true),   // committed workflow pick persists immediately
 });
 function populateChatMenu() {
   const models = chatModels();
@@ -995,7 +1007,7 @@ function updateOutpaintParams() {
   renderParamFields($outpaintParams, qualityOnly);
   restoreParams($outpaintParams);
 }
-function selectOutpaint(id) { selectedOutpaintId = id; savePrefs(); $outpaintModelMenu.querySelectorAll(".model-opt").forEach(o => o.classList.toggle("selected", o.dataset.id === id)); syncOutpaintLabel(); updateOutpaintNeg(); updateOutpaintParams(); }
+function selectOutpaint(id) { selectedOutpaintId = id; savePrefs(true); $outpaintModelMenu.querySelectorAll(".model-opt").forEach(o => o.classList.toggle("selected", o.dataset.id === id)); syncOutpaintLabel(); updateOutpaintNeg(); updateOutpaintParams(); }
 $outpaintParams.addEventListener("change", () => persistParams($outpaintParams));
 $outpaintModelToggle.addEventListener("click", () => openMenu($outpaintModelMenu, $outpaintModelToggle, $outpaintModelMenu.hidden));
 $outpaintModelMenu.addEventListener("click", e => { const opt = e.target.closest(".model-opt"); if (!opt) return; selectOutpaint(opt.dataset.id); openMenu($outpaintModelMenu, $outpaintModelToggle, false); });

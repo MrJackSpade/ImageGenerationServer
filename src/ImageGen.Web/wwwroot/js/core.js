@@ -885,8 +885,9 @@ const Api = {
     if (!r.ok) throw new Error("API " + path + " -> " + r.status);
     return r.json();
   },
-  send(path, method, body) {
+  send(path, method, body, opts) {
     return fetch(path, {
+      ...(opts || {}),
       method, credentials: "same-origin",
       headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -975,10 +976,10 @@ const deleteBan = (modelId, name, kind) => Api.send(`/api/bans?modelId=${encodeU
 const fetchSettings = () => Api.json("/api/settings");
 // Composer state (draft prompt, model, aspect, random-artist toggle, random-prompt temperature) as an opaque JSON
 // string, on its own route.
-const saveComposerPrefs = json => Api.send("/api/settings/composer", "PUT", { composerPrefs: json });
+const saveComposerPrefs = (json, keepalive = false) => Api.send("/api/settings/composer", "PUT", { composerPrefs: json }, { keepalive });
 // The editor's state (active mode, selected workflow(s), inpaint workflow, flat param overrides, brush size) as an
 // opaque JSON string, on its own route — the edit-page analogue of saveComposerPrefs (per user, across devices).
-const saveEditPrefs = json => Api.send("/api/settings/edit-prefs", "PUT", { editPrefs: json });
+const saveEditPrefs = (json, keepalive = false) => Api.send("/api/settings/edit-prefs", "PUT", { editPrefs: json }, { keepalive });
 // The bookmarks page's folded sections as an opaque JSON string, on its own route. Client state belongs on the
 // account, never in localStorage: a fold set that lives in one browser is invisible to every other device.
 const saveBookmarkPrefs = json => Api.send("/api/settings/bookmarks", "PUT", { bookmarkPrefs: json });

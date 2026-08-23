@@ -151,6 +151,31 @@ public sealed class WebUiRegressionContractTests
     }
 
     [Fact]
+    public void Composer_preferences_survive_refresh_after_workflow_or_parameter_changes()
+    {
+        string core = Js("core.js");
+        string compose = Js("compose.js");
+        string edit = Js("edit.js");
+
+        // Account preference PUTs can outlive the navigation which triggered pagehide.
+        Assert.Contains("{ composerPrefs: json }, { keepalive }", core, StringComparison.Ordinal);
+        Assert.Contains("{ editPrefs: json }, { keepalive }", core, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"pagehide\", () => { if (pendingPrefsJson) flushPrefs(true); })", compose, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"pagehide\", () => { if (pendingPrefsJson) flushPrefs(true); })", edit, StringComparison.Ordinal);
+
+        // Discrete workflow and exposed-parameter commits do not wait for the debounce window.
+        Assert.Contains("onCommit: () => { savePrefs(true); closeTagPop(); }", compose, StringComparison.Ordinal);
+        Assert.Contains("savePrefs(ev === \"change\")", compose, StringComparison.Ordinal);
+        Assert.Contains("onCommit: () => savePrefs(true)", edit, StringComparison.Ordinal);
+        Assert.Contains("collectParamPrefs(box, editParamPrefs); savePrefs(true);", edit, StringComparison.Ordinal);
+        Assert.Contains("selectedOutpaintId = id; savePrefs(true);", edit, StringComparison.Ordinal);
+
+        // fetch resolves for HTTP failures, so both writers must turn a non-success status into the visible error path.
+        Assert.Contains("if (!r.ok) throw new Error(`PUT composer prefs -> ${r.status}`)", compose, StringComparison.Ordinal);
+        Assert.Contains("if (!r.ok) throw new Error(`PUT editor prefs -> ${r.status}`)", edit, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Image_detail_prompt_preserves_stored_newlines_in_plain_prose()
     {
         string css = File.ReadAllText(Path.Combine(
