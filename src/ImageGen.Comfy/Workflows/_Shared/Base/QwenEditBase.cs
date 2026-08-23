@@ -142,7 +142,10 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             : null;
 
         Output<Slot.Latent> sampleLatent;
-        if (p.ReferenceAspect == ReferenceAspectNames.Reference)
+        // A real image1 may seed an ordinary edit. A synthesized image1 exists only to preserve Qwen's numbered
+        // picture roles; it must never become the target latent. Source-free reference generation always starts from
+        // an empty latent, including the "Reference" aspect (whose dimensions were already resolved from image2).
+        if (inputs.SourceImageName is { Length: > 0 } && p.ReferenceAspect == ReferenceAspectNames.Reference)
         {
             sampleLatent = head.SourceLatent;
         }

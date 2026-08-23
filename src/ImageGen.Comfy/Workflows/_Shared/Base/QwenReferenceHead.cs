@@ -4,7 +4,7 @@ using ImageGen.Domain;
 namespace ImageGen.Comfy;
 
 /// <summary>The outputs of the shared Qwen-Image-Edit reference-encode head (<see cref="QwenReferenceHead.Emit"/>):
-/// the positive/negative conditioning (reference latents already stitched by the config's method), the sampler-ready
+/// the positive/negative conditioning (source-edit reference latents stitched by the config's method), the sampler-ready
 /// model (<c>ModelSamplingAuraFlow</c>+<c>CFGNorm</c> unless AIO bakes its own sampling), the real or synthesized
 /// <c>image1</c> canvas, its VAE latent, and the VAE edge.</summary>
 internal readonly record struct QwenRefHeadOut(
@@ -20,7 +20,7 @@ internal readonly record struct QwenRefHeadOut(
 /// <see cref="QwenEditBase"/> and the masked <c>QwenImageEditInpaintWorkflow</c>). It emits, from an already-loaded
 /// model/CLIP/VAE and optional source <c>LoadImage</c>: a normalized real source or synthesized blank <c>image1</c>,
 /// reference image loads into <c>image2</c>/<c>image3</c>, and positive/negative
-/// <c>TextEncodeQwenImageEditPlus</c> encodes with their reference-latent stitch.
+/// <c>TextEncodeQwenImageEditPlus</c> encodes, with reference-latent stitching only when a real source image exists.
 ///
 /// <para>Extracted so the subtle bits live in ONE place: the negative is a SECOND full encode of the same images with
 /// an EMPTY instruction — the official 2511 blueprint's CFG contrast, not a zeroed-out positive (issue #218) — and
@@ -32,7 +32,8 @@ internal readonly record struct QwenRefHeadOut(
 internal static class QwenReferenceHead
 {
     /// <summary>The <c>TextEncodeQwenImageEditPlus</c> node's <c>vae</c> input name, added to the reference overflow
-    /// bag only when at least one reference is present (so <c>image1</c> and each reference become reference latents).</summary>
+    /// bag only when both a real source and at least one reference are present (so the edit images become reference
+    /// latents without injecting source-free attachments into the target stream).</summary>
     private static class Inputs
     {
         public const string Vae = "vae";
@@ -109,19 +110,41 @@ internal static class QwenReferenceHead
                 ComfyWidgets.ReferenceLatents.UxoUno or ComfyWidgets.ReferenceLatents.IndexTimestepZero => referenceLatentsMethod,
                 _ => throw new ArgumentException($"unknown reference_latents_method '{referenceLatentsMethod}'."),
             };
-            // Supplying VAE preserves the official edit topology: the synthesized/real image1 and every attachment are
-            // encoded as ordered reference latents, so an attachment remains Picture 2 instead of being promoted.
-            encRefs[Inputs.Vae] = vae0;
+            // TextEncodeQwenImageEditPlus's optional VAE encodes EVERY image into reference_latents. That is the
+            // official edit path when a real image1 exists, but in a source-free request it also injects image2/image3
+            // into the denoising latent stream. Keep the synthesized blank image1 above so the Qwen-VL prompt roles
+            // remain Picture 1/Picture 2/Picture 3, but omit VAE reference latents so the target starts independently.
+            bool emitReferenceLatents = hasRealSource;
+            if (emitReferenceLatents)
+            {
+                encRefs[Inputs.Vae] = vae0;
+            }
+
             g[Nodes.Encode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = kontext, Prompt = instruction, Extra = encRefs };
-            g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
-            cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
+            if (emitReferenceLatents)
+            {
+                g[Nodes.MultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.Encode), ReferenceLatentsMethod = refMethod };
+                cond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.MultiRefLatent);
+            }
+            else
+            {
+                cond = TextEncodeQwenImageEditPlus.Out(Nodes.Encode);
+            }
+
             // The official 2511 blueprint's negative is a second full encode — the SAME images and reference latents
             // with an EMPTY instruction — not a zeroed-out positive. With real CFG the contrast is then "with vs
             // without the instruction" over identical image conditioning; zeroing everything made CFG push away from
             // the references themselves, which read as the source and reference ghosting into each other (#218).
             g[Nodes.NegativeEncode] = new TextEncodeQwenImageEditPlus { Clip = clip0, Image1 = kontext, Prompt = string.Empty, Extra = encRefs };
-            g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
-            negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
+            if (emitReferenceLatents)
+            {
+                g[Nodes.NegMultiRefLatent] = new FluxKontextMultiReferenceLatentMethod { Conditioning = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode), ReferenceLatentsMethod = refMethod };
+                negCond = FluxKontextMultiReferenceLatentMethod.Out(Nodes.NegMultiRefLatent);
+            }
+            else
+            {
+                negCond = TextEncodeQwenImageEditPlus.Out(Nodes.NegativeEncode);
+            }
         }
         else
         {

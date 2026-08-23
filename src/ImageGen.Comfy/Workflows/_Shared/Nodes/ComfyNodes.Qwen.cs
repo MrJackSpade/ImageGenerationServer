@@ -18,8 +18,9 @@ public sealed record TextEncodeQwenImageEditPlus : ComfyNode
     [JsonPropertyName("prompt")] public required string Prompt { get; init; }
 
     /// <summary>The dynamic tail inputs, in emit order: each configured reference slot (<c>image2</c>/<c>image3</c>/…)
-    /// wired to its scaled <see cref="Output{Slot.Image}"/>, then — only when any reference is present — the
-    /// <c>vae</c> wired to the VAE. Null/empty when this edit takes no references (bare <c>clip/image1/prompt</c>).</summary>
+    /// wired to its scaled <see cref="Output{Slot.Image}"/>, then — for a real-source edit — the <c>vae</c> wired to
+    /// the VAE. Source-free reference generation omits <c>vae</c> so attachments remain vision conditioning rather
+    /// than entering the target latent stream. Null/empty when this edit takes no references.</summary>
     [JsonExtensionData] public Dictionary<string, object>? Extra { get; init; }
 
     public static Output<Slot.Conditioning> Out(string id) => new(id, 0);
