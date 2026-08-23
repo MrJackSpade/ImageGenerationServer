@@ -61,7 +61,7 @@ public sealed class ReferenceTypeTests
         WorkflowConfiguration cfg = catalog.FindConfig("minimax-h3-ref2v") ?? throw new Xunit.Sdk.XunitException("ref2v config not found");
         IReadOnlyList<ReferenceAllowance> types = cfg.Card.EditReferenceTypes;
 
-        Assert.Equal(8, types.First(t => t.Kind == "image").Max);
+        Assert.Equal(9, types.First(t => t.Kind == "image").Max);
         Assert.Equal(3, types.First(t => t.Kind == "video").Max);
         Assert.Equal(3, types.First(t => t.Kind == "audio").Max);
     }

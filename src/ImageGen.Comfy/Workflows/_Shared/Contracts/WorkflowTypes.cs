@@ -704,6 +704,11 @@ public sealed class WorkflowConfiguration
     /// "no sibling" value (not a nullable branch field). Validated at catalog projection: the target must exist, be
     /// Kind=Inpaint, and preserve composition, and only a plain Edit config may declare one.</summary>
     public string MaskWorkflow { get; init; } = "";
+    /// <summary>The id of this first/last-frame config's reference-conditioned sibling, or "" when it has none.
+    /// The browser routes to the sibling whenever references are attached while retaining the source/end frames.
+    /// Validated at catalog projection: both sides must be compatible video workflows with endpoint support, and the
+    /// target must declare reference inputs.</summary>
+    public string ReferenceWorkflow { get; init; } = "";
     public ModelCard Card { get; init; } = new();
 
     /// <summary>

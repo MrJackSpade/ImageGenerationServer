@@ -50,6 +50,7 @@ internal sealed record WorkflowFileDto
     [JsonPropertyName("edit_group")] public string? EditGroup { get; init; }
     [JsonPropertyName("default")][AllowNullable("null = the \"default\" key was absent in the config JSON; distinct from an explicit false")] public bool? Default { get; init; }
     [JsonPropertyName("mask_workflow")] public string? MaskWorkflow { get; init; }
+    [JsonPropertyName("reference_workflow")] public string? ReferenceWorkflow { get; init; }
     [JsonPropertyName("resolution")] public ResolutionDto? Resolution { get; init; }
     [JsonPropertyName("card")] public CardDto? Card { get; init; }
 }

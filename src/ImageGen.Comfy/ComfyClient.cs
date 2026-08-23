@@ -706,6 +706,13 @@ public sealed class ComfyClient : IComfyClient
 
         byte[] firstReferenceBytes = firstImageReference?.Bytes ?? [];
         ImageDimensions? sourceDim = hasSource ? _media.Identify(sourceBytes) : null;
+        if (lastFramePng is { Length: > 0 })
+        {
+            ImageDimensions endDim = _media.Identify(lastFramePng);
+            ImageDimensions firstDim = sourceDim ?? throw new RenderValidationException("A last frame requires a first frame.");
+            EnsureEndFrameAspect(wf.SupportsEndFrame, firstDim, endDim);
+        }
+
         ImageDimensions referenceDim = sourceDim ?? _media.Identify(firstReferenceBytes);
         (int basisW, int basisH) = requestedRatio ?? (referenceDim.Width, referenceDim.Height);
 
@@ -768,6 +775,20 @@ public sealed class ComfyClient : IComfyClient
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction,
             RenderModelManifestBuilder.Build(dict, resolved), Dimensions(wf, sourceDim?.Width, sourceDim?.Height, etaW, etaH));
+    }
+
+    internal static void EnsureEndFrameAspect(bool supportsEndFrame, ImageDimensions first, ImageDimensions last)
+    {
+        if (!supportsEndFrame)
+        {
+            throw new RenderValidationException("This workflow does not accept a last frame.");
+        }
+
+        if ((long)first.Width * last.Height != (long)last.Width * first.Height)
+        {
+            throw new RenderValidationException(
+                $"The first and last frames must have the same aspect ratio; got {first.Width}×{first.Height} and {last.Width}×{last.Height}.");
+        }
     }
 
     private static RenderDimensions Dimensions(IWorkflow wf, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) => new()

@@ -78,3 +78,59 @@ public sealed class MaskWorkflowLinkTests
         Assert.Empty(WorkflowCatalogService.ValidateMaskLinks(configs, Registry()));
     }
 }
+
+public sealed class ReferenceWorkflowLinkTests
+{
+    private static string RepoRoot()
+    {
+        string? dir = AppContext.BaseDirectory;
+        while (dir is not null && !Directory.Exists(Path.Combine(dir, "configurations", "models")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        return dir ?? throw new DirectoryNotFoundException("configurations/ not found above the test bin dir.");
+    }
+
+    private static WorkflowRegistry Registry() =>
+        new ServiceCollection().AddWorkflows().BuildServiceProvider().GetRequiredService<WorkflowRegistry>();
+
+    private static WorkflowCatalog Catalog() =>
+        new(new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") }, NullLogger<WorkflowCatalog>.Instance);
+
+    [Fact]
+    public void The_shipped_H3_pairs_link_visible_FL_configs_to_hidden_REF_targets()
+    {
+        IReadOnlyList<WorkflowConfiguration> configs = Catalog().AllConfigs();
+        HashSet<string> targets = WorkflowCatalogService.ValidateReferenceLinks(configs, Registry());
+
+        Assert.Equal("minimax-h3-ref2v", configs.Single(c => c.Id == "minimax-h3-i2v").ReferenceWorkflow);
+        Assert.Equal("minimax-h3-ref2v-turbo", configs.Single(c => c.Id == "minimax-h3-i2v-turbo").ReferenceWorkflow);
+        Assert.Contains("minimax-h3-ref2v", targets);
+        Assert.Contains("minimax-h3-ref2v-turbo", targets);
+    }
+
+    [Fact]
+    public void A_reference_link_to_a_missing_target_throws()
+    {
+        List<WorkflowConfiguration> configs =
+        [
+            new() { Id = "src", WorkflowName = "minimax-h3-i2v", ReferenceWorkflow = "missing" },
+        ];
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => WorkflowCatalogService.ValidateReferenceLinks(configs, Registry()));
+        Assert.Contains("missing", ex.Message);
+    }
+
+    [Fact]
+    public void A_reference_link_to_a_non_reference_target_throws()
+    {
+        List<WorkflowConfiguration> configs =
+        [
+            new() { Id = "src", WorkflowName = "minimax-h3-i2v", ReferenceWorkflow = "target" },
+            new() { Id = "target", WorkflowName = "minimax-h3-i2v" },
+        ];
+
+        _ = Assert.Throws<InvalidOperationException>(() => WorkflowCatalogService.ValidateReferenceLinks(configs, Registry()));
+    }
+}

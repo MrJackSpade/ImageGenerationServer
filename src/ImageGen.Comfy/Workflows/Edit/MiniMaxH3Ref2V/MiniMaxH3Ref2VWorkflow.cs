@@ -1,16 +1,16 @@
 namespace ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 
-/// <summary>MiniMax-H3 reference→video (ref2va, with native audio). The open image is the primary subject reference and
-/// the edit page's ＋ ref picker adds more references of the KINDS the node accepts (see the card's <c>reference.types</c>):
+/// <summary>MiniMax-H3 reference→video (ref2va, with native audio). The open image anchors the first output frame and
+/// the edit page's ＋ ref picker supplies semantic references of the KINDS the node accepts (see the card's <c>reference.types</c>):
 /// image stills → <c>ref_images</c>, a driving video → <c>ref_videos</c> (decoded to frames), a driving audio clip →
-/// <c>ref_audios</c>. Unlike i2v NONE is a first frame — they condition subject/motion/voice through the
+/// <c>ref_audios</c>. First/last frames are timeline guides; picker refs condition subject/motion/voice through the
 /// <see cref="MiniMaxH3ReferenceToVideo"/> node. Its OWN ref2va diffusion checkpoint (reference-driven task weights,
 /// distinct from the T2V/I2V fl2va checkpoint); the text encoder and dual VAEs are shared with the siblings.
 /// Buckets into the Animate section (<c>media:video</c>).</summary>
 public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
 {
     public override bool NormalizesSourceResolution => true;
-    public override bool SupportsReferenceAspectWithSource => true;
+    public override bool SupportsEndFrame => true;
     public override string Name => "minimax-h3-ref2v";
     public override WorkflowMedia Media => WorkflowMedia.Video;
     /// <summary>H3 generates a native stereo audio track alongside the video (saved as an mp4 with sound).</summary>

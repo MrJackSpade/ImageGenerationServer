@@ -63,7 +63,7 @@
       "visibility": "hidden"
     },
     "reference_max": {
-      "value": 8,
+      "value": 9,
       "visibility": "hidden"
     },
     "ref_image_size": {
@@ -73,19 +73,19 @@
   },
   "card": {
     "architecture": "MiniMax-H3 ref2va (Qwen3-VL 32B, int8 ConvRot) + Turbo distill LoRA — REFERENCE-TO-VIDEO with native audio, low-step",
-    "summary": "The fast MiniMax-H3 reference→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. The current image is the primary subject reference; add more via the ＋ ref picker. The references condition identity/appearance (they are NOT the first frame). Output is an mp4 with a baked-in audio track.",
+    "summary": "The fast MiniMax-H3 reference workflow: first/last frames anchor the timeline while Refs-box media conditions identity, appearance, motion, or sound. The Turbo LoRA cuts sampling from ~20 steps to 6 at a small quality cost. Output is an mp4 with a baked-in audio track.",
     "use_cases": [
       "quick reference→video: place a referenced subject into a new clip with synchronized sound",
       "multi-reference identity (subject from several angles / a few characters)",
       "fast iteration before a final base-model render"
     ],
     "nsfw_capable": "limited",
-    "pick_when": "You want the quickest H3 clip featuring the subject from your reference image(s) and can accept a small quality cost; switch to the base configuration for the final render.",
+    "pick_when": "You want the quickest first/last-frame H3 clip with additional semantic references and can accept a small quality cost.",
     "prompt": {
       "format": "h3_context_ir",
       "guidance": "Write H3's six-section Context-IR prompt: subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, and non_diegetic_music. Define reusable people, objects, scenes, and styles as <Subject N> sourced from exact attachment tags (<Picture N>, <Video N>, <Audio N>), then state explicitly what must be fully preserved.",
       "example": "subject_definitions:\n<Subject 1> is the woman in <Picture 1>; preserve her facial identity, hair, age, and clothing.\n\nsummary:\n[reference generation] <Subject 1> walks through a rain-lit city plaza while remaining fully recognizable.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - retain the face, hair, body proportions, and clothing from <Picture 1>.\n\ndetailed_description:\nThe target video is realistic and cinematic. [Shot 1] <Subject 1> walks slowly toward the camera across wet pavement, glances left, and remains centered during a steady dolly-back. Warm storefront light reflects in the rain.\n\noverall_soundscape:\nSoft city traffic, footsteps on wet pavement, and distant crowd ambience.\n\nnon_diegetic_music:\nA restrained, moody synth motif.",
-      "overview": "References are most reliable when converted into H3 Context-IR. Images are numbered in connection order: the open image is <Picture 1>, and picker images continue <Picture 2>…. Define reusable identity/content as <Subject N>, cite its source tag, and describe its preservation in retention_analysis. Video soundtracks consume <Audio N> labels before standalone audio, so audio numbering can shift when a reference video contains sound.",
+      "overview": "References are most reliable when converted into H3 Context-IR. Only media in the Refs box receives attachment tags: picker images start at <Picture 1>. The first and last frames constrain the target timeline and are not numbered references. Define reusable identity/content as <Subject N>, cite its source tag, and describe its preservation in retention_analysis. Video soundtracks consume <Audio N> labels before standalone audio, so audio numbering can shift when a reference video contains sound.",
       "instructions": "Use all six headings in order. In subject_definitions, define each reusable person, object, scene, style, action, or voice as <Subject N> and cite the source attachment tag. In summary, identify the task as [reference generation] and assign each reference a role. In retention_analysis, mark important identities fully_preserved and list the exact traits that must remain. In detailed_description, describe each shot, action, composition, lighting, camera movement, dialogue, and when each subject appears. Finish with overall_soundscape and non_diegetic_music. Picture and video tags are 1-based per type. Audio tags are also 1-based, but a connected video soundtrack receives an audio label before standalone audio clips.",
       "do": [
         "Use all six Context-IR sections in the documented order",
@@ -128,7 +128,7 @@
       "types": [
         {
           "kind": "image",
-          "max": 8
+          "max": 9
         },
         {
           "kind": "video",
@@ -139,7 +139,7 @@
           "max": 3
         }
       ],
-      "hint": "The current image is <Picture 1>; up to eight picker images follow as <Picture 2>…<Picture 9>. Define reusable content as <Subject N> sourced from those tags. Video soundtracks take <Audio N> labels before standalone audio, and H3 allows at most 12 source/reference files total."
+      "hint": "Only files in this Refs box are numbered: picker images are <Picture 1>…<Picture 9>. The first/last frames are timeline anchors, not references. Define reusable content as <Subject N> sourced from attachment tags. Video soundtracks take <Audio N> labels before standalone audio, and H3 allows at most 12 reference files total."
     }
   },
   "resolution": {

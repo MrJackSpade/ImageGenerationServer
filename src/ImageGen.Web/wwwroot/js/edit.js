@@ -17,8 +17,9 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $editSrc = $("editSrc"), $bar = $("bar"), $eta = $("eta"), $cancelEdit = $("cancelEdit"), $result = $("result"), $editComposer = $("editComposer"),
       $instruction = $("instruction"), $instructionTagPop = $("instructionTagPop"), $editSend = $("editSend"), $status = $("status"),
       $editRefs = $("editRefs"), $editRefBtn = $("editRefBtn"), $editRefFile = $("editRefFile"), $editRefHint = $("editRefHint"),
-      $editLastFrame = $("editLastFrame"), $editLastFrameBtn = $("editLastFrameBtn"), $editLastFrameFile = $("editLastFrameFile"),
-      $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"),
+      $editLastFrame = $("editLastFrame"), $editLastFrameFile = $("editLastFrameFile"),
+      $editFrameControls = $("editFrameControls"), $editLastFrameWrap = $("editLastFrameWrap"),
+      $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"), $editSrcLabel = $("editSrcLabel"),
       $editAspectField = $("editAspectField"), $editAspect = $("editAspect"),
       $editSrcFile = $("editSrcFile"),
       // mask painting (a modal off the source preview; the brush slider lives inside the modal toolbar)
@@ -199,11 +200,12 @@ function maskActive() { return !!(maskEditor && maskEditor.hasMask()); }
 function effectiveEditModel() {
   const m = editModel();
   if (m && maskActive() && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) return EDIT_MODELS[m.maskWorkflow];
+  if (m && editRefs.length > 0 && m.referenceWorkflow && EDIT_MODELS[m.referenceWorkflow]) return EDIT_MODELS[m.referenceWorkflow];
   return m;
 }
 // The models the shared param panel renders over. While a mask exists the picker is single-select, so this is the one
 // effective descriptor; otherwise it's every checked model (the panel shows their common params).
-function effectiveEditModels() { const em = effectiveEditModel(); return (maskActive() && em) ? [em] : editModels(); }
+function effectiveEditModels() { const base = editModel(), em = effectiveEditModel(); return (em && em !== base) ? [em] : editModels(); }
 // A pure-inpaint editor cannot run without a mask — block its submit (the pencil shows an accent ring; see
 // updateMaskControls). Checked across EVERY selected model, not just the primary: with 2+ checked there is no primary,
 // and a mask can never attach to a multi-select anyway (it collapses the selection to one), so a fan-out that includes
@@ -349,6 +351,7 @@ async function loadEditModels() {
         tagging: (r.card && r.card.tagging) || null,
         promptGuidance: (r.card && r.card.promptGuidance) || null,   // card's how-to-prompt line → instruction placeholder
         maskWorkflow: r.maskWorkflow || "",   // the masked sibling this Edit config routes to when a mask is drawn ("" = none)
+        referenceWorkflow: r.referenceWorkflow || "",   // first/last-frame sibling selected while refs are attached
         hiddenFromPicker: !!r.hiddenFromPicker,   // a link TARGET: kept in the map for the panel swap + routing, never shown in the picker
         edit: { reference: r.reference || null, default: !!r.default }
       };
@@ -419,8 +422,8 @@ const sortModels = ms => ms.slice().sort((a, b) => {
 // Edit) reads as inpaint-capable here — then overlaid with the user's per-workflow tag delta. computeWorkflowTags
 // dedupes, so an overlap between the two definitions collapses to one chip.
 function pickerTags(m) {
-  const sib = m.maskWorkflow && EDIT_MODELS[m.maskWorkflow];
-  const base = sib ? m.baseTags.concat(sib.baseTags) : m.baseTags;
+  const siblings = [m.maskWorkflow, m.referenceWorkflow].map(id => id && EDIT_MODELS[id]).filter(Boolean);
+  const base = siblings.reduce((tags, sibling) => tags.concat(sibling.baseTags), m.baseTags.slice());
   return computeWorkflowTags(base, editTags[m.id], editRemoved[m.id]);
 }
 
@@ -487,7 +490,7 @@ editPicker = createModelPicker({
     return m.editGroup || null;                                    // video (v2v) etc. keep their edit_group sections
   },
   hint: "Long-press a workflow to pick several and compare",
-  onChange: ids => { selectedEditIdsByMode[chatBucket] = ids; refreshMaskRouting(); },
+  onChange: ids => { selectedEditIdsByMode[chatBucket] = ids; refreshEditRouting(); },
   onCommit: () => savePrefs(true),   // committed workflow pick persists immediately
 });
 function populateChatMenu() {
@@ -535,7 +538,7 @@ if ($editAspect) $editAspect.addEventListener("click", e => {
 // Re-run everything that depends on the EFFECTIVE descriptor and the mask state: the param/refs/negative/prompt panel,
 // the pencil/clear overlay, the submit gate. Also collapses the multi-select to a single pick while a mask exists, so
 // the panel reflects exactly one effective descriptor (its params/refs/negative can't be an intersection of several).
-function refreshMaskRouting() {
+function refreshEditRouting() {
   if (maskActive() && editSelIds().length > 1) {
     editPicker.setSelectedIds([editSelIds()[0]]);   // keep the first, drop the rest — fires onChange → re-enters here single
     return;
@@ -574,7 +577,7 @@ function updateMaskControls() {
 function openMaskModal() { if (editCurrent && !srcIsVideo && maskEditor) maskEditor.open(viewUrl(editCurrent), 0, 0); }
 function clearMaskAll() { if (maskEditor) maskEditor.clear(); }   // maskEditor.clear fires onChange (maskChanged) → refresh
 // A stroke or a clear inside the modal: the built mask id is now stale, so drop it (rebuilt at submit), and re-route.
-function maskChanged() { maskId = null; refreshMaskRouting(); }
+function maskChanged() { maskId = null; refreshEditRouting(); }
 // Persist tuned values the moment they change.
 $("editParams").addEventListener("change", () => persistParams($("editParams")));
 // Honest wording for whatever the primary model actually consumes. An instruction editor is told to name a CHANGE; a
@@ -632,9 +635,11 @@ function outpaintNegFor(model) { const t = $outpaintNeg ? $outpaintNeg.value.tri
 // Left pane shows the FIXED source image being edited. Clicking it opens the lightbox/detail.
 function renderSrc() {
   $editSrc.innerHTML = "";
+  const firstLast = editSupportsLastFrame();
+  if ($editSrcLabel) $editSrcLabel.textContent = firstLast ? "First frame" : "Editing";
   if (!editCurrent) {
     const optional = editModels().length === 1 && editModels().every(supportsReferenceOnly);
-    $editSrc.appendChild(selectFileButton(optional ? "Add image 1 (optional)" : "Select a file to edit"));
+    $editSrc.appendChild(selectFileButton(firstLast ? "Select a first frame" : optional ? "Add image 1 (optional)" : "Select a file to edit"));
     return;
   }
   let media;
@@ -706,6 +711,7 @@ async function handleEditSrcFiles(files) {
   const f = files && files[0];
   if (!f) return;
   const isVid = isVideoFile(f);
+  if (editSupportsLastFrame() && isVid) { setStatus("Please choose an image for the first frame.", { error: true }); return; }
   if (!isImageFile(f) && !isVid) { setStatus("Please choose an image or video file.", { error: true }); return; }
   setStatus("Uploading…");
   try {
@@ -804,7 +810,7 @@ function refHintOf(m) { const r = m && m.edit && m.edit.reference; return (r && 
 // (mutated in place so callers keep their reference), and `els` are its strip/button/file/hint. References accept
 // MULTIPLE files (picked or dropped), each routed by its media kind; a file of an unaccepted kind, or one over its
 // per-kind cap, is rejected here.
-function makeRefUi({ modelOf, refs, els }) {
+function makeRefUi({ modelOf, refs, els, onChange }) {
   function updateBtn() {
     const total = refTotalMax(modelOf());
     els.btn.classList.toggle("hidden", total <= 0);
@@ -823,7 +829,7 @@ function makeRefUi({ modelOf, refs, els }) {
       } else {
         const g = document.createElement("span"); g.className = "ref-glyph"; g.textContent = rf.kind === "audio" ? "♪" : "▶"; g.title = rf.kind + " reference"; chip.appendChild(g);
       }
-      const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { refs.splice(i, 1); render(); });
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove reference"; x.addEventListener("click", () => { refs.splice(i, 1); if (onChange) onChange(); else render(); });
       chip.appendChild(x); els.list.appendChild(chip);
     });
     els.list.classList.toggle("hidden", refs.length === 0); updateBtn(); updateHint(); updateSubmitEnabled();
@@ -836,7 +842,7 @@ function makeRefUi({ modelOf, refs, els }) {
       if (!kind || refMaxOf(m, kind) <= 0) { setStatus(`This model doesn't accept ${kind || "that"} references.`, { error: true }); continue; }
       if (refCountOf(refs, kind) >= refMaxOf(m, kind)) { setStatus(`At most ${refMaxOf(m, kind)} ${kind} reference(s).`, { error: true }); continue; }
       setStatus("Uploading reference…");
-      try { const id = await uploadToInput(f, f.name || `ref.${kind}`); refs.push({ id, kind }); render(); setStatus(""); }
+      try { const id = await uploadToInput(f, f.name || `ref.${kind}`); refs.push({ id, kind }); if (onChange) onChange(); else render(); setStatus(""); }
       catch (err) { setStatus(friendlyError(err), { error: true }); }
     }
   }
@@ -851,57 +857,79 @@ function makeRefUi({ modelOf, refs, els }) {
 
 // Chat reference controller. Reads the EFFECTIVE descriptor so a masked route offers the sibling's reference capacity
 // (Qwen-Image-Edit masked takes references too). The thin same-named wrappers keep every existing call site working.
-const editRefUi = makeRefUi({ modelOf: effectiveEditModel, refs: editRefs, els: { list: $editRefs, btn: $editRefBtn, file: $editRefFile, hint: $editRefHint } });
+function referenceCapabilityModel() {
+  const effective = effectiveEditModel();
+  if (takesReferences(effective)) return effective;
+  const base = editModel();
+  return (base && base.referenceWorkflow && EDIT_MODELS[base.referenceWorkflow]) || effective;
+}
+const editRefUi = makeRefUi({ modelOf: referenceCapabilityModel, refs: editRefs,
+  els: { list: $editRefs, btn: $editRefBtn, file: $editRefFile, hint: $editRefHint }, onChange: refreshEditRouting });
 function renderEditRefs() { editRefUi.render(); }
 function updateEditRefBtn() { editRefUi.updateBtn(); }
 function updateEditRefHint() { editRefUi.updateHint(); }
 
 // --- last frame (i2v first/last-frame editors) --------------------------------------------------
 // A single optional END frame, offered only when the primary editor accepts one (supportsLastFrame) — a single-model
-// affordance like references (there's no primary with 2+ checked). The chip mirrors a ref chip; the button hides once
-// one is picked (only one end frame). buildChatItems sends it as lastFrameImageId so the graph swaps to
-// WanFirstLastFrameToVideo, interpolating from the source (first frame) to this one.
+// affordance like references (there's no primary with 2+ checked). It is stacked under the first-frame preview with
+// Loop between them; buildChatItems sends it as lastFrameImageId for the workflow's endpoint-conditioning graph.
 const editSupportsLastFrame = () => { const m = editModel(); return !!(m && m.supportsLastFrame); };
 // Loop is live only when the primary editor accepts a last frame AND the box is checked — the same gate as the button.
 // While active it hides the pick-a-distinct-last-frame affordances: the source stands in as the final frame instead.
 const editLoopActive = () => editSupportsLastFrame() && !!($editLoop && $editLoop.checked);
-// Show the Loop checkbox on exactly the editors that show the last-frame button (supportsLastFrame).
-// Loop and ＋ last frame are mutually exclusive: Loop shows only for a first/last-frame editor AND while no last frame
-// is picked (picking one sends that frame, not the source, so Loop is meaningless). Checking Loop hides the ＋ last
-// frame button instead, so the two only ever appear together when neither is chosen. renderEditLastFrame re-runs this
-// whenever a last frame is set/cleared.
-function updateEditLoop() { if ($editLoopWrap) $editLoopWrap.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId); }
-// The pick-a-last-frame button hides once one is picked, when the model doesn't support one, or while looping.
-function updateEditLastFrameBtn() { $editLastFrameBtn.classList.toggle("hidden", !editSupportsLastFrame() || !!lastFrameId || editLoopActive()); }
 function renderEditLastFrame() {
   $editLastFrame.innerHTML = "";
-  // While looping, hide any picked end frame (the source stands in) WITHOUT dropping lastFrameId, so unchecking restores it.
-  const showPick = editSupportsLastFrame() && !editLoopActive();
+  const supported = editSupportsLastFrame(), showPick = supported && !editLoopActive();
+  if ($editSrcLabel) $editSrcLabel.textContent = supported ? "First frame" : "Editing";
+  $editFrameControls.classList.toggle("hidden", !supported);
+  $editLastFrameWrap.classList.toggle("hidden", !showPick);
   if (lastFrameId && showPick) {
-    const chip = document.createElement("div"); chip.className = "ref-chip";
-    const im = document.createElement("img"); im.src = viewUrl(lastFrameId); im.alt = "last frame"; chip.appendChild(im);
+    const im = document.createElement("img"); im.src = viewUrl(lastFrameId); im.alt = "last frame"; $editLastFrame.appendChild(im);
     const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.title = "Remove last frame";
     x.addEventListener("click", () => { lastFrameId = null; renderEditLastFrame(); });
-    chip.appendChild(x); $editLastFrame.appendChild(chip);
+    x.className = "src-clear"; $editLastFrame.appendChild(x);
+  } else if (showPick) {
+    const pick = selectLastFrameButton(); $editLastFrame.appendChild(pick);
   }
-  $editLastFrame.classList.toggle("hidden", !(lastFrameId && showPick));
-  updateEditLoop();
-  updateEditLastFrameBtn();
 }
 // Checking/unchecking Loop only reshapes the last-frame UI and persists the pref; the source itself is sent on submit.
 if ($editLoop) $editLoop.addEventListener("change", () => { renderEditLastFrame(); savePrefs(); });
-$editLastFrameBtn.addEventListener("click", () => $editLastFrameFile.click());
+function selectLastFrameButton() {
+  const b = document.createElement("button"); b.type = "button"; b.className = "edit-pick-src";
+  const ic = document.createElement("span"); ic.className = "eps-icon"; ic.textContent = "⇪";
+  const tx = document.createElement("span"); tx.textContent = "Select a last frame";
+  b.appendChild(ic); b.appendChild(tx); b.addEventListener("click", () => $editLastFrameFile.click());
+  return b;
+}
+function imageDimensions(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("The image dimensions could not be read."));
+    image.src = url;
+  });
+}
 // A single end frame (picked or dropped) — takes the first file.
 async function handleEditLastFrameFiles(files) {
   const f = files && files[0];
   if (!f) return;
   if (!isImageFile(f)) { setStatus("Please choose an image file.", { error: true }); return; }
+  if (!editCurrent) { setStatus("Select a first frame before choosing a last frame.", { error: true }); return; }
   setStatus("Uploading last frame…");
-  try { lastFrameId = await uploadToInput(f, f.name || "last_frame.png"); renderEditLastFrame(); setStatus(""); }
+  let objectUrl;
+  try {
+    objectUrl = URL.createObjectURL(f);
+    const [first, last] = await Promise.all([imageDimensions(viewUrl(editCurrent)), imageDimensions(objectUrl)]);
+    if (first.width * last.height !== last.width * first.height) {
+      setStatus(`The first and last frames must have the same aspect ratio (${first.width}×${first.height} vs ${last.width}×${last.height}).`, { error: true });
+      return;
+    }
+    lastFrameId = await uploadToInput(f, f.name || "last_frame.png"); renderEditLastFrame(); setStatus("");
+  }
   catch (err) { setStatus(friendlyError(err), { error: true }); }
+  finally { if (objectUrl) URL.revokeObjectURL(objectUrl); }
 }
 $editLastFrameFile.addEventListener("change", e => { const files = Array.from(e.target.files || []); e.target.value = ""; handleEditLastFrameFiles(files); });
-attachDropUpload($editLastFrameBtn, handleEditLastFrameFiles);
 attachDropUpload($editLastFrame, handleEditLastFrameFiles);
 
 // --- chat edit: fan the instruction across every selected model --------------------------------
@@ -933,14 +961,14 @@ async function buildChatItems(n) {
       // The end frame is a single-model affordance (no primary with 2+). Loop sends the source itself as the last frame.
       const lastFrame = (single && m.supportsLastFrame) ? (editLoopActive() ? editCurrent : lastFrameId) : null;
       // The effective descriptor when masked: the sibling workflow (if any), whose negative capability also applies.
-      const eff = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? EDIT_MODELS[m.maskWorkflow] : m;
-      const wf = (maskAttach && m.maskWorkflow && EDIT_MODELS[m.maskWorkflow]) ? m.maskWorkflow : gwModel(m);
+      const eff = single ? (effectiveEditModel() || m) : m;
+      const wf = eff !== m ? gwModel(eff) : gwModel(m);
       const itemOverrides = { ...overrides };
       if (takesReferences(eff)) itemOverrides.reference_aspect = (maskAttach || (editCurrent && !eff.supportsReferenceAspectWithSource))
         ? "reference" : referenceAspect;
       // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
       items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
-        imageId: editCurrent, referenceIds: refIds, lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
+        imageId: editCurrent, referenceIds: takesReferences(eff) ? refIds : [], lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
     }
   return items;
 }

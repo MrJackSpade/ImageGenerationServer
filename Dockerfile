@@ -74,9 +74,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Pinned to a FIXED revision (a tag, or an exact commit when the needed feature has no tag yet), NEVER a branch:
 # a branch moves, so tracking it would silently change the backend between builds -- non-reproducible, and a
 # deployment could then fail for a reason nobody chose (a patch stops applying, a workflow graph breaks). Currently
-# an exact commit past v0.31.1: the comfy-kitchen attention backend (ModelAttentionBackend) and the H3 peak-memory
-# fix are not on any release tag yet. Move back to the newest tag once one carries them.
-ARG COMFYUI_REF=62b3c94bd45154f6486c7abf1b9efcacee96ea69
+# an exact commit past v0.31.1: H3 AddGuide/reference coexistence, the peak-memory fix, and the released tokenizer's
+# extra special tokens are not all on a release tag yet. Move back to the newest tag once one carries them.
+ARG COMFYUI_REF=924743af083c151296cc16f925aeab113b6484e8
 # init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.
 RUN git init /opt/ComfyUI \
     && git -C /opt/ComfyUI remote add origin https://github.com/comfyanonymous/ComfyUI.git \

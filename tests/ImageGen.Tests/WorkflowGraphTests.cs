@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Application.Media;
 using ImageGen.Application.Workflows;
 using ImageGen.Domain;
 using ImageGen.Comfy;
@@ -612,10 +613,9 @@ public sealed class WorkflowGraphTests
         Assert.Equal(first.GetProperty("upscale_method").GetString(), end.GetProperty("upscale_method").GetString());
     }
 
-    /// <summary>H3 reference→video (ref2va) conditions on the SUBJECT via reference images — the open image is
-    /// ref_image_0 and picker references follow — through the <c>MiniMaxH3ReferenceToVideo</c> node, NOT as a first
-    /// frame. The references ride the node's autogrow input as the flat dotted wire keys <c>ref_images.ref_image_{i}</c>
-    /// (ComfyUI re-nests them server-side), and the audio VAE is a direct node input. Same native-audio topology.</summary>
+    /// <summary>H3 reference→video keeps the open image as a first-frame timeline guide while picker media alone
+    /// enters MiniMaxH3ReferenceToVideo's semantic reference slots. The AddGuide output feeds the guider and the
+    /// reference node's latent feeds the sampler.</summary>
     [Fact]
     public void MiniMaxH3_ref2v_conditions_on_references_not_a_first_frame()
     {
@@ -634,12 +634,22 @@ public sealed class WorkflowGraphTests
         // documented setup mistake for this model family.
         Assert.Contains("minimax-h3-ref2va.safetensors", json);
         Assert.DoesNotContain("minimax-h3-fl2va.safetensors", json);
-        Assert.DoesNotContain("first_frame", json);              // references are NOT first frames
-        // Source is ref_image_0; the two picker references follow as ref_image_1/_2 — flat DOTTED autogrow keys.
+        Assert.DoesNotContain("first_frame", json);              // endpoint anchoring uses AddGuide, not FL2VA inputs
+        Assert.Contains("MiniMaxH3AddGuide", json);
+        // Only the two picker images consume semantic slots, beginning at ref_image_0.
         Assert.Contains("ref_images.ref_image_0", json);
         Assert.Contains("ref_images.ref_image_1", json);
-        Assert.Contains("ref_images.ref_image_2", json);
-        Assert.DoesNotContain("ref_images.ref_image_3", json);   // exactly 1 source + 2 picker refs
+        Assert.DoesNotContain("ref_images.ref_image_2", json);
+        using (JsonDocument doc = JsonDocument.Parse(json))
+        {
+            JsonElement firstGuide = doc.RootElement.GetProperty("16");
+            Assert.Equal("MiniMaxH3AddGuide", firstGuide.GetProperty("class_type").GetString());
+            Assert.Equal(0, firstGuide.GetProperty("inputs").GetProperty("frame_idx").GetInt32());
+            Assert.Equal("11", firstGuide.GetProperty("inputs").GetProperty("image")[0].GetString());
+            Assert.Equal("16", doc.RootElement.GetProperty("58").GetProperty("inputs").GetProperty("conditioning")[0].GetString());
+            Assert.Equal("14", doc.RootElement.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+        }
+
         Assert.Contains("audio_vae", json);                      // the ref node takes the audio VAE directly
         Assert.Contains("ref_image_size", json);
         Assert.Contains("\"max\"", json);
@@ -650,10 +660,53 @@ public sealed class WorkflowGraphTests
         Assert.DoesNotContain("SaveAnimatedWEBP", json);
     }
 
+    [Fact]
+    public void MiniMaxH3_ref2v_chains_first_and_last_timeline_guides_around_semantic_refs()
+    {
+        WorkflowInputs inputs = new()
+        {
+            Positive = "subject_definitions: <Subject 1> is the person in <Picture 1>.",
+            SourceImageName = "first.png",
+            EndImageName = "last.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("subject.png", ReferenceKind.Image)],
+        };
+
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-ref2v", inputs));
+        JsonElement root = doc.RootElement;
+        JsonElement first = root.GetProperty("16").GetProperty("inputs");
+        JsonElement last = root.GetProperty("17").GetProperty("inputs");
+        Assert.Equal(0, first.GetProperty("frame_idx").GetInt32());
+        Assert.Equal(-1, last.GetProperty("frame_idx").GetInt32());
+        Assert.Equal("16", last.GetProperty("positive")[0].GetString());
+        Assert.Equal("13", last.GetProperty("image")[0].GetString());
+        Assert.Equal("17", root.GetProperty("58").GetProperty("inputs").GetProperty("conditioning")[0].GetString());
+        Assert.Equal("14", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
+    }
+
+    [Fact]
+    public void MiniMaxH3_ref2v_refuses_a_request_without_semantic_references()
+    {
+        WorkflowInputs inputs = new() { Positive = "motion", SourceImageName = "first.png", SourceWidth = 1216, SourceHeight = 832 };
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
+    }
+
+    [Fact]
+    public void Endpoint_frames_require_matching_aspect_ratios()
+    {
+        ComfyClient.EnsureEndFrameAspect(true, new ImageDimensions(1920, 1080, "image/png"), new ImageDimensions(1280, 720, "image/png"));
+        RenderValidationException ex = Assert.Throws<RenderValidationException>(() =>
+            ComfyClient.EnsureEndFrameAspect(true, new ImageDimensions(1920, 1080, "image/png"), new ImageDimensions(1024, 1024, "image/png")));
+        Assert.Contains("same aspect ratio", ex.Message);
+        _ = Assert.Throws<RenderValidationException>(() =>
+            ComfyClient.EnsureEndFrameAspect(false, new ImageDimensions(1024, 1024, "image/png"), new ImageDimensions(1024, 1024, "image/png")));
+    }
+
     [Theory]
     [InlineData("minimax-h3-ref2v")]
     [InlineData("minimax-h3-ref2v-turbo")]
-    public void MiniMaxH3_ref2v_uses_the_independent_target_aspect_for_its_video_canvas(string configId)
+    public void MiniMaxH3_ref2v_uses_the_first_frame_aspect_for_its_video_canvas(string configId)
     {
         WorkflowInputs inputs = new()
         {
@@ -663,6 +716,7 @@ public sealed class WorkflowGraphTests
             SourceHeight = 1344,
             TargetWidth = 1344,
             TargetHeight = 768,
+            References = [new ReferenceInput("subject.png", ReferenceKind.Image)],
         };
 
         string json = BuildJson(configId, inputs);
@@ -670,16 +724,16 @@ public sealed class WorkflowGraphTests
         JsonElement encode = doc.RootElement.EnumerateObject()
             .Single(p => p.Value.GetProperty("class_type").GetString() == "MiniMaxH3ReferenceToVideo").Value;
 
-        Assert.Equal(1344, encode.GetProperty("inputs").GetProperty("width").GetInt32());
-        Assert.Equal(768, encode.GetProperty("inputs").GetProperty("height").GetInt32());
-        Assert.DoesNotContain("ImageScaleToTotalPixels", json);
+        (int expectedW, int expectedH) = BudgetScale.Snap(768, 1344, 1.0, H3.BudgetSteps);
+        Assert.Equal(expectedW, encode.GetProperty("inputs").GetProperty("width").GetInt32());
+        Assert.Equal(expectedH, encode.GetProperty("inputs").GetProperty("height").GetInt32());
+        Assert.Contains("ImageScaleToTotalPixels", json);
 
         (WorkflowCatalog catalog, WorkflowRegistry registry) = Build();
         WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(catalog.FindConfig(configId));
         IWorkflow workflow = Assert.IsAssignableFrom<IWorkflow>(registry.Find(cfg.WorkflowName));
-        Assert.True(workflow.SupportsReferenceAspectWithSource);
-        ParamSpec aspect = Assert.Single(workflow.Schema, p => p.Key == WorkflowParamKeys.ReferenceAspect);
-        Assert.Equal(ReferenceAspectNames.Reference, aspect.Default);
+        Assert.False(workflow.SupportsReferenceAspectWithSource);
+        Assert.True(workflow.SupportsEndFrame);
     }
 
     /// <summary>ref2va routes each reference to the node input for its media KIND: image stills to <c>ref_images</c>,
@@ -702,9 +756,9 @@ public sealed class WorkflowGraphTests
             ],
         };
         string json = BuildJson("minimax-h3-ref2v", inputs);
-        // Image: source is ref_image_0, the picker still is ref_image_1.
+        // Image: the picker still is ref_image_0; source is a separate frame-0 guide.
         Assert.Contains("ref_images.ref_image_0", json);
-        Assert.Contains("ref_images.ref_image_1", json);
+        Assert.DoesNotContain("ref_images.ref_image_1", json);
         // Video: decoded once to frames (ref_videos) AND its own soundtrack (ref_video_audios), same index.
         Assert.Contains("LoadVideo", json);
         Assert.Contains("GetVideoComponents", json);
@@ -715,8 +769,7 @@ public sealed class WorkflowGraphTests
         Assert.Contains("ref_audios.ref_audio_0", json);
     }
 
-    /// <summary>ref2va accepts eight picker images (plus the primary source = H3's nine-image limit) and refuses a
-    /// ninth picker image rather than silently dropping it.</summary>
+    /// <summary>ref2va accepts nine picker images because endpoint frames no longer consume semantic slots.</summary>
     [Fact]
     public void MiniMaxH3_ref2v_rejects_more_references_than_the_cap()
     {
@@ -726,13 +779,13 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            References = [.. Enumerable.Range(1, 9).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
+            References = [.. Enumerable.Range(1, 10).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
         };
         _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-ref2v", inputs));
     }
 
     [Fact]
-    public void MiniMaxH3_ref2v_accepts_nine_images_including_the_primary_source()
+    public void MiniMaxH3_ref2v_accepts_nine_picker_images_beside_the_first_frame_guide()
     {
         WorkflowInputs inputs = new()
         {
@@ -740,7 +793,7 @@ public sealed class WorkflowGraphTests
             SourceImageName = "src.png",
             SourceWidth = 1216,
             SourceHeight = 832,
-            References = [.. Enumerable.Range(1, 8).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
+            References = [.. Enumerable.Range(1, 9).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image))],
         };
         string json = BuildJson("minimax-h3-ref2v", inputs);
         Assert.Contains("ref_images.ref_image_8", json);
@@ -748,11 +801,11 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
-    public void MiniMaxH3_ref2v_rejects_more_than_twelve_mixed_reference_files_including_the_source()
+    public void MiniMaxH3_ref2v_rejects_more_than_twelve_mixed_picker_references()
     {
         List<ReferenceInput> references =
         [
-            .. Enumerable.Range(1, 8).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image)),
+            .. Enumerable.Range(1, 9).Select(i => new ReferenceInput($"r{i}.png", ReferenceKind.Image)),
             .. Enumerable.Range(1, 3).Select(i => new ReferenceInput($"v{i}.mp4", ReferenceKind.Video)),
             new ReferenceInput("a1.wav", ReferenceKind.Audio),
         ];
@@ -777,7 +830,7 @@ public sealed class WorkflowGraphTests
         {
             ("minimax-h3-t2v-turbo", Gen),
             ("minimax-h3-i2v-turbo", Edit),
-            ("minimax-h3-ref2v-turbo", new WorkflowInputs { Positive = "a scene. Audio: ambience.", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832 }),
+            ("minimax-h3-ref2v-turbo", new WorkflowInputs { Positive = "a scene. Audio: ambience.", SourceImageName = "src.png", SourceWidth = 1216, SourceHeight = 832, References = [new ReferenceInput("ref.png", ReferenceKind.Image)] }),
         })
         {
             string json = BuildJson(id, inputs);

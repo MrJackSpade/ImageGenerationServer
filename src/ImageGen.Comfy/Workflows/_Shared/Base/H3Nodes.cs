@@ -17,6 +17,8 @@ internal static class H3Nodes
     public const string EndFrame = "12";
     public const string ScaledEndFrame = "13";
     public const string Encode = "14";
+    public const string FirstGuide = "16";
+    public const string LastGuide = "17";
     public const string Scheduler = "55";
     public const string SamplerSelect = "56";
     public const string Noise = "57";

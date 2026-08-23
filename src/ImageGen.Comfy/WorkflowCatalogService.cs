@@ -282,7 +282,8 @@ public sealed partial class WorkflowCatalogService(
 
         // Validate every masked-sibling link across the WHOLE catalogue and collect the ids that are the target of one
         // — a broken link is an authoring error regardless of eligibility, and a target must be marked hidden.
-        HashSet<string> maskTargets = MaskLinkTargets();
+        HashSet<string> hiddenTargets = MaskLinkTargets();
+        hiddenTargets.UnionWith(ReferenceLinkTargets());
 
         // Shared display name (within a RESOLVED kind + effect + edit section) → keep the first. The resolved kind is
         // important here: the workflow class only says Edit, while media/config capabilities refine that to Upscale,
@@ -293,7 +294,7 @@ public sealed partial class WorkflowCatalogService(
             .Select(g => g.First())
             .Select(e => ToDescriptor(e.cfg, e.wf,
                 avgs.SecondsFor(e.cfg.Id) is double s ? (int?)Math.Round(s) : null,
-                maskTargets.Contains(e.cfg.Id)))];
+                hiddenTargets.Contains(e.cfg.Id)))];
     }
 
     /// <summary>The visible picker identity used to collapse true aliases without merging workflows routed to
@@ -343,6 +344,50 @@ public sealed partial class WorkflowCatalogService(
                 throw new InvalidOperationException(
                     $"Configuration '{cfg.Id}' declares mask_workflow '{cfg.MaskWorkflow}', but the target is not a "
                     + "composition-preserving Inpaint workflow — the only kind that consumes a mask in-graph.");
+            }
+
+            _ = targets.Add(target.Id);
+        }
+
+        return targets;
+    }
+
+    /// <summary>Validate browser-routed first/last-frame → reference-conditioned sibling links and return their
+    /// hidden target ids. Both configs must resolve to image→video, accept endpoint frames, and the target must expose
+    /// at least one reference kind. The API remains explicit: this link is catalog metadata for the browser.</summary>
+    private HashSet<string> ReferenceLinkTargets() => ValidateReferenceLinks(_catalog.AllConfigs(), _registry);
+
+    internal static HashSet<string> ValidateReferenceLinks(IReadOnlyList<WorkflowConfiguration> configs, WorkflowRegistry registry)
+    {
+        Dictionary<string, WorkflowConfiguration> byId = configs.ToDictionary(c => c.Id, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> targets = new(StringComparer.OrdinalIgnoreCase);
+        foreach (WorkflowConfiguration cfg in configs)
+        {
+            if (string.IsNullOrEmpty(cfg.ReferenceWorkflow))
+            {
+                continue;
+            }
+
+            IWorkflow? sourceWorkflow = registry.Find(cfg.WorkflowName);
+            if (sourceWorkflow is null || ResolveKind(cfg, sourceWorkflow) != WorkflowKind.Animate || !sourceWorkflow.SupportsEndFrame)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares reference_workflow '{cfg.ReferenceWorkflow}', but only a first/last-frame Animate configuration may link a reference sibling.");
+            }
+
+            if (!byId.TryGetValue(cfg.ReferenceWorkflow, out WorkflowConfiguration? target) ||
+                string.Equals(cfg.Id, cfg.ReferenceWorkflow, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares reference_workflow '{cfg.ReferenceWorkflow}', which is not a distinct known configuration.");
+            }
+
+            IWorkflow? targetWorkflow = registry.Find(target.WorkflowName);
+            if (targetWorkflow is null || ResolveKind(target, targetWorkflow) != WorkflowKind.Animate ||
+                !targetWorkflow.SupportsEndFrame || target.Card.EditReferenceTypes.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Configuration '{cfg.Id}' declares reference_workflow '{cfg.ReferenceWorkflow}', but the target is not a reference-capable first/last-frame Animate workflow.");
             }
 
             _ = targets.Add(target.Id);
@@ -720,8 +765,9 @@ public sealed partial class WorkflowCatalogService(
             // width/height controls and submits the dims (#209). Null for a config with no aspect map.
             Aspects: RequestSize.BuildAspectMap(cfg, machine),
             // The masked sibling this Edit config routes to when a mask is drawn ("" = none), and whether this config
-            // is itself the hidden target of such a link (kept in the payload, filtered from the picker client-side).
+            // is itself the hidden target of a routing link (kept in the payload, filtered from the picker client-side).
             MaskWorkflow: cfg.MaskWorkflow,
+            ReferenceWorkflow: cfg.ReferenceWorkflow,
             HiddenFromPicker: hiddenFromPicker);
     }
 

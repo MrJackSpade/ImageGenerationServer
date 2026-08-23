@@ -20,14 +20,14 @@ namespace ImageGen.Comfy;
 ///
 /// <para>Weights: the int8-ConvRot diffusion + int8-ConvRot Qwen3-VL 32B text encoder (native tensor-core INT8 on
 /// Ampere; the upstream template's nvfp4_awq encoder is Blackwell-only), both loaded through the plain
-/// <c>UNETLoader</c>/<c>CLIPLoader</c> that read the embedded ConvRot metadata. Requires ComfyUI ≥ v0.30.1, which
-/// adds <c>MiniMaxH3ImageToVideo</c> and the CLIPLoader <c>minimax</c> type.</para>
+/// <c>UNETLoader</c>/<c>CLIPLoader</c> that read the embedded ConvRot metadata. Requires a ComfyUI revision containing
+/// <c>MiniMaxH3AddGuide</c> and the keyframe/reference coexistence fix (the Dockerfiles pin that revision).</para>
 ///
 /// <para>The shared T2V/I2V/Ref2V graph is typed (#93). Each task has its own entry point taking only the sizing
 /// input that task actually uses (#208): <see cref="BuildT2V"/> takes the aspect map's resolved dims, while
-/// <see cref="BuildI2V"/> takes the source budget, while <see cref="BuildRef2V"/> receives the separately resolved
-/// target canvas (the references do not dictate its shape). The graph is otherwise identical — one H3 node, one distilled sampler chain, dual (video+audio)
-/// decode, one mp4-with-audio. The scalar knobs are read TYPED off each workflow's params record and passed in;
+/// <see cref="BuildI2V"/> and <see cref="BuildRef2V"/> take the source budget. Ref2V adds endpoint guides around its
+/// semantic-reference encoder; all modes then share one distilled sampler chain, dual (video+audio) decode, and one
+/// mp4-with-audio. The scalar knobs are read TYPED off each workflow's params record and passed in;
 /// <c>seed</c> is already resolved (<c>ComfyGraph.Seed</c>) and <c>sampler</c>/<c>scheduler</c> are the RAW Forge
 /// names (mapped here).</para>
 /// </summary>
@@ -62,8 +62,8 @@ internal static class H3
         new() { Key = WorkflowParamKeys.AudioVae, Type = ParamType.String, IsModelRef = true, Label = "Audio VAE" },
     ];
 
-    /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v (the source is ref_image_0, in-place
-    /// at <see cref="H3Nodes.Source"/>); each picker reference gets <c>RefImageBase + i</c>. Kept clear of every node id
+    /// <summary>First id for the per-picker-reference LoadImage nodes in ref2v; each picker reference gets
+    /// <c>RefImageBase + i</c>. Kept clear of every node id
     /// in <see cref="H3Nodes"/>. A const int (not a node-id string), so it stays out of the pure <see cref="H3Nodes"/>
     /// holder. The video/audio reference bases follow, each in its own decade so the ranges can't collide.</summary>
     private const int RefImageBase = 60;
@@ -78,8 +78,9 @@ internal static class H3
     /// <summary>First id for the per-audio-reference <c>LoadAudio</c> nodes (the node's <c>ref_audios</c> input).</summary>
     private const int RefAudioBase = 90;
 
-    /// <summary>The <see cref="MiniMaxH3ReferenceToVideo"/> node's structural autogrow caps: up to 9 images (the edit
-    /// source plus 8 picker images), 3 driving videos and 3 driving audios, with at most 12 files across all families.
+    /// <summary>The <see cref="MiniMaxH3ReferenceToVideo"/> node's structural autogrow caps: up to 9 picker images,
+    /// 3 driving videos and 3 driving audios, with at most 12 references across all families. Endpoint frames are
+    /// timeline guides and do not consume reference slots.
     /// Per-kind picker policy is enforced upstream from the workflow card; these are last-resort graph guards.</summary>
     private const int MaxTotalReferenceFiles = 12;
     private const int MaxVideoRefs = 3;
@@ -96,7 +97,8 @@ internal static class H3
     {
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         rig.Graph[H3Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = rig.Clip, Vae = rig.VideoVae, Prompt = inputs.Positive, Length = length, Width = dims.w, Height = dims.h };
-        return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Generate);
+        return Finish(rig, MiniMaxH3ImageToVideoT2V.PositiveOut(H3Nodes.Encode), MiniMaxH3ImageToVideoT2V.LatentOut(H3Nodes.Encode),
+            fps, seed, steps, sampler, scheduler, OutputPrefixes.Generate);
     }
 
     /// <summary>Image→video: the source image is the first frame and the clip size derives from it (scaled to the
@@ -150,11 +152,12 @@ internal static class H3
                 Height = GetImageSize.HeightOut(H3Nodes.SourceSize),
                 FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
             };
-        return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
+        return Finish(rig, new Output<Slot.Conditioning>(H3Nodes.Encode, 0), new Output<Slot.Latent>(H3Nodes.Encode, 1),
+            fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
     }
 
-    /// <summary>Reference→video: the open image is the PRIMARY subject reference (ref_image_0), while the output canvas
-    /// is the independently resolved target size. Picker references follow as ref_image_1…N. None is a first frame.</summary>
+    /// <summary>Reference→video: the open image is a first-frame timeline guide and an optional end image is a
+    /// last-frame guide. Only picker media enters the semantic reference slots.</summary>
     public static ComfyWorkflowGraph BuildRef2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
         string? lora, double loraStrength, bool ckAttention, double budgetMp, int refMax, string refImageSize)
@@ -162,12 +165,18 @@ internal static class H3
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
 
-        // The primary reference is conditioning only. Picker references enter the ref node's autogrow ref_images input,
-        // which resizes each internally (down only); output width/height come from the independently resolved target.
-        g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the primary subject reference), but none was provided.") };
-        (int targetW, int targetH) = inputs.TargetWidth > 0 && inputs.TargetHeight > 0
-            ? (inputs.TargetWidth, inputs.TargetHeight)
-            : BudgetScale.Snap(inputs.SourceWidth, inputs.SourceHeight, budgetMp, BudgetSteps);
+        // The source owns the target canvas just as it does in FL2VA. Pre-scale both endpoint images to the same
+        // budget/dimensions so AddGuide's center-crop is a no-op and the complete first/last frames are preserved.
+        g[H3Nodes.Source] = new LoadImage { Image = inputs.SourceImageName ?? throw new RenderValidationException("MiniMax-H3 reference→video needs a source image (the first frame), but none was provided.") };
+        g[H3Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
+        (int targetW, int targetH) = BudgetScale.Snap(inputs.SourceWidth, inputs.SourceHeight, budgetMp, BudgetSteps);
+        Output<Slot.Image>? lastFrame = null;
+        if (!string.IsNullOrEmpty(inputs.EndImageName))
+        {
+            g[H3Nodes.EndFrame] = new LoadImage { Image = inputs.EndImageName };
+            g[H3Nodes.ScaledEndFrame] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(H3Nodes.EndFrame), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
+            lastFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledEndFrame);
+        }
 
         // Partition the typed references by media kind. Each family enters its own autogrow input on the
         // node: image stills → ref_images, driving videos → ref_videos (as decoded frame batches), driving
@@ -175,10 +184,15 @@ internal static class H3
         IReadOnlyList<string> imageRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Image).Select(r => r.Name)];
         IReadOnlyList<string> videoRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Video).Select(r => r.Name)];
         IReadOnlyList<string> audioRefNames = [.. inputs.References.Where(r => r.Kind == ReferenceKind.Audio).Select(r => r.Name)];
-        int totalReferenceFiles = 1 + imageRefNames.Count + videoRefNames.Count + audioRefNames.Count; // source + picker refs
+        int totalReferenceFiles = imageRefNames.Count + videoRefNames.Count + audioRefNames.Count;
+        if (totalReferenceFiles == 0)
+        {
+            throw new RenderValidationException("MiniMax-H3 reference→video needs at least one reference; use the FL2VA workflow when no references are attached.");
+        }
+
         if (totalReferenceFiles > MaxTotalReferenceFiles)
         {
-            throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxTotalReferenceFiles} source/reference files total; got {totalReferenceFiles}.");
+            throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxTotalReferenceFiles} reference files total; got {totalReferenceFiles}.");
         }
 
         if (imageRefNames.Count > refMax)
@@ -196,8 +210,8 @@ internal static class H3
             throw new RenderValidationException($"MiniMax-H3 reference→video accepts at most {MaxAudioRefs} reference audio clip(s); got {audioRefNames.Count}.");
         }
 
-        // Image references: the source is ref_image_0 (already loaded), the picker stills follow.
-        List<Output<Slot.Image>> imageEdges = new(imageRefNames.Count + 1) { LoadImage.ImageOut(H3Nodes.Source) };
+        // Image references: picker order maps directly to <Picture 1>… and ref_image_0…; endpoint frames are guides.
+        List<Output<Slot.Image>> imageEdges = new(imageRefNames.Count);
         for (int i = 0; i < imageRefNames.Count; i++)
         {
             string id = (RefImageBase + i).ToString();
@@ -242,7 +256,30 @@ internal static class H3
             RefImageSize = refImageSize,
             RefInputs = MiniMaxH3ReferenceToVideo.Refs(imageEdges, videoFrameEdges, videoAudioEdges, audioEdges),
         };
-        return Finish(rig, fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
+        Output<Slot.Latent> latent = MiniMaxH3ReferenceToVideo.LatentOut(H3Nodes.Encode);
+        g[H3Nodes.FirstGuide] = new MiniMaxH3AddGuide
+        {
+            Positive = MiniMaxH3ReferenceToVideo.PositiveOut(H3Nodes.Encode),
+            Vae = rig.VideoVae,
+            Latent = latent,
+            Image = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
+            FrameIndex = 0,
+        };
+        Output<Slot.Conditioning> positive = MiniMaxH3AddGuide.PositiveOut(H3Nodes.FirstGuide);
+        if (lastFrame is { } endFrame)
+        {
+            g[H3Nodes.LastGuide] = new MiniMaxH3AddGuide
+            {
+                Positive = positive,
+                Vae = rig.VideoVae,
+                Latent = latent,
+                Image = endFrame,
+                FrameIndex = -1,
+            };
+            positive = MiniMaxH3AddGuide.PositiveOut(H3Nodes.LastGuide);
+        }
+
+        return Finish(rig, positive, latent, fps, seed, steps, sampler, scheduler, OutputPrefixes.Edit);
     }
 
     /// <summary>Loaders. Diffusion via DiffusionLoaderNode → plain UNETLoader (int8 ConvRot loads natively, weight_dtype
@@ -262,14 +299,13 @@ internal static class H3
     }
 
     /// <summary>Distilled sampling (BasicGuider — no CFG, no negative — + a res_multistep SamplerCustomAdvanced chain)
-    /// off the <see cref="H3Nodes.Encode"/> node's (positive CONDITIONING, LATENT), then dual decode → one mp4 with
+    /// off the task's supplied positive CONDITIONING and LATENT outputs, then dual decode → one mp4 with
     /// audio. The SAME latent decodes to frames (video VAE) and to the native stereo track (audio VAE); CreateVideo
     /// muxes them; SaveVideo writes a real mp4 (format/codec auto = h264/aac).</summary>
-    private static ComfyWorkflowGraph Finish(Rig rig, double fps, long seed, int steps, string sampler, string scheduler, string filenamePrefix)
+    private static ComfyWorkflowGraph Finish(Rig rig, Output<Slot.Conditioning> positive, Output<Slot.Latent> latent,
+        double fps, long seed, int steps, string sampler, string scheduler, string filenamePrefix)
     {
         ComfyWorkflowGraph g = rig.Graph;
-        Output<Slot.Conditioning> positive = new(H3Nodes.Encode, 0);
-        Output<Slot.Latent> latent = new(H3Nodes.Encode, 1);
 
         g[H3Nodes.Scheduler] = new BasicScheduler { Model = rig.Model, Scheduler = ComfyGraph.MapScheduler(scheduler), Steps = steps, Denoise = 1.0 };
         g[H3Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(sampler) };

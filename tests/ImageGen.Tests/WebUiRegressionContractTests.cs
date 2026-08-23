@@ -66,6 +66,23 @@ public sealed class WebUiRegressionContractTests
     }
 
     [Fact]
+    public void Endpoint_workflows_stack_frame_pickers_and_route_to_a_reference_sibling_only_while_refs_exist()
+    {
+        string edit = Js("edit.js");
+        string view = File.ReadAllText(Path.Combine(RepoRoot(), "src", "ImageGen.Web", "Views", "Edit", "Index.cshtml"));
+
+        Assert.Contains("id=\"editFrameControls\"", view, StringComparison.Ordinal);
+        Assert.True(view.IndexOf("id=\"editSrc\"", StringComparison.Ordinal) < view.IndexOf("id=\"editLoop\"", StringComparison.Ordinal));
+        Assert.True(view.IndexOf("id=\"editLoop\"", StringComparison.Ordinal) < view.IndexOf("id=\"editLastFrame\"", StringComparison.Ordinal));
+        Assert.Contains("Select a first frame", edit, StringComparison.Ordinal);
+        Assert.Contains("Select a last frame", edit, StringComparison.Ordinal);
+        Assert.Contains("editRefs.length > 0 && m.referenceWorkflow", edit, StringComparison.Ordinal);
+        Assert.Contains("onChange: refreshEditRouting", edit, StringComparison.Ordinal);
+        Assert.Contains("const wf = eff !== m ? gwModel(eff) : gwModel(m)", edit, StringComparison.Ordinal);
+        Assert.Contains("$editLastFrameWrap.classList.toggle(\"hidden\", !showPick)", edit, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Browser_submission_has_no_pending_job_side_channel_or_dead_batch_entry_point()
     {
         string core = Js("core.js");

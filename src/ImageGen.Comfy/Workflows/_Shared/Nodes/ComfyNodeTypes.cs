@@ -101,6 +101,7 @@ internal static class ComfyNodeTypes
     public const string MaskToImage = "MaskToImage";
     public const string MiniMaxH3ImageToVideo = "MiniMaxH3ImageToVideo";
     public const string MiniMaxH3ReferenceToVideo = "MiniMaxH3ReferenceToVideo";
+    public const string MiniMaxH3AddGuide = "MiniMaxH3AddGuide";
     public const string ModelAttentionBackend = "ModelAttentionBackend";
     public const string ModelSamplingAuraFlow = "ModelSamplingAuraFlow";
     public const string ModelSamplingSD3 = "ModelSamplingSD3";

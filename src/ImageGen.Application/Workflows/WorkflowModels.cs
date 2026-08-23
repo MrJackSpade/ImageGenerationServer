@@ -238,8 +238,10 @@ public sealed record WorkflowDescriptor(
     // This Edit config's masked sibling (the Inpaint config submit routes to when a mask is drawn), or "" when none.
     // The client swaps the param/refs/negative panel to the sibling's descriptor and sends the sibling id at enqueue.
     string MaskWorkflow = "",
-    // True for a config that is the TARGET of another's MaskWorkflow link: suppressed from the picker UI but kept in
-    // this payload (the client needs its ExposedParams/Reference/Card for the panel swap) and still enqueue-resolvable.
+    // This first/last-frame config's reference-conditioned sibling. The browser selects it while refs are attached.
+    string ReferenceWorkflow = "",
+    // True for a config that is the TARGET of a mask/reference link: suppressed from the picker UI but kept in this
+    // payload (the client needs its ExposedParams/Reference/Card for the panel swap) and still enqueue-resolvable.
     bool HiddenFromPicker = false);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>

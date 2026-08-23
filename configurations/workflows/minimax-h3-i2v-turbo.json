@@ -3,6 +3,7 @@
   "workflow": "minimax-h3-i2v",
   "friendly_name": "MiniMax-H3 Turbo",
   "default": false,
+  "reference_workflow": "minimax-h3-ref2v-turbo",
   "requirements": {
     "checkpoint": "minimax-h3-fl2va",
     "text_encoders": [

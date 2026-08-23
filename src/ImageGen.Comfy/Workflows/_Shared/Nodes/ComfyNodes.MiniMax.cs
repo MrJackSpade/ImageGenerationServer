@@ -136,6 +136,20 @@ public sealed record MiniMaxH3ReferenceToVideo : ComfyNode
     public static Output<Slot.Latent> LatentOut(string id) => new(id, 1);
 }
 
+/// <summary>Anchors an image guide on the target timeline of an existing MiniMax H3 conditioning/latent pair.
+/// Current ComfyUI returns only the updated positive conditioning; the target latent remains the reference node's
+/// output and is passed unchanged to sampling. Nodes may be chained by feeding <see cref="PositiveOut"/> forward.</summary>
+public sealed record MiniMaxH3AddGuide : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.MiniMaxH3AddGuide;
+    [JsonPropertyName("positive")] public required Output<Slot.Conditioning> Positive { get; init; }
+    [JsonPropertyName("vae")] public required Output<Slot.Vae> Vae { get; init; }
+    [JsonPropertyName("latent")] public required Output<Slot.Latent> Latent { get; init; }
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("frame_idx")] public required int FrameIndex { get; init; }
+    public static Output<Slot.Conditioning> PositiveOut(string id) => new(id, 0);
+}
+
 /// <summary>Decodes the SAME video latent to the native stereo audio track through the audio VAE (ComfyUI core). Output
 /// 0 = the audio waveform, muxed with the frames by <see cref="CreateVideo"/>.</summary>
 public sealed record VAEDecodeAudio : ComfyNode
