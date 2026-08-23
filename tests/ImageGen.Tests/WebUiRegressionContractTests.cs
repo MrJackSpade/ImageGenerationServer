@@ -127,6 +127,28 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains("if (hideWorkflowTips || !m || !help)", compose, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Every_composer_restores_a_model_selection_scoped_to_its_own_page_or_tab()
+    {
+        string compose = Js("compose.js");
+        string edit = Js("edit.js");
+
+        // Generate owns composerPrefs and restores its complete selected set independently of the Edit page.
+        Assert.Contains("modelIds: selectedModelIds()", compose, StringComparison.Ordinal);
+        Assert.Contains("Array.isArray(p.modelIds) ? p.modelIds", compose, StringComparison.Ordinal);
+
+        // The shared Edit-page picker has an independent selection slot for every tab it represents.
+        Assert.Contains("const CHAT_BUCKETS = [\"edit\", \"redraw\", \"upscale\", \"effects\", \"animate\", \"video\"]", edit, StringComparison.Ordinal);
+        Assert.Contains("modelIdsByMode: selectedEditIdsByMode", edit, StringComparison.Ordinal);
+        Assert.Contains("selectedEditIdsByMode[chatBucket] = ids", edit, StringComparison.Ordinal);
+        Assert.Contains("(selectedEditIdsByMode[chatBucket] || [])", edit, StringComparison.Ordinal);
+        Assert.Contains("p.modelIdsByMode[bucket]", edit, StringComparison.Ordinal);
+
+        // Outpaint has its own picker and persisted id rather than sharing any chat-tab selection.
+        Assert.Contains("outpaintWorkflowId: selectedOutpaintId", edit, StringComparison.Ordinal);
+        Assert.Contains("savedOutpaintWorkflowId", edit, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;

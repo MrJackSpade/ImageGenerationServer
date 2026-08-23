@@ -72,6 +72,18 @@ const isOutpaint = m => !!(m && m.kind === "outpaint");
 const isV2V = m => !!(m && m.kind === "videoedit");
 const isRedraw = m => !!(m && m.kind === "redraw");
 const isUpscale = m => !!(m && m.kind === "upscale");
+const CHAT_BUCKETS = ["edit", "redraw", "upscale", "effects", "animate", "video"];
+// The one picker is rebuilt for several tabs, but each workflow belongs to exactly one of those tabs. This mapping is
+// also used to migrate the former single modelIds field into the right per-tab slot.
+function chatBucketOf(m) {
+  if (!m || isOutpaint(m)) return null;
+  if (isV2V(m)) return "video";
+  if (m.kind === "animate") return "animate";
+  if (isRedraw(m)) return "redraw";
+  if (isUpscale(m)) return "upscale";
+  if (m.kind === "effect") return "effects";
+  return (m.kind === "edit" || m.kind === "inpaint") ? "edit" : null;
+}
 // Whether the current source (editCurrent) is a video clip. Decided from /forge/media for a seeded/edited source, and
 // from the file type for an upload. When true, the editor collapses to the single V2V "Pixelize" mode.
 let srcIsVideo = false;
@@ -108,8 +120,8 @@ const seedPrompt = () => (seed.tagPrompt && seed.tagPrompt.trim()) ? seed.tagPro
 const seedNegative = () => (seed.negativePrompt || "").trim();
 
 // --- last-used settings (per-user account; follows you across devices, exactly like the gen page) -----------------
-// The editor restores its WHOLE last state from the account (never localStorage): the active tab, the selected
-// workflow(s), the inpaint workflow, the brush size, and a FLAT by-name param-override map. The param map is NOT
+// The editor restores its WHOLE last state from the account (never localStorage): the active tab, each tab's selected
+// workflow(s), the outpaint workflow, the brush size, and a FLAT by-name param-override map. The param map is NOT
 // keyed per workflow — a value you set for one editor prefills the same-named field on the next — mirroring the gen
 // page, so switching workflows never wipes your knobs. Writes are debounced and go to the account via saveEditPrefs;
 // the blob is restored on boot in loadEditModels. The instruction/prompt text is intentionally NOT retained: it's
@@ -125,9 +137,13 @@ let editPrefsLoaded = false;
 // One blob captures the full editor state (read live from the UI), like the composer's savePrefs.
 function savePrefs() {
   if (!editPrefsLoaded) return;   // never overwrite settings we failed to read
+  // The shared picker currently displays chatBucket. Snapshot it before serializing so a tab switch cannot save the
+  // new tab while leaving the old tab's most recent click behind.
+  selectedEditIdsByMode[chatBucket] = editSelIds();
   const json = JSON.stringify({
     mode: activeMode,
-    modelIds: editSelIds(),
+    modelIdsByMode: selectedEditIdsByMode,
+    modelIds: editSelIds(),   // legacy fallback for an older client reading this account blob
     outpaintWorkflowId: selectedOutpaintId,
     params: editParamPrefs,
     brushSize: $brushSize ? $brushSize.value : null,
@@ -153,10 +169,10 @@ function restoreParams(box) { applyParamPrefs(box, editParamPrefs); }
 function persistParams(box) { collectParamPrefs(box, editParamPrefs); savePrefs(); }
 
 let activeMode = "edit", chatBucket = "edit";          // chatBucket ∈ {edit, redraw, upscale, effects (image), animate, video}
-// Chat (Edit/Redraw/Effects/Animate) is a MULTI-select picker (the shared createModelPicker) mirroring the gen page:
+// Chat (Edit/Refine/Upscale/Effects/Animate/Video) is a MULTI-select picker (the shared createModelPicker) mirroring the gen page:
 // any number of models in the bucket can be checked, and Apply fans the SAME instruction across all of them to compare.
-// selectedEditIds persists the pick across rebuilds (bucket switches). Inpaint stays single-select (buildMenu).
-let selectedEditIds = [], selectedOutpaintId = null, editPicker = null;
+// The picker DOM is shared, but selectedEditIdsByMode persists an independent picked set for every bucket.
+let selectedEditIdsByMode = {}, selectedOutpaintId = null, editPicker = null;
 const editSelIds = () => editPicker ? editPicker.getSelectedIds() : [];
 const editModels = () => editPicker ? editPicker.getSelected() : [];
 // "Primary" = the model when EXACTLY one is checked; it alone drives the per-model params/refs/placeholder. With
@@ -324,7 +340,7 @@ async function loadEditModels() {
         edit: { reference: r.reference || null, default: !!r.default }
       };
     });
-    // Restore the editor's last state from the account blob (mode, workflows, flat params, inpaint workflow, brush).
+    // Restore the editor's last state from the account blob (mode, per-tab workflows, flat params, outpaint, brush).
     // editPrefsLoaded is set ONLY on a clean read, and savePrefs refuses to write until it is: swallowing a failure
     // here would drop the user back to defaults and then persist those defaults on the first knob they touched, so a
     // one-off bad read would permanently become their saved editor state. A missing blob is a first visit, which is
@@ -341,9 +357,25 @@ async function loadEditModels() {
           if (p.brushSize != null) savedBrushSize = p.brushSize;
           if (typeof p.loop === "boolean") savedLoop = p.loop;
           if (["reference", "square", "landscape", "portrait"].includes(p.referenceAspect)) savedReferenceAspect = p.referenceAspect;
-          // Selection (multi) restored if still installed.
-          const ids = Array.isArray(p.modelIds) ? p.modelIds.filter(id => EDIT_MODELS[id]) : [];
-          if (ids.length) selectedEditIds = ids;
+          // Current format: an independent multi-selection for every picker tab. Reject ids that are installed but
+          // belong to a different tab, so catalog reclassification cannot cross-contaminate the saved buckets.
+          const mappedBuckets = new Set();
+          if (p.modelIdsByMode && typeof p.modelIdsByMode === "object") {
+            for (const bucket of CHAT_BUCKETS) {
+              if (!Array.isArray(p.modelIdsByMode[bucket])) continue;
+              mappedBuckets.add(bucket);
+              const ids = p.modelIdsByMode[bucket].filter(id => EDIT_MODELS[id] && chatBucketOf(EDIT_MODELS[id]) === bucket);
+              if (ids.length) selectedEditIdsByMode[bucket] = ids;
+            }
+          }
+          // Legacy single selection: place every id into the tab its current catalog descriptor owns. This preserves
+          // the last-used model from pre-map blobs without pretending it was the selection for every other tab.
+          if (Array.isArray(p.modelIds)) {
+            for (const id of p.modelIds) {
+              const bucket = chatBucketOf(EDIT_MODELS[id]);
+              if (bucket && !mappedBuckets.has(bucket)) (selectedEditIdsByMode[bucket] ||= []).push(id);
+            }
+          }
         }
         editPrefsLoaded = true;
       } catch (e) {
@@ -357,18 +389,8 @@ async function loadEditModels() {
 const visibleOf = list => list.filter(m => !editHidden.has(m.id));
 // edit   = instruction editors AND pure-inpaint editors (masking is a per-source action now, not a tab); effects =
 // image with an effect_type (Line art / Pixelize, grouped by type); animate = video editors. Outpaint keeps its tab.
-const chatModels = () => visibleOf(Object.values(EDIT_MODELS).filter(m => {
-  if (m.hiddenFromPicker) return false;              // a link TARGET (e.g. the qwen masked sibling): routing-only, never listed
-  if (chatBucket === "video") return isV2V(m);      // the V2V (clip-source) bucket — only video-source editors
-  if (isV2V(m)) return false;                        // video-source editors never appear in the image buckets
-  if (chatBucket === "animate") return m.kind === "animate";
-  if (isOutpaint(m)) return false;                   // outpaint has its own tab (a frame editor, not a dropdown pick)
-  if (chatBucket === "redraw") return isRedraw(m);
-  if (isRedraw(m)) return false;                     // redraws have their own tab — never also in Edit/Effects
-  if (chatBucket === "upscale") return isUpscale(m);
-  if (isUpscale(m)) return false;                    // upscalers have their own tab — never also in Edit/Effects
-  return chatBucket === "effects" ? m.kind === "effect" : (m.kind === "edit" || m.kind === "inpaint");
-}));
+const chatModels = () => visibleOf(Object.values(EDIT_MODELS).filter(m =>
+  !m.hiddenFromPicker && chatBucketOf(m) === chatBucket));
 const outpaintModelList = () => visibleOf(Object.values(EDIT_MODELS).filter(isOutpaint));
 const sortModels = ms => ms.slice().sort((a, b) => {
   const af = editFavs.has(a.id) ? 0 : 1, bf = editFavs.has(b.id) ? 0 : 1;
@@ -430,7 +452,7 @@ function buildMenu(menuEl, models, selectedId, groupBy) {
 function openMenu(menuEl, toggleEl, open) { menuEl.hidden = !open; toggleEl.setAttribute("aria-expanded", String(open)); }
 
 // --- chat editor (Edit + Animate): multi-select via the shared picker --------------------------
-// onChange runs after any selection change (keeps selectedEditIds current for bucket switches + refreshes the
+// onChange runs after any selection change (keeps this bucket's selected ids current + refreshes the
 // single-model affordances); onCommit persists the primary id on user changes. editModel()/editModels() above
 // read the picker's live state: refs/placeholder are primary-only (hide when 2+ checked), but the param panel
 // shows the params common to ALL checked models (their intersection) and applies them to every one.
@@ -452,15 +474,15 @@ editPicker = createModelPicker({
     return m.editGroup || null;                                    // video (v2v) etc. keep their edit_group sections
   },
   hint: "Long-press a workflow to pick several and compare",
-  onChange: ids => { selectedEditIds = ids; refreshMaskRouting(); },
+  onChange: ids => { selectedEditIdsByMode[chatBucket] = ids; refreshMaskRouting(); },
   onCommit: () => savePrefs(),   // user-driven selection change → persist the whole editor state
 });
 function populateChatMenu() {
   const models = chatModels();
   if (!models.length) { $editModelToggle.textContent = chatBucket === "video" ? "No video pixelizer installed" : chatBucket === "animate" ? "No video editors installed" : chatBucket === "effects" ? "No effects installed" : chatBucket === "redraw" ? "No redraw models installed" : chatBucket === "upscale" ? "No upscalers installed" : "No image editors installed"; return; }
   editPicker.rebuild(models);
-  // Keep the prior pick that's valid in THIS bucket; else fall back to the bucket's default/first.
-  let ids = selectedEditIds.filter(id => models.some(m => m.id === id));
+  // Restore THIS bucket's prior pick; a different tab's selection must never enter this decision.
+  let ids = (selectedEditIdsByMode[chatBucket] || []).filter(id => models.some(m => m.id === id));
   if (!ids.length) ids = [(models.find(m => m.edit && m.edit.default) || models[0]).id];
   editPicker.setSelectedIds(ids);
   // Re-sync the affordances that depend on the selection, in case setSelectedIds didn't fire onChange: the negative
@@ -1227,7 +1249,7 @@ function startEditRecover() {
 
 // --- boot ---------------------------------------------------------------------------------------
 (async () => {
-  const settings = await loadEditModels();   // also seeds savedMode/savedBrushSize/editParamPrefs/selectedEditIds from the account blob
+  const settings = await loadEditModels();   // also seeds mode/brush/params and every tab's selected ids from the account blob
   setTagBoxPinBookmarks(settings.pinBookmarks);   // one account toggle governs every tag box on this page
   // Favorited/banned marks in the '#'/'@' popup: one-time snapshots, applied when they resolve. Detached so they
   // never gate boot, un-caught so a real endpoint failure surfaces rather than being swallowed.
