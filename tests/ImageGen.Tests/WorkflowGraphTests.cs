@@ -178,22 +178,22 @@ public sealed class WorkflowGraphTests
         {
             Assert.Equal("12", e.GetProperty("image1")[0].GetString());
             Assert.True(e.TryGetProperty("image2", out _));
-            Assert.False(e.TryGetProperty("vae", out _));
+            Assert.True(e.TryGetProperty("vae", out _));
         });
-        Assert.False(root.TryGetProperty("70", out _));
-        Assert.False(root.TryGetProperty("72", out _));
+        Assert.True(root.TryGetProperty("70", out _));
+        Assert.True(root.TryGetProperty("72", out _));
 
         JsonElement empty = root.GetProperty("79");
         Assert.Equal("EmptySD3LatentImage", empty.GetProperty("class_type").GetString());
         Assert.Equal(1344, empty.GetProperty("inputs").GetProperty("width").GetInt32());
         Assert.Equal(768, empty.GetProperty("inputs").GetProperty("height").GetInt32());
-        Assert.Equal("13", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
-        Assert.Equal("71", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
+        Assert.Equal("70", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
+        Assert.Equal("72", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
         Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
     }
 
     [Fact]
-    public void Qwen_reference_shape_keeps_image2_and_image3_out_of_the_target_latent()
+    public void Qwen_reference_shape_conditions_on_image2_and_image3_but_uses_an_empty_target_latent()
     {
         WorkflowInputs referenceOnly = new()
         {
@@ -213,9 +213,11 @@ public sealed class WorkflowGraphTests
         Assert.Equal("12", root.GetProperty("13").GetProperty("inputs").GetProperty("image1")[0].GetString());
         Assert.Equal("41", root.GetProperty("13").GetProperty("inputs").GetProperty("image2")[0].GetString());
         Assert.Equal("43", root.GetProperty("13").GetProperty("inputs").GetProperty("image3")[0].GetString());
-        Assert.False(root.GetProperty("13").GetProperty("inputs").TryGetProperty("vae", out _));
-        Assert.False(root.TryGetProperty("70", out _));
-        Assert.False(root.TryGetProperty("72", out _));
+        Assert.True(root.GetProperty("13").GetProperty("inputs").TryGetProperty("vae", out _));
+        Assert.True(root.TryGetProperty("70", out _));
+        Assert.True(root.TryGetProperty("72", out _));
+        Assert.Equal("70", root.GetProperty("3").GetProperty("inputs").GetProperty("positive")[0].GetString());
+        Assert.Equal("72", root.GetProperty("3").GetProperty("inputs").GetProperty("negative")[0].GetString());
         Assert.Equal("79", root.GetProperty("3").GetProperty("inputs").GetProperty("latent_image")[0].GetString());
         Assert.Equal(1.0, root.GetProperty("3").GetProperty("inputs").GetProperty("denoise").GetDouble());
     }
