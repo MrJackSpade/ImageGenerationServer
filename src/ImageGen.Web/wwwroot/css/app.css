@@ -562,7 +562,9 @@ a.imgcard.ms-sel::after{content:"✓";position:absolute;top:6px;left:6px;width:2
 }
 
 /* --- prompt chips (detail + bookmarks) -------------------------------------- */
-.plainchip{font-size:15px;color:var(--ink-soft);padding:2px 0}
+/* Plain prompt prose can be structured (notably video Context-IR). Preserve its stored line breaks while still
+   wrapping long lines; scope this to the text chip so Razor's formatting whitespace between tag chips stays inert. */
+.plainchip{font-size:15px;color:var(--ink-soft);padding:2px 0;white-space:pre-wrap}
 .tagchip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:13px;border:1px solid var(--line);background:var(--elev);color:var(--ink);user-select:none;cursor:pointer}
 .tagchip.tag{border-color:#2e4a52}
 .tagchip.artist{border-color:var(--accent);color:var(--accent-hi)}

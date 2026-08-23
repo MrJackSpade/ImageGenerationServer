@@ -150,6 +150,15 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains("savedOutpaintWorkflowId", edit, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Image_detail_prompt_preserves_stored_newlines_in_plain_prose()
+    {
+        string css = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "ImageGen.Web", "wwwroot", "css", "app.css"));
+
+        Assert.Contains(".plainchip{font-size:15px;color:var(--ink-soft);padding:2px 0;white-space:pre-wrap}", css, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;
