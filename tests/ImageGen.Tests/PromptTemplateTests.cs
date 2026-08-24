@@ -67,6 +67,18 @@ public sealed class PromptTemplateTests
     }
 
     [Fact]
+    public void Ideogram4_nl_clones_the_generation_workflow_without_a_prompt_template()
+    {
+        string path = Path.Combine(RepoRoot(), "configurations", "workflows", "ideogram4-nl.json");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+
+        Assert.Equal("ideogram4-nl", document.RootElement.GetProperty("id").GetString());
+        Assert.Equal("ideogram4", document.RootElement.GetProperty("workflow").GetString());
+        Assert.False(document.RootElement.GetProperty("params")
+            .TryGetProperty(WorkflowParamKeys.PromptTemplate, out _));
+    }
+
+    [Fact]
     public void Json_looking_machine_override_remains_template_text()
     {
         WorkflowCatalog catalog = new(

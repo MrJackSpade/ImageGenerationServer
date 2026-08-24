@@ -1,0 +1,134 @@
+{
+  "id": "ideogram4-nl",
+  "workflow": "ideogram4",
+  "friendly_name": "Ideogram 4 NL",
+  "default": false,
+  "requirements": {
+    "checkpoint": "ideogram4",
+    "motion_model": "ideogram4-unconditional",
+    "text_encoders": [
+      "qwen3vl-8b-boogu"
+    ],
+    "vae": "flux2-vae",
+    "extra": [
+      "comfyui-ideogram4-debanner"
+    ]
+  },
+  "params": {
+    "seed": {
+      "value": 0,
+      "visibility": "hidden"
+    },
+    "megapixels": {
+      "value": 0.94,
+      "visibility": "hidden"
+    },
+    "loader": "unet",
+    "clip_type": "ideogram4",
+    "latent": "flux2",
+    "debanner_strength": {
+      "value": 0.6,
+      "visibility": "hidden"
+    },
+    "steps": {
+      "value": 20,
+      "visibility": "hidden"
+    },
+    "cfg": {
+      "value": 7.0,
+      "visibility": "hidden"
+    },
+    "cfg_override": {
+      "value": 3.0,
+      "visibility": "hidden"
+    },
+    "mu": {
+      "value": 0.5,
+      "visibility": "hidden"
+    },
+    "std": {
+      "value": 1.75,
+      "visibility": "hidden"
+    },
+    "sampler": {
+      "value": "euler",
+      "visibility": "hidden"
+    },
+    "scheduler": {
+      "value": "simple",
+      "visibility": "hidden"
+    },
+    "width": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "height": {
+      "value": 1024,
+      "visibility": "hidden"
+    },
+    "negative_supported": false,
+    "aspect": {
+      "square": [
+        992,
+        992
+      ],
+      "landscape": [
+        1280,
+        768
+      ],
+      "portrait": [
+        768,
+        1280
+      ]
+    }
+  },
+  "card": {
+    "architecture": "Ideogram 4 — conditional UNET with a frozen first-step residual correction, separate unconditional UNET, DualModelGuider + CFGOverride + Ideogram4Scheduler, Qwen3-VL 8B encoder, Flux2 VAE; fp8 (no bf16 published)",
+    "summary": "Ideogram's open text-to-image model, renowned for best-in-class typography/text rendering and prompt adherence. Uses a two-UNET guidance scheme (both ~9.3 GB models resident at once), so it's VRAM-heavy — tight on a 24 GB card. This configuration sends natural-language prompts directly to the text encoder without a structured JSON template.",
+    "use_cases": [
+      "legible in-image text, logos, posters, typography",
+      "direct natural-language prompting",
+      "design/marketing imagery"
+    ],
+    "nsfw_capable": "limited (safety-aligned)",
+    "commercial_use": "open weights — verify the Ideogram 4 license for your use",
+    "pick_when": "You want direct natural-language Ideogram prompting without the structured JSON caption template.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Descriptive natural language sent directly to the text encoder; quote literal text to render it.",
+      "example": "A retro travel poster, bold headline reading \"IDEOGRAM\" in cream serif letters over a sunset mountain range, clean vector style",
+      "instructions": "Write descriptive natural language; to render literal text wrap the exact string in double quotes and keep it short. No JSON wrapper is applied. Defaults: 20 steps, base CFG 7 with a late-step CFG of 3 over the last 30%, euler, Ideogram4 schedule (mu 0.5, std 1.75). Native ~1K. No user negative prompt (an unconditional model handles guidance).",
+      "do": [
+        "Quote literal on-image text",
+        "Describe layout, style, and color",
+        "Render near 1K"
+      ],
+      "dont": [
+        "Expect a separate negative prompt to apply",
+        "Run other big models at the same time (VRAM is tight)"
+      ],
+      "negative_guidance": "No user negative prompt — guidance comes from the dedicated unconditional UNet.",
+      "source": "https://huggingface.co/Comfy-Org/Ideogram-4"
+    },
+    "negative": {
+      "supported": false,
+      "note": "Guidance uses a dedicated unconditional model; no user negative."
+    },
+    "speed": {
+      "class": "slow",
+      "note": "Two ~9.3 GB fp8 UNets resident during sampling; VRAM-tight on 24 GB.",
+      "measured_note": "Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe what you want in plain words; the prompt is sent directly without a JSON wrapper. Quote any text you want spelled out.",
+      "good_for": "direct natural-language typography & posters"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 16
+  }
+}
