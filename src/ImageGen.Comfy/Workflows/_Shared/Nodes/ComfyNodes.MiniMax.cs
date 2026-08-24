@@ -9,6 +9,16 @@ namespace ImageGen.Comfy;
 /// socket at compile time.</summary>
 public sealed class AudioSlot { private AudioSlot() { } }
 
+/// <summary>Attaches the node-only whole-shot APNG callback to H3's model. A zero interval is a strict no-op.</summary>
+public sealed record H3AnimatedPreview : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.H3AnimatedPreview;
+    [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
+    [JsonPropertyName("preview_every")] public required int PreviewEvery { get; init; }
+    [JsonPropertyName("fps")] public required double Fps { get; init; }
+    public static Output<Slot.Model> Out(string id) => new(id, 0);
+}
+
 /// <summary>MiniMax-H3's conditioning+latent node in TEXT→video mode: the prompt is encoded by this node itself (no
 /// separate CLIPTextEncode) and the clip size is LITERAL width/height from the aspect map. Same ComfyUI class type as
 /// the i2v variant (<see cref="MiniMaxH3ImageToVideoI2V"/>) but a distinct record — t2v emits width/height as JSON

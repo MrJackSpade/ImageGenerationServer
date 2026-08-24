@@ -24,6 +24,7 @@ public sealed class NodeRequirementTests
         (@"""SeedVR2Load\w*""",              "comfyui-seedvr2-node"),
         (@"""AnimaLLLite\w*""",              "comfyui-anima-lllite"),
         (@"""Ideogram4CorrectionPatch""",     "comfyui-ideogram4-debanner"),
+        (@"""H3AnimatedPreview""",            "comfyui-h3-preview"),
     ];
 
     [Fact]

@@ -43,6 +43,17 @@
       ]
     },
     {
+      "dir": "ComfyUI-H3Preview",
+      "order": 127,
+      "id": "node-h3-preview",
+      "title": "MiniMax H3 animated live preview",
+      "does": "Shows the whole H3 shot as an animated PNG while it denoises, at a workflow-configurable sampler-step interval.",
+      "why": "ComfyUI's ordinary latent preview displays only one video frame. This model wrapper extracts H3's video stream from its packed audio/video latent and sends a lightweight APNG through the existing PNG preview channel, without restarting or changing sampling.",
+      "provides": [
+        "comfyui-h3-preview"
+      ]
+    },
+    {
       "dir": "ComfyUI-ColorCorrectedComposite",
       "order": 130,
       "id": "node-color-corrected-composite",

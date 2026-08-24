@@ -23,6 +23,7 @@ vendoring somebody else's code.
 | `ComfyUI-ModelPin` | ours | Per-graph VRAM residency. `PinModelGPU` forces a MODEL fully-resident; `EvictCLIPFromGPU` drops a text encoder once its conditioning exists, so a large UNET loading next isn't starved into streaming over PCIe. |
 | `ComfyUI-CondCache` | ours | `SaveConditioning`/`LoadConditioning` — encode a fixed prompt once and reuse it across a clip's per-frame graphs. Its `cache\` directory is a runtime artifact and is not part of the patch. |
 | `ComfyUI-Ideogram4Debanner` | ours | Frozen, reversible first-step residual correction for the conditional Ideogram 4 model. The Ideogram 4 workflow wires it before guidance; the checkpoint on disk is never changed. |
+| `ComfyUI-H3Preview` | ours | Whole-shot MiniMax H3 live previews. A model wrapper projects H3's packed video latent to a small APNG at the configured sampler-step interval and sends it through ComfyUI's existing PNG preview channel. |
 | `ComfyUI-ColorCorrectedComposite` | ours | Color-matched compositing for the edit/inpaint paths. |
 | `imagegen_gate` | ours | Submission gate — the app's queue is the only way in (`/prompt` refuses direct submissions). Carries a removal warning, because taking it out changes a guarantee rather than a feature. |
 | `ComfyUI-PixelHarness` | ours | `PixelQuantize` / `PixelManifoldProjection` and their palettes. ~15 workflow classes need these node names, and the DreamOmni2 patch loads its `quant.py`. Developed in a separate repo until that was retired — see `VENDORED.md`. |

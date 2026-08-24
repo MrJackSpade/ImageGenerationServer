@@ -112,6 +112,7 @@ public sealed class WorkflowRangeOverrideTests
         [WorkflowParamKeys.AudioVae] = "audio.safetensors",
         [WorkflowParamKeys.Length] = length,
         [WorkflowParamKeys.Fps] = 24.0,
+        [WorkflowParamKeys.PreviewEvery] = 4,
         [WorkflowParamKeys.Steps] = 20,
         [WorkflowParamKeys.Sampler] = "res_multistep",
         [WorkflowParamKeys.Scheduler] = "simple",

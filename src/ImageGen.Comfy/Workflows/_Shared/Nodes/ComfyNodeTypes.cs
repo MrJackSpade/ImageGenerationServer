@@ -52,6 +52,7 @@ internal static class ComfyNodeTypes
     public const string GetImageSize = "GetImageSize";
     public const string GetVideoComponents = "GetVideoComponents";
     public const string GrowMask = "GrowMask";
+    public const string H3AnimatedPreview = "H3AnimatedPreview";
     public const string HunyuanVideo15ImageToVideo = "HunyuanVideo15ImageToVideo";
     public const string HunyuanVideo15LatentUpscaleWithModel = "HunyuanVideo15LatentUpscaleWithModel";
     public const string HunyuanVideo15SuperResolution = "HunyuanVideo15SuperResolution";

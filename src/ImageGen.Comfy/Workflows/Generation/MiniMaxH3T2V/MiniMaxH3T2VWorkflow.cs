@@ -14,10 +14,11 @@ public sealed class MiniMaxH3T2VWorkflow : Txt2ImgWorkflow<MiniMaxH3Params>
     [
         .. Txt2ImgWorkflowBase.SharedSchema.Where(p => p.Key != WorkflowParamKeys.Length),
         H3.LengthSchema,
+        H3.PreviewSchema,
         .. H3.ExtraSchema,
     ];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Params p, ResolvedRequirements req, WorkflowInputs inputs)
         => H3.BuildT2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler,
-            p.Lora, p.LoraStrength, p.CkAttention, RenderSize(p, req, inputs));
+            p.Lora, p.LoraStrength, p.CkAttention, p.PreviewEvery, RenderSize(p, req, inputs));
 }

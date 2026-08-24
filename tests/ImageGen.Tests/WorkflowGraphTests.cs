@@ -578,6 +578,35 @@ public sealed class WorkflowGraphTests
         Assert.Equal(2, json.Split("\"VAELoader\"").Length - 1);   // video VAE + audio VAE
     }
 
+    [Theory]
+    [InlineData("minimax-h3-t2v", 4)]
+    [InlineData("minimax-h3-t2v-turbo", 1)]
+    public void MiniMaxH3_wraps_the_existing_sampler_model_with_the_configured_animated_preview(
+        string configId, int expectedInterval)
+    {
+        using JsonDocument doc = JsonDocument.Parse(BuildJson(configId, Gen));
+        JsonElement root = doc.RootElement;
+        JsonElement preview = root.GetProperty("52");
+
+        Assert.Equal("H3AnimatedPreview", preview.GetProperty("class_type").GetString());
+        Assert.Equal(expectedInterval, preview.GetProperty("inputs").GetProperty("preview_every").GetInt32());
+        Assert.Equal(24.0, preview.GetProperty("inputs").GetProperty("fps").GetDouble());
+        Assert.Equal("52", root.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
+        Assert.Equal("52", root.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
+    }
+
+    [Fact]
+    public void MiniMaxH3_animated_preview_can_be_disabled_without_changing_the_sampling_graph()
+    {
+        Dictionary<string, object?> disabled = new() { [WorkflowParamKeys.PreviewEvery] = 0 };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-t2v", Gen, disabled));
+        JsonElement root = doc.RootElement;
+
+        Assert.Equal(0, root.GetProperty("52").GetProperty("inputs").GetProperty("preview_every").GetInt32());
+        Assert.Equal("52", root.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
+        Assert.Equal("52", root.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
+    }
+
     /// <summary>H3 image→video feeds the uploaded still as the FIRST frame of the same audio topology.</summary>
     [Fact]
     public void MiniMaxH3_i2v_feeds_the_source_as_the_first_frame()
@@ -838,10 +867,12 @@ public sealed class WorkflowGraphTests
             Assert.Contains("minimax-h3-turbo-lora.safetensors", json);          // the resolved lora model-ref
             Assert.Contains("\"steps\":6", json);
             Assert.Contains("\"sampler_name\":\"euler\"", json);
-            // The scheduler and the guider consume the LoRA'd model (node 50), not the raw loader output.
+            // The preview wrapper consumes the LoRA'd model (node 50), and both sampler-model consumers use its
+            // pass-through output (node 52), never the raw loader output.
             using JsonDocument doc = JsonDocument.Parse(json);
-            Assert.Equal("50", doc.RootElement.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
-            Assert.Equal("50", doc.RootElement.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
+            Assert.Equal("50", doc.RootElement.GetProperty("52").GetProperty("inputs").GetProperty("model")[0].GetString());
+            Assert.Equal("52", doc.RootElement.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
+            Assert.Equal("52", doc.RootElement.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
         }
 
         foreach (string id in new[] { "minimax-h3-t2v", "minimax-h3-i2v", "minimax-h3-ref2v" })

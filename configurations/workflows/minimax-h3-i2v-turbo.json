@@ -11,7 +11,8 @@
     ],
     "vae": "minimax-h3-video-vae",
     "extra": [
-      "minimax-h3-audio-vae"
+      "minimax-h3-audio-vae",
+      "comfyui-h3-preview"
     ]
   },
   "params": {
@@ -62,6 +63,10 @@
     "fps": {
       "value": 24,
       "visibility": "hidden"
+    },
+    "preview_every": {
+      "value": 1,
+      "visibility": "exposed"
     }
   },
   "card": {

@@ -1,0 +1,6 @@
+{
+  "id": "comfyui-h3-preview",
+  "kind": "custom_node",
+  "label": "MiniMax H3 animated preview",
+  "node": "H3AnimatedPreview"
+}
