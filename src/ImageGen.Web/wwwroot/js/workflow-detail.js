@@ -238,9 +238,9 @@
   }
 
   // --- this machine's settings for this workflow ---------------------------------------------------
-  // What it renders with here, against what the catalogue shipped. Saving writes one override; clearing a field
-  // removes it and the shipped value comes back. The render size for each aspect lives here rather than being a
-  // second workflow per size.
+  // What it renders with here, against what the catalogue shipped. Saving writes one override; Reset removes it and
+  // the shipped value comes back. A blank prompt template is deliberately saved as blank. The render size for each
+  // aspect lives here rather than being a second workflow per size.
   let settingsData = null;
   const eff = (s) => (s.override !== null && s.override !== undefined ? s.override : s.shipped);
   const overridden = (s) => s.override !== null && s.override !== undefined;
@@ -255,7 +255,7 @@
       try { const body = await r.json(); if (body && body.error) message = body.error; } catch (_) { /* non-JSON error */ }
       toast(message); return false;
     }
-    toast(value === null || value === "" ? "Reset to the shipped value" : "Saved");
+    toast(value === null ? "Reset to the shipped value" : "Saved");
     await loadSettings();
     return true;
   }

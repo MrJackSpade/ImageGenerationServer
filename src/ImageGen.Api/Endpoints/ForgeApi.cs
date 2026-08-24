@@ -624,8 +624,8 @@ public static class ForgeApi
             }
         });
 
-        // One per-configuration setting override for this machine (param.<key> and synthetic UI settings). A blank value
-        // REMOVES the override and restores the shipped default.
+        // One per-configuration setting override for this machine (param.<key> and synthetic UI settings). Null removes
+        // an override. Blank also removes ordinary fields; a blank prompt template explicitly uses the regular prompt.
         _ = app.MapPut(Routes.CatalogOverride, async (OverrideRequest body, IWorkflowCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(body.ConfigId) || string.IsNullOrWhiteSpace(body.Key))
@@ -1911,7 +1911,7 @@ public sealed record BindingRequest(string SlotId, string? FileName = null);
 /// <summary>Body of PUT /forge/catalog/override.</summary>
 /// <param name="ConfigId">The workflow configuration.</param>
 /// <param name="Key">Namespaced setting key.</param>
-/// <param name="Value">The value, or blank/null to remove the override.</param>
+/// <param name="Value">The value, or null to remove the override. Blank removes ordinary fields but explicitly disables a prompt wrapper.</param>
 public sealed record OverrideRequest(string ConfigId, string Key, string? Value = null);
 
 /// <summary>Body of POST /forge/catalog/duplicate.</summary>

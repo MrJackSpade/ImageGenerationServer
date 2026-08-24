@@ -16,10 +16,11 @@ namespace ImageGen.Tests;
 public sealed class PromptTemplateTests
 {
     [Fact]
-    public void Missing_template_is_identity_and_tojson_preserves_the_exact_prompt()
+    public void Missing_or_blank_template_uses_the_regular_prompt_and_tojson_preserves_it()
     {
         const string prompt = "A sign reading \"hello\"\nunder blue light";
         Assert.Equal(prompt, PromptTemplates.Render(null, prompt, "plain-workflow"));
+        Assert.Equal(prompt, PromptTemplates.Render("", prompt, "plain-workflow"));
         Assert.Equal(prompt, PromptTemplates.Render("   ", prompt, "plain-workflow"));
 
         string rendered = PromptTemplates.Render(
@@ -122,6 +123,44 @@ public sealed class PromptTemplateTests
         Assert.Equal(prompt, rendered.RootElement.GetProperty("high_level_description").GetString());
         Assert.Equal(prompt, rendered.RootElement.GetProperty("compositional_deconstruction")
             .GetProperty("elements")[0].GetProperty("desc").GetString());
+    }
+
+    [Fact]
+    public async Task Submitting_a_blank_prompt_template_does_not_fall_back_to_the_configured_template()
+    {
+        WorkflowCatalog catalog = new(
+            new ComfyOptions { CatalogPath = Path.Combine(RepoRoot(), "configurations") },
+            NullLogger<WorkflowCatalog>.Instance);
+        catalog.SetBindings(catalog.AllRequirements().ToDictionary(r => r.Id, r => r.Id + ".safetensors"));
+        WorkflowRegistry registry = new ServiceCollection().AddWorkflows().BuildServiceProvider()
+            .GetRequiredService<WorkflowRegistry>();
+        CapturePromptHandler handler = new();
+        ComfyClient client = new(
+            new FixedHttpClientFactory(new HttpClient(handler)),
+            new FixedEndpoint(),
+            catalog,
+            registry,
+            new MediaProcessor(new MediaOptions()),
+            new FixedSnapshot<ComfyFilesByKind>(new ComfyFilesByKind(
+                new Dictionary<RequirementKind, IReadOnlyList<string>>())),
+            NullLogger<ComfyClient>.Instance);
+        Dictionary<string, JsonElement> overrides = new()
+        {
+            [WorkflowParamKeys.PromptTemplate] = JsonSerializer.SerializeToElement(""),
+        };
+
+        SubmitResult submission = await client.SubmitGenerateAsync(
+            "this must not enter the shipped template", null, "ideogram4", "square", overrides, null,
+            CancellationToken.None);
+
+        Assert.NotNull(handler.Body);
+        using JsonDocument request = JsonDocument.Parse(handler.Body);
+        JsonElement graph = request.RootElement.GetProperty("prompt");
+        JsonElement encode = Assert.Single(graph.EnumerateObject(), node =>
+            node.Value.GetProperty("class_type").GetString() == "CLIPTextEncode").Value;
+        Assert.Equal("this must not enter the shipped template",
+            encode.GetProperty("inputs").GetProperty("text").RequireString());
+        Assert.Equal("this must not enter the shipped template", submission.ModelPrompt);
     }
 
     [Fact]

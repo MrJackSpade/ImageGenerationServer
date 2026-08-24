@@ -18,7 +18,7 @@ internal static class PromptTemplates
     };
 
     /// <summary>Render a Jinja template with the submitted prompt as <c>prompt</c>. Missing/blank means identity, so
-    /// configurations that do not declare the parameter retain byte-for-byte prompt behavior.</summary>
+    /// configurations that do not declare a template, or explicitly override one with blank, use the regular prompt.</summary>
     public static string Render(string? source, string prompt, string workflowName)
     {
         if (string.IsNullOrWhiteSpace(source))

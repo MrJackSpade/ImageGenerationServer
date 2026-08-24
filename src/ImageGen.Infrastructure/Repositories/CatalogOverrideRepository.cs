@@ -337,9 +337,11 @@ WHERE MachineName = @m AND ConfigId = @c AND SlotId = @s;");
             _ = await del.ExecuteNonQueryAsync(ct);
         }
 
-        // Blank REMOVES the override rather than storing an empty string, so "reset to the shipped default" and
-        // "set it to nothing" cannot be confused with each other.
-        if (!string.IsNullOrWhiteSpace(settingValue))
+        // Ordinary blank fields retain the historical reset behavior. A prompt template is different: blank explicitly
+        // bypasses the shipped wrapper, and the API already uses null for its Reset action, so preserve that value.
+        bool promptTemplate = string.Equals(
+            settingKey, CatalogOverrideSettingKeys.PromptTemplate, StringComparison.OrdinalIgnoreCase);
+        if (settingValue is not null && (promptTemplate || !string.IsNullOrWhiteSpace(settingValue)))
         {
             await using DbCommand ins = conn.Command(@"
 INSERT INTO dbo.ConfigOverride (MachineName, ConfigId, SettingKey, SettingValue, UpdatedAtUtc)
@@ -348,7 +350,7 @@ VALUES (@m, @c, @k, @v, @now);");
             _ = ins.AddParam("@m", machineName);
             _ = ins.AddParam("@c", configId);
             _ = ins.AddParam("@k", settingKey);
-            _ = ins.AddParam("@v", settingValue.Trim());
+            _ = ins.AddParam("@v", promptTemplate ? settingValue : settingValue.Trim());
             _ = ins.AddParam("@now", DateTime.UtcNow);
             _ = await ins.ExecuteNonQueryAsync(ct);
         }

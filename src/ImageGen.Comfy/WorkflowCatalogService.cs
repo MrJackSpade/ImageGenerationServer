@@ -890,7 +890,7 @@ public sealed partial class WorkflowCatalogService(
         public const string AspectOverride = "param.aspect";
 
         /// <summary>The settings-page override key for a configuration's prompt template.</summary>
-        public const string PromptTemplate = ParamPrefix + WorkflowParamKeys.PromptTemplate;
+        public const string PromptTemplate = CatalogOverrideSettingKeys.PromptTemplate;
 
         /// <summary>The per-machine setting key for whether the composer offers a Custom aspect (width/height boxes) for
         /// this workflow (a plain bool override, not a graph parameter).</summary>

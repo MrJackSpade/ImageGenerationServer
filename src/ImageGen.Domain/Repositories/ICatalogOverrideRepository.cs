@@ -36,6 +36,13 @@ public enum WorkflowBindingResult
 /// <param name="SettingValue">The raw text, coerced through the parameter's existing type when it is read.</param>
 public sealed record CatalogOverride(string ConfigId, string SettingKey, string SettingValue);
 
+/// <summary>Namespaced configuration-setting keys whose persistence semantics are part of the override contract.</summary>
+public static class CatalogOverrideSettingKeys
+{
+    /// <summary>A blank prompt template explicitly uses the regular prompt; only null restores the shipped template.</summary>
+    public const string PromptTemplate = "param.prompt_template";
+}
+
 /// <summary>
 /// The install-wide catalogue overrides for a machine: model bindings and per-configuration settings.
 ///
@@ -87,8 +94,9 @@ public interface ICatalogOverrideRepository
         string machineName, CancellationToken ct);
 
     /// <summary>
-    /// Sets one configuration setting, replacing any existing value. <paramref name="settingValue"/> null or
-    /// blank REMOVES the override, restoring the shipped default.
+    /// Sets one configuration setting, replacing any existing value. <paramref name="settingValue"/> null removes
+    /// the override. Blank also removes ordinary settings, but is a real value for
+    /// <see cref="CatalogOverrideSettingKeys.PromptTemplate"/>.
     /// </summary>
     Task SetOverrideAsync(
         string machineName, string configId, string settingKey, string? settingValue, CancellationToken ct);

@@ -225,6 +225,22 @@ public sealed class CatalogOverrideRepositoryTests(TestDatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task A_blank_prompt_template_is_stored_and_only_null_restores_the_shipped_template()
+    {
+        const string machine = "ovr-blank-prompt-template";
+        await Repo.SetOverrideAsync(machine, "cfg", CatalogOverrideSettingKeys.PromptTemplate, "", Ct);
+
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> stored = await Repo.OverridesAsync(machine, Ct);
+        Assert.Equal("", stored["cfg"][CatalogOverrideSettingKeys.PromptTemplate]);
+
+        await Repo.SetOverrideAsync(machine, "cfg", CatalogOverrideSettingKeys.PromptTemplate, null, Ct);
+
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> reset = await Repo.OverridesAsync(machine, Ct);
+        Assert.False(reset.TryGetValue("cfg", out IReadOnlyDictionary<string, string>? settings)
+            && settings.ContainsKey(CatalogOverrideSettingKeys.PromptTemplate));
+    }
+
+    [Fact]
     public async Task An_unknown_machine_has_no_bindings_and_no_overrides()
     {
         Assert.Empty(await Repo.BindingsAsync("never-seen", Ct));

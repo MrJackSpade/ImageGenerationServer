@@ -280,7 +280,9 @@ function readOverrides(box) {
     } else if (t === "bool") {
       out[inp.dataset.key] = !!inp.checked;
     } else {
-      if (inp.value == null || inp.value === "") continue;
+      // Empty text normally means "omit this override." A prompt template is the exception: empty explicitly uses
+      // the regular prompt, while omission asks the workflow to use its configured default template.
+      if (inp.value == null || (inp.value === "" && inp.dataset.key !== "prompt_template")) continue;
       out[inp.dataset.key] = inp.value;   // enum / string
     }
   }
