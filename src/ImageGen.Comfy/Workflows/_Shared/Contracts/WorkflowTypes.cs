@@ -68,7 +68,7 @@ public enum WorkflowMedia { Image, Video }
 public enum PromptSemantics { Instruction, WholeImage, MaskedRegion }
 
 /// <summary>The CLR type of a workflow parameter, so a configuration value can be coerced + a UI control chosen.</summary>
-public enum ParamType { Int, Double, String, Multiline, Bool, Enum }
+public enum ParamType { Int, IntList, Double, String, Multiline, Bool, Enum }
 
 /// <summary>How a configuration's diffusion model is loaded — the closed vocabulary of the <c>loader</c> param.
 /// <see cref="Checkpoint"/> is an all-in-one checkpoint (model+CLIP+VAE) via <c>CheckpointLoaderSimple</c>;
@@ -374,6 +374,28 @@ public static class ParamsCodec
 
     private static RenderValidationException NumericValueException(object? value, string expected) =>
         new($"Parameter value '{value}' must be {expected}; it cannot be silently replaced with a default.");
+}
+
+/// <summary>Validates every member of an integer-list workflow parameter while allowing an empty list.</summary>
+[AttributeUsage(AttributeTargets.Property)]
+public sealed class IntListRangeAttribute(int minimum, int maximum) : ValidationAttribute
+{
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
+    {
+        if (value is not IEnumerable<int> values)
+        {
+            return new ValidationResult(
+                $"{validationContext.DisplayName} must be an integer list.",
+                [validationContext.MemberName ?? validationContext.DisplayName]);
+        }
+
+        int? invalid = values.Cast<int?>().FirstOrDefault(v => v < minimum || v > maximum);
+        return invalid is null
+            ? ValidationResult.Success
+            : new ValidationResult(
+                $"Every value must be between {minimum} and {maximum}, but the list contained {invalid}.",
+                [validationContext.MemberName ?? validationContext.DisplayName]);
+    }
 }
 
 /// <summary>The cross-workflow submission parameters the client (not a workflow) reads off the merged bag: the ETA

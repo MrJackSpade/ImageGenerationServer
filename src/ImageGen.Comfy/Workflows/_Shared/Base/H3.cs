@@ -56,13 +56,10 @@ internal static class H3
 
     public static readonly ParamSpec PreviewSchema = new()
     {
-        Key = WorkflowParamKeys.PreviewEvery,
-        Type = ParamType.Int,
-        Min = 0,
-        Max = ParamBounds.StepsMax,
-        Step = 1,
-        Label = "Preview every N steps",
-        Help = "0 = off; otherwise show a lightweight animated preview of the complete shot every N sampler steps",
+        Key = WorkflowParamKeys.PreviewSteps,
+        Type = ParamType.IntList,
+        Label = "Preview steps",
+        Help = "Exact completed sampler steps to preview, such as 1, 5, 10; leave empty to disable animated previews",
     };
 
     /// <summary>The audio VAE — a SECOND vae slot beyond the video VAE (<c>req.Vae</c>). A model-ref param resolved to
@@ -104,19 +101,19 @@ internal static class H3
     /// <summary>Text→video: no source, the clip size is the aspect map's resolved <paramref name="dims"/>.</summary>
     public static ComfyWorkflowGraph BuildT2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, bool ckAttention, int previewEvery, (int w, int h) dims)
+        string? lora, double loraStrength, bool ckAttention, IReadOnlyList<int> previewSteps, (int w, int h) dims)
     {
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         rig.Graph[H3Nodes.Encode] = new MiniMaxH3ImageToVideoT2V { Clip = rig.Clip, Vae = rig.VideoVae, Prompt = inputs.Positive, Length = length, Width = dims.w, Height = dims.h };
         return Finish(rig, MiniMaxH3ImageToVideoT2V.PositiveOut(H3Nodes.Encode), MiniMaxH3ImageToVideoT2V.LatentOut(H3Nodes.Encode),
-            fps, seed, steps, sampler, scheduler, previewEvery, OutputPrefixes.Generate);
+            fps, seed, steps, sampler, scheduler, previewSteps, OutputPrefixes.Generate);
     }
 
     /// <summary>Image→video: the source image is the first frame and the clip size derives from it (scaled to the
     /// per-config <paramref name="budgetMp"/>).</summary>
     public static ComfyWorkflowGraph BuildI2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, bool ckAttention, int previewEvery, double budgetMp)
+        string? lora, double loraStrength, bool ckAttention, IReadOnlyList<int> previewSteps, double budgetMp)
     {
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
@@ -164,14 +161,14 @@ internal static class H3
                 FirstFrame = ImageScaleToTotalPixels.Out(H3Nodes.ScaledSource),
             };
         return Finish(rig, new Output<Slot.Conditioning>(H3Nodes.Encode, 0), new Output<Slot.Latent>(H3Nodes.Encode, 1),
-            fps, seed, steps, sampler, scheduler, previewEvery, OutputPrefixes.Edit);
+            fps, seed, steps, sampler, scheduler, previewSteps, OutputPrefixes.Edit);
     }
 
     /// <summary>Reference→video: the open image is a first-frame timeline guide and an optional end image is a
     /// last-frame guide. Only picker media enters the semantic reference slots.</summary>
     public static ComfyWorkflowGraph BuildRef2V(ResolvedRequirements req, WorkflowInputs inputs,
         string audioVae, int length, double fps, long seed, int steps, string sampler, string scheduler,
-        string? lora, double loraStrength, bool ckAttention, int previewEvery, double budgetMp, int refMax, string refImageSize)
+        string? lora, double loraStrength, bool ckAttention, IReadOnlyList<int> previewSteps, double budgetMp, int refMax, string refImageSize)
     {
         Rig rig = Loaders(req, audioVae, lora, loraStrength, ckAttention);
         ComfyWorkflowGraph g = rig.Graph;
@@ -290,7 +287,7 @@ internal static class H3
             positive = MiniMaxH3AddGuide.PositiveOut(H3Nodes.LastGuide);
         }
 
-        return Finish(rig, positive, latent, fps, seed, steps, sampler, scheduler, previewEvery, OutputPrefixes.Edit);
+        return Finish(rig, positive, latent, fps, seed, steps, sampler, scheduler, previewSteps, OutputPrefixes.Edit);
     }
 
     /// <summary>Loaders. Diffusion via DiffusionLoaderNode → plain UNETLoader (int8 ConvRot loads natively, weight_dtype
@@ -314,11 +311,16 @@ internal static class H3
     /// audio. The SAME latent decodes to frames (video VAE) and to the native stereo track (audio VAE); CreateVideo
     /// muxes them; SaveVideo writes a real mp4 (format/codec auto = h264/aac).</summary>
     private static ComfyWorkflowGraph Finish(Rig rig, Output<Slot.Conditioning> positive, Output<Slot.Latent> latent,
-        double fps, long seed, int steps, string sampler, string scheduler, int previewEvery, string filenamePrefix)
+        double fps, long seed, int steps, string sampler, string scheduler, IReadOnlyList<int> previewSteps, string filenamePrefix)
     {
         ComfyWorkflowGraph g = rig.Graph;
 
-        g[H3Nodes.Preview] = new H3AnimatedPreview { Model = rig.Model, PreviewEvery = previewEvery, Fps = fps };
+        g[H3Nodes.Preview] = new H3AnimatedPreview
+        {
+            Model = rig.Model,
+            PreviewSteps = new ComfyLiteralValue<IReadOnlyList<int>>(previewSteps),
+            Fps = fps,
+        };
         Output<Slot.Model> samplingModel = H3AnimatedPreview.Out(H3Nodes.Preview);
 
         g[H3Nodes.Scheduler] = new BasicScheduler { Model = samplingModel, Scheduler = ComfyGraph.MapScheduler(scheduler), Steps = steps, Denoise = 1.0 };

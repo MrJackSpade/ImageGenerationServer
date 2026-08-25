@@ -59,8 +59,8 @@
       "value": 24,
       "visibility": "hidden"
     },
-    "preview_every": {
-      "value": 4,
+    "preview_steps": {
+      "value": [5],
       "visibility": "hidden"
     }
   },

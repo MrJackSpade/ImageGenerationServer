@@ -9,12 +9,15 @@ namespace ImageGen.Comfy;
 /// socket at compile time.</summary>
 public sealed class AudioSlot { private AudioSlot() { } }
 
-/// <summary>Attaches the node-only whole-shot APNG callback to H3's model. A zero interval is a strict no-op.</summary>
+/// <summary>A literal list input wrapped so ComfyUI does not mistake it for a <c>[node, slot]</c> edge.</summary>
+public sealed record ComfyLiteralValue<T>([property: JsonPropertyName("__value__")] T Value);
+
+/// <summary>Attaches the node-only whole-shot APNG callback to H3's model. An empty step list is a strict no-op.</summary>
 public sealed record H3AnimatedPreview : ComfyNode
 {
     internal override string ClassType => ComfyNodeTypes.H3AnimatedPreview;
     [JsonPropertyName("model")] public required Output<Slot.Model> Model { get; init; }
-    [JsonPropertyName("preview_every")] public required int PreviewEvery { get; init; }
+    [JsonPropertyName("preview_steps")] public required ComfyLiteralValue<IReadOnlyList<int>> PreviewSteps { get; init; }
     [JsonPropertyName("fps")] public required double Fps { get; init; }
     public static Output<Slot.Model> Out(string id) => new(id, 0);
 }

@@ -195,7 +195,7 @@ function renderParamFields(box, modelOrModels, extraParams) {
   if (!box) return;
   box.innerHTML = "";
   const models = Array.isArray(modelOrModels) ? modelOrModels.filter(Boolean) : (modelOrModels ? [modelOrModels] : []);
-  const ps = sharedExposedParams(models).filter(p => ["int", "double", "enum", "string", "multiline", "bool"].includes(p.type));
+  const ps = sharedExposedParams(models).filter(p => ["int", "intlist", "double", "enum", "string", "multiline", "bool"].includes(p.type));
   // Caller-forced params (the compose page's custom-size width/height): appended when the visibility overlay didn't
   // already produce them, so they render through the same control path as any exposed param.
   for (const p of (extraParams || [])) if (!ps.some(q => q.key === p.key)) ps.push(p);
@@ -225,6 +225,11 @@ function renderParamFields(box, modelOrModels, extraParams) {
       // Configurations carry seed=0 as their typed fallback, but an untouched/revealed seed control must be blank:
       // omission is what asks the server to choose and persist a fresh seed. Explicitly typing 0 still submits 0.
       inp.value = (p.key === "seed" && Number(p.value) === 0) ? "" : (p.value != null ? p.value : "");
+    } else if (p.type === "intlist") {
+      inp = document.createElement("input"); inp.type = "text";
+      inp.inputMode = "numeric";
+      inp.placeholder = "e.g. 1, 5, 10";
+      inp.value = Array.isArray(p.value) ? p.value.join(", ") : "";
     } else if (p.type === "bool") {
       inp = document.createElement("input"); inp.type = "checkbox";
       inp.checked = (p.value === true || p.value === "true");
@@ -277,6 +282,12 @@ function readOverrides(box) {
       if (inp.value === "") continue;
       const n = Number(inp.value); if (Number.isNaN(n)) continue;
       out[inp.dataset.key] = t === "int" ? Math.round(n) : n;
+    } else if (t === "intlist") {
+      const text = String(inp.value || "").trim();
+      if (!text) { out[inp.dataset.key] = []; continue; }
+      const values = text.split(",").map(v => Number(v.trim()));
+      if (values.some(v => !Number.isInteger(v))) continue;
+      out[inp.dataset.key] = values;
     } else if (t === "bool") {
       out[inp.dataset.key] = !!inp.checked;
     } else {
@@ -316,7 +327,7 @@ function applyParamPrefs(box, prefs) {
         v = inp.dataset.ptype === "int" ? Math.round(s) : s;
       }
     }
-    inp.value = v;
+    inp.value = inp.dataset.ptype === "intlist" && Array.isArray(v) ? v.join(", ") : v;
     if (inp.rangeWarningRefresh) inp.rangeWarningRefresh();
   }
 }

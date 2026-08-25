@@ -356,6 +356,22 @@ public sealed class ComfyPatchTests : IDisposable
         }
     }
 
+    [Fact]
+    public void H3_preview_encoding_stays_off_the_sampler_critical_path()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            RequiredPayload(), "comfy-nodes", "ComfyUI-H3Preview", "__init__.py"));
+
+        Assert.Contains("threading.Thread(", source, StringComparison.Ordinal);
+        Assert.Contains("pin_memory=True", source, StringComparison.Ordinal);
+        Assert.Contains("copy_(images, non_blocking=True)", source, StringComparison.Ordinal);
+        Assert.Contains("ready.synchronize()", source, StringComparison.Ordinal);
+        Assert.Contains("encoder.submit(images, ready, pixel_frames)", source, StringComparison.Ordinal);
+        Assert.Contains("completed_step not in self.preview_steps", source, StringComparison.Ordinal);
+        Assert.Contains("_normalize_preview_steps", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".cpu().numpy()", source, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Every third-party pack the app depends on must be installable from the patch set, whether or not this
     /// repo changes anything in it. "We changed nothing" is not "it need not be here": a pack that only ever

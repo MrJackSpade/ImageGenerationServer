@@ -103,7 +103,7 @@ public static class ParamVisibilityExtensions
 
 /// <summary>One UI-exposed parameter of a workflow configuration, joined to its schema for type/range/label.</summary>
 /// <param name="Key">Parameter key.</param>
-/// <param name="Type">CLR type token, lowercased (int/double/string/bool/enum).</param>
+/// <param name="Type">CLR type token, lowercased (int/intlist/double/string/bool/enum).</param>
 /// <param name="Value">The configuration's current value.</param>
 /// <param name="Min">Minimum for a numeric control, or null.</param>
 /// <param name="Max">Maximum for a numeric control, or null.</param>

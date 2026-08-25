@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import io
 import logging
+import queue
 import struct
+import threading
 
 import torch
 import torch.nn.functional as F
@@ -23,6 +25,27 @@ _MAX_PREVIEW_FRAMES = 24
 _MAX_PREVIEW_EDGE = 384
 _PNG_FORMAT_NUMBER = 2
 _WRAPPER_KEY = "imagegen_h3_animated_preview"
+_PREVIEW_STEPS_TYPE = "IMAGEGEN_INT_LIST"
+
+
+def _normalize_preview_steps(value):
+    """Return the unique positive completed-step numbers accepted by the sampler callback."""
+    if value is None:
+        return frozenset()
+    if isinstance(value, (int, float)):
+        value = [value]
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        raise ValueError("preview_steps must be an integer list")
+
+    steps = set()
+    for item in value:
+        if isinstance(item, bool) or int(item) != item:
+            raise ValueError("preview_steps must contain integers")
+        step = int(item)
+        if step < 1 or step > 100:
+            raise ValueError("preview_steps entries must be between 1 and 100")
+        steps.add(step)
+    return frozenset(steps)
 
 
 def _video_stream(x0, latent_shapes=None):
@@ -81,7 +104,7 @@ def _latent_rgb(video, latent_format):
 def _pil_frames(images):
     frames = []
     for frame in images:
-        array = (frame * 255.0).to(torch.uint8).cpu().numpy()
+        array = frame.numpy()
         image = Image.fromarray(array, mode="RGB")
         longest = max(image.size)
         if longest > 0 and longest != _MAX_PREVIEW_EDGE:
@@ -127,13 +150,97 @@ def _send_png(png_bytes):
     )
 
 
+def _stage_cpu(images):
+    """Queue a non-blocking GPU->pinned-CPU snapshot and return (buffer, completion event)."""
+    # Quantize before transfer: the preview is 8-bit output, so moving float32 would spend 4x the PCIe bandwidth
+    # and pinned memory only to discard those extra bits in Pillow.
+    images = (images.detach() * 255.0).to(torch.uint8)
+    if images.device.type != "cuda":
+        return images.to("cpu"), None
+
+    # A plain .cpu() synchronizes the sampler's CUDA stream here. On H3 that can turn preview extraction into
+    # minutes of apparent per-step overhead. Pinned memory keeps the copy asynchronous; only the encoder thread
+    # waits for it, while sampling is free to continue after the queued transfer.
+    with torch.cuda.device(images.device):
+        staged = torch.empty_like(images, device="cpu", pin_memory=True)
+        staged.copy_(images, non_blocking=True)
+        ready = torch.cuda.Event()
+        ready.record(torch.cuda.current_stream(images.device))
+    return staged, ready
+
+
+class _PreviewEncoder:
+    """Encode off the sampler thread, retaining at most one pending (latest) preview."""
+
+    def __init__(self, fps):
+        self.fps = max(0.1, float(fps))
+        self.pending = queue.Queue(maxsize=1)
+        self.closed = threading.Event()
+        self.worker = threading.Thread(
+            target=self._run,
+            name="h3-apng-preview",
+            daemon=True,
+        )
+        self.worker.start()
+
+    def can_accept(self):
+        # When encoding is slower than sampling, one future frame may wait behind the current encode. Further
+        # sampler steps skip preview work entirely instead of repeatedly projecting/copying frames nobody will see.
+        return not self.closed.is_set() and not self.pending.full()
+
+    def submit(self, images, ready, pixel_frames):
+        if self.closed.is_set():
+            return
+        try:
+            self.pending.put_nowait((images, ready, int(pixel_frames)))
+        except queue.Full:
+            return
+
+    def close(self):
+        # Never wait for encoding at render completion. A frame still being encoded is now superseded by the durable
+        # output and must not arrive after ComfyUI's terminal event (which would also poison page-recovery state).
+        self.closed.set()
+        try:
+            while True:
+                self.pending.get_nowait()
+        except queue.Empty:
+            pass
+
+    def _run(self):
+        while True:
+            try:
+                images, ready, pixel_frames = self.pending.get(timeout=0.1)
+            except queue.Empty:
+                if self.closed.is_set():
+                    return
+                continue
+
+            try:
+                if ready is not None:
+                    ready.synchronize()
+                if self.closed.is_set():
+                    return
+                frames = _pil_frames(images)
+                duration_ms = 1000.0 * pixel_frames / (self.fps * max(1, len(frames)))
+                png = _encode_apng(frames, duration_ms)
+                if png is not None and not self.closed.is_set():
+                    _send_png(png)
+            except Exception as error:
+                if not self.closed.is_set():
+                    log.warning(
+                        "H3 animated preview encoding failed; generation will continue without it: %r",
+                        error,
+                        exc_info=True,
+                    )
+
+
 def _suppressed_preview_image(*_args, **_kwargs):
     return None
 
 
 class _H3PreviewWrapper:
-    def __init__(self, preview_every, fps):
-        self.preview_every = int(preview_every)
+    def __init__(self, preview_steps, fps):
+        self.preview_steps = _normalize_preview_steps(preview_steps)
         self.fps = max(0.1, float(fps))
 
     def __call__(
@@ -153,6 +260,7 @@ class _H3PreviewWrapper:
         latent_format = guider.model_patcher.model.latent_format
         latent_shapes = kwargs.get("latent_shapes")
         warned = False
+        encoder = _PreviewEncoder(self.fps)
 
         # prepare_callback has already captured a previewer by the time OUTER_SAMPLE runs.
         # Suppress every concrete implementation during this sampler while preserving the
@@ -177,7 +285,9 @@ class _H3PreviewWrapper:
                 callback(step, x0, x, total_steps)
 
             completed_step = int(step) + 1
-            if completed_step % self.preview_every != 0:
+            if completed_step not in self.preview_steps:
+                return
+            if not encoder.can_accept():
                 return
 
             try:
@@ -186,12 +296,8 @@ class _H3PreviewWrapper:
                     return
                 pixel_frames = _pixel_frame_count(int(video.shape[2]))
                 selected = _pick_frames(video, _MAX_PREVIEW_FRAMES)
-                frames = _pil_frames(_latent_rgb(selected, latent_format))
-                # Evenly sampled preview frames span the complete final shot duration.
-                duration_ms = 1000.0 * pixel_frames / (self.fps * max(1, len(frames)))
-                png = _encode_apng(frames, duration_ms)
-                if png is not None:
-                    _send_png(png)
+                images, ready = _stage_cpu(_latent_rgb(selected, latent_format))
+                encoder.submit(images, ready, pixel_frames)
             except Exception as error:  # A preview must never take the generation down.
                 if not warned:
                     warned = True
@@ -214,6 +320,7 @@ class _H3PreviewWrapper:
                 **kwargs,
             )
         finally:
+            encoder.close()
             for target, previous in previous_methods:
                 target.decode_latent_to_preview_image = previous
 
@@ -226,14 +333,11 @@ class H3AnimatedPreview:
         return {
             "required": {
                 "model": ("MODEL",),
-                "preview_every": (
-                    "INT",
+                "preview_steps": (
+                    _PREVIEW_STEPS_TYPE,
                     {
-                        "default": 4,
-                        "min": 0,
-                        "max": 100,
-                        "step": 1,
-                        "tooltip": "Sampler-step interval; 0 disables animated previews.",
+                        "default": {"__value__": [5]},
+                        "tooltip": "Exact completed sampler steps; an empty list disables animated previews.",
                     },
                 ),
                 "fps": (
@@ -247,13 +351,21 @@ class H3AnimatedPreview:
     FUNCTION = "patch"
     CATEGORY = "model_patches/minimax_h3"
 
-    def patch(self, model, preview_every=4, fps=24.0):
-        interval = int(preview_every)
-        if interval <= 0:
+    @classmethod
+    def VALIDATE_INPUTS(cls, preview_steps=None, **_kwargs):
+        try:
+            _normalize_preview_steps(preview_steps)
+            return True
+        except (TypeError, ValueError) as error:
+            return str(error)
+
+    def patch(self, model, preview_steps=None, fps=24.0):
+        steps = _normalize_preview_steps(preview_steps)
+        if not steps:
             return (model,)
 
         patched = model.clone()
-        wrapper = _H3PreviewWrapper(interval, fps)
+        wrapper = _H3PreviewWrapper(steps, fps)
         comfy.patcher_extension.add_wrapper_with_key(
             comfy.patcher_extension.WrappersMP.OUTER_SAMPLE,
             _WRAPPER_KEY,

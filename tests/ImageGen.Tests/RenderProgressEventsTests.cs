@@ -14,6 +14,8 @@ public sealed class RenderProgressEventsTests
 
         public RenderProgressRoute? ResolveProgressRoute(string comfyPromptId) =>
             _routes.TryGetValue(comfyPromptId, out RenderProgressRoute route) ? route : null;
+
+        public void Remove(string comfyPromptId) => _ = _routes.Remove(comfyPromptId);
     }
 
     private static string TextOf(RenderProgressFrame frame) => Encoding.UTF8.GetString(frame.Bytes);
@@ -48,6 +50,55 @@ public sealed class RenderProgressEventsTests
         Assert.True(frame.Binary);
         Assert.Equal(preview, frame.Bytes);
         Assert.False(theirs.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void Page_subscriber_recovers_the_latest_active_preview_with_its_job_context()
+    {
+        RenderProgressEvents events = new(new Routes(("comfy-1", 7, "job-42")));
+        byte[] preview = [0, 0, 0, 1, 0, 0, 0, 2, 0x89, 0x50, 0x4e, 0x47];
+
+        // The preview happened before this page connected.
+        events.PublishBinary(preview, "comfy-1");
+        using RenderProgressSubscription recovered = events.Subscribe(7);
+        using RenderProgressSubscription theirs = events.Subscribe(8);
+
+        Assert.True(recovered.Reader.TryRead(out RenderProgressFrame? context));
+        Assert.False(context.Binary);
+        Assert.Contains("job-42", TextOf(context), StringComparison.Ordinal);
+        Assert.True(recovered.Reader.TryRead(out RenderProgressFrame? frame));
+        Assert.True(frame.Binary);
+        Assert.Equal(preview, frame.Bytes);
+        Assert.False(theirs.Reader.TryRead(out _));
+    }
+
+    [Theory]
+    [InlineData("execution_success")]
+    [InlineData("execution_error")]
+    [InlineData("execution_interrupted")]
+    public void Finished_execution_does_not_replay_a_stale_preview(string terminalType)
+    {
+        RenderProgressEvents events = new(new Routes(("comfy-1", 7, "job-42")));
+        events.PublishBinary(new byte[] { 1, 2, 3 }, "comfy-1");
+        events.PublishText($"{{\"type\":\"{terminalType}\",\"data\":{{\"prompt_id\":\"comfy-1\"}}}}", "comfy-1");
+
+        using RenderProgressSubscription recovered = events.Subscribe(7);
+
+        Assert.False(recovered.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void Terminal_frame_retires_preview_even_when_the_job_route_was_already_removed()
+    {
+        Routes routes = new(("comfy-1", 7, "job-42"));
+        RenderProgressEvents events = new(routes);
+        events.PublishBinary(new byte[] { 1, 2, 3 }, "comfy-1");
+        routes.Remove("comfy-1");
+
+        events.PublishText("{\"type\":\"execution_success\",\"data\":{\"prompt_id\":\"comfy-1\"}}", "comfy-1");
+        using RenderProgressSubscription recovered = events.Subscribe(7);
+
+        Assert.False(recovered.Reader.TryRead(out _));
     }
 
     [Fact]

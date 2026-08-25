@@ -13,6 +13,6 @@ public sealed record MiniMaxH3Params : Txt2ImgParams
     [JsonPropertyName(WorkflowParamKeys.Length)]
     [Range(H3.MinFrames, H3.MaxFrames)] public required int Length { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Fps)] public required double Fps { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PreviewEvery)]
-    [Range(0, ParamBounds.StepsMax)] public required int PreviewEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PreviewSteps)]
+    [IntListRange(1, ParamBounds.StepsMax)] public required int[] PreviewSteps { get; init; }
 }

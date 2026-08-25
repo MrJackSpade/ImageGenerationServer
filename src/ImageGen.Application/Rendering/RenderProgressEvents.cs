@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace ImageGen.Application.Rendering;
@@ -51,7 +52,9 @@ public interface IRenderProgressPublisher
 /// <summary>The API's read side of the one process-wide progress stream.</summary>
 public interface IRenderProgressStream
 {
-    /// <summary>Subscribe to frames owned by <paramref name="owner"/> plus general backend status messages.</summary>
+    /// <summary>Subscribe to frames owned by <paramref name="owner"/> plus general backend status messages. When that
+    /// owner has an active preview, the subscription begins with its job context and latest frame so a page request
+    /// recovers immediately instead of waiting for the renderer's next preview interval.</summary>
     RenderProgressSubscription Subscribe(long owner);
 }
 
@@ -66,10 +69,25 @@ internal sealed class RenderProgressEvents(IRenderProgressRouteResolver routes)
     /// progress and previews are snapshots, and every completion path also has the authoritative /jobs poll.</summary>
     private const int SubscriberCapacity = 32;
 
+    /// <summary>Comfy event tokens used to retire a recovered preview, plus this gateway's replay context token.</summary>
+    private static class EventTypes
+    {
+        public const string Member = "type";
+        public const string PreviewReplay = "preview_replay";
+        public const string Success = "execution_success";
+        public const string Error = "execution_error";
+        public const string Interrupted = "execution_interrupted";
+    }
+
     private sealed record Subscriber(long Owner, Channel<RenderProgressFrame> Channel);
+    private sealed record CachedPreview(
+        string ComfyPromptId, string JobId, RenderProgressFrame Context, RenderProgressFrame Preview);
 
     private readonly Lock _lock = new();
     private readonly Dictionary<Guid, Subscriber> _subscribers = [];
+    /// <summary>One renderer prompt can be active per owner on this backend. Only its latest snapshot is retained:
+    /// APNGs can be large, and recovery needs the newest denoising state, never every emitted step.</summary>
+    private readonly Dictionary<long, CachedPreview> _latestPreviews = [];
 
     /// <inheritdoc />
     public RenderProgressSubscription Subscribe(long owner)
@@ -85,6 +103,13 @@ internal sealed class RenderProgressEvents(IRenderProgressRouteResolver routes)
         lock (_lock)
         {
             _subscribers.Add(id, new Subscriber(owner, channel));
+            if (_latestPreviews.TryGetValue(owner, out CachedPreview? cached))
+            {
+                // A binary Comfy preview carries no prompt/job id. The browser associates it with the most recent
+                // prompt-bearing text frame, so replay the pair in order or page recovery will discard the image.
+                _ = channel.Writer.TryWrite(cached.Context);
+                _ = channel.Writer.TryWrite(cached.Preview);
+            }
         }
 
         return new RenderProgressSubscription(channel.Reader, () => Remove(id));
@@ -100,15 +125,28 @@ internal sealed class RenderProgressEvents(IRenderProgressRouteResolver routes)
             return;
         }
 
+        bool terminal = EndsExecution(text);
         RenderProgressRoute? route = routes.ResolveProgressRoute(comfyPromptId);
         if (route is not { } r)
         {
+            // The orchestrator may retire its prompt route before this listener consumes ComfyUI's terminal frame.
+            // The cache still knows the backend id, so it can release the APNG without needing that route.
+            if (terminal)
+            {
+                RetirePreview(comfyPromptId);
+            }
+
             return; // unknown prompt: fail closed rather than expose another process/client's event
         }
 
         string translated = string.Equals(comfyPromptId, r.JobId, StringComparison.Ordinal)
             ? text
             : text.Replace(comfyPromptId, r.JobId, StringComparison.Ordinal);
+        if (terminal)
+        {
+            RetirePreview(comfyPromptId);
+        }
+
         Publish(new RenderProgressFrame(Encoding.UTF8.GetBytes(translated), Binary: false), r.Owner);
     }
 
@@ -121,19 +159,80 @@ internal sealed class RenderProgressEvents(IRenderProgressRouteResolver routes)
             return;
         }
 
-        Publish(new RenderProgressFrame(bytes.ToArray(), Binary: true), route.Owner);
+        RenderProgressFrame preview = new(bytes.ToArray(), Binary: true);
+        RenderProgressFrame context = new(
+            JsonSerializer.SerializeToUtf8Bytes(new { type = EventTypes.PreviewReplay, data = new { prompt_id = route.JobId } }),
+            Binary: false);
+        lock (_lock)
+        {
+            _latestPreviews[route.Owner] = new CachedPreview(comfyPromptId, route.JobId, context, preview);
+            PublishLocked(preview, route.Owner);
+        }
     }
 
     private void Publish(RenderProgressFrame frame, long? owner)
     {
         lock (_lock)
         {
-            foreach (Subscriber subscriber in _subscribers.Values)
+            PublishLocked(frame, owner);
+        }
+    }
+
+    /// <summary>Fan out one frame while <see cref="_lock"/> is held.</summary>
+    private void PublishLocked(RenderProgressFrame frame, long? owner)
+    {
+        foreach (Subscriber subscriber in _subscribers.Values)
+        {
+            if (owner is null || subscriber.Owner == owner.Value)
             {
-                if (owner is null || subscriber.Owner == owner.Value)
+                _ = subscriber.Channel.Writer.TryWrite(frame);
+            }
+        }
+    }
+
+    /// <summary>Terminal Comfy events retire the replay snapshot immediately so finished jobs cannot hold APNG bytes
+    /// or flash a stale preview on a later page request.</summary>
+    private static bool EndsExecution(string text)
+    {
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(text);
+            if (!doc.RootElement.TryGetProperty(EventTypes.Member, out JsonElement type) || type.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+
+            return type.ValueEquals(EventTypes.Success)
+                || type.ValueEquals(EventTypes.Error)
+                || type.ValueEquals(EventTypes.Interrupted);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Forget the snapshot for one completed backend prompt. Matching the backend id works even after the
+    /// orchestrator has already retired the route that translated it.</summary>
+    private void RetirePreview(string comfyPromptId)
+    {
+        lock (_lock)
+        {
+            long owner = 0;
+            bool found = false;
+            foreach ((long candidate, CachedPreview cached) in _latestPreviews)
+            {
+                if (string.Equals(cached.ComfyPromptId, comfyPromptId, StringComparison.Ordinal))
                 {
-                    _ = subscriber.Channel.Writer.TryWrite(frame);
+                    owner = candidate;
+                    found = true;
+                    break;
                 }
+            }
+
+            if (found)
+            {
+                _ = _latestPreviews.Remove(owner);
             }
         }
     }

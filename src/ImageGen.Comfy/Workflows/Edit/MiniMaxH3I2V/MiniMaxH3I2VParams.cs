@@ -23,7 +23,7 @@ public sealed record MiniMaxH3I2VParams
     [JsonPropertyName(WorkflowParamKeys.LoraStrength)]
     [Range(ParamBounds.EditLoraStrengthMin, ParamBounds.EditLoraStrengthMax)] public double LoraStrength { get; init; }
     [JsonPropertyName(WorkflowParamKeys.CkAttention)] public bool CkAttention { get; init; }
-    [JsonPropertyName(WorkflowParamKeys.PreviewEvery)]
-    [Range(0, ParamBounds.StepsMax)] public required int PreviewEvery { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.PreviewSteps)]
+    [IntListRange(1, ParamBounds.StepsMax)] public required int[] PreviewSteps { get; init; }
     [JsonPropertyName(WorkflowParamKeys.Seed)] [SeedRange] public long Seed { get; init; }
 }

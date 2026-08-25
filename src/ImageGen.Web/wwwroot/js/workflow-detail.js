@@ -304,6 +304,18 @@
         input.appendChild(o);
       }
       input.addEventListener("change", () => saveSetting(s.key, input.value));
+    } else if (s.type === "intlist") {
+      input = document.createElement("input"); input.type = "text"; input.inputMode = "numeric"; input.className = "fld-input";
+      input.placeholder = "e.g. 1, 5, 10";
+      input.value = Array.isArray(eff(s)) ? eff(s).join(", ") : "";
+      input.addEventListener("blur", () => {
+        const text = input.value.trim();
+        const values = text ? text.split(",").map(v => Number(v.trim())) : [];
+        if (values.some(v => !Number.isInteger(v))) return;
+        const next = JSON.stringify(values);
+        const was = JSON.stringify(Array.isArray(eff(s)) ? eff(s) : []);
+        if (next !== was) saveSetting(s.key, next);
+      });
     } else if (s.type === "multiline") {
       input = document.createElement("textarea"); input.rows = 12; input.className = "fld-input wf-setting-multiline";
       input.value = eff(s) == null ? "" : eff(s);

@@ -579,17 +579,19 @@ public sealed class WorkflowGraphTests
     }
 
     [Theory]
-    [InlineData("minimax-h3-t2v", 4)]
+    [InlineData("minimax-h3-t2v", 5)]
     [InlineData("minimax-h3-t2v-turbo", 1)]
-    public void MiniMaxH3_wraps_the_existing_sampler_model_with_the_configured_animated_preview(
-        string configId, int expectedInterval)
+    public void MiniMaxH3_wraps_the_existing_sampler_model_with_the_configured_animated_preview_step(
+        string configId, int expectedStep)
     {
         using JsonDocument doc = JsonDocument.Parse(BuildJson(configId, Gen));
         JsonElement root = doc.RootElement;
         JsonElement preview = root.GetProperty("52");
 
         Assert.Equal("H3AnimatedPreview", preview.GetProperty("class_type").GetString());
-        Assert.Equal(expectedInterval, preview.GetProperty("inputs").GetProperty("preview_every").GetInt32());
+        JsonElement steps = preview.GetProperty("inputs").GetProperty("preview_steps").GetProperty("__value__");
+        Assert.Equal(JsonValueKind.Array, steps.ValueKind);
+        Assert.Equal(expectedStep, Assert.Single(steps.EnumerateArray()).GetInt32());
         Assert.Equal(24.0, preview.GetProperty("inputs").GetProperty("fps").GetDouble());
         Assert.Equal("52", root.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
         Assert.Equal("52", root.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
@@ -602,23 +604,54 @@ public sealed class WorkflowGraphTests
     [InlineData("minimax-h3-i2v-turbo")]
     [InlineData("minimax-h3-ref2v")]
     [InlineData("minimax-h3-ref2v-turbo")]
-    public void MiniMaxH3_animated_preview_interval_is_hidden_from_the_composer_by_default(string configId)
+    public void MiniMaxH3_animated_preview_steps_are_hidden_from_the_composer_by_default(string configId)
     {
         WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(Build().catalog.FindConfig(configId));
 
-        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.PreviewEvery].Visibility);
+        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.PreviewSteps].Visibility);
     }
 
     [Fact]
     public void MiniMaxH3_animated_preview_can_be_disabled_without_changing_the_sampling_graph()
     {
-        Dictionary<string, object?> disabled = new() { [WorkflowParamKeys.PreviewEvery] = 0 };
+        Dictionary<string, object?> disabled = new() { [WorkflowParamKeys.PreviewSteps] = Array.Empty<int>() };
         using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-t2v", Gen, disabled));
         JsonElement root = doc.RootElement;
 
-        Assert.Equal(0, root.GetProperty("52").GetProperty("inputs").GetProperty("preview_every").GetInt32());
+        JsonElement steps = root.GetProperty("52").GetProperty("inputs").GetProperty("preview_steps").GetProperty("__value__");
+        Assert.Equal(JsonValueKind.Array, steps.ValueKind);
+        Assert.Empty(steps.EnumerateArray());
         Assert.Equal("52", root.GetProperty("55").GetProperty("inputs").GetProperty("model")[0].GetString());
         Assert.Equal("52", root.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
+    }
+
+    [Fact]
+    public void MiniMaxH3_animated_preview_preserves_specific_completed_steps()
+    {
+        Dictionary<string, object?> configured = new() { [WorkflowParamKeys.PreviewSteps] = new[] { 1, 3, 9 } };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-t2v", Gen, configured));
+
+        JsonElement steps = doc.RootElement.GetProperty("52").GetProperty("inputs")
+            .GetProperty("preview_steps").GetProperty("__value__");
+        Assert.Collection(
+            steps.EnumerateArray(),
+            step => Assert.Equal(1, step.GetInt32()),
+            step => Assert.Equal(3, step.GetInt32()),
+            step => Assert.Equal(9, step.GetInt32()));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public void MiniMaxH3_animated_preview_rejects_invalid_specific_steps(int invalidStep)
+    {
+        Dictionary<string, object?> configured = new() { [WorkflowParamKeys.PreviewSteps] = new[] { invalidStep } };
+
+        RenderValidationException error = Assert.Throws<RenderValidationException>(
+            () => BuildJson("minimax-h3-t2v", Gen, configured));
+
+        Assert.Contains("preview_steps", error.Message);
+        Assert.Contains(invalidStep.ToString(), error.Message);
     }
 
     /// <summary>H3 image→video feeds the uploaded still as the FIRST frame of the same audio topology.</summary>

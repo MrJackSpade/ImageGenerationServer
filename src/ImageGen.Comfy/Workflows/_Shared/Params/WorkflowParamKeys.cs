@@ -116,7 +116,7 @@ internal static class WorkflowParamKeys
     public const string PolishDenoise = "polish_denoise";
     public const string PromptTemplate = "prompt_template";
     public const string PrependFrames = "prepend_frames";
-    public const string PreviewEvery = "preview_every";
+    public const string PreviewSteps = "preview_steps";
     public const string ProjMethod = "proj_method";
     public const string ProjectEvery = "project_every";
     public const string RebalanceMultiplier = "rebalance_multiplier";

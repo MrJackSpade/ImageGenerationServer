@@ -35,7 +35,7 @@ public sealed class MiniMaxH3Ref2VWorkflow : EditWorkflow<MiniMaxH3Ref2VParams>
     ];
 
     protected override ComfyWorkflowGraph Build(MiniMaxH3Ref2VParams p, ResolvedRequirements req, WorkflowInputs inputs)
-        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.CkAttention, p.PreviewEvery, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
+        => H3.BuildRef2V(req, inputs, p.AudioVae, p.Length, p.Fps, ComfyGraph.Seed(p.Seed), p.Steps, p.Sampler, p.Scheduler, p.Lora, p.LoraStrength, p.CkAttention, p.PreviewSteps, p.Megapixels, refMax: p.ReferenceMax ?? 0, refImageSize: p.RefImageSize);
 
     /// <summary>H3 pins the independently shaped target canvas to the per-config <c>megapixels</c> budget.</summary>
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(MiniMaxH3Ref2VParams p) => (p.Megapixels, H3.BudgetSteps);
