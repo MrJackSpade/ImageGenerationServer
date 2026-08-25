@@ -60,7 +60,7 @@
     },
     "preview_every": {
       "value": 4,
-      "visibility": "exposed"
+      "visibility": "hidden"
     },
     "reference_max": {
       "value": 9,

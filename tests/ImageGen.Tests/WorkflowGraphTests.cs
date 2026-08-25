@@ -595,6 +595,20 @@ public sealed class WorkflowGraphTests
         Assert.Equal("52", root.GetProperty("58").GetProperty("inputs").GetProperty("model")[0].GetString());
     }
 
+    [Theory]
+    [InlineData("minimax-h3-t2v")]
+    [InlineData("minimax-h3-t2v-turbo")]
+    [InlineData("minimax-h3-i2v")]
+    [InlineData("minimax-h3-i2v-turbo")]
+    [InlineData("minimax-h3-ref2v")]
+    [InlineData("minimax-h3-ref2v-turbo")]
+    public void MiniMaxH3_animated_preview_interval_is_hidden_from_the_composer_by_default(string configId)
+    {
+        WorkflowConfiguration cfg = Assert.IsType<WorkflowConfiguration>(Build().catalog.FindConfig(configId));
+
+        Assert.Equal(ParamVisibility.Hidden, cfg.Params[WorkflowParamKeys.PreviewEvery].Visibility);
+    }
+
     [Fact]
     public void MiniMaxH3_animated_preview_can_be_disabled_without_changing_the_sampling_graph()
     {
