@@ -64,13 +64,16 @@
     const patch = PATCHES_BY_SLOT.get(s.id);
     if (patch) {
       const installed = patch.state === "Applied";
+      const awaitingRestart = installed && patch.restartRequired;
       return `<div class="mrow" data-slot="${esc(s.id)}">
         <div class="mrow-head">
           <span class="listrow-name">${esc(s.label)}</span>
-          <span class="listrow-stat" title="${esc(patch.why)}">${installed ? "installed" : "—"}</span>
+          <span class="listrow-stat" title="${esc(patch.why)}">${installed ? (awaitingRestart ? "restart required" : "installed") : "—"}</span>
         </div>
         ${installed
-          ? '<span class="muted">Installed by a renderer patch.</span>'
+          ? (awaitingRestart
+            ? '<div class="restart-required" role="alert"><strong>Restart ComfyUI to finish installing this node.</strong> The files are on disk, but the running renderer has not loaded them yet. <a class="link-btn" href="/settings/patches">Open renderer restart →</a></div>'
+            : '<span class="muted">Installed and loaded by the renderer.</span>')
           : `<button type="button" class="settings-btn slot-install" data-patch="${esc(patch.id)}">Install ${esc(patch.title)}</button>`}
       </div>`;
     }
@@ -176,6 +179,7 @@
           const body = await r.json().catch(() => ({}));
           if (!r.ok) { $status.textContent = body.error || "Could not install it."; return; }
           $status.textContent = body.note || "Installed — restart the renderer for its nodes to load.";
+          window.alert("Installed on disk. Restart ComfyUI before using workflows that need this node; it is not loaded until ComfyUI starts again.");
           await load();
         } catch (err) {
           $status.textContent = `Could not install it: ${err.message || err}`;

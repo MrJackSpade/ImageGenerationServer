@@ -1,3 +1,4 @@
+using ImageGen.Comfy;
 using ImageGen.Comfy.Patches;
 using ImageGen.Comfy.Snapshots;
 
@@ -9,6 +10,8 @@ namespace ImageGen.Web.Comfy;
 /// This patch installs a pack and changes nothing in it. The page words it differently — "installed" rather than
 /// "in place", because presence is all that is verified — and warns that removing it deletes the pack.
 /// </param>
+/// <param name="RestartRequired">The pack is on disk but at least one node it provides is absent from the running
+/// ComfyUI registry. This is derived live on every read and clears only when the renderer loads the node.</param>
 public sealed record PatchView(
     string Id,
     string Title,
@@ -20,6 +23,7 @@ public sealed record PatchView(
     string? Warn,
     bool InstallOnly,
     IReadOnlyList<string> Provides,
+    bool RestartRequired,
     IReadOnlyList<string> Occupied);
 
 /// <summary>Everything the patches page renders itself from.</summary>
@@ -30,6 +34,7 @@ public sealed record PatchesView(
     bool CanRestart,
     bool Ephemeral,
     bool HasPython,
+    bool RestartRequired,
     IReadOnlyList<PatchView> Patches);
 
 /// <summary>
@@ -46,6 +51,7 @@ public sealed class ComfyPatchService(
     PatchInstaller installer,
     Configuration.MachineConfigService machine,
     ComfyProbeSnapshots probes,
+    WorkflowCatalog catalog,
     IWebHostEnvironment environment,
     ILogger<ComfyPatchService> log)
 {
@@ -63,6 +69,7 @@ public sealed class ComfyPatchService(
     private readonly PatchInstaller _installer = installer;
     private readonly Configuration.MachineConfigService _machine = machine;
     private readonly ComfyProbeSnapshots _probes = probes;
+    private readonly WorkflowCatalog _catalog = catalog;
     private readonly IWebHostEnvironment _environment = environment;
     private readonly ILogger<ComfyPatchService> _log = log;
 
@@ -88,9 +95,25 @@ public sealed class ComfyPatchService(
 
         ComfyInstallInfo info = _install.Describe();
         List<PatchView> patches = [];
+        IReadOnlySet<string>? presentNodes = null;
 
         if (info.Ok)
         {
+            // This endpoint backs the dependency dialog as well as the patches page. Re-probe the running node
+            // registry every time either is opened: an installed pack stays "restart required" until ComfyUI has
+            // actually restarted and registered its node, without relying on a one-shot browser toast or app memory.
+            try
+            {
+                _probes.PresentNodes.Invalidate();
+                presentNodes = (await _probes.PresentNodes.GetAsync(ct)).Nodes;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Disk state remains useful while ComfyUI is down. Treat an installed node pack whose live state
+                // cannot be confirmed as still requiring a restart; the next open probes again and clears it.
+                _log.LogDebug(ex, "Could not read ComfyUI's live node registry while describing renderer patches");
+            }
+
             string root = info.Root ?? throw new InvalidOperationException("A usable ComfyUI install reported no root path.");
             foreach (ComfyPatch patch in Load())
             {
@@ -99,9 +122,16 @@ public sealed class ComfyPatchService(
                 IReadOnlyList<string> occupied = state == PatchState.Conflicted && Directory.Exists(target)
                     ? PatchApplier.Occupied(target, patch.Files)
                     : [];
+                string[] providedNodes = [.. patch.Provides
+                    .Select(slot => _catalog.FindRequirement(slot)?.Node)
+                    .OfType<string>()
+                    .Where(node => !string.IsNullOrWhiteSpace(node))];
+                bool restartRequired = state == PatchState.Applied
+                    && providedNodes.Length > 0
+                    && (presentNodes is null || providedNodes.Any(node => !presentNodes.Contains(node)));
 
                 patches.Add(new PatchView(patch.Id, patch.Title, patch.Does, patch.Why, patch.Target,
-                    state.ToString(), detail, patch.Warn, patch.IsInstallOnly, patch.Provides, occupied));
+                    state.ToString(), detail, patch.Warn, patch.IsInstallOnly, patch.Provides, restartRequired, occupied));
             }
         }
 
@@ -112,6 +142,7 @@ public sealed class ComfyPatchService(
             CanRestart: _supervisor.CanRestart,
             Ephemeral: _supervisor.Ephemeral,
             HasPython: _install.Python is not null,
+            RestartRequired: patches.Any(patch => patch.RestartRequired),
             Patches: patches);
     }
 

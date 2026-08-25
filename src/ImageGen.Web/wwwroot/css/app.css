@@ -951,6 +951,10 @@ body.auth .page{max-width:none;padding:0}
 .wf-slot-card .settings-desc{margin-bottom:16px}
 .wf-slot{display:flex;flex-direction:column;margin-bottom:14px}
 .wf-slot-empty{text-transform:none;letter-spacing:0;color:var(--warn)}
+.restart-required{margin:5px 0 12px;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;color:var(--ink);background:color-mix(in srgb,var(--warn) 10%,transparent);font-size:12.5px;line-height:1.45}
+.restart-required strong{display:block;color:var(--warn);margin-bottom:3px}
+.restart-required .link-btn{display:inline-block;margin-top:7px}
+.restart-required-card{border-color:var(--warn)!important}
 
 /* --- a workflow's settings for this machine ---------------------------------- */
 /* A workflow's settings read as a table: name on the left, control on the right, aligned down the page. They

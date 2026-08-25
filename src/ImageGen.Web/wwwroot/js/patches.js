@@ -47,7 +47,11 @@
     const s = { ...(STATES[p.state] || { label: p.state, cls: "" }) };
     // An install-only patch verifies that the pack is THERE, not what is in it — say the weaker thing it means.
     if (p.installOnly && p.state === "Applied") s.label = "installed";
+    if (p.restartRequired) { s.label = "restart required"; s.cls = "is-conflict"; }
     const detail = p.detail ? `<p class="patchrow-detail">${esc(p.detail)}</p>` : "";
+    const restart = p.restartRequired
+      ? '<p class="restart-required" role="alert"><strong>Restart ComfyUI to finish this installation.</strong> The files are on disk, but the running renderer has not loaded this node yet.</p>'
+      : "";
 
     // The action a row offers is the one its state calls for. A conflict offers "Overwrite" only when what it
     // would replace is nameable — a hunk that no longer fits is not something a flag can force.
@@ -71,6 +75,7 @@
       ${action || "<span></span>"}
       <p class="patchrow-does">${esc(p.does)}</p>
       ${detail}
+      ${restart}
     </div>`;
   }
 
@@ -97,9 +102,14 @@
     $("applyAllBtn").hidden = !state.patches.some((p) => p.state === "NotApplied" || p.state === "TargetMissing");
 
     $("restartCard").hidden = false;
+    $("restartCard").classList.toggle("restart-required-card", !!state.restartRequired);
     $("restartBtn").hidden = !state.canRestart;
-    $("restartNote").textContent = state.canRestart
-      ? "ComfyUI loads its code once, at startup, so a patch changes nothing until it restarts."
+    $("restartNote").textContent = state.restartRequired
+      ? (state.canRestart
+        ? "Restart required: the node is installed on disk, but this running ComfyUI has not loaded it."
+        : "Restart required: the node is installed on disk, but this running ComfyUI has not loaded it. Restart ComfyUI yourself to finish installation.")
+      : state.canRestart
+      ? "ComfyUI loads its code once, at startup, so newly applied changes require a restart."
       : "ComfyUI loads its code once, at startup — restart it yourself for these to take effect. This installation "
         + "didn’t start it, so it can’t restart it for you.";
   }
@@ -130,6 +140,9 @@
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { toast(body.error || "That didn’t work"); return; }
       toast(body.note || (what === "remove" ? "Removed" : "Applied"));
+      if (what !== "remove" && patch.installOnly) {
+        window.alert("Installed on disk. Restart ComfyUI to finish installation; this running renderer has not loaded the node pack yet.");
+      }
     } catch (e) {
       console.error("patches: action failed", e);
       toast("That didn’t work");
@@ -142,12 +155,16 @@
 
   $("applyAllBtn").addEventListener("click", async (e) => {
     const btn = e.currentTarget;
+    const installsNodePack = state.patches.some((p) => p.installOnly && p.state !== "Applied");
     btn.disabled = true;
     try {
       const res = await fetch(`${api}/apply-all`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { toast(body.error || "Couldn’t apply them all"); return; }
       toast((body.notes && body.notes.length) ? body.notes.join(" ") : "Applied");
+      if (installsNodePack) {
+        window.alert("Installed on disk. Restart ComfyUI to finish installation; this running renderer has not loaded the node pack yet.");
+      }
     } catch (e) { console.error("apply-all failed:", e); toast("Couldn’t apply them all"); }
     finally { btn.disabled = false; await load(); }
   });

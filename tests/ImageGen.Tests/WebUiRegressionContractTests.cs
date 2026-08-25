@@ -201,6 +201,32 @@ public sealed class WebUiRegressionContractTests
         Assert.Contains(".plainchip{font-size:15px;color:var(--ink-soft);padding:2px 0;white-space:pre-wrap}", css, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Custom_node_install_requires_an_explicit_restart_dialog_and_a_persistent_live_state_warning()
+    {
+        string workflows = Js("workflows.js");
+        string models = Js("models.js");
+        string patches = Js("patches.js");
+        string service = File.ReadAllText(Path.Combine(
+            RepoRoot(), "src", "ImageGen.Web", "Comfy", "ComfyPatchService.cs"));
+
+        // "Installed" is disk state. The server separately compares provided nodes with the live ComfyUI registry.
+        Assert.Contains("bool RestartRequired", service, StringComparison.Ordinal);
+        Assert.Contains("_probes.PresentNodes.Invalidate();", service, StringComparison.Ordinal);
+        Assert.Contains("providedNodes.Any(node => !presentNodes.Contains(node))", service, StringComparison.Ordinal);
+
+        // Reopening the workflow dialog must re-read that live state, not reuse the one from page load.
+        Assert.Contains("await loadPatches();", workflows, StringComparison.Ordinal);
+        Assert.Contains("patch.restartRequired", workflows, StringComparison.Ordinal);
+        Assert.Contains("Restart ComfyUI to finish installing this node", workflows, StringComparison.Ordinal);
+
+        // Every install surface interrupts with the required next step instead of relying on a transient toast.
+        Assert.Contains("window.alert(\"Installed on disk. Restart ComfyUI", workflows, StringComparison.Ordinal);
+        Assert.Contains("window.alert(\"Installed on disk. Restart ComfyUI", models, StringComparison.Ordinal);
+        Assert.Contains("window.alert(\"Installed on disk. Restart ComfyUI", patches, StringComparison.Ordinal);
+        Assert.Contains("state.restartRequired", patches, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;

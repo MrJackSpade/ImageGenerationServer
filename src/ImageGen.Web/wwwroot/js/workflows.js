@@ -158,10 +158,17 @@
 
     if (patch) {
       const installed = patch.state === "Applied";
+      const awaitingRestart = installed && patch.restartRequired;
       return `<div class="wf-slot">
-          <span class="fld-label">${escapeHtml(s.label)}${installed ? "" : ' <span class="wf-slot-empty">not installed</span>'}</span>
+          <span class="fld-label">${escapeHtml(s.label)}${installed
+            ? (awaitingRestart ? ' <span class="wf-slot-empty">restart required</span>' : "")
+            : ' <span class="wf-slot-empty">not installed</span>'}</span>
           ${installed
-            ? `<p class="settings-desc">Installed. If its nodes still aren’t listed, the renderer hasn’t restarted since.</p>`
+            ? (awaitingRestart
+              ? `<div class="restart-required" role="alert"><strong>Restart ComfyUI to finish installing this node.</strong>
+                   The files are on disk, but the running renderer has not loaded them yet. This workflow remains unavailable until it does.
+                   <a class="link-btn" href="/settings/patches">Open renderer restart →</a></div>`
+              : `<p class="settings-desc">Installed and loaded by the renderer.</p>`)
             : `<p class="settings-desc">${escapeHtml(patch.why)}</p>
                <button type="button" class="settings-btn slot-install" data-patch="${escapeHtml(patch.id)}">Install ${escapeHtml(patch.title)}</button>`}
         </div>`;
@@ -200,7 +207,7 @@
           });
           const body = await r.json().catch(() => ({}));
           if (!r.ok) { toast(body.error || "Couldn’t install it"); return; }
-          toast(body.note || "Installed — restart the renderer for its nodes to load");
+          window.alert("Installed on disk. Restart ComfyUI before using this workflow; the node is not loaded until ComfyUI starts again.");
           await loadPatches();
           if (onDone) onDone();
         } catch (e) {
@@ -213,6 +220,9 @@
 
   async function openSlotDialog(m) {
     if (!STATUS) { toast("The catalogue status isn’t loaded"); return; }
+    // This call is intentionally made on EVERY open. The server compares the installed pack with ComfyUI's live
+    // node registry, so the warning survives closing/reopening and disappears only after a real renderer restart.
+    await loadPatches();
     if (!$modal) {
       $modal = document.createElement("div");
       $modal.className = "modal-overlay hidden";
