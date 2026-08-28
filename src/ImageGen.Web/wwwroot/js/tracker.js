@@ -19,9 +19,7 @@
   const watching = new Set();    // jobIds seen active, to detect their disappearance (= finalized)
   let ws = null;
 
-  async function sync() {
-    let res;
-    try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("tracker jobs poll failed:", e); return; }
+  function apply(res) {
     const jobs = res.jobs || [];
     const active = new Set(jobs.map(j => j.jobId));
     for (const j of jobs) {
@@ -33,6 +31,12 @@
     }
     // A tracked job that is no longer active has finalized; tell the grids/strips to re-pull.
     for (const jobId of [...watching]) if (!active.has(jobId)) { watching.delete(jobId); document.dispatchEvent(new CustomEvent("imagegen:refresh")); }
+  }
+
+  async function sync() {
+    let res;
+    try { res = await readActiveJobs(2250); if (!res) return; } catch (e) { console.debug("tracker jobs poll failed:", e); return; }
+    apply(res);
   }
 
   // The websocket only makes the poll PROMPT: a finish event triggers an immediate sync instead of waiting for the
@@ -51,6 +55,8 @@
     } catch (e) { console.debug("tracker ws open failed:", e); ws = null; }
   }
 
+  // Progress/recovery code on this page can own the actual HTTP read; consume that shared feed immediately.
+  document.addEventListener("imagegen:jobs", e => { if (e.detail) apply(e.detail); });
   sync(); openWs();
   setInterval(() => { sync(); openWs(); }, 2500);   // same cadence as compose.js's live sync
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { sync(); openWs(); } });

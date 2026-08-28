@@ -54,6 +54,28 @@ function fillImageCardDates(root) {
 const gwWs = path => /^https?:/i.test(GATEWAY)
   ? GATEWAY.replace(/^http/i, "ws") + path
   : (location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + GATEWAY + path;
+
+// One owner for the active-jobs HTTP read. Several independent consumers need this same projection (the page-wide
+// generated-image tracker, live recovery, and the visible progress panel). Without a shared read, their 2s/2.5s
+// timers each hit /jobs from the same window. Concurrent callers share the in-flight request; background consumers may
+// also accept a recent snapshot, while trackJobBatch's default maxAgeMs=0 remains an authoritative fresh poll.
+let activeJobsSnapshot = null, activeJobsReadAt = 0, activeJobsRead = null;
+async function readActiveJobs(maxAgeMs = 0) {
+  if (maxAgeMs > 0 && activeJobsSnapshot && Date.now() - activeJobsReadAt < maxAgeMs) return activeJobsSnapshot;
+  if (activeJobsRead) return activeJobsRead;
+  activeJobsRead = (async () => {
+    const r = await fetch(`${GATEWAY}/jobs`);
+    if (!r.ok) return null;
+    const res = await r.json();
+    activeJobsSnapshot = res;
+    activeJobsReadAt = Date.now();
+    // Consumers listening for the full feed update immediately when another consumer owns the network request.
+    document.dispatchEvent(new CustomEvent("imagegen:jobs", { detail: res }));
+    return res;
+  })();
+  try { return await activeJobsRead; }
+  finally { activeJobsRead = null; }
+}
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // The <option> list for a model-slot picker, shared by every place one is drawn (the workflow library dialog, the
 // models page, and a workflow's detail page): a "— not set —" clear option, then the recognised candidates A–Z, then
@@ -640,7 +662,7 @@ function trackJobBatch(jobId, o) {
     }
     async function poll() {
       if (settled) return;
-      let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
+      let res; try { res = await readActiveJobs(); if (!res) return; } catch (e) { console.debug("job poll failed:", e); return; }
       const job = (res.jobs || []).find(j => j.jobId === jobId);
       if (!job) {
         let final = null;
@@ -685,7 +707,7 @@ function attachLiveRecover(o) {
     tracking = true;
     try {
       let res;
-      try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); }
+      try { res = await readActiveJobs(500); if (!res) return; }
       catch (e) { console.debug("live recover poll failed:", e); return; }
       const jobs = res.jobs || [];
       const job = jobs.find(j => j.status === "running") || jobs.find(j => j.status === "queued");

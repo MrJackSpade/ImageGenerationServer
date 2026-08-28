@@ -1224,8 +1224,7 @@ async function finalizeJob(jobId) {
   document.dispatchEvent(new CustomEvent("imagegen:refresh"));   // strips re-pull /api/history (authoritative)
 }
 
-async function liveSync() {
-  let res; try { const r = await fetch(`${GATEWAY}/jobs`); if (!r.ok) return; res = await r.json(); } catch (e) { console.debug("job poll failed:", e); return; }
+function applyLiveJobs(res) {
   const jobs = res.jobs || [];
   const activeIds = new Set(jobs.map(j => j.jobId));
 
@@ -1238,6 +1237,13 @@ async function liveSync() {
   // make it live only in a tab that watched the batch happen, so a reload after it finished would silently crop the
   // last batch. announceImage's `imagegen:generated` remains the trigger to re-pull; what to show is not this file's
   // to decide.
+}
+
+async function liveSync() {
+  // The progress tracker polls every 2s while a job is active. Its shared snapshot is fresh enough for this 2.5s
+  // page-wide diff, so the composer does not issue a second /jobs request from the same window.
+  let res; try { res = await readActiveJobs(2250); if (!res) return; } catch (e) { console.debug("job poll failed:", e); return; }
+  applyLiveJobs(res);
 }
 
 // The bar / preview / cancel for an in-flight job (this tab's own OR one already running when we arrive) are driven by
@@ -1271,6 +1277,8 @@ function showAdoptedResult(job, s) {
 }
 
 function startLiveSync() {
+  // A network read owned by core.js's progress/recovery tracker feeds this diff immediately as well as its own caller.
+  document.addEventListener("imagegen:jobs", e => { if (e.detail) applyLiveJobs(e.detail); });
   liveSync(); liveOpenWs();
   setInterval(() => { liveSync(); liveOpenWs(); }, 2500);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { liveSync(); liveOpenWs(); } });

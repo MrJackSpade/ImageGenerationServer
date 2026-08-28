@@ -24,6 +24,13 @@ public sealed class WebUiContractTests
         Assert.Contains("""[HttpPost("/image/{id}/view")]""", controller, StringComparison.Ordinal);
         Assert.DoesNotContain("""[HttpGet("/image/{id}/card")]""", controller, StringComparison.Ordinal);
         Assert.Contains("Json(vm.ToRecord())", controller, StringComparison.Ordinal);
+        // Detail presentation spans several independent repositories. Keep those reads in parallel so opening one
+        // lightbox does not add every connection/query delay into its response time.
+        Assert.Contains("Task<ImageReadGrant?> visibilityTask", controller, StringComparison.Ordinal);
+        Assert.Contains("Task<HistoryNeighbors> neighborsTask", controller, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(controller, @"await\s+Task\.WhenAll\(visibilityTask,\s*detailTask\)").Count);
+        Assert.Contains("Task.WhenAll(neighborsTask, isBookmarkedTask, bannedForModelTask, tokensTask)", controller,
+            StringComparison.Ordinal);
     }
 
     [Fact]

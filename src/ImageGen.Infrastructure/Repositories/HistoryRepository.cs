@@ -313,54 +313,45 @@ ORDER BY Uses DESC, ModelFriendly ASC;";
     /// <summary>
     /// The entries either side of this one in the user's history, ordered by <c>(CreatedAtUtc, Id)</c> so that entries
     /// sharing a timestamp still have a stable order.
-    /// <para>SQLite has no local variables, so the anchor row's <c>(CreatedAtUtc, Id)</c> cannot be stashed in a
-    /// <c>DECLARE</c> and reused within one batch: it is fetched into C# and passed back as parameters — three round
-    /// trips instead of one, for a two-arrow navigation control. A missing anchor returns early with
-    /// <c>(null, null)</c>.</para>
+    /// <para>The anchor and both indexed nearest-row lookups are one command. The anchor CTE is portable across both
+    /// providers; each scalar subquery uses the dialect's first-row spelling. A missing anchor naturally makes both
+    /// scalar results null.</para>
     /// </summary>
     public async Task<HistoryNeighbors> GetNeighborsAsync(
         long userId, string gatewayImageId, CancellationToken ct)
     {
         await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        string sql = $@"
+WITH Anchor AS (
+    SELECT CreatedAtUtc, Id
+    FROM dbo.HistoryEntry
+    WHERE UserId = @userId AND GatewayImageId = @img
+)
+SELECT
+    (SELECT {_dialect.TopPrefix("@take")}n.GatewayImageId
+     FROM dbo.HistoryEntry n CROSS JOIN Anchor a
+     WHERE n.UserId = @userId
+       AND (n.CreatedAtUtc > a.CreatedAtUtc OR (n.CreatedAtUtc = a.CreatedAtUtc AND n.Id > a.Id))
+     ORDER BY n.CreatedAtUtc ASC, n.Id ASC{_dialect.TopSuffix("@take")}),
+    (SELECT {_dialect.TopPrefix("@take")}n.GatewayImageId
+     FROM dbo.HistoryEntry n CROSS JOIN Anchor a
+     WHERE n.UserId = @userId
+       AND (n.CreatedAtUtc < a.CreatedAtUtc OR (n.CreatedAtUtc = a.CreatedAtUtc AND n.Id < a.Id))
+     ORDER BY n.CreatedAtUtc DESC, n.Id DESC{_dialect.TopSuffix("@take")});";
 
-        DateTime anchorCreated;
-        long anchorId;
-        await using (DbCommand cmd = conn.Command(
-            "SELECT CreatedAtUtc, Id FROM dbo.HistoryEntry WHERE UserId = @userId AND GatewayImageId = @img;"))
-        {
-            _ = cmd.AddParam("@userId", userId);
-            _ = cmd.AddParam("@img", gatewayImageId);
-            await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
-            {
-                return new HistoryNeighbors(null, null);
-            }
-
-            anchorCreated = reader.GetDateTime(0);
-            anchorId = reader.GetInt64(1);
-        }
-
-        // The single-row limit goes through the dialect, and must stay a SERVER-side limit either way: without it the
-        // engine sorts the user's whole history to hand back one id.
-        string? newer = await NeighborAsync(conn, userId, anchorCreated, anchorId, newerSide: true, ct);
-        string? older = await NeighborAsync(conn, userId, anchorCreated, anchorId, newerSide: false, ct);
-        return new HistoryNeighbors(newer, older);
-    }
-
-    /// <summary>One side of <see cref="GetNeighborsAsync"/>: the nearest entry after (or before) the anchor, or null.</summary>
-    private async Task<string?> NeighborAsync(
-        DbConnection conn, long userId, DateTime anchorCreated, long anchorId, bool newerSide, CancellationToken ct)
-    {
-        (string? cmp, string? dir) = newerSide ? (">", "ASC") : ("<", "DESC");
-        await using DbCommand cmd = conn.Command(
-            $"SELECT {_dialect.TopPrefix("@take")}GatewayImageId FROM dbo.HistoryEntry WHERE UserId = @userId " +
-            $"  AND (CreatedAtUtc {cmp} @c OR (CreatedAtUtc = @c AND Id {cmp} @i)) " +
-            $"ORDER BY CreatedAtUtc {dir}, Id {dir}{_dialect.TopSuffix("@take")};");
+        await using DbCommand cmd = conn.Command(sql);
         _ = cmd.AddParam("@take", 1);
         _ = cmd.AddParam("@userId", userId);
-        _ = cmd.AddParam("@c", anchorCreated);
-        _ = cmd.AddParam("@i", anchorId);
-        return await cmd.ExecuteScalarAsync(ct) as string;
+        _ = cmd.AddParam("@img", gatewayImageId);
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return new HistoryNeighbors(null, null);
+        }
+
+        return new HistoryNeighbors(
+            reader.IsDBNull(0) ? null : reader.GetString(0),
+            reader.IsDBNull(1) ? null : reader.GetString(1));
     }
 
     public async Task<bool> AddAsync(HistoryEntry entry, CancellationToken ct)

@@ -3,6 +3,7 @@ using ImageGen.Application.Services;
 using ImageGen.Application.Tags;
 using ImageGen.Domain;
 using ImageGen.Domain.Entities;
+using ImageGen.Domain.Repositories;
 using ImageGen.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,12 +25,17 @@ public sealed class ImageController(
     [HttpGet("/image/{id}")]
     public async Task<IActionResult> Detail(string id, CancellationToken ct)
     {
-        if (await _visibility.CanReadImageAsync(User.GetRequiredUserId(), id, ct) is null)
+        long userId = User.GetRequiredUserId();
+        Task<ImageReadGrant?> visibilityTask = _visibility.CanReadImageAsync(userId, id, ct);
+        Task<ImageDetailViewModel?> detailTask = BuildAsync(userId, id, ct);
+        await Task.WhenAll(visibilityTask, detailTask);
+
+        if (await visibilityTask is null)
         {
             return Unauthorized();
         }
 
-        ImageDetailViewModel? vm = await BuildAsync(id, ct);
+        ImageDetailViewModel? vm = await detailTask;
         if (vm is null)
         {
             return NotFound();
@@ -37,7 +43,7 @@ public sealed class ImageController(
 
         // A full detail-page navigation is itself a view. The JSON endpoint below is deliberately side-effect-free:
         // the lightbox records this same fact through its explicit POST only after it has rendered the image.
-        await _views.MarkViewedAsync(User.GetRequiredUserId(), vm.Entry.GatewayImageId, ct);
+        await _views.MarkViewedAsync(userId, vm.Entry.GatewayImageId, ct);
         return View(vm);
     }
 
@@ -46,12 +52,17 @@ public sealed class ImageController(
     [HttpGet("/image/{id}/detail")]
     public async Task<IActionResult> DetailData(string id, CancellationToken ct)
     {
-        if (await _visibility.CanReadImageAsync(User.GetRequiredUserId(), id, ct) is null)
+        long userId = User.GetRequiredUserId();
+        Task<ImageReadGrant?> visibilityTask = _visibility.CanReadImageAsync(userId, id, ct);
+        Task<ImageDetailViewModel?> detailTask = BuildAsync(userId, id, ct);
+        await Task.WhenAll(visibilityTask, detailTask);
+
+        if (await visibilityTask is null)
         {
             return Unauthorized();
         }
 
-        ImageDetailViewModel? vm = await BuildAsync(id, ct);
+        ImageDetailViewModel? vm = await detailTask;
         return vm is null ? NotFound() : Json(vm.ToRecord());
     }
 
@@ -78,19 +89,24 @@ public sealed class ImageController(
 
     /// <summary>The page's data, or null when the caller has no history row for the id — a readable id that never
     /// entered their history (its slot produced it, the history write did not land) has no detail to show.</summary>
-    private async Task<ImageDetailViewModel?> BuildAsync(string id, CancellationToken ct)
+    private async Task<ImageDetailViewModel?> BuildAsync(long userId, string id, CancellationToken ct)
     {
-        long userId = User.GetRequiredUserId();
         HistoryEntry? entry = await _history.GetByImageIdAsync(userId, id, ct);
         if (entry is null)
         {
             return null;
         }
 
-        (string? newer, string? older) = await _history.GetNeighborsAsync(userId, id, ct);
-        bool isBookmarked = await _bookmarks.IsImageBookmarkedAsync(userId, id, ct);
-        IReadOnlyList<BannedToken> bannedForModel = await _bans.GetForModelAsync(userId, entry.ModelId, ct);
-        IReadOnlyList<TokenBookmark> tokens = await _bookmarks.GetTokensAsync(userId, ct);
+        Task<HistoryNeighbors> neighborsTask = _history.GetNeighborsAsync(userId, id, ct);
+        Task<bool> isBookmarkedTask = _bookmarks.IsImageBookmarkedAsync(userId, id, ct);
+        Task<IReadOnlyList<BannedToken>> bannedForModelTask = _bans.GetForModelAsync(userId, entry.ModelId, ct);
+        Task<IReadOnlyList<TokenBookmark>> tokensTask = _bookmarks.GetTokensAsync(userId, ct);
+        await Task.WhenAll(neighborsTask, isBookmarkedTask, bannedForModelTask, tokensTask);
+
+        (string? newer, string? older) = await neighborsTask;
+        bool isBookmarked = await isBookmarkedTask;
+        IReadOnlyList<BannedToken> bannedForModel = await bannedForModelTask;
+        IReadOnlyList<TokenBookmark> tokens = await tokensTask;
 
         // Look up each tag token's booru category: it colors the chip border and orders the chips by type. Artists are
         // colored and ranked by kind, so skip them; tags the catalog doesn't know stay absent and count as general.
