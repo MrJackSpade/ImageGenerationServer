@@ -1465,6 +1465,17 @@ public sealed class WorkflowGraphTests
 
     [Theory]
     [InlineData("anima-redraw")]
+    [InlineData("chroma1-base-redraw")]
+    [InlineData("chroma1-flash-redraw")]
+    [InlineData("chroma1-hd-redraw")]
+    [InlineData("chroma1-radiance-redraw")]
+    [InlineData("flux1-dev-redraw")]
+    [InlineData("flux1-krea-redraw")]
+    [InlineData("flux1-schnell-redraw")]
+    [InlineData("flux2-dev-redraw")]
+    [InlineData("flux2-klein-4b-base-redraw")]
+    [InlineData("flux2-klein-4b-redraw")]
+    [InlineData("flux2-klein-9b-redraw")]
     [InlineData("photanima-redraw")]
     [InlineData("krea2-redraw")]
     [InlineData("ideogram4-refine")]
@@ -1480,8 +1491,8 @@ public sealed class WorkflowGraphTests
         ParamSpec spec = wf.Schema.First(s => s.Key == "denoise");
         Assert.Equal(0.01, spec.Step);
         Assert.Null(cfg.Params["denoise"].Step);   // nothing overrides it at the config layer
-        // Hidden, not locked: redraw strength ships un-surfaced but stays user-revealable and API-overridable (#191).
-        Assert.Equal(ParamVisibility.Hidden, cfg.Params["denoise"].Visibility);
+        // Refine strength is the central tradeoff on this tab, so it ships visible without requiring a settings reveal.
+        Assert.Equal(ParamVisibility.Exposed, cfg.Params["denoise"].Visibility);
     }
 
     [Fact]

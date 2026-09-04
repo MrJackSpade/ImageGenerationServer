@@ -110,7 +110,7 @@ public sealed class RenderSlot
     public Dictionary<string, string>? Marks;
     /// <summary>Canonical keys of the tokens a random sampler APPENDED (random-prompt tags + random-artist) — the
     /// provenance that dashes auto-generated chips in the viewer. A subset of <see cref="Marks"/>' keys; null/empty
-    /// for edits and for prompts with no sampling. Round-trips through <c>Mark.Generated</c> on the persisted marks.</summary>
+    /// for prompts with no sampling. Round-trips through <c>Mark.Generated</c> on the persisted marks.</summary>
     public HashSet<string>? GeneratedTokens;
     /// <summary>When the render started (submit time; excludes queue wait).</summary>
     [AllowNullable("null = render not yet started; default(DateTimeOffset) would falsely read as started in year 1")]

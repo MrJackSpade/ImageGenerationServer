@@ -21,6 +21,7 @@ const $editTabs = $("editTabs"), $editTabsSelect = $("editTabsSelect"), $chatMod
       $editFrameControls = $("editFrameControls"), $editLastFrameWrap = $("editLastFrameWrap"),
       $editLoopWrap = $("editLoopWrap"), $editLoop = $("editLoop"), $editSrcLabel = $("editSrcLabel"),
       $editAspectField = $("editAspectField"), $editAspect = $("editAspect"),
+      $editRandomArtistBar = $("editRandomArtistBar"), $editRandomArtist = $("editRandomArtist"),
       $editSrcFile = $("editSrcFile"),
       // mask painting (a modal off the source preview; the brush slider lives inside the modal toolbar)
       $maskModal = $("maskModal"), $maskModalStage = $("maskModalStage"), $brushSize = $("brushSize"),
@@ -128,7 +129,7 @@ const seedNegative = () => (seed.negativePrompt || "").trim();
 // the blob is restored on boot in loadEditModels. The instruction/prompt text is intentionally NOT retained: it's
 // tied to the specific source image being edited, so carrying a prior image's instruction to a new source is wrong.
 let editParamPrefs = {};            // flat { paramKey: value }, shared across every param panel (edit + outpaint)
-let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null, savedReferenceAspect = null;   // seeded from the account blob on boot
+let savedMode = null, savedOutpaintWorkflowId = null, savedBrushSize = null, savedLoop = null, savedReferenceAspect = null, savedRandomArtist = null;   // seeded from the account blob on boot
 let referenceAspect = "reference";
 
 let prefsTimer = null;
@@ -164,6 +165,7 @@ function savePrefs(immediate = false) {
     params: editParamPrefs,
     brushSize: $brushSize ? $brushSize.value : null,
     loop: $editLoop ? $editLoop.checked : false,   // per-user, cross-device like the rest of the editor state
+    randomArtist: !!($editRandomArtist && $editRandomArtist.checked),
     referenceAspect,
     // The pad amounts are NOT retained: like the instruction text they're tied to the specific source image, so
     // carrying a prior image's margins onto a new source would silently extend it by the wrong number of pixels.
@@ -372,6 +374,7 @@ async function loadEditModels() {
           if (typeof p.outpaintWorkflowId === "string") savedOutpaintWorkflowId = p.outpaintWorkflowId;
           if (p.brushSize != null) savedBrushSize = p.brushSize;
           if (typeof p.loop === "boolean") savedLoop = p.loop;
+          if (typeof p.randomArtist === "boolean") savedRandomArtist = p.randomArtist;
           if (["reference", "square", "landscape", "portrait"].includes(p.referenceAspect)) savedReferenceAspect = p.referenceAspect;
           // Current format: an independent multi-selection for every picker tab. Reject ids that are installed but
           // belong to a different tab, so catalog reclassification cannot cross-contaminate the saved buckets.
@@ -513,6 +516,15 @@ function updateEditParams() {
   renderParamFields($("editParams"), effectiveEditModels());   // the sibling's params (mask_grow/blur) when masked
   restoreParams($("editParams"));   // prefill from the shared flat param map (carries across workflow switches)
 }
+// Random artist is a single-workflow refine affordance. The catalog's tagging capability is authoritative, so Anima
+// gets the control without coupling the UI to its workflow id; multi-select hides it because each slot must opt in.
+function supportsEditRandomArtist(m) { return !!(m && m.tagging && m.tagging.artists); }
+function wantsEditRandomArtist(m) {
+  return chatBucket === "redraw" && supportsEditRandomArtist(m) && !!($editRandomArtist && $editRandomArtist.checked);
+}
+function updateEditRandomArtist() {
+  if ($editRandomArtistBar) $editRandomArtistBar.hidden = !(chatBucket === "redraw" && supportsEditRandomArtist(effectiveEditModel()));
+}
 const takesReferences = m => !!(m && m.edit && m.edit.reference);
 const supportsReferenceOnly = m => !!(takesReferences(m) && m.supportsReferenceOnly);
 const supportsChosenReferenceAspect = m => !!(takesReferences(m)
@@ -546,6 +558,7 @@ function refreshEditRouting() {
   updateEditRefBtn(); updateEditRefHint(); renderEditRefs();
   renderEditLastFrame();
   updateEditParams();
+  updateEditRandomArtist();
   updateInstructionPlaceholder();
   updateEditNeg();
   updateReferenceAspectPicker();
@@ -580,6 +593,7 @@ function clearMaskAll() { if (maskEditor) maskEditor.clear(); }   // maskEditor.
 function maskChanged() { maskId = null; refreshEditRouting(); }
 // Persist tuned values the moment they change.
 $("editParams").addEventListener("change", () => persistParams($("editParams")));
+if ($editRandomArtist) $editRandomArtist.addEventListener("change", () => savePrefs(true));
 // Honest wording for whatever the primary model actually consumes. An instruction editor is told to name a CHANGE; a
 // redraw re-renders the whole frame from the prompt, so it is asked for the picture itself (saying "describe a change"
 // there is simply wrong); a video editor is asked about motion per promptDirectsMotion. Outpaint is not reachable from
@@ -967,7 +981,7 @@ async function buildChatItems(n) {
       if (takesReferences(eff)) itemOverrides.reference_aspect = (maskAttach || (editCurrent && !eff.supportsReferenceAspectWithSource))
         ? "reference" : referenceAspect;
       // Send raw text; the server resolves Comfy {a|b} choices independently for every submitted edit slot.
-      items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff),
+      items.push({ workflow: wf, edit: true, instruction, negativePrompt: editNegFor(eff), randomArtist: wantsEditRandomArtist(eff),
         imageId: editCurrent, referenceIds: takesReferences(eff) ? refIds : [], lastFrameImageId: lastFrame, maskImageId: maskAttach, overrides: itemOverrides });
     }
   return items;
@@ -1313,6 +1327,7 @@ function startEditRecover() {
     throw e;
   }
   if (savedLoop != null && $editLoop) $editLoop.checked = savedLoop;   // restore the Loop pref before the last-frame UI renders
+  if (savedRandomArtist != null && $editRandomArtist) $editRandomArtist.checked = savedRandomArtist;
   setReferenceAspect(savedReferenceAspect || "reference", false);
   renderSrc(); renderEditRefs(); renderEditLastFrame();
   applySourceMediaUi();

@@ -34,13 +34,13 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             Workflow = "anima",
             Prompt = "1girl, #long_hair, @monet",
             NegativePrompt = "worst quality",
+            RandomArtist = TriState.True,
             OverridesJson = """{"seed":1234,"steps":28}""",
             LorasJson = """[{"Name":"anime/foo.safetensors","Weight":0.8}]""",
             ModelManifestJson = """{"checkpoint":"anima.safetensors","loader":"checkpoint","weightDtype":"default","quantization":"unknown","vae":null,"textEncoders":[]}""",
             Generate = new GenerateSlotData
             {
                 Aspect = "portrait",
-                RandomArtist = TriState.True,
                 RandomPrompt = TriState.False,
                 Temperature = 0.85,
                 TagTypesJson = """["character","meta"]""",
@@ -61,7 +61,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         Assert.Null(back.Edit);                        // a generate carries no edit data
         Assert.NotNull(back.Generate);
         Assert.Equal("portrait", back.Generate.Aspect);
-        Assert.Equal(TriState.True, back.Generate.RandomArtist);
+        Assert.Equal(TriState.True, back.RandomArtist);
         Assert.Equal(TriState.False, back.Generate.RandomPrompt);
         Assert.Equal(0.85, back.Generate.Temperature);
         Assert.Equal("""["character","meta"]""", back.Generate.TagTypesJson);
@@ -134,6 +134,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
             State = JobSlotState.Queued,
             Workflow = "anima-inpaint",
             Prompt = "make it night",
+            RandomArtist = TriState.True,
             Edit = new EditSlotData
             {
                 SourceImageId = "src-1",
@@ -149,6 +150,7 @@ public sealed class JobSlotSpecTests(TestDatabaseFixture fixture)
         JobSlotRecord back = job.Slots.Single();
 
         Assert.NotNull(back.Edit);
+        Assert.Equal(TriState.True, back.RandomArtist);
         Assert.Equal("src-1", back.Edit.SourceImageId);
         Assert.Equal("mask-1", back.Edit.MaskImageId);
         Assert.Equal("last-1", back.Edit.LastFrameImageId);

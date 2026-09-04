@@ -101,6 +101,17 @@ public sealed class RenderContractMappingTests
         Assert.Equal(["ref-1"], edit.ReferenceIds);
     }
 
+    [Fact]
+    public void A_random_artist_choice_reaches_an_edit_spec()
+    {
+        RenderItem? item = new EnqueueItem(
+            Workflow: "anima-redraw", Edit: true, Instruction: "#1girl", ImageId: "source",
+            RandomArtist: TriState.True).ToRenderItem();
+
+        EditSpec edit = Assert.IsType<EditSpec>(item?.Edit);
+        Assert.Equal(TriState.True, edit.RandomArtist);
+    }
+
     /// <summary>A submitted width/height IS a shape (#209): the recorded label follows the dims — wider is landscape,
     /// taller is portrait, equal is square.</summary>
     [Theory]

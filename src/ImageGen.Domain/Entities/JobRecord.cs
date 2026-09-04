@@ -114,6 +114,9 @@ public sealed class JobSlotRecord
     /// <summary>The workflow's exposed parameter values as a JSON map. An arbitrary bag keyed by parameter name, not
     /// a relation to anything, and not protected — stored plain so it is readable without a key.</summary>
     public string? OverridesJson { get; set; }
+    /// <summary>Whether the worker should sample an artist for this slot. Supported by generation and by artist-aware
+    /// refine edits; persisted as the nullable dbo.JobSlot bit (NULL = <see cref="TriState.Unspecified"/>).</summary>
+    public TriState RandomArtist { get; set; }
     /// <summary>The user's LoRA stack for this slot as a JSON array of <c>{name,weight}</c>. A value bag, not a
     /// relation — stored plain and per-slot like <see cref="OverridesJson"/>, so a batch resumed after a restart
     /// re-renders with its LoRAs intact. Null when the slot used none.</summary>
@@ -133,9 +136,6 @@ public sealed class GenerateSlotData
 {
     /// <summary>"square" | "landscape" | "portrait".</summary>
     public string? Aspect { get; set; }
-    /// <summary>Whether the worker should sample an artist for this slot. <see cref="TriState.Unspecified"/> = the caller
-    /// specified none; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
-    public TriState RandomArtist { get; set; }
     /// <summary>Whether the worker should generate the prompt from the tag model. <see cref="TriState.Unspecified"/> = the
     /// caller specified none; persisted as the nullable dbo.JobSlot bit (NULL = Unspecified).</summary>
     public TriState RandomPrompt { get; set; }

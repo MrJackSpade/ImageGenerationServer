@@ -1253,13 +1253,34 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     }
                 }
 
-                FinalizedPrompt editFinal = PromptFinalizer.Finalize(edit.Instruction, editInfo?.Tagging);
+                // Refine workflows can request the same per-slot random-artist sampling as generation. Keep the
+                // sampled artist in marker-form raw text first, then derive rendered text + marks once, so history,
+                // chips, exact replay, and the prompt sent to Comfy all describe the same edit.
+                string editRaw = edit.Instruction;
+                HashSet<string>? editGeneratedTokens = null;
+                if (edit.RandomArtist == TriState.True && editInfo?.Tagging is { Artists: true })
+                {
+                    (HashSet<string> Tags, HashSet<string> Artists) bans =
+                        await BannedKeysAsync(slot.Job.Owner, slot.Model, ct);
+                    (HashSet<string> _, HashSet<string> negatedArtists) = PromptFinalizer.NegativeKeys(edit.NegativePrompt);
+                    bans.Artists.UnionWith(negatedArtists);
+                    string? artist = _tags.RandomArtist(bans.Artists.Count > 0 ? bans.Artists : null);
+                    if (!string.IsNullOrEmpty(artist))
+                    {
+                        string artistKey = PromptFinalizer.Normalize(artist);
+                        editRaw = PromptFinalizer.Append(editRaw, PromptMarkers.ArtistMarker + artistKey);
+                        editGeneratedTokens = new HashSet<string>(StringComparer.Ordinal) { artistKey };
+                    }
+                }
+
+                FinalizedPrompt editFinal = PromptFinalizer.Finalize(editRaw, editInfo?.Tagging);
                 // The instruction and its negative arrive in marker form and are stored verbatim, exactly as the generate
-                // path stores its raw prompt — so an edited image's prompt comes back to the box the way it was written.
-                slot.RawPrompt = edit.Instruction;
+                // path stores its raw prompt — including a sampled artist, so exact replay needs no second random roll.
+                slot.RawPrompt = editRaw;
                 slot.RawNegativePrompt = edit.NegativePrompt;
                 slot.EffectivePrompt = editFinal.Rendered;
                 slot.Marks = editFinal.Marks;
+                slot.GeneratedTokens = editGeneratedTokens;
                 await _userLog.LogAsync(slot.Job.Owner, LogCategories.SubmitEdit, editFinal.Rendered, ct);
                 // Finalize the negative with the SAME rules as the instruction/positive: the negative box shares the
                 // tag/artist autocomplete, so its text arrives carrying '#'/'@' markers (and underscores). Without this
@@ -2192,12 +2213,13 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 Workflow = s.RehydrateFallback is { } fallbackWorkflow ? fallbackWorkflow.Workflow : s.IsEdit ? s.RequireEdit().Workflow : s.RequireGen().Workflow,
                 Prompt = s.RehydrateFallback is { } fallbackPrompt ? fallbackPrompt.Prompt : s.IsEdit ? s.RequireEdit().Instruction : s.RequireGen().Prompt,
                 NegativePrompt = s.RehydrateFallback is { } fallbackNegative ? fallbackNegative.NegativePrompt : s.IsEdit ? s.RequireEdit().NegativePrompt : s.RequireGen().NegativePrompt,
+                RandomArtist = s.RehydrateFallback is { } fallbackRandomArtist ? fallbackRandomArtist.RandomArtist
+                    : s.IsEdit ? s.RequireEdit().RandomArtist : s.RequireGen().RandomArtist,
                 OverridesJson = s.RehydrateFallback is { } fallbackOverrides ? fallbackOverrides.OverridesJson : OverridesJsonOf(s),
                 LorasJson = s.RehydrateFallback is { } fallbackLoras ? fallbackLoras.LorasJson : LorasJsonOf(s),
                 Generate = s.RehydrateFallback is { } fallbackGenerate ? fallbackGenerate.Generate : s.IsEdit ? null : new GenerateSlotData
                 {
                     Aspect = s.RequireGen().Aspect,
-                    RandomArtist = s.RequireGen().RandomArtist,
                     RandomPrompt = s.RequireGen().RandomPrompt,
                     Temperature = s.RequireGen().Temperature,
                     TagTypesJson = s.RequireGen().TagTypes is null ? null : JsonSerializer.Serialize(s.RequireGen().TagTypes),
@@ -2248,7 +2270,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             sr.Prompt ?? "",
             sr.NegativePrompt,
             g.Aspect,
-            g.RandomArtist,
+            sr.RandomArtist,
             g.RandomPrompt,
             g.Temperature,
             Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
@@ -2270,7 +2292,8 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             Deser<Dictionary<string, JsonElement>>(sr.OverridesJson),
             e.MaskImageId,
             e.LastFrameImageId,
-            ResolvePromptSyntax: false);
+            ResolvePromptSyntax: false,
+            RandomArtist: sr.RandomArtist);
     }
 
     /// <summary>Reload this instance's still-active jobs and resume them: a mid-render slot keeps its

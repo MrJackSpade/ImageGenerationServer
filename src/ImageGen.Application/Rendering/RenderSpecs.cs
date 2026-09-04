@@ -66,7 +66,8 @@ public sealed record EditSpec(
     Dictionary<string, JsonElement>? Overrides = null,
     string? MaskImageId = null,
     string? LastFrameImageId = null,
-    bool ResolvePromptSyntax = true);
+    bool ResolvePromptSyntax = true,
+    TriState RandomArtist = TriState.Unspecified);
 
 /// <summary>
 /// One slot of an enqueue: exactly one of a generate spec or an edit spec. Use the factories, which enforce the XOR.

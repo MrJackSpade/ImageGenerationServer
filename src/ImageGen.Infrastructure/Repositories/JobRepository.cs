@@ -99,7 +99,7 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@aspect", (object?)slot.Generate?.Aspect ?? DBNull.Value);
-            _ = cmd.AddParam("@randomArtist", (slot.Generate?.RandomArtist ?? TriState.Unspecified).ToNullableBitParam());
+            _ = cmd.AddParam("@randomArtist", slot.RandomArtist.ToNullableBitParam());
             _ = cmd.AddParam("@randomPrompt", (slot.Generate?.RandomPrompt ?? TriState.Unspecified).ToNullableBitParam());
             _ = cmd.AddParam("@temperature", (object?)slot.Generate?.Temperature ?? DBNull.Value);
             _ = cmd.AddParam("@tagTypes", (object?)slot.Generate?.TagTypesJson ?? DBNull.Value);
@@ -636,6 +636,7 @@ WHERE JobId = @jobId
             Workflow = r.IsDBNull(16) ? null : r.GetString(16),
             Prompt = r.IsDBNull(17) ? null : r.GetString(17),
             NegativePrompt = r.IsDBNull(18) ? null : r.GetString(18),
+            RandomArtist = r.AsTriState(20),
             OverridesJson = r.IsDBNull(24) ? null : r.GetString(24),
             LorasJson = r.IsDBNull(28) ? null : r.GetString(28),
             IsBackground = r.AsBool(29),
@@ -646,7 +647,6 @@ WHERE JobId = @jobId
             Generate = isEdit ? null : new GenerateSlotData
             {
                 Aspect = r.IsDBNull(19) ? null : r.GetString(19),
-                RandomArtist = r.AsTriState(20),
                 RandomPrompt = r.AsTriState(21),
                 Temperature = r.AsNullableDouble(22),
                 TagTypesJson = r.IsDBNull(23) ? null : r.GetString(23),

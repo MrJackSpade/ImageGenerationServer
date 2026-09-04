@@ -50,7 +50,7 @@
     },
     "denoise": {
       "value": 0.35,
-      "visibility": "hidden",
+      "visibility": "exposed",
       "min": 0.0,
       "max": 1.0
     },

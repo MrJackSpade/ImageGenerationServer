@@ -9,7 +9,8 @@ namespace ImageGen.Api.Contracts;
 /// since every page now POSTs its work as an /enqueue batch (there is no separate /generate or /edit endpoint).
 /// <c>Workflow</c> is non-nullable and required for both item kinds; <c>ImageId</c> stays nullable because a generate
 /// item legitimately omits it — its presence is the discriminated-union concern validated by the <c>Edit == true</c>
-/// branch, not a missing-member check. Generate fields (prompt/aspect/random-*/tagTypes/loras) and edit fields
+/// branch, not a missing-member check. Generate fields (prompt/aspect/random-prompt/tagTypes/loras), the shared
+/// random-artist option, and edit fields
 /// (instruction/imageId/mask/refs/lastFrame) coexist; <c>ToRenderItem</c> reads the set that matches <c>Edit</c>.
 /// <c>ResolvePromptSyntax=false</c> is reserved for exact replay/already-resolved API text.</summary>
 public sealed record EnqueueItem(
@@ -50,7 +51,7 @@ public static class RenderContractMapping
 
             return RenderItem.ForEdit(new EditSpec(it.Workflow, it.Instruction ?? "", it.ImageId,
                 it.NegativePrompt, it.ReferenceIds, it.Overrides, it.MaskImageId, it.LastFrameImageId,
-                it.ResolvePromptSyntax), it.Background);
+                it.ResolvePromptSyntax, it.RandomArtist), it.Background);
         }
 
         if (string.IsNullOrWhiteSpace(it.Workflow))

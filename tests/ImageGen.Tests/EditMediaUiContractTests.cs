@@ -28,6 +28,18 @@ public sealed class EditMediaUiContractTests
         Assert.Equal(2, Count(mask, "prunePreviews();"));
     }
 
+    [Fact]
+    public void Refine_offers_random_artist_for_an_artist_capable_workflow_and_submits_it()
+    {
+        string root = RepoRoot();
+        string edit = File.ReadAllText(Path.Combine(root, "src", "ImageGen.Web", "wwwroot", "js", "edit.js"));
+        string view = File.ReadAllText(Path.Combine(root, "src", "ImageGen.Web", "Views", "Edit", "Index.cshtml"));
+
+        Assert.Contains("id=\"editRandomArtist\"", view, StringComparison.Ordinal);
+        Assert.Contains("chatBucket === \"redraw\" && supportsEditRandomArtist", edit, StringComparison.Ordinal);
+        Assert.Contains("randomArtist: wantsEditRandomArtist(eff)", edit, StringComparison.Ordinal);
+    }
+
     private static int Count(string source, string value)
     {
         int count = 0;
