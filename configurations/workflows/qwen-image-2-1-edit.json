@@ -1,0 +1,85 @@
+{
+  "id": "qwen-image-2-1-edit",
+  "workflow": "qwen-image-2-1-edit",
+  "friendly_name": "Qwen-Image 2.1 Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-2-1",
+    "text_encoders": ["qwen3vl-8b-boogu"],
+    "vae": "qwen-image-2-1-vae"
+  },
+  "params": {
+    "edit_quality": { "value": "Medium", "visibility": "hidden" },
+    "edit_quality_low_mp": { "value": 0.5, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
+    "edit_quality_medium_mp": { "value": 1.0, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
+    "edit_quality_high_mp": { "value": 2.0, "visibility": "locked", "min": 0.01, "max": 16.0, "step": 0.01 },
+    "loader": "unet",
+    "clip_type": "qwen_image",
+    "seed": { "value": 0, "visibility": "hidden" },
+    "steps": { "value": 25, "visibility": "hidden" },
+    "cfg": { "value": 1.0, "visibility": "hidden" },
+    "sampler": { "value": "euler", "visibility": "hidden" },
+    "scheduler": { "value": "simple", "visibility": "hidden" },
+    "reference_max": { "value": 9, "visibility": "hidden" }
+  },
+  "card": {
+    "architecture": "Qwen-Image 2.1 unified 7B single-stream DiT editor (Qwen3-VL 8B, native RGBA VAE, prefix KV cache)",
+    "summary": "The same Qwen-Image 2.1 checkpoint edits an image with up to nine additional references, preserves people/products, supports local visual annotations, and can create or edit transparent layers.",
+    "use_cases": [
+      "instruction image editing",
+      "identity-preserving portrait and product edits",
+      "multi-reference composition (up to 10 total images)",
+      "transparent layer editing and subject extraction",
+      "circle, paint, or mask-like visual guidance"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "no (Qwen Research License; separate commercial license required)",
+    "pick_when": "You need the newest Qwen editor, several references, strong identity preservation, or alpha-aware editing.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Give a direct edit instruction and refer to the source and attachments as <image1>, <image2>, and so on.",
+      "example": "Keep the person and pose in <image1> unchanged. Put the blue jacket from <image2> on them, preserve their face and the original lighting.",
+      "overview": "Image 1 is the edit target; up to nine attachments become images 2-10. The visual encoder and RGBA VAE jointly condition the edit.",
+      "instructions": "State what must stay unchanged, then the requested change. Refer to each input explicitly as <image1> through <image10>. Image 1 is always the edit target. The rest are references. For transparency, request RGBA/transparent output and save PNG. Default sampling is CFG 1, Euler/simple, 25 steps; 40-50 may improve quality.",
+      "do": [
+        "Say what to preserve before what to change",
+        "Refer to every input as <imageN>",
+        "Use extra images for identity, products, clothing, or style",
+        "Request RGBA transparency explicitly"
+      ],
+      "dont": [
+        "Attach more than nine extra references",
+        "Use vague references such as 'that image' in multi-image edits",
+        "Expect a negative prompt to act at CFG 1"
+      ],
+      "negative_guidance": "Unused at the official CFG 1 default.",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    "negative": {
+      "supported": false,
+      "note": "The official path uses CFG 1."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "Prefix KV caching avoids recomputing reference context each step; many references increase cache memory."
+    },
+    "ui_help": {
+      "note": "Upload the picture to edit, then optional references. Call them <image1>, <image2>, etc. in the instruction.",
+      "good_for": "identity-safe edits, multi-reference composition, and transparent assets"
+    },
+    "edit_use_cases": [
+      "unified instruction editing with identity/product preservation, up to ten total images, and native transparency"
+    ],
+    "reference": {
+      "max": 9,
+      "hint": "The source is <image1>; attachments are <image2> through <image10>. Name them explicitly in the instruction."
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 32
+  }
+}

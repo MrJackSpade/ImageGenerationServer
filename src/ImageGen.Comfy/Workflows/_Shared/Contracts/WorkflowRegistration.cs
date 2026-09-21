@@ -39,6 +39,7 @@ using ImageGen.Comfy.Edit.PixelQuantizeBatch;
 using ImageGen.Comfy.Edit.PixelQuantizeVideo;
 using ImageGen.Comfy.Edit.PixelVideo;
 using ImageGen.Comfy.Edit.QwenImageEdit;
+using ImageGen.Comfy.Edit.QwenImage21Edit;
 using ImageGen.Comfy.Edit.QwenImageEditInpaint;
 using ImageGen.Comfy.Edit.QwenImageInpaint;
 using ImageGen.Comfy.Edit.QwenImageOutpaint;
@@ -77,6 +78,7 @@ using ImageGen.Comfy.Generation.PixelAnima;
 using ImageGen.Comfy.Generation.PixelDiT;
 using ImageGen.Comfy.Generation.PonyV6;
 using ImageGen.Comfy.Generation.QwenImage;
+using ImageGen.Comfy.Generation.QwenImage21;
 using ImageGen.Comfy.Generation.Sd15;
 using ImageGen.Comfy.Generation.Sd21;
 using ImageGen.Comfy.Generation.Sd35Medium;
@@ -124,6 +126,7 @@ public static class WorkflowRegistration
         _ = services.AddSingleton<IWorkflow, PixelDiTWorkflow>();
         // 24GB-tier generation models
         _ = services.AddSingleton<IWorkflow, QwenImageWorkflow>();
+        _ = services.AddSingleton<IWorkflow, QwenImage21Workflow>();   // unified 7B T2I/editor; native RGBA VAE
         _ = services.AddSingleton<IWorkflow, Flux2DevWorkflow>();
         _ = services.AddSingleton<IWorkflow, HiDreamWorkflow>();
         _ = services.AddSingleton<IWorkflow, Sd35TripleClipWorkflow>();
@@ -136,6 +139,7 @@ public static class WorkflowRegistration
 
         // Edit (image + instruction)
         _ = services.AddSingleton<IWorkflow, QwenImageEditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, QwenImage21EditWorkflow>();
         _ = services.AddSingleton<IWorkflow, QwenRapidAioWorkflow>();
         _ = services.AddSingleton<IWorkflow, MageFlowEditWorkflow>();       // Mage-Flow-Edit (RL) instruction editing (TextEncodeMageFlowEdit + references)
         _ = services.AddSingleton<IWorkflow, MageFlowEditTurboWorkflow>();  // Mage-Flow-Edit-Turbo (4-step) instruction editing

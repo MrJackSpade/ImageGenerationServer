@@ -1,0 +1,79 @@
+{
+  "id": "qwen-image-2-1",
+  "workflow": "qwen-image-2-1",
+  "friendly_name": "Qwen-Image 2.1",
+  "default": false,
+  "requirements": {
+    "checkpoint": "qwen-image-2-1",
+    "text_encoders": ["qwen3vl-8b-boogu"],
+    "vae": "qwen-image-2-1-vae"
+  },
+  "params": {
+    "seed": { "value": 0, "visibility": "hidden" },
+    "megapixels": { "value": 1.0, "visibility": "hidden" },
+    "steps": { "value": 25, "visibility": "hidden" },
+    "cfg": { "value": 1.0, "visibility": "hidden" },
+    "sampler": { "value": "euler", "visibility": "hidden" },
+    "scheduler": { "value": "simple", "visibility": "hidden" },
+    "width": { "value": 1024, "visibility": "hidden" },
+    "height": { "value": 1024, "visibility": "hidden" },
+    "negative_supported": false,
+    "aspect": {
+      "square": [1024, 1024],
+      "landscape": [1344, 768],
+      "portrait": [768, 1344]
+    }
+  },
+  "card": {
+    "architecture": "Qwen-Image 2.1 unified 7B single-stream DiT (Qwen3-VL 8B encoder, 64-channel RGBA VAE, flow matching)",
+    "summary": "Qwen's compact unified generation/editing model. Strong typography, portraits and realistic texture; native transparent PNG generation and direct output up to 2048px. The INT8 ConvRot build targets 24 GB renderers.",
+    "use_cases": [
+      "general text-to-image",
+      "legible typography and posters",
+      "portraits and product imagery",
+      "transparent-background RGBA assets",
+      "native output up to 2K"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "no (Qwen Research License; separate commercial license required)",
+    "pick_when": "You want the newest Qwen image quality, good text rendering, or a real alpha channel, and non-commercial use is acceptable.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Use detailed natural-language prose. Quote exact visible text. For alpha output, explicitly request an RGBA image with transparency and a transparent background.",
+      "example": "This is an RGBA format image with transparency. A polished chrome robot holding a small sign reading \"HELLO\", studio product lighting. The image has an alpha channel and a transparent background.",
+      "instructions": "Describe the subject, composition, lighting, materials, and any exact quoted text. Default sampling is CFG 1, Euler/simple, 25 steps; 40-50 steps can improve quality. Output supports 1024px by default and up to native 2048px; use multiples of 32. Save as PNG to retain transparency.",
+      "do": [
+        "Write detailed natural-language prompts",
+        "Quote exact text to render",
+        "Explicitly request RGBA transparency when needed",
+        "Use PNG for alpha output"
+      ],
+      "dont": [
+        "Use tag soup",
+        "Expect a negative prompt to act at CFG 1",
+        "Use a lossy output format for transparency"
+      ],
+      "negative_guidance": "Unused at the official CFG 1 default. Raise CFG only if deliberately using a negative prompt.",
+      "source": "https://github.com/QwenLM/Qwen-Image-2.1"
+    },
+    "negative": {
+      "supported": false,
+      "note": "The official path uses CFG 1, so the negative branch has no effect by default."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "7B visual model; official template starts at 25 steps."
+    },
+    "ui_help": {
+      "note": "Describe the image in plain language. Mention RGBA and a transparent background when you need a cutout with real alpha.",
+      "good_for": "newest Qwen quality, text, portraits, products, and transparency"
+    }
+  },
+  "resolution": {
+    "min_w": 256,
+    "min_h": 256,
+    "max_w": 2048,
+    "max_h": 2048,
+    "step": 32
+  }
+}

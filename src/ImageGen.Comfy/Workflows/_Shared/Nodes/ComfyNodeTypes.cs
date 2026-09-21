@@ -134,6 +134,8 @@ internal static class ComfyNodeTypes
     public const string TextEncodeBooguEdit = "TextEncodeBooguEdit";
     public const string TextEncodeMageFlowEdit = "TextEncodeMageFlowEdit";
     public const string TextEncodeQwenImageEditPlus = "TextEncodeQwenImageEditPlus";
+    public const string TextEncodeQwenImage21 = "TextEncodeQwenImage21";
+    public const string QwenImage21Cache = "QwenImage21Cache";
     public const string TripleCLIPLoader = "TripleCLIPLoader";
     public const string UNETLoader = "UNETLoader";
     public const string UnetLoaderGGUF = "UnetLoaderGGUF";

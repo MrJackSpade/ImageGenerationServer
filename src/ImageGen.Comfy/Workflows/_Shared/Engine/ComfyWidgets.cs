@@ -90,6 +90,14 @@ internal static class ComfyWidgets
         public const string Ltxv = "ltxv";
         public const string Mage = "mage";
         public const string Minimax = "minimax";
+        public const string QwenImage = "qwen_image";
+    }
+
+    /// <summary>The device and dtype defaults on Qwen-Image 2.1's prefix-KV-cache node.</summary>
+    internal static class QwenImageCache
+    {
+        public const string Auto = "auto";
+        public const string Default = "default";
     }
 
     /// <summary>The <c>attention</c> combo on ModelAttentionBackend — which attention kernel the model samples with.

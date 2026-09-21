@@ -1,5 +1,9 @@
 {
   "id": "qwen3vl-8b-boogu",
   "kind": "text_encoder",
-  "label": "Qwen3-VL 8B (Boogu)"
+  "label": "Qwen3-VL 8B",
+  "match": [
+    "qwen3vl[-_. ]?8b(?:[-_. ]?(?:bf16|fp16|fp8(?:[-_. ]?e4m3fn)?|int8(?:[-_. ]?convrot)?|w4a8))?$"
+  ],
+  "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/tree/main/text_encoders"
 }

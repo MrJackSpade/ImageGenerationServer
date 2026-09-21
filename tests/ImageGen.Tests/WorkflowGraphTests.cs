@@ -2743,6 +2743,40 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void QwenImage21_generation_uses_the_unified_encoder_and_rgba_stack()
+    {
+        string json = BuildJson("qwen-image-2-1", Gen);
+        Assert.Contains("\"TextEncodeQwenImage21\"", json);
+        Assert.Contains("\"QwenImage21Cache\"", json);
+        Assert.Contains("qwen-image-2-1-vae.safetensors", json);
+        Assert.Contains("\"EmptyLatentImage\"", json);
+        Assert.DoesNotContain("ModelSamplingAuraFlow", json);
+    }
+
+    [Fact]
+    public void QwenImage21_edit_keys_all_references_under_the_autogrow_group()
+    {
+        WorkflowInputs withRefs = new()
+        {
+            Positive = "put the jacket from <image2> on <image1>",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("jacket.png", ReferenceKind.Image)],
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("qwen-image-2-1-edit", withRefs));
+        JsonElement enc = doc.RootElement.EnumerateObject()
+            .Single(p => p.Value.GetProperty("class_type").GetString() == "TextEncodeQwenImage21")
+            .Value.GetProperty("inputs");
+
+        Assert.True(enc.TryGetProperty("vae", out _));
+        Assert.True(enc.TryGetProperty("images.image_1", out _));
+        Assert.True(enc.TryGetProperty("images.image_2", out _));
+        Assert.Equal(1024, enc.GetProperty("resolution").GetInt32());
+        Assert.False(enc.TryGetProperty("image_1", out _));
+    }
+
+    [Fact]
     public void Flux2Dev_applies_flux_guidance()
     {
         string json = BuildJson("flux2-dev", Gen);

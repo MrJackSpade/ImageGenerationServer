@@ -107,12 +107,12 @@ Two build args, both with sensible defaults:
 
 | arg | default | what it does |
 |---|---|---|
-| `COMFYUI_REF` | `v0.28.0` | The ComfyUI release the image bakes. Pinned so the backend cannot change between builds; bump it deliberately. |
+| `COMFYUI_REF` | `v0.37.0` | The ComfyUI release the image bakes. Pinned so the backend cannot change between builds; bump it deliberately. |
 | `IMAGEGEN_VERSION` | *(empty)* | The version the image reports. Empty is correct for an image built from a working copy — it is not a point on the release line, so the update banner stays quiet rather than comparing a made-up number against published releases. Pass it only for a release image. |
 
 ```bash
 docker compose --profile nvidia build \
-    --build-arg IMAGEGEN_VERSION=0.6.0 --build-arg COMFYUI_REF=v0.28.0
+    --build-arg IMAGEGEN_VERSION=0.6.0 --build-arg COMFYUI_REF=v0.37.0
 ```
 
 The CUDA, PyTorch and ComfyUI layers are cached against their own inputs, so a rebuild after a code change
