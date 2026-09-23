@@ -53,11 +53,17 @@ jobs:
         # exists -- the update banner reads this. The leading "v" comes off because Version must be numeric.
         run: |
           version="${{ inputs.tag || github.ref_name }}"
+          publish_args=(-p:DebugType=none)
+          if [[ "$version" == *-test ]]; then
+            # Test releases are for debugging a live installation. Keep IL unoptimized and put the
+            # symbols and source in each assembly so the archive is self-contained for debugging.
+            publish_args=(-p:Optimize=false -p:DebugType=embedded -p:DebugSymbols=true -p:EmbedAllSources=true -p:PublishReadyToRun=false)
+          fi
           dotnet publish src/ImageGen.Web/ImageGen.Web.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
-            -p:DebugType=none \
+            "${publish_args[@]}" \
             -p:Version="${version#v}" \
             -o staging/imagegen/bin
 
