@@ -68,12 +68,34 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = await cmd.ExecuteNonQueryAsync(ct);
         }
 
-        // Keyed on the (JobId, SlotIndex) unique constraint, which both dialects' upserts rely on existing.
-        string slotSql = _dialect.UpsertJobSlot;
-
         foreach (JobSlotRecord slot in job.Slots)
         {
-            await using DbCommand cmd = conn.Command(slotSql, tx);
+            await WriteSlotAsync(conn, tx, job.UserId, slot, ct);
+        }
+
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task UpsertSlotsAsync(long userId, IReadOnlyList<JobSlotRecord> slots, CancellationToken ct)
+    {
+        // Same key provisioning rule as UpsertAsync: outside the transaction, because SQLite allows one writer.
+        await _cipher.EnsureKeyAsync(userId, ct);
+        await using DbConnection conn = await _connectionFactory.OpenAsync(ct);
+        await using DbTransaction tx = await conn.BeginTransactionAsync(ct);
+        foreach (JobSlotRecord slot in slots)
+        {
+            await WriteSlotAsync(conn, tx, userId, slot, ct);
+        }
+
+        await tx.CommitAsync(ct);
+    }
+
+    /// <summary>Upsert one slot row and replace its child rows, inside the caller's transaction.</summary>
+    private async Task WriteSlotAsync(DbConnection conn, DbTransaction tx, long userId, JobSlotRecord slot, CancellationToken ct)
+    {
+        // Keyed on the (JobId, SlotIndex) unique constraint, which both dialects' upserts rely on existing.
+        await using (DbCommand cmd = conn.Command(_dialect.UpsertJobSlot, tx))
+        {
             _ = cmd.AddParam("@jobId", slot.JobId);
             _ = cmd.AddParam("@idx", slot.SlotIndex);
             _ = cmd.AddParam("@isEdit", slot.IsEdit);
@@ -86,18 +108,18 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = cmd.AddParam("@changed", slot.Edit?.Changed ?? true);
             _ = cmd.AddParam("@score", (object?)slot.Edit?.ChangeScore ?? DBNull.Value);
             _ = cmd.AddParam("@error", (object?)slot.Error ?? DBNull.Value);
-            _ = cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.EffectivePrompt, ct) ?? DBNull.Value);
-            _ = cmd.AddParam("@modelPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.ModelPrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@effective", (object?)await _cipher.EncryptNullableAsync(userId, slot.EffectivePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@modelPrompt", (object?)await _cipher.EncryptNullableAsync(userId, slot.ModelPrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@modelManifest", (object?)slot.ModelManifestJson ?? DBNull.Value);
             _ = cmd.AddParam("@renderDimensions", (object?)slot.RenderDimensionsJson ?? DBNull.Value);
-            _ = cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawPrompt, ct) ?? DBNull.Value);
-            _ = cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@raw", (object?)await _cipher.EncryptNullableAsync(userId, slot.RawPrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@rawNeg", (object?)await _cipher.EncryptNullableAsync(userId, slot.RawNegativePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@started", (object?)slot.GenStartedAtUtc ?? DBNull.Value);
             _ = cmd.AddParam("@expected", (object?)slot.ExpectedGenSeconds ?? DBNull.Value);
             // The spec, per field: the user's text encrypted, everything else plain and therefore queryable.
             _ = cmd.AddParam("@workflow", (object?)slot.Workflow ?? DBNull.Value);
-            _ = cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.Prompt, ct) ?? DBNull.Value);
-            _ = cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(job.UserId, slot.NegativePrompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@specPrompt", (object?)await _cipher.EncryptNullableAsync(userId, slot.Prompt, ct) ?? DBNull.Value);
+            _ = cmd.AddParam("@specNegative", (object?)await _cipher.EncryptNullableAsync(userId, slot.NegativePrompt, ct) ?? DBNull.Value);
             _ = cmd.AddParam("@aspect", (object?)slot.Generate?.Aspect ?? DBNull.Value);
             _ = cmd.AddParam("@randomArtist", slot.RandomArtist.ToNullableBitParam());
             _ = cmd.AddParam("@randomPrompt", (slot.Generate?.RandomPrompt ?? TriState.Unspecified).ToNullableBitParam());
@@ -109,13 +131,11 @@ public sealed class JobRepository(IDbConnectionFactory connectionFactory, IUserC
             _ = cmd.AddParam("@mask", (object?)slot.Edit?.MaskImageId ?? DBNull.Value);
             _ = cmd.AddParam("@lastFrame", (object?)slot.Edit?.LastFrameImageId ?? DBNull.Value);
             _ = await cmd.ExecuteNonQueryAsync(ct);
-
-            // The slot's child rows are REPLACED, not merged: this is a write-through of the whole in-memory slot,
-            // and a reference list that shrank must not leave the dropped rows behind.
-            await ReplaceSlotChildrenAsync(conn, tx, job.UserId, slot, ct);
         }
 
-        await tx.CommitAsync(ct);
+        // The slot's child rows are REPLACED, not merged: this is a write-through of the whole in-memory slot,
+        // and a reference list that shrank must not leave the dropped rows behind.
+        await ReplaceSlotChildrenAsync(conn, tx, userId, slot, ct);
     }
 
     public async Task<JobRecord?> GetAsync(string jobId, CancellationToken ct)

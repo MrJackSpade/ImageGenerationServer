@@ -285,6 +285,7 @@ public sealed class RenderRehydrateCancellationTests(TestDatabaseFixture fixture
         };
 
         public Task UpsertAsync(JobRecord job, CancellationToken ct) => throw new NotSupportedException();
+        public Task UpsertSlotsAsync(long userId, IReadOnlyList<JobSlotRecord> slots, CancellationToken ct) => throw new NotSupportedException();
         public Task<int> CountLatestBatchImagesAsync(long userId, CancellationToken ct) => throw new NotSupportedException();
         public Task<PagedResult<JobRecord>> ListPageAsync(string machineName, long viewerUserId, int page, int pageSize, CancellationToken ct) => throw new NotSupportedException();
         public Task FailAsync(string jobId, string reason, CancellationToken ct) => throw new NotSupportedException();
@@ -314,6 +315,8 @@ public sealed class RenderRehydrateCancellationTests(TestDatabaseFixture fixture
             await inner.UpsertAsync(job, ct);
         }
 
+        public Task UpsertSlotsAsync(long userId, IReadOnlyList<JobSlotRecord> slots, CancellationToken ct) =>
+            inner.UpsertSlotsAsync(userId, slots, ct);
         public Task<JobRecord?> GetAsync(string jobId, CancellationToken ct) => inner.GetAsync(jobId, ct);
         public Task<IReadOnlyList<JobRecord>> ListActiveForMachineAsync(string machineName, CancellationToken ct) =>
             inner.ListActiveForMachineAsync(machineName, ct);

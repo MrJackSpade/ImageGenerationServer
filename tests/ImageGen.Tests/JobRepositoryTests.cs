@@ -67,6 +67,31 @@ public sealed class JobRepositoryTests(TestDatabaseFixture fixture)
         Assert.Equal("cancelled", after.Slots.Single(s => s.SlotIndex == 1).Error);
     }
 
+    /// <summary>A slot-scoped write-through changes exactly the slots it is handed: the Job row and the batch's other
+    /// slots keep what the last full write put there.</summary>
+    [Fact]
+    public async Task UpsertSlots_writes_only_the_given_slots()
+    {
+        User user = await fixture.NewUserAsync("job-upsert-slots");
+        string jobId = Guid.NewGuid().ToString("N");
+        await fixture.Jobs.UpsertAsync(Job(user.Id, jobId, slots:
+        [
+            Slot(jobId, 0, JobSlotState.Queued),
+            Slot(jobId, 1, JobSlotState.Queued),
+        ]), Ct);
+
+        await fixture.Jobs.UpsertSlotsAsync(user.Id, [Slot(jobId, 1, JobSlotState.Done, imageId: "slot-one-image")], Ct);
+
+        JobRecord? after = await fixture.Jobs.GetAsync(jobId, Ct);
+        Assert.NotNull(after);
+        Assert.Equal(JobStatus.Active, after.Status);
+        Assert.Null(after.FinishedAtUtc);
+        Assert.Equal(JobSlotState.Queued, after.Slots.Single(s => s.SlotIndex == 0).State);
+        Assert.Null(after.Slots.Single(s => s.SlotIndex == 0).ImageId);
+        Assert.Equal(JobSlotState.Done, after.Slots.Single(s => s.SlotIndex == 1).State);
+        Assert.Equal("slot-one-image", after.Slots.Single(s => s.SlotIndex == 1).ImageId);
+    }
+
     /// <summary>Failing is idempotent and never re-finalizes a job that already resolved on its own.</summary>
     [Fact]
     public async Task Fail_leaves_an_already_finalized_job_alone()

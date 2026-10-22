@@ -544,7 +544,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             }
         }
 
-        _ = AfterSlotAsync(job);   // persist + finalize if everything is now terminal
+        _ = AfterSlotAsync(job, job.Slots);   // persist + finalize if everything is now terminal
         return true;
     }
 
@@ -985,7 +985,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                 }
             }
 
-            await AfterSlotAsync(slot.Job);   // persist this slot's result; finalize the job if all slots are terminal
+            await AfterSlotAsync(slot.Job, [slot]);   // persist this slot's result; finalize the job if all slots are terminal
         }
     }
 
@@ -1441,7 +1441,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     slot.ExpectedGenSeconds = expected;
                 }
 
-                _ = await PersistAsync(slot.Job);   // record the promptId, so a restart resumes this render instead of redoing it
+                await PersistSlotsAsync(slot.Job, [slot]);   // record the promptId, so a restart resumes this render instead of redoing it
             }
 
             // Poll for the result; no deadline. Ends on completion, a user cancel, the backend losing the prompt, or shutdown.
@@ -1888,10 +1888,10 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         }
     }
 
-    /// <summary>After a slot resolves: write the job through. Once every slot is terminal, exactly one final-persistence
-    /// driver owns the durable write; rejection leaves the terminal outcome resident and schedules retries. The job is
-    /// removed from memory only after its terminal row succeeds.</summary>
-    private async Task AfterSlotAsync(RenderJob job)
+    /// <summary>After <paramref name="changed"/> resolve: write them through. Once every slot is terminal, exactly one
+    /// final-persistence driver owns the durable write of the whole job; rejection leaves the terminal outcome resident
+    /// and schedules retries. The job is removed from memory only after its terminal row succeeds.</summary>
+    private async Task AfterSlotAsync(RenderJob job, IReadOnlyList<RenderSlot> changed)
     {
         bool terminal;
         bool ownsFinalDriver = false;
@@ -1907,7 +1907,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
         if (!terminal)
         {
-            _ = await PersistAsync(job);
+            await PersistSlotsAsync(job, changed);
             return;
         }
 
@@ -2104,9 +2104,9 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
 
         try
         {
-            // Waits out an unreachable database rather than reporting the write as failed. Non-terminal transitions
-            // rely on a later state change to carry a rejected write; a terminal transition is different and has the
-            // explicit RetryFinalPersistenceAsync driver, which retains the visible result until this succeeds.
+            // Waits out an unreachable database rather than reporting the write as failed. Submission refuses the job
+            // on a rejected write; a terminal transition has the explicit RetryFinalPersistenceAsync driver, which
+            // retains the visible result until this succeeds.
             await AwaitingDatabaseAsync(
                 ct => _jobRepo.UpsertAsync(rec, ct), $"persisting job {job.JobId}", CancellationToken.None);
             return null;
@@ -2116,6 +2116,30 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             _log.LogError(ex, "Job persist failed for {JobId} ({Slots} slots, status {Status}).",
                 job.JobId, rec.Slots.Count, rec.Status);
             return ex;
+        }
+    }
+
+    /// <summary>Write through only <paramref name="changed"/> — the slots a non-terminal transition actually moved —
+    /// leaving the Job row and the rest of the batch alone. Rewriting the whole job here made every transition's
+    /// transaction (and the row locks every image read waits on) grow with the batch size. A rejected write is logged
+    /// and carried by the job's final full write, which has its own retry driver.</summary>
+    private async Task PersistSlotsAsync(RenderJob job, IReadOnlyList<RenderSlot> changed)
+    {
+        List<JobSlotRecord> recs;
+        lock (_lock)
+        {
+            recs = [.. changed.Select(ToSlotRecord)];
+        }
+
+        try
+        {
+            await AwaitingDatabaseAsync(
+                ct => _jobRepo.UpsertSlotsAsync(job.Owner, recs, ct), $"persisting slots of job {job.JobId}", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Slot persist failed for job {JobId} (slots {Slots}).",
+                job.JobId, string.Join(",", recs.Select(r => r.SlotIndex)));
         }
     }
 
@@ -2182,9 +2206,17 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
         };
         foreach (RenderSlot? s in j.Slots.OrderBy(s => s.Index))
         {
-            rec.Slots.Add(new JobSlotRecord
+            rec.Slots.Add(ToSlotRecord(s));
+        }
+
+        return rec;
+    }
+
+    /// <summary>Snapshot one in-memory slot into its durable record. Called under _lock.</summary>
+    private static JobSlotRecord ToSlotRecord(RenderSlot s) =>
+            new()
             {
-                JobId = j.JobId,
+                JobId = s.Job.JobId,
                 SlotIndex = s.Index,
                 IsEdit = s.IsEdit,
                 IsBackground = s.IsBackground,
@@ -2233,11 +2265,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
                     LastFrameImageId = s.RequireEdit().LastFrameImageId,
                     ReferenceIds = [.. s.RequireEdit().ReferenceIds ?? []],
                 },
-            });
-        }
-
-        return rec;
-    }
+            };
 
     /// <summary>The slot's exposed-parameter values as stored JSON, or null when it set none. An arbitrary bag keyed
     /// by parameter name — not a relation to anything — so it stays JSON, and plain: none of it is protected.</summary>
@@ -2551,7 +2579,7 @@ public sealed class RenderOrchestrator : IStepProgressSink, IRenderProgressRoute
             }
         }
 
-        await AfterSlotAsync(job);   // finalize immediately if everything was already terminal
+        await AfterSlotAsync(job, job.Slots);   // finalize immediately if everything was already terminal
         return resumed;
     }
 

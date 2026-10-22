@@ -981,3 +981,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ConfigModelBindingOver
 CREATE UNIQUE INDEX UX_ConfigModelBindingOverride_Machine_Config_Slot
     ON dbo.ConfigModelBindingOverride (MachineName, ConfigId, SlotId);
 GO
+
+-- Readers see the last committed row version instead of queueing behind a writer's locks. Every image request's
+-- visibility check reads dbo.Job/dbo.JobSlot, and under locking read-committed it waited on (and deadlocked with) the
+-- render worker's job write-through. Switching it on needs the database to itself; NO_WAIT makes this batch fail at
+-- once rather than wait for the app's connections to leave, so stop the app for the run that first applies it.
+IF (SELECT is_read_committed_snapshot_on FROM sys.databases WHERE database_id = DB_ID()) = 0
+    ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH NO_WAIT;
+GO

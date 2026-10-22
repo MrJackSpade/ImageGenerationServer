@@ -9,10 +9,17 @@ namespace ImageGen.Domain.Repositories;
 /// </summary>
 public interface IJobRepository
 {
-    /// <summary>Insert or update a job and all of its slots in one transaction (write-through on every transition).
+    /// <summary>Insert or update a job and all of its slots in one transaction (submission, finalization, and
+    /// transitions that touch many slots at once).
     /// The job's <c>Slots</c> are upserted by <c>(JobId, SlotIndex)</c>; slots are never deleted here (a job's slot set
     /// is fixed at enqueue).</summary>
     Task UpsertAsync(JobRecord job, CancellationToken ct);
+
+    /// <summary>Upsert only the given slots of an already-written job, in one transaction, leaving the <c>Job</c> row
+    /// and every other slot untouched. This is the write-through for a transition that changed those slots alone: its
+    /// cost and its locks are the changed slots', not the whole batch's. <paramref name="userId"/> is the job owner,
+    /// whose key encrypts the slots' text.</summary>
+    Task UpsertSlotsAsync(long userId, IReadOnlyList<JobSlotRecord> slots, CancellationToken ct);
 
     /// <summary>One job by id with its slots ordered by index, or null if unknown. Used for the client's
     /// "the job vanished from the active feed — fetch its finalized result" lookup; reads across instances (durable).</summary>
