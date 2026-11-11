@@ -1,0 +1,9 @@
+{
+  "id": "minimax-h3-image",
+  "kind": "unet",
+  "label": "MiniMax-H3-Image",
+  "match": [
+    "minimax[-_. ]?h3[-_. ]?image(?:[-_. ]?pruned)?(?:[-_. ]?(?:bf16|fp16|fp8(?:[-_. ]?e4m3fn)?|int8(?:[-_. ]?convrot)?|w4a8))?$"
+  ],
+  "page": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image"
+}

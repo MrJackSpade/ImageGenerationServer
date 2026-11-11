@@ -73,9 +73,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # --- ComfyUI ---
 # Pinned to a FIXED revision (a tag, or an exact commit when the needed feature has no tag yet), NEVER a branch:
 # a branch moves, so tracking it would silently change the backend between builds -- non-reproducible, and a
-# deployment could then fail for a reason nobody chose (a patch stops applying, a workflow graph breaks). v0.37.0
-# is the first stable release with Qwen-Image 2.1's model, unified encoder, RGBA VAE and prefix-cache support.
-ARG COMFYUI_REF=v0.37.0
+# deployment could then fail for a reason nobody chose (a patch stops applying, a workflow graph breaks). v0.45.0
+# is the first stable release with MiniMax-H3-Image (MiniMaxH3ImageConditioning, its model sampling and VAE).
+ARG COMFYUI_REF=v0.45.0
 # init+fetch instead of clone --branch: --branch takes only tags/branches, and the pin may be a bare commit.
 RUN git init /opt/ComfyUI \
     && git -C /opt/ComfyUI remote add origin https://github.com/comfyanonymous/ComfyUI.git \

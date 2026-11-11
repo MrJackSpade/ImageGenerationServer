@@ -2754,6 +2754,85 @@ public sealed class WorkflowGraphTests
     }
 
     [Fact]
+    public void MiniMaxH3Image_generation_is_the_distilled_six_step_no_cfg_graph_without_pictures()
+    {
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-image", Gen));
+        JsonElement root = doc.RootElement;
+        JsonElement Node(string classType) => root.EnumerateObject()
+            .Single(p => p.Value.GetProperty("class_type").GetString() == classType).Value.GetProperty("inputs");
+
+        JsonElement enc = Node("MiniMaxH3ImageConditioning");
+        Assert.Equal(2048, enc.GetProperty("width").GetInt32());
+        Assert.Equal(2048, enc.GetProperty("height").GetInt32());
+        Assert.Equal("a cat", enc.GetProperty("prompt").GetString());
+        Assert.DoesNotContain(enc.EnumerateObject(), p => p.Name.StartsWith("images.", StringComparison.Ordinal));
+
+        Assert.Equal("minimax", Node("CLIPLoader").GetProperty("type").GetString());
+        Assert.Equal("qwen3vl-32b-minimax-h3.safetensors", Node("CLIPLoader").GetProperty("clip_name").GetString());
+        Assert.Equal("minimax-h3-image-vae.safetensors", Node("VAELoader").GetProperty("vae_name").GetString());
+
+        JsonElement ks = Node("KSampler");
+        Assert.Equal(6, ks.GetProperty("steps").GetInt32());
+        Assert.Equal(1.0, ks.GetProperty("cfg").GetDouble());
+        Assert.Equal(MiniMaxH3ImageNodes.Encode, ks.GetProperty("latent_image")[0].GetString());
+        Assert.Equal(1, ks.GetProperty("latent_image")[1].GetInt32());
+        Assert.Equal(MiniMaxH3ImageNodes.Negative, ks.GetProperty("negative")[0].GetString());
+        Assert.Equal("ConditioningZeroOut", root.GetProperty(MiniMaxH3ImageNodes.Negative).GetProperty("class_type").GetString());
+        Assert.DoesNotContain("CLIPTextEncode", root.GetRawText());
+    }
+
+    [Fact]
+    public void MiniMaxH3Image_edit_makes_the_scaled_source_picture_1_and_sizes_the_canvas_from_it()
+    {
+        WorkflowInputs withRefs = new()
+        {
+            Positive = "put the scooter from <Picture 2> in place of the taxi in <Picture 1>",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [new ReferenceInput("scooter.png", ReferenceKind.Image), new ReferenceInput("rider.png", ReferenceKind.Image)],
+        };
+        using JsonDocument doc = JsonDocument.Parse(BuildJson("minimax-h3-image-edit", withRefs));
+        JsonElement root = doc.RootElement;
+        JsonElement enc = root.GetProperty(MiniMaxH3ImageNodes.Encode).GetProperty("inputs");
+
+        Assert.Equal("MiniMaxH3ImageConditioning", root.GetProperty(MiniMaxH3ImageNodes.Encode).GetProperty("class_type").GetString());
+        Assert.Equal(MiniMaxH3ImageNodes.ScaledSource, enc.GetProperty("images.image_1")[0].GetString());
+        string LoadedFile(string key) =>
+            root.GetProperty(enc.GetProperty(key)[0].GetString() ?? throw new InvalidOperationException($"{key} has no source node id"))
+                .GetProperty("inputs").GetProperty("image").GetString() ?? throw new InvalidOperationException($"{key}'s LoadImage has no file");
+        Assert.Equal("scooter.png", LoadedFile("images.image_2"));
+        Assert.Equal("rider.png", LoadedFile("images.image_3"));
+        Assert.False(enc.TryGetProperty("images.image_4", out _));
+        Assert.Equal(MiniMaxH3ImageNodes.SourceSize, enc.GetProperty("width")[0].GetString());
+        Assert.Equal(MiniMaxH3ImageNodes.SourceSize, enc.GetProperty("height")[0].GetString());
+
+        JsonElement scale = root.GetProperty(MiniMaxH3ImageNodes.ScaledSource).GetProperty("inputs");
+        Assert.Equal(4.0, scale.GetProperty("megapixels").GetDouble());
+        Assert.Equal(32, scale.GetProperty("resolution_steps").GetInt32());
+        Assert.Equal(MiniMaxH3ImageNodes.Source, scale.GetProperty("image")[0].GetString());
+
+        JsonElement ks = root.GetProperty(MiniMaxH3ImageNodes.Sampler).GetProperty("inputs");
+        Assert.Equal(6, ks.GetProperty("steps").GetInt32());
+        Assert.Equal(1.0, ks.GetProperty("cfg").GetDouble());
+        Assert.Equal(OutputPrefixes.Edit, root.GetProperty(MiniMaxH3ImageNodes.Save).GetProperty("inputs").GetProperty("filename_prefix").GetString());
+    }
+
+    [Fact]
+    public void MiniMaxH3Image_edit_refuses_more_than_fifteen_references()
+    {
+        WorkflowInputs tooMany = new()
+        {
+            Positive = "combine them",
+            SourceImageName = "src.png",
+            SourceWidth = 1216,
+            SourceHeight = 832,
+            References = [.. Enumerable.Range(0, 16).Select(i => new ReferenceInput($"ref{i}.png", ReferenceKind.Image))],
+        };
+        _ = Assert.Throws<RenderValidationException>(() => BuildJson("minimax-h3-image-edit", tooMany));
+    }
+
+    [Fact]
     public void QwenImage21_edit_keys_all_references_under_the_autogrow_group()
     {
         WorkflowInputs withRefs = new()

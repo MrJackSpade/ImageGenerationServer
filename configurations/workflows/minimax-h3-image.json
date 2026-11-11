@@ -1,0 +1,79 @@
+{
+  "id": "minimax-h3-image",
+  "workflow": "minimax-h3-image",
+  "friendly_name": "MiniMax-H3-Image",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-image",
+    "text_encoders": ["qwen3vl-32b-minimax-h3"],
+    "vae": "minimax-h3-image-vae"
+  },
+  "params": {
+    "seed": { "value": 0, "visibility": "hidden" },
+    "megapixels": { "value": 4.0, "visibility": "hidden" },
+    "ck_attention": { "value": false, "visibility": "exposed" },
+    "steps": { "value": 6, "visibility": "hidden" },
+    "cfg": { "value": 1.0, "visibility": "hidden" },
+    "sampler": { "value": "euler", "visibility": "hidden" },
+    "scheduler": { "value": "simple", "visibility": "hidden" },
+    "width": { "value": 2048, "visibility": "hidden" },
+    "height": { "value": 2048, "visibility": "hidden" },
+    "negative_supported": false,
+    "aspect": {
+      "square": [2048, 2048],
+      "landscape": [2720, 1536],
+      "portrait": [1536, 2720]
+    }
+  },
+  "card": {
+    "architecture": "MiniMax-H3-Image single-stream DiT (pruned 20B, int8 ConvRot; Qwen3-VL 32B encoder shared with MiniMax-H3 video; 24-channel ViT-decoder VAE; 6-step PDD distilled, no CFG)",
+    "summary": "MiniMax's unified text-to-image and editing model. One checkpoint, two tasks, six sampling steps, no CFG. Native high resolution (4-20 MP working range), strong typography and dense, detailed scenes.",
+    "use_cases": [
+      "general high-resolution text-to-image",
+      "posters, packaging and legible typography",
+      "dense, detailed scenes from long descriptive prompts",
+      "photoreal and illustrated styles"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "restricted (MiniMax H3 Image Community License: separate authorization required above 1M USD annual revenue or for hosted services)",
+    "pick_when": "You want very high native resolution and long-prompt fidelity in a fast 6-step model.",
+    "prompt": {
+      "format": "natural_language",
+      "guidance": "Write a long, detailed English description of the WHOLE image: subject, composition, materials, lighting, palette, and any exact quoted text. Short prompts underuse the model.",
+      "example": "A cheerful toy-packaging poster: a handmade burnt-sienna plush fox floats above a summer meadow under a clear sky-blue gradient, bright afternoon sun from the upper left. Across the top the word \"MINIMAX\" in thick felted cream wool letters; along the bottom \"TEXT TO IMAGE\" in bold cornflower-blue sans-serif.",
+      "instructions": "Describe the image as a complete paragraph, front to back: hero subject and pose, surrounding elements, background, materials and textures, lighting direction, colour palette, camera/composition, and every piece of visible text in quotes with its placement and style. The prompt is used as given (up to 4096 tokens). Sampling is fixed by the distillation: 6 steps, CFG 1, Euler/simple.",
+      "do": [
+        "Write long, specific English descriptions",
+        "Quote exact visible text and say where it goes",
+        "State lighting, palette and materials explicitly",
+        "Render at 4 MP or more"
+      ],
+      "dont": [
+        "Use tag soup or one-line prompts",
+        "Expect a negative prompt to do anything (no CFG)",
+        "Change the step count; the checkpoint is distilled to 6 steps"
+      ],
+      "negative_guidance": "Not supported: the model is distilled to CFG 1.",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3-Image ; https://huggingface.co/Comfy-Org/MiniMax-H3-Image"
+    },
+    "negative": {
+      "supported": false,
+      "note": "6-step distilled, CFG 1."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "Only 6 steps, but a 20B DiT at 4 MP and a 32B text encoder; not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Describe the whole picture in detail. Longer prompts give better results.",
+      "good_for": "high-resolution posters, typography and detailed scenes"
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 6272,
+    "max_h": 6272,
+    "step": 32
+  }
+}

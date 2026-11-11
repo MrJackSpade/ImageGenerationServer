@@ -1,6 +1,6 @@
 # Supported models
 
-**109 models, 160 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
+**114 models, 165 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
 
 A model can appear in more than one section: the same weights that generate a picture often also redraw one or drive an effect.
 
@@ -36,17 +36,20 @@ Type a prompt, get a picture.
 | **HunyuanImage 2.1** | Tencent's 2K-native text-to-image base, distilled for ~8-step sampling (meanflow). | [Hugging Face](https://huggingface.co/Comfy-Org/HunyuanImage_2.1_ComfyUI) |
 | **HunyuanImage 2.1 Full** | The full (non-distilled) HunyuanImage 2.1: ~50 steps at cfg ~3.5 for maximum fidelity and prompt adherence. | [Hugging Face](https://huggingface.co/Comfy-Org/HunyuanImage_2.1_ComfyUI) |
 | **Ideogram 4** | Ideogram's open text-to-image model, renowned for best-in-class typography/text rendering and prompt adherence. | [Hugging Face](https://huggingface.co/Comfy-Org/Ideogram-4) |
+| **Ideogram 4 NL** | Ideogram's open text-to-image model, renowned for best-in-class typography/text rendering and prompt adherence. | [Hugging Face](https://huggingface.co/Comfy-Org/Ideogram-4) |
 | **Krea 2** | Krea's open aesthetic-first text-to-image model (RAW base variant). | [Hugging Face](https://huggingface.co/Comfy-Org/Krea-2) |
 | **Krea 2 Turbo** | Distilled few-step (8-step) version of Krea 2 with the same polished aesthetic at a fraction of the cost. | [Hugging Face](https://huggingface.co/Comfy-Org/Krea-2) |
 | **Lumina-Image 2.0** | 2.6B flow DiT with a Gemma-2 LLM encoder; strong text-image alignment and a distinctive system-prompt mechanism for setting style/role. | [Hugging Face](https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged) |
 | **Mage-Flow** | Microsoft's compact 4B text-to-image model at native resolution (512-2048 per side, any aspect including extreme 4:1). | [Hugging Face](https://huggingface.co/Comfy-Org/Mage-Flow) |
 | **Mage-Flow Turbo** | Few-step distilled Mage-Flow: 4 steps, cfg 1, ~0.6 s/image at 1024x1024 on an A100. | [Hugging Face](https://huggingface.co/Comfy-Org/Mage-Flow) |
+| **MiniMax-H3-Image** | MiniMax's unified text-to-image and editing model. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) |
 | **Photanima** 🏷 | Photographic finetune of Anima Base v1.0 (same 2B architecture), trained ~45k steps on ~2000 highly-aesthetic photos. | [Civitai](https://civitai.com/models/2645333/photanima) |
 | **Pixelanima** 🏷 | Pixel-art GENERATION with Anima: the per-step pixel-manifold projection clamps the x0 estimate onto a fixed grid+palette every denoise step while Anima (the highest-quality anime model here) authors… | [Hugging Face](https://huggingface.co/circlestone-labs/Anima) |
 | **PixelDiT 1300M** | NVIDIA PixelDiT-1300M. | [Hugging Face](https://huggingface.co/Comfy-Org/PixelDiT) |
 | **Pony Diffusion V6 XL** 🏷 | The best model here for FURRY and PONY (My Little Pony) art -- a heavily re-trained SDXL with deep furry/anthro and pony concept coverage. | [Civitai](https://civitai.com/models/257749/pony-diffusion-v6-xl) |
 | **Qwen Rapid** | Uncensored, distilled all-in-one editor on the same 20B Qwen-Image-Edit base. | [Hugging Face](https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO) |
 | **Qwen-Image** | The 20B Qwen-Image text-to-image base (Q6_K on 24 GB). | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI) |
+| **Qwen-Image 2.1** | Qwen's compact unified generation/editing model. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-2.1) |
 | **Qwen-Image 2512** | The December 2025 refresh of Qwen-Image (Q8_0 on 24 GB). | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI) |
 | **SDXL 1.0** | High-quality native-1024 base with strong prompt adherence and composition; the standard general-purpose foundation. | [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) |
 | **Stable Diffusion 1.5** | Lightweight, fast workhorse with the biggest LoRA/ControlNet ecosystem; lower native resolution and weaker prompt adherence than modern models. | [Hugging Face](https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive) |
@@ -90,9 +93,11 @@ Take an existing image and change it. Multi-turn: each edit builds on the last.
 | **LongCat-Image-Edit Turbo** | Distilled LongCat editor: ~8 steps at CFG 1 for fast drafts/previews. | [Hugging Face](https://huggingface.co/Comfy-Org/LongCat-Image) |
 | **Mage-Flow-Edit** | Microsoft's 4B instruction-based image editor. | [Hugging Face](https://huggingface.co/Comfy-Org/Mage-Flow) |
 | **Mage-Flow-Edit Turbo** | Few-step distilled Mage-Flow-Edit: 4 steps, cfg 1, ~1 s/edit at 1024x1024 on an A100. | [Hugging Face](https://huggingface.co/Comfy-Org/Mage-Flow) |
+| **MiniMax-H3-Image Edit** | The same MiniMax-H3-Image checkpoint edits a picture from an instruction and composes up to 15 additional reference pictures into it (16 in total), preserving identity, products and layout. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3-Image) |
 | **Photanima** 🏷 | Reinterpret an entire existing image through Photanima using a prompt — the source is used as the init latent and re-sampled at a partial denoise with NO mask, so the composition is kept but the… | [Civitai](https://civitai.com/models/2645333/photanima) |
 | **Photo** | Upscale photographic and real-world images through Nomos2's high-quality DAT2 network. | [Hugging Face](https://huggingface.co/Phips/4xNomos2_hq_dat2) |
 | **Qwen-Image** ×2 | Regenerate a PAINTED region of an image with base Qwen-Image driven by the InstantX inpainting ControlNet. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI) |
+| **Qwen-Image 2.1 Edit** | The same Qwen-Image 2.1 checkpoint edits an image with up to nine additional references, preserves people/products, supports local visual annotations, and can create or edit transparent layers. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-2.1) |
 | **Qwen-Image-Edit** | Clean instruction editor on the 20B Qwen-Image base. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **Qwen-Image-Edit (masked)** | Paint a region, give an instruction, and optionally attach reference images — the Qwen edit runs only inside the mask and everything outside is composited back untouched. | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **SeedVR2** | Restore and upscale an image through SeedVR2's one-step diffusion transformer. | [Hugging Face](https://huggingface.co/Comfy-Org/SeedVR2) |
@@ -126,9 +131,9 @@ Animate a still, or generate a clip from a prompt.
 | **LTX-2.5 22B** ×2 | The newest LTX flagship (2.5, 22B) — distilled, image→video, the ComfyUI int8-convrot build on 24 GB. | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
 | **LTX-2.5 22B dev** ×2 | The NON-distilled LTX-2.5 22B (dev) image→video — higher quality than the distilled build, at the cost of more steps (~30) and real CFG (~3). | [Hugging Face](https://huggingface.co/Lightricks/LTX-2.5) |
 | **MiniMax-H3** ×2 | Animate a still into a clip with NATIVE stereo audio — voice, sound effects and music generated together with the motion. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
-| **MiniMax-H3 (reference)** | Generate a clip whose SUBJECT is taken from your reference image(s), with NATIVE stereo audio — voice, sound effects and music generated together with the motion. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
+| **MiniMax-H3 (reference)** | Generate a first/last-frame-constrained clip with additional semantic references and NATIVE stereo audio. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **MiniMax-H3 Turbo** ×2 | The fast MiniMax-H3 image→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
-| **MiniMax-H3 Turbo (reference)** | The fast MiniMax-H3 reference→video: the Turbo distill LoRA cuts sampling from ~20 steps to 6 at a small quality cost. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
+| **MiniMax-H3 Turbo (reference)** | The fast MiniMax-H3 reference workflow: first/last frames anchor the timeline while Refs-box media conditions identity, appearance, motion, or sound. | [Hugging Face](https://huggingface.co/Comfy-Org/MiniMax-H3) |
 | **SDXL AnimateDiff** | Animates a still image into a short clip using base SDXL and the AnimateDiff SDXL motion module. | [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) |
 | **SeedVR2** | Restores and upscales a source video with SeedVR2's temporal diffusion model. | [Hugging Face](https://huggingface.co/Comfy-Org/SeedVR2) |
 | **Wan 2.2** | Animates a still image into a short clip (image-to-video). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |

@@ -1,0 +1,84 @@
+{
+  "id": "minimax-h3-image-edit",
+  "workflow": "minimax-h3-image-edit",
+  "friendly_name": "MiniMax-H3-Image Edit",
+  "default": false,
+  "requirements": {
+    "checkpoint": "minimax-h3-image",
+    "text_encoders": ["qwen3vl-32b-minimax-h3"],
+    "vae": "minimax-h3-image-vae"
+  },
+  "params": {
+    "edit_quality": { "value": "Medium", "visibility": "hidden" },
+    "edit_quality_low_mp": { "value": 2.0, "visibility": "locked", "min": 0.01, "max": 20.0, "step": 0.01 },
+    "edit_quality_medium_mp": { "value": 4.0, "visibility": "locked", "min": 0.01, "max": 20.0, "step": 0.01 },
+    "edit_quality_high_mp": { "value": 9.0, "visibility": "locked", "min": 0.01, "max": 20.0, "step": 0.01 },
+    "megapixels": { "value": 4.0, "visibility": "hidden" },
+    "seed": { "value": 0, "visibility": "hidden" },
+    "steps": { "value": 6, "visibility": "hidden" },
+    "cfg": { "value": 1.0, "visibility": "hidden" },
+    "sampler": { "value": "euler", "visibility": "hidden" },
+    "scheduler": { "value": "simple", "visibility": "hidden" },
+    "reference_max": { "value": 15, "visibility": "hidden" }
+  },
+  "card": {
+    "architecture": "MiniMax-H3-Image single-stream DiT (pruned 20B, int8 ConvRot; Qwen3-VL 32B vision-language encoder; reference latents through the 24-channel VAE; 6-step PDD distilled, no CFG)",
+    "summary": "The same MiniMax-H3-Image checkpoint edits a picture from an instruction and composes up to 15 additional reference pictures into it (16 in total), preserving identity, products and layout.",
+    "use_cases": [
+      "instruction image editing",
+      "multi-reference composition (up to 16 pictures)",
+      "subject and identity preservation into a new scene",
+      "object replacement and restyling",
+      "text and poster edits"
+    ],
+    "nsfw_capable": "limited (safety-aligned base)",
+    "commercial_use": "restricted (MiniMax H3 Image Community License: separate authorization required above 1M USD annual revenue or for hosted services)",
+    "pick_when": "You need a high-resolution editor that takes many references at once and keeps subjects intact.",
+    "prompt": {
+      "format": "instruction",
+      "guidance": "Refer to every input as <Picture 1>, <Picture 2>, ... The source is <Picture 1>; attachments follow in order. Name preserved subjects explicitly.",
+      "example": "Replace the vintage yellow taxi in <Picture 1> with the pastel-blue scooter from <Picture 2>; keep the street, the lighting and the camera angle unchanged.",
+      "overview": "Picture 1 is the edit target and sets the canvas; up to 15 attachments become Pictures 2-16. The vision-language encoder reads every picture and the VAE anchors each as a reference latent.",
+      "instructions": "Say what must stay unchanged, then the change. Address each input by its tag: <Picture 1> for the source, <Picture 2> onward for the attachments in upload order. To carry a subject into the result, bind it explicitly (e.g. 'the woman in <Picture 2> is <Subject 1>') and refer to that subject afterwards. Describe the desired result in detail; short instructions underuse the model. Sampling is fixed: 6 steps, CFG 1.",
+      "do": [
+        "Refer to every input as <Picture N>",
+        "State what to preserve before what to change",
+        "Bind recurring subjects with <Subject N>",
+        "Describe the result in detail"
+      ],
+      "dont": [
+        "Attach more than 15 extra references",
+        "Use vague references like 'the other image'",
+        "Expect a negative prompt to act (no CFG)"
+      ],
+      "negative_guidance": "Not supported: the model is distilled to CFG 1.",
+      "source": "https://huggingface.co/MiniMaxAI/MiniMax-H3-Image ; https://huggingface.co/Comfy-Org/MiniMax-H3-Image"
+    },
+    "negative": {
+      "supported": false,
+      "note": "6-step distilled, CFG 1."
+    },
+    "speed": {
+      "class": "medium",
+      "note": "6 steps; each reference adds vision and latent tokens. Not yet benchmarked on this box."
+    },
+    "ui_help": {
+      "note": "Upload the picture to edit, then optional references. Call them <Picture 1>, <Picture 2>, etc. in the instruction.",
+      "good_for": "multi-reference composition and identity-safe edits at high resolution"
+    },
+    "edit_use_cases": [
+      "instruction editing and multi-reference composition with up to 16 pictures in total"
+    ],
+    "reference": {
+      "max": 15,
+      "hint": "The source is <Picture 1>; attachments are <Picture 2> through <Picture 16>. Name them explicitly in the instruction."
+    }
+  },
+  "resolution": {
+    "min_w": 1024,
+    "min_h": 1024,
+    "max_w": 6272,
+    "max_h": 6272,
+    "step": 32
+  }
+}

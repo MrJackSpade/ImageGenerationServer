@@ -32,6 +32,7 @@ using ImageGen.Comfy.Edit.LtxvI2V;
 using ImageGen.Comfy.Edit.MageFlowEdit;
 using ImageGen.Comfy.Edit.MageFlowEditTurbo;
 using ImageGen.Comfy.Edit.MiniMaxH3I2V;
+using ImageGen.Comfy.Edit.MiniMaxH3ImageEdit;
 using ImageGen.Comfy.Edit.MiniMaxH3Ref2V;
 using ImageGen.Comfy.Edit.Pixelize;
 using ImageGen.Comfy.Edit.PixelQuantize;
@@ -72,6 +73,7 @@ using ImageGen.Comfy.Generation.LtxV2T2V;
 using ImageGen.Comfy.Generation.Lumina2;
 using ImageGen.Comfy.Generation.MageFlow;
 using ImageGen.Comfy.Generation.MageFlowTurbo;
+using ImageGen.Comfy.Generation.MiniMaxH3Image;
 using ImageGen.Comfy.Generation.MiniMaxH3T2V;
 using ImageGen.Comfy.Generation.PhotAnima;
 using ImageGen.Comfy.Generation.PixelAnima;
@@ -127,6 +129,7 @@ public static class WorkflowRegistration
         // 24GB-tier generation models
         _ = services.AddSingleton<IWorkflow, QwenImageWorkflow>();
         _ = services.AddSingleton<IWorkflow, QwenImage21Workflow>();   // unified 7B T2I/editor; native RGBA VAE
+        _ = services.AddSingleton<IWorkflow, MiniMaxH3ImageWorkflow>();  // MiniMax-H3-Image T2I: distilled 6-step, no CFG
         _ = services.AddSingleton<IWorkflow, Flux2DevWorkflow>();
         _ = services.AddSingleton<IWorkflow, HiDreamWorkflow>();
         _ = services.AddSingleton<IWorkflow, Sd35TripleClipWorkflow>();
@@ -140,6 +143,7 @@ public static class WorkflowRegistration
         // Edit (image + instruction)
         _ = services.AddSingleton<IWorkflow, QwenImageEditWorkflow>();
         _ = services.AddSingleton<IWorkflow, QwenImage21EditWorkflow>();
+        _ = services.AddSingleton<IWorkflow, MiniMaxH3ImageEditWorkflow>();  // same checkpoint: edit + up to 15 references
         _ = services.AddSingleton<IWorkflow, QwenRapidAioWorkflow>();
         _ = services.AddSingleton<IWorkflow, MageFlowEditWorkflow>();       // Mage-Flow-Edit (RL) instruction editing (TextEncodeMageFlowEdit + references)
         _ = services.AddSingleton<IWorkflow, MageFlowEditTurboWorkflow>();  // Mage-Flow-Edit-Turbo (4-step) instruction editing

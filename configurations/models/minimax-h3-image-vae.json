@@ -1,0 +1,9 @@
+{
+  "id": "minimax-h3-image-vae",
+  "kind": "vae",
+  "label": "MiniMax-H3-Image VAE",
+  "match": [
+    "minimax[-_. ]?h3[-_. ]?image[-_. ]?vae(?:[-_. ]?(?:bf16|fp16|fp32))?$"
+  ],
+  "page": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image/tree/main/vae"
+}
