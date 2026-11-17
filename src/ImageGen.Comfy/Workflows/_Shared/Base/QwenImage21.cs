@@ -27,6 +27,12 @@ internal static class QwenImage21Graph
 
     public static void SampleAndSave(ComfyWorkflowGraph g, Txt2ImgParams p, Output<Slot.Model> model,
         Output<Slot.Vae> vae, Output<Slot.Conditioning> positive, Output<Slot.Conditioning> negative,
+        Output<Slot.Latent> latent) =>
+        Save(g, SampleAndDecode(g, p, model, vae, positive, negative, latent));
+
+    /// <summary>Sample and decode, returning the decoded image so a caller can post-process it before saving.</summary>
+    public static Output<Slot.Image> SampleAndDecode(ComfyWorkflowGraph g, Txt2ImgParams p, Output<Slot.Model> model,
+        Output<Slot.Vae> vae, Output<Slot.Conditioning> positive, Output<Slot.Conditioning> negative,
         Output<Slot.Latent> latent)
     {
         g[QwenImage21Nodes.Sampler] = new KSampler
@@ -43,8 +49,12 @@ internal static class QwenImage21Graph
             LatentImage = latent,
         };
         g[QwenImage21Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(QwenImage21Nodes.Sampler), Vae = vae };
-        g[QwenImage21Nodes.Save] = new SaveImage { Images = VAEDecode.Out(QwenImage21Nodes.Decode), FilenamePrefix = OutputPrefixes.Generate };
+        return VAEDecode.Out(QwenImage21Nodes.Decode);
     }
+
+    /// <summary>Save the finished image under the shared Qwen-Image 2.1 output prefix.</summary>
+    public static void Save(ComfyWorkflowGraph g, Output<Slot.Image> image) =>
+        g[QwenImage21Nodes.Save] = new SaveImage { Images = image, FilenamePrefix = OutputPrefixes.Generate };
 }
 
 internal static class QwenImage21Nodes
@@ -59,4 +69,6 @@ internal static class QwenImage21Nodes
     public const string Save = "12";
     public const string Cache = "13";
     public const string Source = "20";
+    public const string ExactPad = "30";
+    public const string ExactCrop = "31";
 }

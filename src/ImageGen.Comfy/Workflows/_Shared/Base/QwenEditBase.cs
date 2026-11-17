@@ -17,6 +17,8 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
     public override bool NormalizesSourceResolution => true;
     public override bool SupportsEditQuality => true;
     public override bool SupportsReferenceOnly => true;
+    [AllowNullable("the exact-source grid step; null on the base means the workflow has no exact-source path")]
+    public override int? ExactSourceStep => EditWorkingResolution.NativeStep;
     /// <summary>True for the all-in-one rapid checkpoint (skips the standard 2511 sampling-fix nodes).</summary>
     protected abstract bool Aio { get; }
 
@@ -109,7 +111,16 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         // the positive/negative TextEncodeQwenImageEditPlus encodes with their reference-latent stitch (+ the standard
         // 2511 ModelSamplingAuraFlow/CFGNorm sampling fix unless AIO). Everything below is this editor's own tail.
         double editMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
-        (int sourceWidth, int sourceHeight) = inputs.SourceImageName is { Length: > 0 }
+        bool exactSource = inputs.ExactSourceResolution;
+        if (exactSource && inputs.ImageReferences.Count > 0)
+        {
+            // With references the encode node builds image1's reference latent from its own ~1 MP rescale, so the
+            // conditioning would no longer be the unresampled source.
+            throw new RenderValidationException("'exact_source_resolution' cannot be combined with reference images on this workflow.");
+        }
+
+        // Exact-source: the working canvas is the padded upload the client resolved, not the megapixel budget.
+        (int sourceWidth, int sourceHeight) = inputs.SourceImageName is { Length: > 0 } && !exactSource
             ? EditWorkingResolution.Resolve(inputs.SourceWidth, inputs.SourceHeight,
                 editMp, EditWorkingResolution.NativeStep,
                 Math.Min(req.Resolution?.MaxW ?? 0, req.Resolution?.MaxH ?? 0))
@@ -134,6 +145,12 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
         if (hasCanvasMask && inputs.SourceImageName is null)
         {
             throw new RenderValidationException("A canvas mask requires a primary source image.");
+        }
+
+        if (hasCanvasMask && exactSource)
+        {
+            // The canvas mask reframes and rescales the sampled rectangle; that is resampling by construction.
+            throw new RenderValidationException("'exact_source_resolution' cannot be combined with a canvas mask.");
         }
 
         (int X, int Y, int W, int H)? rect = inputs.SourceImageName is { Length: > 0 }
@@ -200,6 +217,12 @@ public abstract class QwenEditBase : EditWorkflow<QwenEditParams>
             output = ImageScaleFromSize.Out(Nodes.OutputScale);
         }
 
+        if (exactSource)
+        {
+            output = ExactSourceCanvas.Crop(g, Nodes.ExactCrop, output,
+                (inputs.SourceWidth, inputs.SourceHeight), (inputs.TargetWidth, inputs.TargetHeight));
+        }
+
         g[Nodes.Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
@@ -219,6 +242,7 @@ file static class Nodes
     public const string Composite = "84";
     public const string OutputSize = "85";
     public const string OutputScale = "86";
+    public const string ExactCrop = "88";
     public const string Save = "9";
 }
 

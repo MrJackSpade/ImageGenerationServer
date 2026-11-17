@@ -65,6 +65,7 @@ internal static class ComfyNodeTypes
     public const string ImageBlur = "ImageBlur";
     public const string ImageCompositeMasked = "ImageCompositeMasked";
     public const string ImageCompositeMaskedColorCorrected = "ImageCompositeMaskedColorCorrected";
+    public const string ImageCrop = "ImageCrop";
     public const string ImageFromBatch = "ImageFromBatch";
     public const string ImageInvert = "ImageInvert";
     public const string ImagePadForOutpaint = "ImagePadForOutpaint";

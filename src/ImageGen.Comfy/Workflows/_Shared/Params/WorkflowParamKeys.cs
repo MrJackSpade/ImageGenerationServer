@@ -54,6 +54,7 @@ internal static class WorkflowParamKeys
     public const string EditQualityHighMp = "edit_quality_high_mp";
     public const string Engine = "engine";
     public const string Epsilon = "epsilon";
+    public const string ExactSourceResolution = "exact_source_resolution";
     public const string Feather = "feather";
     public const string FinalMethod = "final_method";
     public const string FpFrequencies = "fp_frequencies";

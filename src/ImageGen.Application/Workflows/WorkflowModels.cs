@@ -242,7 +242,10 @@ public sealed record WorkflowDescriptor(
     string ReferenceWorkflow = "",
     // True for a config that is the TARGET of a mask/reference link: suppressed from the picker UI but kept in this
     // payload (the client needs its ExposedParams/Reference/Card for the panel swap) and still enqueue-resolvable.
-    bool HiddenFromPicker = false);
+    bool HiddenFromPicker = false,
+    // This editor accepts the per-request "exact_source_resolution" override: it renders on the source's own pixels
+    // and returns an image of the upload's exact width and height. Any other workflow refuses that override.
+    bool SupportsExactSourceResolution = false);
 
 /// <summary>The per-model prompting guide surfaced by <c>/prompting</c> — how to write a prompt for a chosen model.</summary>
 public sealed record PromptingGuide(

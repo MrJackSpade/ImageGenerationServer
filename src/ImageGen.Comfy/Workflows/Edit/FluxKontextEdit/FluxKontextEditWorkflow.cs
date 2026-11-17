@@ -1,4 +1,5 @@
 using ImageGen.Application.Rendering;
+using ImageGen.Domain.CodeAnalysis;
 
 namespace ImageGen.Comfy.Edit.FluxKontextEdit;
 
@@ -8,6 +9,8 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 {
     public override bool NormalizesSourceResolution => true;
     public override bool SupportsEditQuality => true;
+    [AllowNullable("the exact-source grid step; null on the base means the workflow has no exact-source path")]
+    public override int? ExactSourceStep => EditWorkingResolution.NativeStep;
     public override string Name => "flux1-kontext";
 
     protected override (int Width, int Height) EtaRenderSize(FluxKontextParams p, ResolvedRequirements req,
@@ -24,9 +27,23 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         double budgetMp = inputs.EditMegapixels ?? EditWorkingResolution.NativeMegapixels;
-        g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source),
-            UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
-        g[Nodes.SourceEncode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(Nodes.SourceScale), Vae = vae0 };
+        // The working source: budget-scaled by default; under exact-source it is the upload itself, padded onto the
+        // model grid and never resampled. References keep their own budget scale either way.
+        (int Width, int Height) sourceSize = (inputs.SourceWidth, inputs.SourceHeight);
+        (int Width, int Height) paddedSize = (inputs.TargetWidth, inputs.TargetHeight);
+        Output<Slot.Image> workingSource;
+        if (inputs.ExactSourceResolution)
+        {
+            workingSource = ExactSourceCanvas.Pad(g, Nodes.ExactPad, LoadImage.ImageOut(EditNodes.Source), sourceSize, paddedSize);
+        }
+        else
+        {
+            g[Nodes.SourceScale] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source),
+                UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = EditWorkingResolution.NativeStep };
+            workingSource = ImageScaleToTotalPixels.Out(Nodes.SourceScale);
+        }
+
+        g[Nodes.SourceEncode] = new VAEEncode { Pixels = workingSource, Vae = vae0 };
         // No reference_max declared → this editor takes no refs (capacity 0). Supplying references anyway is REFUSED,
         // not silently ignored.
         int rm = p.ReferenceMax ?? 0;
@@ -39,7 +56,7 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
         Output<Slot.Latent> refLatent;
         if (fn > 0)
         {
-            Output<Slot.Image> stitched = ImageScaleToTotalPixels.Out(Nodes.SourceScale);
+            Output<Slot.Image> stitched = workingSource;
             for (int i = 0; i < fn; i++)
             {
                 string load = $"{40 + i}", stitch = $"{50 + i}", scale = $"{60 + i}";
@@ -75,7 +92,10 @@ public sealed class FluxKontextEditWorkflow : EditWorkflow<FluxKontextParams>
             LatentImage = VAEEncode.Out(Nodes.SourceEncode),
         };
         g[Nodes.Decode] = new VAEDecode { Samples = KSampler.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
+        Output<Slot.Image> output = inputs.ExactSourceResolution
+            ? ExactSourceCanvas.Crop(g, Nodes.ExactCrop, VAEDecode.Out(Nodes.Decode), sourceSize, paddedSize)
+            : VAEDecode.Out(Nodes.Decode);
+        g[Nodes.Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }

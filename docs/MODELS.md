@@ -1,6 +1,6 @@
 # Supported models
 
-**114 models, 165 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
+**123 models, 174 presets.** Generated from `configurations/workflows/` by `tools/gen-models-doc.py` — edit the catalogue, not this file.
 
 A model can appear in more than one section: the same weights that generate a picture often also redraw one or drive an effect.
 
@@ -181,7 +181,16 @@ Applied to an image or a clip you already have. Several need no diffusion model 
 | **Pixel Quantize (batch)** | Pixel-quantizes N still frames together, deriving ONE global fp palette + label frequencies across the whole set (temporally consistent — no frame-to-frame flicker) and emitting the per-frame… |  |
 | **Qwen-Image-Edit** | Generates pixel art directly from a reference image: QIE redraws per the instruction while the projection clamps onto a fixed grid+palette every denoise step, so the model produces manifold-friendly… | [Hugging Face](https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI) |
 | **Stable Diffusion 3.5 Large** | Pixel art authored by Stable Diffusion 3.5 Large under per-step reprojection. | [Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-3.5-large) |
+| **VAE Round-trip (FLUX ae diagnostic)** | Developer diagnostic that reconstructs the source through the bound FLUX ae VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (FLUX.1 diagnostic)** | Developer diagnostic that reconstructs the source through the bound FLUX.1 VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (FLUX.2 diagnostic)** | Developer diagnostic that reconstructs the source through the bound FLUX.2 VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (HunyuanImage 2.1 diagnostic)** | Developer diagnostic that reconstructs the source through the bound HunyuanImage 2.1 VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (Mage-Flow diagnostic)** | Developer diagnostic that reconstructs the source through the bound Mage-Flow VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (MiniMax-H3-Image diagnostic)** | Developer diagnostic that reconstructs the source through the bound MiniMax-H3-Image VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (Pixel-Space diagnostic)** | Developer diagnostic that reconstructs the source through the bound Pixel-Space VAE without diffusion, prompting, sampling, or application-side resizing. |  |
 | **VAE Round-trip (Qwen diagnostic)** | Developer diagnostic that reconstructs the source through the bound Qwen VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (Qwen-Image 2.1 diagnostic)** | Developer diagnostic that reconstructs the source through the bound Qwen-Image 2.1 VAE without diffusion, prompting, sampling, or application-side resizing. |  |
+| **VAE Round-trip (Wan 2.1 diagnostic)** | Developer diagnostic that reconstructs the source through the bound Wan 2.1 VAE without diffusion, prompting, sampling, or application-side resizing. |  |
 | **Wan 2.2 14B Pixel** | Pixel-art image-to-video (locked-palette per-frame quantize). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Wan 2.2 Pixel** | Pixel-art image-to-video (locked-palette per-frame quantize). | [Hugging Face](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged) |
 | **Z-Image** | Pixel art authored by Z-Image under per-step reprojection. | [Hugging Face](https://huggingface.co/Comfy-Org/z_image) |

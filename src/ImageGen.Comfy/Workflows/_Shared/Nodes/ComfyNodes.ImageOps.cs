@@ -44,6 +44,19 @@ public sealed record ImageCompositeMasked : ComfyNode
     public static Output<Slot.Image> Out(string id) => new(id, 0);
 }
 
+/// <summary>Cut a fixed rectangle out of an image without resampling (ComfyUI core <c>ImageCrop</c>). The
+/// exact-source edit path uses it to remove the grid padding it added before sampling.</summary>
+public sealed record ImageCrop : ComfyNode
+{
+    internal override string ClassType => ComfyNodeTypes.ImageCrop;
+    [JsonPropertyName("image")] public required Output<Slot.Image> Image { get; init; }
+    [JsonPropertyName("width")] public required int Width { get; init; }
+    [JsonPropertyName("height")] public required int Height { get; init; }
+    [JsonPropertyName("x")] public required int X { get; init; }
+    [JsonPropertyName("y")] public required int Y { get; init; }
+    public static Output<Slot.Image> Out(string id) => new(id, 0);
+}
+
 /// <summary>Scale an image to a fixed width/height.</summary>
 public sealed record ImageScale : ComfyNode
 {

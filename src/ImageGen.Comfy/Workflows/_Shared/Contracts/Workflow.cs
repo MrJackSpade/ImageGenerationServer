@@ -1,3 +1,4 @@
+using ImageGen.Domain.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization;
 
@@ -40,6 +41,10 @@ public abstract class Workflow<TParams> : IWorkflow
     public virtual ModelResolution? ResolutionEnvelope => null;
     public virtual bool NormalizesSourceResolution => false;
     public virtual bool SupportsEditQuality => false;
+
+    [AllowNullable("null = this workflow cannot render at the exact source resolution; distinct from any real grid step")]
+    public virtual int? ExactSourceStep => null;
+
     public virtual bool SupportsReferenceOnly => false;
     public virtual bool SupportsReferenceAspectWithSource => false;
     public virtual string OutputSizePolicy => Kind == WorkflowKind.Generate

@@ -17,6 +17,9 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
     private const double BudgetMp = 1.0;
     private const int BudgetSteps = 16;
 
+    [AllowNullable("the exact-source grid step; null on the base means the workflow has no exact-source path")]
+    public override int? ExactSourceStep => BudgetSteps;
+
     protected override (double Megapixels, int ResolutionSteps)? EtaBudget(Flux2KleinEditParams p) => (BudgetMp, BudgetSteps);
 
     protected override (int Width, int Height) EtaRenderSize(Flux2KleinEditParams p, ResolvedRequirements req,
@@ -32,9 +35,23 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
 
         g[Nodes.Positive] = new CLIPTextEncode { Text = inputs.Positive, Clip = clip0 };
         double budgetMp = inputs.EditMegapixels ?? BudgetMp;
-        g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
-        g[Nodes.Encode] = new VAEEncode { Pixels = ImageScaleToTotalPixels.Out(Nodes.ScaledSource), Vae = vae0 };
-        g[Nodes.SourceSize] = new GetImageSize { Image = ImageScaleToTotalPixels.Out(Nodes.ScaledSource) };
+        // The working source: budget-scaled by default; under exact-source it is the upload itself, padded onto the
+        // model grid and never resampled. References keep their own budget scale either way.
+        (int Width, int Height) sourceSize = (inputs.SourceWidth, inputs.SourceHeight);
+        (int Width, int Height) paddedSize = (inputs.TargetWidth, inputs.TargetHeight);
+        Output<Slot.Image> workingSource;
+        if (inputs.ExactSourceResolution)
+        {
+            workingSource = ExactSourceCanvas.Pad(g, Nodes.ExactPad, LoadImage.ImageOut(EditNodes.Source), sourceSize, paddedSize);
+        }
+        else
+        {
+            g[Nodes.ScaledSource] = new ImageScaleToTotalPixels { Image = LoadImage.ImageOut(EditNodes.Source), UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Megapixels = budgetMp, ResolutionSteps = BudgetSteps };
+            workingSource = ImageScaleToTotalPixels.Out(Nodes.ScaledSource);
+        }
+
+        g[Nodes.Encode] = new VAEEncode { Pixels = workingSource, Vae = vae0 };
+        g[Nodes.SourceSize] = new GetImageSize { Image = workingSource };
         g[Nodes.Guidance] = new FluxGuidance { Conditioning = CLIPTextEncode.Out(Nodes.Positive), Guidance = p.Guidance };
         g[Nodes.RefLatent] = new ReferenceLatent { Conditioning = FluxGuidance.Out(Nodes.Guidance), Latent = VAEEncode.Out(Nodes.Encode) };
         Output<Slot.Conditioning> cond = ReferenceLatent.Out(Nodes.RefLatent);
@@ -64,7 +81,10 @@ public abstract class Flux2KleinEditBase : EditWorkflow<Flux2KleinEditParams>
         g[Nodes.SamplerSelect] = new KSamplerSelect { SamplerName = ComfyGraph.MapSampler(p.Sampler) };
         g[Nodes.Sampler] = new SamplerCustomAdvanced { Noise = RandomNoise.Out(Nodes.Noise), Guider = BasicGuider.Out(Nodes.Guider), Sampler = KSamplerSelect.Out(Nodes.SamplerSelect), Sigmas = Flux2Scheduler.Out(Nodes.Scheduler), LatentImage = EmptyFlux2LatentImage.Out(Nodes.EmptyLatent) };
         g[Nodes.Decode] = new VAEDecode { Samples = SamplerCustomAdvanced.Out(Nodes.Sampler), Vae = vae0 };
-        g[Nodes.Save] = new SaveImage { Images = VAEDecode.Out(Nodes.Decode), FilenamePrefix = OutputPrefixes.Edit };
+        Output<Slot.Image> output = inputs.ExactSourceResolution
+            ? ExactSourceCanvas.Crop(g, Nodes.ExactCrop, VAEDecode.Out(Nodes.Decode), sourceSize, paddedSize)
+            : VAEDecode.Out(Nodes.Decode);
+        g[Nodes.Save] = new SaveImage { Images = output, FilenamePrefix = OutputPrefixes.Edit };
         return g;
     }
 }
@@ -86,6 +106,8 @@ file static class Nodes
     public const string Sampler = "23";
     public const string Decode = "8";
     public const string Save = "9";
+    public const string ExactPad = "90";
+    public const string ExactCrop = "91";
 }
 
 /// <summary>Flux.2 Klein edit parameters, shared by the 4B and 9B subclasses — the shared loader head knobs

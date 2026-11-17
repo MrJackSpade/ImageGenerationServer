@@ -582,6 +582,11 @@ public sealed class ComfyClient : IComfyClient
         _ = NormalizeAndValidate(wf, cfg, dict,
             new NormalizeContext { Requirements = resolved, AtSubmit = true });   // submit pass (no source image for generate)
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
+        if (common.ExactSourceResolution)
+        {
+            throw new RenderValidationException("'exact_source_resolution' applies to still-image edits only; a generation has no source image.");
+        }
+
         (string? pos, string? neg) = ApplyGenPromptRules(common, prompt, negativePrompt);
         pos = PromptTemplates.Render(common.PromptTemplate, pos, cfg.Id);
         IReadOnlyList<LoraSelection> loraStack = await ValidateLorasAsync(loras, ct);
@@ -667,6 +672,11 @@ public sealed class ComfyClient : IComfyClient
             _ = NormalizeAndValidate(wf, cfg, dict0,
                 new NormalizeContext { Requirements = resolved0, AtSubmit = true });
             SubmissionCommon common0 = ParamsCodec.Deserialize<SubmissionCommon>(dict0);
+            if (common0.ExactSourceResolution)
+            {
+                throw new RenderValidationException("'exact_source_resolution' applies to still-image edits only; this workflow takes a video source.");
+            }
+
             string renderedInstruction0 = PromptTemplates.Render(common0.PromptTemplate, instruction, cfg.Id);
             WorkflowInputs inputs0 = new() { Positive = renderedInstruction0, SourceVideoName = videoName };
             // V2V: the source clip's pixel size isn't known here (LoadVideo decodes it in ComfyUI), so resolution is
@@ -721,7 +731,12 @@ public sealed class ComfyClient : IComfyClient
             new NormalizeContext { SourceWidth = basisW, SourceHeight = basisH, Requirements = resolved, AtSubmit = true });
         SubmissionCommon common = ParamsCodec.Deserialize<SubmissionCommon>(dict);
         double? editMegapixels = EditQuality.Resolve(wf, dict);
-        (int targetW, int targetH) = wf.EtaRenderSize(dict, resolved, basisW, basisH, editMegapixels);
+        // Opt-in exact-source rendering replaces the workflow's normalized working canvas with the source's own
+        // pixels padded to the model grid; a workflow without that path refuses the request here.
+        bool exactSource = common.ExactSourceResolution;
+        (int targetW, int targetH) = exactSource
+            ? ExactSourceCanvas.Resolve(wf, cfg.Id, referenceDim.Width, referenceDim.Height, hasSource, requestedRatio is not null)
+            : wf.EtaRenderSize(dict, resolved, basisW, basisH, editMegapixels);
 
         List<ReferenceInput> refInputs = [];
 
@@ -761,6 +776,7 @@ public sealed class ComfyClient : IComfyClient
         WorkflowInputs inputs = new() { Positive = renderedInstruction, Negative = negativePrompt, SourceImageName = uploadName,
             SourceWidth = sourceDim?.Width ?? 0, SourceHeight = sourceDim?.Height ?? 0,
             TargetWidth = targetW, TargetHeight = targetH, EditMegapixels = editMegapixels,
+            ExactSourceResolution = exactSource,
             References = refInputs, MaskImageName = maskName, EndImageName = lastName };
         // ETA signature: the resolution the workflow ACTUALLY renders at (a budget-scaling editor pins the source to a
         // fixed ~MP size, so recording raw srcW/srcH would credit a large upload work it never does), plus the
@@ -770,11 +786,14 @@ public sealed class ComfyClient : IComfyClient
         // posting. Explicit normalizers accept arbitrary uploads and validate their own aspect-preserving working
         // canvas; generation-only minimum-side rectangles must not reject those source images.
         ModelResolution? env = resolved.Resolution ?? wf.ResolutionEnvelope;
-        ResolutionGuard.EnsureEditWithin(env, etaW, etaH, wf.NormalizesSourceResolution);
+        // An exact-source render samples at the (padded) upload size, so it is a source-sized edit and gets the full
+        // envelope check even on a workflow that otherwise normalizes.
+        ResolutionGuard.EnsureEditWithin(env, etaW, etaH, wf.NormalizesSourceResolution && !exactSource);
         ComfyWorkflowGraph graph = wf.Build(dict, resolved, inputs);
         EtaSignature eta = new(etaW, etaH, EtaInt(wf, common.Steps, WorkflowParamKeys.Steps), EtaInt(wf, common.Length, WorkflowParamKeys.Length));
         return new SubmitResult(await SubmitAsync(graph, ct), eta, renderedInstruction,
-            RenderModelManifestBuilder.Build(dict, resolved), Dimensions(wf, sourceDim?.Width, sourceDim?.Height, etaW, etaH));
+            RenderModelManifestBuilder.Build(dict, resolved),
+            Dimensions(exactSource ? OutputSizePolicies.ExactSource : wf.OutputSizePolicy, sourceDim?.Width, sourceDim?.Height, etaW, etaH));
     }
 
     internal static void EnsureEndFrameAspect(bool supportsEndFrame, ImageDimensions first, ImageDimensions last)
@@ -791,9 +810,12 @@ public sealed class ComfyClient : IComfyClient
         }
     }
 
-    private static RenderDimensions Dimensions(IWorkflow wf, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) => new()
+    private static RenderDimensions Dimensions(IWorkflow wf, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) =>
+        Dimensions(wf.OutputSizePolicy, inputWidth, inputHeight, workingWidth, workingHeight);
+
+    private static RenderDimensions Dimensions(string policy, int? inputWidth, int? inputHeight, int? workingWidth, int? workingHeight) => new()
     {
-        Policy = wf.OutputSizePolicy,
+        Policy = policy,
         Input = inputWidth > 0 && inputHeight > 0 ? new PixelDimensions(inputWidth.Value, inputHeight.Value) : null,
         Working = workingWidth > 0 && workingHeight > 0 ? new PixelDimensions(workingWidth.Value, workingHeight.Value) : null,
     };

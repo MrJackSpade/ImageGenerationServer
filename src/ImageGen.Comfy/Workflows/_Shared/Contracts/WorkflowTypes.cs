@@ -422,6 +422,7 @@ public sealed record SubmissionCommon
     [JsonPropertyName(WorkflowParamKeys.NegativeSupported)] public bool NegativeSupported { get; init; } = true;
     [JsonPropertyName(WorkflowParamKeys.Negative)] public string? Negative { get; init; }
     [JsonPropertyName(WorkflowParamKeys.SnapResolution)] public bool SnapResolution { get; init; }
+    [JsonPropertyName(WorkflowParamKeys.ExactSourceResolution)] public bool ExactSourceResolution { get; init; }
     [JsonPropertyName(WorkflowParamKeys.ReferenceAspect)] public string ReferenceAspect { get; init; } = ReferenceAspectNames.Reference;
 
     /// <summary>The ETA render size: the aspect map's <paramref name="sub"/> entry, else the flat width/height (0,0
@@ -453,6 +454,10 @@ public sealed class WorkflowInputs
     /// <summary>The selected per-configuration edit-quality working budget, in megapixels.</summary>
     [AllowNullable("null = this workflow does not support the edit-quality MP selector")]
     public double? EditMegapixels { get; init; }
+    /// <summary>True when the request opted in to <c>exact_source_resolution</c>: the graph renders on the source's
+    /// own pixels (padded to the workflow's grid, cropped back) instead of its normalized working canvas, and
+    /// <see cref="TargetWidth"/>/<see cref="TargetHeight"/> carry that padded canvas.</summary>
+    public bool ExactSourceResolution { get; init; }
     /// <summary>The uploaded reference inputs, in order, EACH carrying its media kind (image/audio/video) so a workflow
     /// routes it to the correct graph input. Most editors take only images — <see cref="ImageReferences"/> is the
     /// convenience for them; a multi-modal workflow (e.g. one taking a driving audio/video reference) reads this and

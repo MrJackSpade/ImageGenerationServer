@@ -1,0 +1,21 @@
+{
+  "id": "vae-roundtrip-minimax-h3-image",
+  "workflow": "vae-roundtrip",
+  "friendly_name": "VAE Round-trip (MiniMax-H3-Image diagnostic)",
+  "effect_type": "Diagnostic",
+  "default": false,
+  "requirements": {
+    "vae": "minimax-h3-image-vae"
+  },
+  "params": {},
+  "card": {
+    "architecture": "Diagnostic control: LoadImage -> MiniMax-H3-Image VAELoader -> VAEEncode -> VAEDecode -> SaveImage",
+    "summary": "Developer diagnostic that reconstructs the source through the bound MiniMax-H3-Image VAE without diffusion, prompting, sampling, or application-side resizing.",
+    "use_cases": [
+      "isolate VAE reconstruction loss from diffusion and checkpoint quantization",
+      "inspect color, texture, detail, and dimension drift across an encode/decode round trip"
+    ],
+    "nsfw_capable": "n/a (no generation)",
+    "pick_when": "Diagnosing whether a source changes before any diffusion sampling occurs."
+  }
+}

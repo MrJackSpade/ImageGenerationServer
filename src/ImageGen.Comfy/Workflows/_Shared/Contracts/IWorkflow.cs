@@ -1,3 +1,5 @@
+using ImageGen.Domain.CodeAnalysis;
+
 namespace ImageGen.Comfy;
 
 /// <summary>
@@ -97,6 +99,12 @@ public interface IWorkflow
 
     /// <summary>Whether this still-image editor consumes the shared Low/Medium/High MP quality contract.</summary>
     bool SupportsEditQuality => false;
+
+    /// <summary>The pixel grid this still-image editor's exact-source path pads the source up to before sampling, or
+    /// null when the workflow has no such path. A request carrying <c>exact_source_resolution</c> is refused for a
+    /// null value; see <see cref="ExactSourceCanvas"/>.</summary>
+    [AllowNullable("null = this workflow cannot render at the exact source resolution; distinct from any real grid step")]
+    int? ExactSourceStep => null;
 
     /// <summary>True when attached image references are sufficient input without a user-supplied primary image. The
     /// graph synthesizes image1 as a blank canvas and fully noises its latent while preserving attachment slot roles.</summary>

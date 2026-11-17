@@ -15,4 +15,6 @@ internal static class Nodes
     public const string Sampler = "3";
     public const string Decode = "8";
     public const string Save = "9";
+    public const string ExactPad = "90";
+    public const string ExactCrop = "91";
 }

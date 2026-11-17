@@ -53,7 +53,14 @@ internal static class QwenReferenceHead
         // their exact normal image2/image3 Qwen-VL + reference-latent roles. The user never has to upload whitespace.
         bool hasRealSource = inputs.SourceImageName is { Length: > 0 };
         Output<Slot.Image> kontext;
-        if (inputs.SourceImageName is { Length: > 0 })
+        if (hasRealSource && inputs.ExactSourceResolution)
+        {
+            // Exact-source: image1 is the upload itself padded onto the model grid (the caller passes that padded
+            // canvas as sourceWidth/sourceHeight), never resampled.
+            kontext = ExactSourceCanvas.Pad(g, Nodes.ExactPad, LoadImage.ImageOut(EditNodes.Source),
+                (inputs.SourceWidth, inputs.SourceHeight), (sourceWidth, sourceHeight));
+        }
+        else if (inputs.SourceImageName is { Length: > 0 })
         {
             g[Nodes.KontextScale] = new ImageScale { Image = LoadImage.ImageOut(EditNodes.Source),
                 UpscaleMethod = ComfyWidgets.Upscale.Lanczos, Width = sourceWidth, Height = sourceHeight,
@@ -166,5 +173,6 @@ internal static class QwenReferenceHead
         public const string ZeroNegative = "26";
         public const string ModelSampling = "2";
         public const string CfgNorm = "7";
+        public const string ExactPad = "87";
     }
 }

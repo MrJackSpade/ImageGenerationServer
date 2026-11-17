@@ -1,0 +1,21 @@
+{
+  "id": "vae-roundtrip-qwen-image-2-1",
+  "workflow": "vae-roundtrip",
+  "friendly_name": "VAE Round-trip (Qwen-Image 2.1 diagnostic)",
+  "effect_type": "Diagnostic",
+  "default": false,
+  "requirements": {
+    "vae": "qwen-image-2-1-vae"
+  },
+  "params": {},
+  "card": {
+    "architecture": "Diagnostic control: LoadImage -> Qwen-Image 2.1 VAELoader -> VAEEncode -> VAEDecode -> SaveImage",
+    "summary": "Developer diagnostic that reconstructs the source through the bound Qwen-Image 2.1 VAE without diffusion, prompting, sampling, or application-side resizing.",
+    "use_cases": [
+      "isolate VAE reconstruction loss from diffusion and checkpoint quantization",
+      "inspect color, texture, detail, and dimension drift across an encode/decode round trip"
+    ],
+    "nsfw_capable": "n/a (no generation)",
+    "pick_when": "Diagnosing whether a source changes before any diffusion sampling occurs."
+  }
+}

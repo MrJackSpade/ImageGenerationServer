@@ -539,6 +539,43 @@ there is no GPU-capacity selection. Each row carries the configuration's UI-expo
 parameters (joined to the workflow schema for type/range/label); the SPA renders them as controls and sends
 their values back as `overrides` on generate/edit.
 
+**Edit output size: normalized by default, exact on request.** A still-image editor normally renders on its own
+working canvas: the source is resampled to the configuration's megapixel budget on the model's pixel grid
+(`NormalizesSourceResolution`, the Low/Medium/High `edit_quality` contract), so the output is neither the upload's
+size nor pixel-aligned with it. A caller that needs alignment sends the per-request override
+`"exact_source_resolution": true`. The job then renders on the source's own pixels and the returned image has
+exactly the upload's width and height, with pixel (x, y) of the output corresponding to pixel (x, y) of the source.
+Nothing on that path resamples the source or the result:
+
+- The model still needs its canvas on a grid, so `ExactSourceCanvas` pads the source on the **right and bottom**
+  up to the next multiple of the workflow's `ExactSourceStep` (`ImagePadForOutpaint`, neutral grey, no feathering)
+  and crops the decoded image back to the source size from the top-left corner (`ImageCrop`). An on-grid source
+  gets neither node. Without the pad, ComfyUI's `VAEEncode` centre-crops an off-grid image.
+- It is opt-in per request and absent from every configuration, so existing callers are unchanged.
+- A workflow declares support by overriding `ExactSourceStep`; `GET /forge/workflows` reports it as
+  `supportsExactSourceResolution`. Supported: the Qwen-Image-Edit family (`qwen-image-edit`, FireRed, LongCat,
+  `qwen-rapid-aio`; grid 16), `qwen-image-2-1-edit` (grid 32), FLUX.2 Klein edit (16), FLUX.1 Kontext (16), and
+  the VAE round trip (32). Every other workflow **refuses** the override with an error naming the configuration;
+  it is never silently ignored. So do a generation, a video source, a request with no primary source, a fixed
+  reference aspect, a Qwen canvas mask, and reference images on the two Qwen editors (their encode nodes resample
+  references, and Qwen-Image 2.1 applies one size rule to every image).
+- The padded size is a source-sized render, so it gets the full resolution-envelope check a normalizing workflow
+  otherwise skips, and the job's recorded output-size policy is `exact-source`.
+
+**VAE round trips.** `vae-roundtrip` is a sampler-free `LoadImage -> VAELoader -> VAEEncode -> VAEDecode ->
+SaveImage` graph, and each `vae-roundtrip-*` configuration binds it to one VAE requirement. There is one per
+separately loaded VAE that a still-image edit configuration uses (pinned by `ExactSourceResolutionTests`), so a
+caller can reproduce exactly the reconstruction error an edit model's VAE
+adds: `vae-roundtrip-qwen` (`qwen-image-vae`), `-qwen-image-2-1`, `-flux1-ae` (`ae`), `-flux1` (`flux1-vae`),
+`-flux2`, `-mage-flow`, `-minimax-h3-image`, `-wan-2-1`, `-hunyuan-image-2-1`, `-pixel-space`. Configurations
+that share a VAE file share a round trip. A VAE baked into a checkpoint (`qwen-rapid-aio`, the SD-family
+checkpoints) or loaded by a third-party node (Step1X, DreamOmni2) has no round trip, because this graph loads
+only what `VAELoader` can. To find the round trip for an edit configuration, compare slots:
+`GET /forge/catalog/config/{id}/slots` returns that configuration's file-backed slots as a JSON array of
+`{ id, label, kind, sharedFile, pinnedFile, effectiveFile, source, isAuto, candidates, available, sharedWith }`;
+the VAE slot is the element whose `kind` is `"Vae"` and `effectiveFile` is the file it renders with. Like every
+`/forge` route it is open to any authenticated caller, cookie or per-user API key.
+
 ---
 
 ## 8. Cross-device & multi-instance: durable vs process-local

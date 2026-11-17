@@ -716,6 +716,7 @@ public sealed partial class WorkflowCatalogService(
             },
             TakesPrompt: wf.TakesPrompt,
             SupportsLastFrame: wf.SupportsEndFrame,
+            SupportsExactSourceResolution: wf.ExactSourceStep is not null,
             HasAudio: HasAudio(cfg, wf),
             FriendlyName: cfg.FriendlyName ?? c.FriendlyName,
             ShortName: cfg.ShortName,
